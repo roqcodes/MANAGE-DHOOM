@@ -15,7 +15,7 @@ export default function OfflinePage() {
       </p>
       <Link
         href="/admin"
-        className="rounded-xl bg-[#2563EB] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#1d4ed8]"
+        className="rounded-xl bg-[#EB205F] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#D01A54]"
       >
         Try admin home
       </Link>

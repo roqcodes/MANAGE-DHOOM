@@ -53,7 +53,7 @@ export function AdminDeliveryView() {
                 key={rider.id}
                 className="flex flex-wrap items-center gap-3 px-4 py-4 transition-colors hover:bg-slate-50/70 sm:gap-4 sm:px-6"
               >
-                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#2563EB]/10 text-[15px] font-extrabold text-[#2563EB]">
+                <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EB205F]/10 text-[15px] font-extrabold text-[#EB205F]">
                   {rider.name?.[0]?.toUpperCase() ?? "R"}
                   <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-400" />
                 </div>

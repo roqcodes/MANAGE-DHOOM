@@ -2,8 +2,9 @@ import Link from "next/link";
 
 import { AUTH_ROUTES } from "@/modules/auth/services/auth-route.service";
 import { BuyHubLogo } from "@/modules/brand/components/buyhub-logo";
+import { BRAND_ACCENT } from "@/modules/brand/lib/brand";
 
-const BRAND = "#2563EB";
+const BRAND = BRAND_ACCENT;
 
 export function BuyHubManageHome() {
   return (

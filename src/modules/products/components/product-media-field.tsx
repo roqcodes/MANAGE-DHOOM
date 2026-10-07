@@ -234,7 +234,7 @@ function UrlRow({
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       <input
-        className="h-8 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 text-[12px] text-slate-900 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 disabled:opacity-50"
+        className="h-8 w-full min-w-0 rounded-lg border border-slate-200 bg-white px-2.5 text-[12px] text-slate-900 outline-none transition focus:border-[#EB205F] focus:ring-2 focus:ring-[#EB205F]/10 disabled:opacity-50"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {

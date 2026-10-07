@@ -246,7 +246,7 @@ export function VariantImagesField({
   const urlRow = (
     <div className={`flex shrink-0 items-center ${compact ? "gap-1.5" : "gap-2"}`}>
       <input
-        className={`w-full rounded-lg border border-slate-200 bg-white px-2.5 text-slate-900 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 disabled:opacity-50 ${
+        className={`w-full rounded-lg border border-slate-200 bg-white px-2.5 text-slate-900 outline-none transition focus:border-[#EB205F] focus:ring-2 focus:ring-[#EB205F]/10 disabled:opacity-50 ${
           compact ? "h-8 text-[12px]" : "h-10 rounded-xl px-3 text-[13px]"
         }`}
         value={urlDraft}

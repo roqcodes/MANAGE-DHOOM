@@ -46,13 +46,13 @@ export function VendorSidebar({ profile }: { profile: UserProfile }) {
               className={[
                 "flex items-center gap-3.5 rounded-xl px-4 py-3 text-[15px] font-semibold transition-colors",
                 active
-                  ? "bg-[#2563EB]/5 text-[#2563EB]"
+                  ? "bg-[#EB205F]/5 text-[#EB205F]"
                   : "text-slate-500 hover:bg-slate-50 hover:text-slate-700",
               ].join(" ")}
             >
               <Icon
                 size={20}
-                className={active ? "text-[#2563EB]" : "text-slate-400"}
+                className={active ? "text-[#EB205F]" : "text-slate-400"}
               />
               {item.name}
             </Link>

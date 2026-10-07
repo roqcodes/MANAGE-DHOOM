@@ -25,7 +25,7 @@ export function ForgotPasswordScreen() {
   return (
     <main className="relative isolate flex min-h-full overflow-hidden bg-white">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -right-24 -top-52 h-[500px] w-[500px] rounded-full bg-[#2563EB]/15" />
+        <div className="absolute -right-24 -top-52 h-[500px] w-[500px] rounded-full bg-[#EB205F]/15" />
         <div className="absolute -bottom-40 -left-24 h-[500px] w-[500px] rounded-full bg-[#4F46E5]/8" />
       </div>
 
@@ -34,7 +34,7 @@ export function ForgotPasswordScreen() {
           <div className="mb-8 flex items-center gap-3">
             <BuyHubLogo size={44} priority />
             <p className="text-xl font-black tracking-[-0.06em] text-slate-900">
-              Buy<span className="text-[#2563EB]">Hub</span>
+              Buy<span className="text-[#EB205F]">Hub</span>
             </p>
           </div>
 
@@ -52,7 +52,7 @@ export function ForgotPasswordScreen() {
               <input
                 autoCapitalize="none"
                 autoComplete="email"
-                className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
                 name="email"
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="manager@buyhub.com"
@@ -74,7 +74,7 @@ export function ForgotPasswordScreen() {
             ) : null}
 
             <button
-              className="flex min-h-[58px] w-full items-center justify-center rounded-[20px] bg-[#2563EB] px-5 text-base font-extrabold tracking-[0.03em] text-white transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-65"
+              className="flex min-h-[58px] w-full items-center justify-center rounded-[20px] bg-[#EB205F] px-5 text-base font-extrabold tracking-[0.03em] text-white transition hover:bg-[#D01A54] disabled:cursor-not-allowed disabled:opacity-65"
               disabled={isPending}
               type="submit"
             >
@@ -84,7 +84,7 @@ export function ForgotPasswordScreen() {
 
           <div className="mt-7 text-center">
             <Link
-              className="text-sm font-bold text-slate-900 transition hover:text-[#2563EB]"
+              className="text-sm font-bold text-slate-900 transition hover:text-[#EB205F]"
               href={AUTH_ROUTES.signIn}
             >
               Back to sign in

@@ -192,7 +192,7 @@ export default function AdminFinancePage() {
                   </p>
                 </div>
                 <div className="rounded-full bg-blue-100 p-3">
-                  <ClipboardList className="h-6 w-6 text-blue-600" />
+                  <ClipboardList className="h-6 w-6 text-muted-foreground" />
                 </div>
               </div>
             </div>

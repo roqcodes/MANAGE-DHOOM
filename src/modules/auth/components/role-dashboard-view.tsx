@@ -18,7 +18,7 @@ export function RoleDashboardView({
       <div className="mx-auto flex max-w-5xl flex-col gap-6">
         <div className="flex flex-col gap-4 rounded-[32px] border border-slate-200 bg-white p-8 shadow-[0_10px_20px_rgba(26,26,46,0.05)] lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
-            <div className="inline-flex rounded-full bg-[#2563EB]/10 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.14em] text-[#2563EB]">
+            <div className="inline-flex rounded-full bg-[#EB205F]/10 px-3 py-1.5 text-xs font-extrabold uppercase tracking-[0.14em] text-[#EB205F]">
               {roleLabel}
             </div>
             <div className="space-y-2">

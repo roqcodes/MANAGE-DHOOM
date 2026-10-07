@@ -107,7 +107,7 @@ export function AdminQuickCreateMenu() {
     const Icon = entry.icon;
     return (
       <span
-        className="flex size-4 shrink-0 items-center justify-center text-slate-400 transition-colors duration-150 group-hover/entry:text-blue-600"
+        className="flex size-4 shrink-0 items-center justify-center text-slate-400 transition-colors duration-150 group-hover/entry:text-primary"
         aria-hidden
       >
         <Icon className="size-3.5 stroke-[1.75]" />
@@ -195,9 +195,9 @@ export function AdminQuickCreateMenu() {
           type="button"
           onClick={handleToggle}
           className={cn(
-            "flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 text-[11px] font-bold uppercase tracking-[0.12em] text-white shadow-sm shadow-blue-600/25 transition-all duration-200 ease-out",
-            "hover:bg-blue-700 hover:shadow-md hover:shadow-blue-600/30 active:scale-[0.98]",
-            open && "bg-blue-700 ring-2 ring-blue-600/30 shadow-md",
+            "flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[11px] font-bold uppercase tracking-[0.12em] text-primary-foreground shadow-sm shadow-primary/20 transition-all duration-200 ease-out",
+            "hover:bg-primary/90 hover:shadow-md hover:shadow-primary/25 active:scale-[0.98]",
+            open && "bg-primary/90 ring-2 ring-primary/30 shadow-md",
             "motion-reduce:transition-none motion-reduce:active:scale-100",
           )}
           aria-label="Quick create"

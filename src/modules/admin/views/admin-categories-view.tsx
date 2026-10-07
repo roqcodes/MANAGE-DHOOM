@@ -51,7 +51,7 @@ type ModalState =
   | null;
 
 const inputCls =
-  "h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] text-slate-900 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10";
+  "h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] text-slate-900 outline-none transition focus:border-[#EB205F] focus:ring-2 focus:ring-[#EB205F]/10";
 
 const selectCls = `${inputCls} cursor-pointer`;
 
@@ -203,7 +203,7 @@ function CategoryFormModal({
             Description
           </span>
           <textarea
-            className="min-h-[52px] w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10"
+            className="min-h-[52px] w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#EB205F] focus:ring-2 focus:ring-[#EB205F]/10"
             name="description"
             defaultValue={category?.description ?? ""}
             rows={2}

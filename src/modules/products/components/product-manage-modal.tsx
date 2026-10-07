@@ -61,7 +61,7 @@ import { currencyLabel, formatInr } from "@/lib/format-currency";
 import { useCurrencySettings } from "@/modules/settings/providers/currency-settings-provider";
 import { isDefaultSkuName } from "@/modules/products/lib/product-sku-catalog";
 
-const BRAND = "#2563EB";
+const BRAND = "#EB205F";
 
 // Removed StepId
 
@@ -111,12 +111,12 @@ const NEW_VARIANT_FORM_ID = "new-variant-form";
 
 /** Shared height for the two detail-step panels. */
 const compactInputCls =
-  "h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] text-slate-900 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 disabled:opacity-50";
+  "h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] text-slate-900 outline-none transition focus:border-[#EB205F] focus:ring-2 focus:ring-[#EB205F]/10 disabled:opacity-50";
 
 const compactSelectCls = `${compactInputCls} cursor-pointer`;
 
 const compactTextareaCls =
-  "min-h-[52px] w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10 disabled:opacity-50";
+  "min-h-[52px] w-full resize-none rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#EB205F] focus:ring-2 focus:ring-[#EB205F]/10 disabled:opacity-50";
 
 function CompactField({
   label,
@@ -578,7 +578,7 @@ function VariantListItem({
       onClick={onClick}
       className={`flex w-full items-center gap-2.5 border-b border-slate-100 px-3 py-2.5 text-left transition last:border-b-0 ${
         selected
-          ? "border-l-2 border-l-[#2563EB] bg-[#2563EB]/[0.05]"
+          ? "border-l-2 border-l-[#EB205F] bg-[#EB205F]/[0.05]"
           : "border-l-2 border-l-transparent hover:bg-slate-50"
       }`}
     >
@@ -747,7 +747,7 @@ function CreateVariantsStep({
               onClick={() => setSelectedId(null)}
               className={`flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold transition ${
                 selectedId === null
-                  ? "border-[#2563EB] bg-[#2563EB]/10 text-[#2563EB]"
+                  ? "border-[#EB205F] bg-[#EB205F]/10 text-[#EB205F]"
                   : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
               }`}
             >
@@ -820,10 +820,10 @@ function VariantSetupSelection({ onSelect }: { onSelect: (layout: "none" | "flat
           <button
             type="button"
             onClick={() => onSelect("flat")}
-            className="flex flex-col items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-[#2563EB] hover:ring-1 hover:ring-[#2563EB] sm:gap-3 sm:rounded-2xl sm:p-4"
+            className="flex flex-col items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-[#EB205F] hover:ring-1 hover:ring-[#EB205F] sm:gap-3 sm:rounded-2xl sm:p-4"
           >
             <div className="flex size-10 items-center justify-center rounded-lg bg-blue-50">
-              <Layers className="size-5 text-[#2563EB]" />
+              <Layers className="size-5 text-[#EB205F]" />
             </div>
             <div>
               <span className="block font-bold text-slate-900 mb-1">Standard Variants</span>
@@ -835,10 +835,10 @@ function VariantSetupSelection({ onSelect }: { onSelect: (layout: "none" | "flat
           <button
             type="button"
             onClick={() => onSelect("grouped")}
-            className="flex flex-col items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-[#2563EB] hover:ring-1 hover:ring-[#2563EB] sm:gap-3 sm:rounded-2xl sm:p-4"
+            className="flex flex-col items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-[#EB205F] hover:ring-1 hover:ring-[#EB205F] sm:gap-3 sm:rounded-2xl sm:p-4"
           >
             <div className="flex size-10 items-center justify-center rounded-lg bg-indigo-50">
-              <Layers className="size-5 text-indigo-600" />
+              <Layers className="size-5 text-slate-600" />
             </div>
             <div>
               <span className="block font-bold text-slate-900 mb-1">Variant Groups</span>
@@ -1041,7 +1041,7 @@ function NewVariantPanel({
         <button
           type="submit"
           disabled={isPending || imageUploading}
-          className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-[#2563EB] px-3 text-xs font-bold text-white transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-8 shrink-0 items-center justify-center rounded-lg bg-[#EB205F] px-3 text-xs font-bold text-white transition hover:bg-[#D01A54] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {imageUploading ? "Uploading…" : isPending ? "Adding…" : "Add SKU"}
         </button>
@@ -1164,7 +1164,7 @@ function EditVariantsStep({
               onClick={() => setSelectedId(null)}
               className={`flex w-full items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold transition ${
                 selectedId === null
-                  ? "border-[#2563EB] bg-[#2563EB]/10 text-[#2563EB]"
+                  ? "border-[#EB205F] bg-[#EB205F]/10 text-[#EB205F]"
                   : "border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50"
               }`}
             >
@@ -1475,7 +1475,7 @@ function DetailsStepForm({
                           name="item-type"
                           checked={draft.itemType === type}
                           onChange={() => onDraftChange({ ...draft, itemType: type })}
-                          className="accent-[#2563EB]"
+                          className="accent-[#EB205F]"
                         />
                         {type === "goods" ? "Physical goods" : "Service"}
                       </label>
@@ -1975,7 +1975,7 @@ export function ProductManageModal({
           onClick={() => setActiveTab("details")}
           className={`px-2.5 py-2 text-xs font-semibold border-b-[3px] transition-colors -mb-px sm:px-3 sm:py-2.5 sm:text-sm ${
             activeTab === "details"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#EB205F] text-[#EB205F]"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
@@ -1986,7 +1986,7 @@ export function ProductManageModal({
           onClick={() => setActiveTab("variants")}
           className={`px-2.5 py-2 text-xs font-semibold border-b-[3px] transition-colors -mb-px sm:px-3 sm:py-2.5 sm:text-sm ${
             activeTab === "variants"
-              ? "border-[#2563EB] text-[#2563EB]"
+              ? "border-[#EB205F] text-[#EB205F]"
               : "border-transparent text-slate-500 hover:text-slate-800"
           }`}
         >
@@ -2048,7 +2048,7 @@ export function ProductManageModal({
                       <button
                         type="button"
                         onClick={() => handleCreateVariantLayoutSelect(createVariantLayout === "grouped" ? "flat" : "grouped")}
-                        className="text-xs font-semibold text-[#2563EB] hover:text-[#1D4ED8] transition-colors"
+                        className="text-xs font-semibold text-[#EB205F] hover:text-[#D01A54] transition-colors"
                       >
                         Switch to {createVariantLayout === "grouped" ? "Standard Variants" : "Variant Groups"}
                       </button>

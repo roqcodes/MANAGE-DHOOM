@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 import { BRAND_SHORT_NAME, MANAGE_APP_NAME } from "@/modules/brand/lib/brand";
 
 const APP_NAME = MANAGE_APP_NAME;
-const THEME_COLOR = "#2563EB";
+const THEME_COLOR = "#EB205F";
 const BACKGROUND_COLOR = "#f8fafc";
 
 export default function manifest(): MetadataRoute.Manifest {

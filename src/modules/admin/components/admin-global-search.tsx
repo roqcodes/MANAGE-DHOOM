@@ -145,13 +145,13 @@ export function AdminSearchTrigger({ className }: { className?: string }) {
       className={cn(
         "group/search relative flex h-10 w-full items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white/90 px-3.5 text-left text-sm shadow-sm shadow-slate-900/[0.04] outline-none",
         "transition-all duration-300 ease-out",
-        "hover:-translate-y-px hover:border-[#2563EB]/30 hover:bg-white hover:shadow-md hover:shadow-[#2563EB]/[0.07]",
-        "focus-visible:border-[#2563EB]/40 focus-visible:ring-2 focus-visible:ring-[#2563EB]/15",
+        "hover:-translate-y-px hover:border-[#EB205F]/30 hover:bg-white hover:shadow-md hover:shadow-[#EB205F]/[0.07]",
+        "focus-visible:border-[#EB205F]/40 focus-visible:ring-2 focus-visible:ring-[#EB205F]/15",
         "active:translate-y-0 active:shadow-sm",
         className,
       )}
     >
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all duration-300 group-hover/search:bg-[#2563EB]/10 group-hover/search:text-[#2563EB]">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all duration-300 group-hover/search:bg-[#EB205F]/10 group-hover/search:text-[#EB205F]">
         <Search className="size-4" aria-hidden />
       </span>
       <AdminSearchHintRotator />

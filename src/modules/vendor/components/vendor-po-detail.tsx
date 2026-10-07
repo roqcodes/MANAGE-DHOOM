@@ -66,7 +66,7 @@ export function VendorPurchaseOrderDetailView({
     <div className="space-y-6">
       <Link
         href="/vendor/purchase-orders"
-        className="inline-flex items-center gap-2 text-[13px] font-bold text-slate-500 hover:text-[#2563EB]"
+        className="inline-flex items-center gap-2 text-[13px] font-bold text-slate-500 hover:text-[#EB205F]"
       >
         <ArrowLeft size={16} />
         Back to purchase orders
@@ -106,7 +106,7 @@ export function VendorPurchaseOrderDetailView({
             type="button"
             disabled={isPending}
             onClick={onAccept}
-            className="rounded-xl bg-[#2563EB] px-5 py-2.5 text-[13px] font-extrabold text-white transition hover:bg-[#1D4ED8] disabled:opacity-50"
+            className="rounded-xl bg-[#EB205F] px-5 py-2.5 text-[13px] font-extrabold text-white transition hover:bg-[#D01A54] disabled:opacity-50"
           >
             {isPending ? "Working…" : "Accept PO"}
           </button>

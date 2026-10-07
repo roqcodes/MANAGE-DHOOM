@@ -30,7 +30,7 @@ export function VendorPoActivityFeed({
         </div>
         <Link
           href="/vendor/purchase-orders"
-          className="inline-flex items-center gap-1 text-[13px] font-extrabold text-[#2563EB] hover:underline"
+          className="inline-flex items-center gap-1 text-[13px] font-extrabold text-[#EB205F] hover:underline"
         >
           View all
           <ArrowRight size={14} />

@@ -21,7 +21,7 @@ export function OrdersFilter() {
           className={[
             "rounded-full px-4 py-2 text-[13px] font-bold transition-colors",
             active === status
-              ? "bg-[#2563EB] text-white shadow-sm"
+              ? "bg-[#EB205F] text-white shadow-sm"
               : "bg-white text-slate-500 hover:bg-slate-100",
           ].join(" ")}
         >

@@ -50,7 +50,7 @@ export function emptyGroupDraft(defaults?: GroupSkuDefaults): GroupDraft {
 
 
 const compactInputCls =
-  "h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[12px] text-slate-900 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10";
+  "h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-[12px] text-slate-900 outline-none transition focus:border-[#EB205F] focus:ring-2 focus:ring-[#EB205F]/10";
 
 export function isGroupDraftsValid(
   groups: GroupDraft[],
@@ -216,7 +216,7 @@ export function GroupVariantsStep({
                 onClick={() => setSelectedId(g.localId)}
                 className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold transition ${
                   selectedId === g.localId
-                    ? "bg-[#2563EB]/8 text-[#2563EB]"
+                    ? "bg-[#EB205F]/8 text-[#EB205F]"
                     : "text-slate-700 hover:bg-slate-50"
                 }`}
               >
@@ -230,7 +230,7 @@ export function GroupVariantsStep({
           <button
             type="button"
             onClick={addGroup}
-            className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 py-2 text-[11px] font-bold text-slate-500 transition hover:border-[#2563EB]/40 hover:text-[#2563EB]"
+            className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-slate-200 py-2 text-[11px] font-bold text-slate-500 transition hover:border-[#EB205F]/40 hover:text-[#EB205F]"
           >
             <Plus className="size-3" />
             Add group

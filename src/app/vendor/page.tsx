@@ -100,10 +100,10 @@ export default function VendorHomePage() {
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-2">
         <Link
           href="/vendor/products"
-          className="group flex flex-col rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_4px_16px_rgba(26,26,46,0.04)] transition hover:border-[#2563EB]/20"
+          className="group flex flex-col rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_4px_16px_rgba(26,26,46,0.04)] transition hover:border-[#EB205F]/20"
         >
           <Package
-            className="mb-3 text-slate-300 transition group-hover:text-[#2563EB]"
+            className="mb-3 text-slate-300 transition group-hover:text-[#EB205F]"
             size={28}
           />
           <h2 className="text-lg font-extrabold text-slate-900">Supply</h2>
@@ -114,10 +114,10 @@ export default function VendorHomePage() {
 
         <Link
           href="/vendor/purchase-orders"
-          className="group flex flex-col rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_4px_16px_rgba(26,26,46,0.04)] transition hover:border-[#2563EB]/20"
+          className="group flex flex-col rounded-[24px] border border-slate-100 bg-white p-4 shadow-[0_4px_16px_rgba(26,26,46,0.04)] transition hover:border-[#EB205F]/20"
         >
           <ClipboardList
-            className="mb-3 text-slate-300 transition group-hover:text-[#2563EB]"
+            className="mb-3 text-slate-300 transition group-hover:text-[#EB205F]"
             size={28}
           />
           <h2 className="text-lg font-extrabold text-slate-900">

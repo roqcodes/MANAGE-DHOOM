@@ -17,8 +17,8 @@ export function VendorStatsRow({ stats }: { stats: VendorDashboardStats }) {
       value: stats.acceptedPo,
       hint: "Mark delivered when sent",
       icon: Truck,
-      tone: "text-blue-600",
-      bg: "bg-blue-50",
+      tone: "text-violet-600",
+      bg: "bg-violet-50",
     },
     {
       label: "Completed",

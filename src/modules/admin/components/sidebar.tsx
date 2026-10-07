@@ -113,22 +113,22 @@ function NavLink({
             : "gap-2.5 px-3 py-2",
         active
           ? nested
-            ? "bg-[#2563EB]/8 text-[#2563EB]"
-            : "bg-gradient-to-r from-[#2563EB]/10 to-transparent text-[#2563EB] shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset]"
+            ? "bg-[#EB205F]/8 text-[#EB205F]"
+            : "bg-gradient-to-r from-[#EB205F]/10 to-transparent text-[#EB205F] shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset]"
           : nested
             ? "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
             : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
       )}
     >
       {!nested && active ? (
-        <div className="absolute left-0 h-5 w-1 rounded-r-full bg-[#2563EB] shadow-[0_0_8px_rgba(37,99,235,0.4)]" />
+        <div className="absolute left-0 h-5 w-1 rounded-r-full bg-[#EB205F] shadow-[0_0_8px_rgba(235, 32, 95, 0.35)]" />
       ) : null}
       {!nested || collapsed ? (
         <Icon
           size={nested ? 16 : 18}
           className={cn(
             "shrink-0 transition-transform duration-200 group-hover:scale-110",
-            active ? "text-[#2563EB]" : "text-slate-400 group-hover:text-slate-600",
+            active ? "text-[#EB205F]" : "text-slate-400 group-hover:text-slate-600",
           )}
         />
       ) : null}
@@ -147,7 +147,7 @@ function NavLink({
                 "shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide",
                 item.badge === "Coming soon"
                   ? "bg-slate-100 text-slate-500"
-                  : "bg-[#2563EB]/10 text-[#2563EB]",
+                  : "bg-[#EB205F]/10 text-[#EB205F]",
               )}
             >
               {item.badge}
@@ -245,18 +245,18 @@ function NavSectionGroup({
           className={cn(
             "relative flex w-full items-center justify-center rounded-xl px-0 py-2 text-[13px] font-semibold transition-all duration-200",
             activeChild
-              ? "bg-gradient-to-r from-[#2563EB]/10 to-transparent text-[#2563EB]"
+              ? "bg-gradient-to-r from-[#EB205F]/10 to-transparent text-[#EB205F]"
               : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
           )}
         >
           {activeChild ? (
-            <div className="absolute left-0 h-5 w-1 rounded-r-full bg-[#2563EB] shadow-[0_0_8px_rgba(37,99,235,0.4)]" />
+            <div className="absolute left-0 h-5 w-1 rounded-r-full bg-[#EB205F] shadow-[0_0_8px_rgba(235, 32, 95, 0.35)]" />
           ) : null}
           <SectionIcon
             size={18}
             className={cn(
               "shrink-0",
-              activeChild ? "text-[#2563EB]" : "text-slate-400",
+              activeChild ? "text-[#EB205F]" : "text-slate-400",
             )}
           />
           {sectionAlerts > 0 ? (
@@ -321,7 +321,7 @@ function NavSectionGroup({
           size={18}
           className={cn(
             "shrink-0",
-            activeChild ? "text-[#2563EB]" : "text-slate-400 group-hover:text-slate-600",
+            activeChild ? "text-[#EB205F]" : "text-slate-400 group-hover:text-slate-600",
           )}
         />
         <span className="min-w-0 flex-1 truncate">{section.label}</span>

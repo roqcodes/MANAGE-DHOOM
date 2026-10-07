@@ -71,7 +71,7 @@ export function VendorProfilePanel({
         <section className="overflow-hidden rounded-[24px] border border-slate-100 bg-white shadow-[0_4px_24px_rgba(26,26,46,0.05)]">
           <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-7 py-5">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
-              <UserRound size={20} className="text-[#2563EB]" strokeWidth={2} />
+              <UserRound size={20} className="text-[#EB205F]" strokeWidth={2} />
             </span>
             <div>
               <h3 className="text-base font-extrabold text-slate-900">Account</h3>
@@ -91,7 +91,7 @@ export function VendorProfilePanel({
         <section className="overflow-hidden rounded-[24px] border border-slate-100 bg-white shadow-[0_4px_24px_rgba(26,26,46,0.05)]">
           <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50/60 px-7 py-5">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
-              <Building2 size={20} className="text-[#2563EB]" strokeWidth={2} />
+              <Building2 size={20} className="text-[#EB205F]" strokeWidth={2} />
             </span>
             <div>
               <h3 className="text-base font-extrabold text-slate-900">Supplier</h3>

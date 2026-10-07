@@ -91,7 +91,7 @@ function VariantRow({ row }: { row: AvailableCatalogVariantRow }) {
               placeholder="Base price"
               value={basePrice}
               onChange={(e) => setBasePrice(e.target.value)}
-              className="h-9 w-full rounded-lg border border-slate-200 px-2 text-[13px] font-semibold text-black outline-none focus:border-[#2563EB] sm:w-24"
+              className="h-9 w-full rounded-lg border border-slate-200 px-2 text-[13px] font-semibold text-black outline-none focus:border-[#EB205F] sm:w-24"
             />
             <input
               type="number"
@@ -100,7 +100,7 @@ function VariantRow({ row }: { row: AvailableCatalogVariantRow }) {
               placeholder="Stock"
               value={stock}
               onChange={(e) => setStock(e.target.value)}
-              className="h-9 w-full rounded-lg border border-slate-200 px-2 text-[13px] font-semibold text-black outline-none focus:border-[#2563EB] sm:w-20"
+              className="h-9 w-full rounded-lg border border-slate-200 px-2 text-[13px] font-semibold text-black outline-none focus:border-[#EB205F] sm:w-20"
             />
             <div className="flex gap-1.5">
               <button
@@ -118,7 +118,7 @@ function VariantRow({ row }: { row: AvailableCatalogVariantRow }) {
                 type="button"
                 disabled={isPending}
                 onClick={submit}
-                className="rounded-lg bg-[#2563EB] px-3 py-1.5 text-[12px] font-extrabold text-white disabled:opacity-50"
+                className="rounded-lg bg-[#EB205F] px-3 py-1.5 text-[12px] font-extrabold text-white disabled:opacity-50"
               >
                 {isPending ? "…" : "Confirm"}
               </button>

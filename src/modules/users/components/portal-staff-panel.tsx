@@ -18,7 +18,7 @@ const ROLE_OPTIONS: readonly string[] = [
 
 function UserAvatar({ name }: { name: string | null }) {
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2563EB]/10 text-[15px] font-extrabold text-[#2563EB]">
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EB205F]/10 text-[15px] font-extrabold text-[#EB205F]">
       {name?.[0]?.toUpperCase() ?? "?"}
     </div>
   );
@@ -70,13 +70,13 @@ function RoleModal({
               className={[
                 "flex items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-bold transition",
                 user.role === role
-                  ? "bg-[#2563EB]/5 text-[#2563EB]"
+                  ? "bg-[#EB205F]/5 text-[#EB205F]"
                   : "hover:bg-slate-50 text-slate-700",
               ].join(" ")}
             >
               <span className="uppercase">{role}</span>
               {user.role === role && (
-                <Check size={16} className="text-[#2563EB]" />
+                <Check size={16} className="text-[#EB205F]" />
               )}
             </button>
           ))}

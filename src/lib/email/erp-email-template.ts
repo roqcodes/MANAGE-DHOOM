@@ -12,7 +12,7 @@ export function buildErpEmailHtml(payload: ErpEmailPayload): string {
     payload.actionLabel && payload.actionUrl
       ? `<p style="margin:24px 0 0;">
           <a href="${payload.actionUrl}"
-             style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:600;">
+             style="display:inline-block;background:#EB205F;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:600;">
             ${payload.actionLabel}
           </a>
         </p>`

@@ -53,7 +53,7 @@ const VARIANT_META: Record<
   },
   info: {
     icon: Info,
-    iconClass: "text-[#2563EB]",
+    iconClass: "text-[#EB205F]",
     defaultTitle: "Note",
   },
 };

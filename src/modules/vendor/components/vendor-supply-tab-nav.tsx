@@ -10,7 +10,7 @@ export function VendorSupplyTabNav({ active }: { active: VendorSupplyTab }) {
         className={[
           "flex-1 rounded-lg px-4 py-2.5 text-center text-[13px] font-extrabold transition",
           active === "my"
-            ? "bg-white text-[#2563EB] shadow-sm"
+            ? "bg-white text-[#EB205F] shadow-sm"
             : "text-slate-500 hover:text-slate-800",
         ].join(" ")}
       >
@@ -21,7 +21,7 @@ export function VendorSupplyTabNav({ active }: { active: VendorSupplyTab }) {
         className={[
           "flex-1 rounded-lg px-4 py-2.5 text-center text-[13px] font-extrabold transition",
           active === "add"
-            ? "bg-white text-[#2563EB] shadow-sm"
+            ? "bg-white text-[#EB205F] shadow-sm"
             : "text-slate-500 hover:text-slate-800",
         ].join(" ")}
       >

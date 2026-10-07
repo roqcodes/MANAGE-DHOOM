@@ -522,7 +522,7 @@ export const ChatWindow = () => {
                       <div
                         className={`relative rounded-2xl p-3 text-xs leading-relaxed transition-all ${
                           isUser
-                            ? "rounded-tr-xs bg-gradient-to-br from-primary via-primary/95 to-indigo-600 text-primary-foreground shadow-[0_4px_18px_-4px_rgba(79,70,229,0.35)]"
+                            ? "rounded-tr-xs bg-primary text-primary-foreground shadow-[0_4px_18px_-4px_rgba(235,32,95,0.25)]"
                             : "rounded-tl-xs border border-white/20 bg-white/40 text-foreground shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05]"
                         }`}
                       >
@@ -704,7 +704,7 @@ export const ChatWindow = () => {
                 <button
                   type="submit"
                   disabled={!input.trim() || isLoading}
-                  className="flex size-7 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-white shadow-sm transition hover:scale-105 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
+                  className="flex size-7 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:scale-105 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
                   aria-label="Send message"
                 >
                   <ArrowUp size={14} strokeWidth={2.4} />

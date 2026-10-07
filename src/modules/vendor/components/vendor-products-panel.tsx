@@ -82,7 +82,7 @@ function VariantTableRow({ row }: { row: VendorProductWithVariant }) {
             step="0.01"
             value={basePrice}
             onChange={(e) => setBasePrice(e.target.value)}
-            className="h-8 w-full min-w-[88px] rounded-md border border-slate-200 px-2 text-[13px] font-semibold text-black outline-none focus:border-[#2563EB]"
+            className="h-8 w-full min-w-[88px] rounded-md border border-slate-200 px-2 text-[13px] font-semibold text-black outline-none focus:border-[#EB205F]"
           />
         </td>
         <td className="w-[88px] px-3 py-2 align-middle sm:px-4">
@@ -92,7 +92,7 @@ function VariantTableRow({ row }: { row: VendorProductWithVariant }) {
             step={1}
             value={stock}
             onChange={(e) => setStock(e.target.value)}
-            className="h-8 w-full min-w-[72px] rounded-md border border-slate-200 px-2 text-[13px] font-semibold text-black outline-none focus:border-[#2563EB]"
+            className="h-8 w-full min-w-[72px] rounded-md border border-slate-200 px-2 text-[13px] font-semibold text-black outline-none focus:border-[#EB205F]"
           />
         </td>
         <td className="w-px whitespace-nowrap px-3 py-2 align-middle text-end sm:px-4">
@@ -100,7 +100,7 @@ function VariantTableRow({ row }: { row: VendorProductWithVariant }) {
             type="button"
             disabled={isPending}
             onClick={save}
-            className="rounded-md bg-[#2563EB] px-3 py-1.5 text-[12px] font-extrabold text-white transition hover:bg-[#1D4ED8] disabled:opacity-50"
+            className="rounded-md bg-[#EB205F] px-3 py-1.5 text-[12px] font-extrabold text-white transition hover:bg-[#D01A54] disabled:opacity-50"
           >
             {isPending ? "…" : "Save"}
           </button>

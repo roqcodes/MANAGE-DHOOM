@@ -52,7 +52,7 @@ export function VendorPurchaseOrdersPanel({
               className={[
                 "rounded-full px-3.5 py-1.5 text-[12px] font-extrabold uppercase tracking-wide transition",
                 active
-                  ? "bg-[#2563EB] text-white"
+                  ? "bg-[#EB205F] text-white"
                   : "bg-slate-100 text-slate-500 hover:bg-slate-200",
               ].join(" ")}
             >
@@ -88,7 +88,7 @@ export function VendorPurchaseOrdersPanel({
                     <td className="px-4 py-3">
                       <Link
                         href={`/vendor/purchase-orders/${o.id}`}
-                        className="text-[13px] font-bold text-[#2563EB] hover:underline"
+                        className="text-[13px] font-bold text-[#EB205F] hover:underline"
                       >
                         {o.id.slice(0, 8)}…
                       </Link>

@@ -84,16 +84,16 @@ export function AuthScreenView({
   return (
     <main className="relative isolate flex min-h-full overflow-hidden bg-white">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-        <div className="absolute -right-24 -top-52 h-[500px] w-[500px] rounded-full bg-[#2563EB]/15" />
+        <div className="absolute -right-24 -top-52 h-[500px] w-[500px] rounded-full bg-[#EB205F]/15" />
         <div className="absolute -bottom-40 -left-24 h-[500px] w-[500px] rounded-full bg-[#4F46E5]/8" />
       </div>
 
       <div className="mx-auto flex w-full max-w-[1100px] flex-1 flex-col justify-center gap-8 px-5 py-4 lg:flex-row lg:items-center lg:gap-10 lg:px-10">
-        <section className="rounded-[32px] border border-[#2563EB]/10 bg-[#2563EB]/5 p-6 lg:flex lg:flex-1 lg:flex-col lg:justify-center lg:border-0 lg:bg-transparent lg:p-0">
+        <section className="rounded-[32px] border border-[#EB205F]/10 bg-[#EB205F]/5 p-6 lg:flex lg:flex-1 lg:flex-col lg:justify-center lg:border-0 lg:bg-transparent lg:p-0">
           <div className="mb-10 flex items-center gap-3.5">
             <BuyHubLogo size={56} priority />
             <p className="text-[28px] font-black tracking-[-0.06em] text-slate-900">
-              Buy<span className="text-[#2563EB]">Hub</span>
+              Buy<span className="text-[#EB205F]">Hub</span>
             </p>
           </div>
 
@@ -108,7 +108,7 @@ export function AuthScreenView({
               <h1 className="text-[34px] font-extrabold leading-[1.18] text-slate-900 lg:text-[52px] lg:leading-[60px]">
                 Everything your
                 <br />
-                <span className="text-[#2563EB]">electronics store needs.</span>
+                <span className="text-[#EB205F]">electronics store needs.</span>
               </h1>
               <p className="max-w-xl text-[15px] leading-6 text-slate-500">
                 Source devices, accessories, and stock from trusted suppliers—manage
@@ -154,7 +154,7 @@ export function AuthScreenView({
                           className={[
                             "flex-1 rounded-[10px] px-3 py-2.5 text-center text-[13px] font-bold transition",
                             active
-                              ? "bg-white text-[#2563EB] shadow-[0_2px_10px_rgba(0,0,0,0.1)]"
+                              ? "bg-white text-[#EB205F] shadow-[0_2px_10px_rgba(0,0,0,0.1)]"
                               : "text-slate-500",
                           ].join(" ")}
                           onClick={() => onRoleChange(item)}
@@ -175,7 +175,7 @@ export function AuthScreenView({
                     </span>
                     <input
                       autoComplete="name"
-                      className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                      className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
                       name="name"
                       onChange={(event) => onFieldChange("name", event.target.value)}
                       placeholder="Your Name"
@@ -192,7 +192,7 @@ export function AuthScreenView({
                     </span>
                     <input
                       autoComplete="tel"
-                      className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                      className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
                       name="phone"
                       onChange={(event) => onFieldChange("phone", event.target.value)}
                       placeholder="+91"
@@ -214,7 +214,7 @@ export function AuthScreenView({
                 <input
                   autoCapitalize="none"
                   autoComplete="email"
-                  className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                  className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
                   name="email"
                   onChange={(event) => onFieldChange("email", event.target.value)}
                   placeholder="manager@buyhub.com"
@@ -232,7 +232,7 @@ export function AuthScreenView({
                 <div className="relative">
                   <input
                     autoComplete={isRequestMode ? "new-password" : "current-password"}
-                    className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10"
+                    className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
                     name="password"
                     required
                     onChange={(event) =>
@@ -257,7 +257,7 @@ export function AuthScreenView({
             {!isRequestMode ? (
               <div className="flex justify-end">
                 <a
-                  className="text-[13px] font-bold text-[#2563EB] transition hover:text-[#1D4ED8]"
+                  className="text-[13px] font-bold text-[#EB205F] transition hover:text-[#D01A54]"
                   href="/forgot-password"
                 >
                   Forgot password?
@@ -278,7 +278,7 @@ export function AuthScreenView({
             ) : null}
 
             <button
-              className="flex min-h-[58px] w-full items-center justify-center rounded-[20px] bg-[#2563EB] px-5 text-base font-extrabold tracking-[0.03em] text-white transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-65"
+              className="flex min-h-[58px] w-full items-center justify-center rounded-[20px] bg-[#EB205F] px-5 text-base font-extrabold tracking-[0.03em] text-white transition hover:bg-[#D01A54] disabled:cursor-not-allowed disabled:opacity-65"
               disabled={isPending}
               type="submit"
             >
@@ -300,7 +300,7 @@ export function AuthScreenView({
               {mode === "request" ? "Already have an account?" : "New to the team?"}
             </span>
             <button
-              className="text-sm font-bold text-slate-900 transition hover:text-[#2563EB]"
+              className="text-sm font-bold text-slate-900 transition hover:text-[#EB205F]"
               onClick={onModeToggle}
               type="button"
             >

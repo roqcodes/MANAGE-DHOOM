@@ -59,7 +59,7 @@ export function PwaInstallHint() {
       role="region"
       aria-label="Install DHOOM Trading Manage"
     >
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#2563EB]/10 text-[#2563EB]">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[#EB205F]/10 text-[#EB205F]">
         <Download className="size-4" aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
@@ -71,7 +71,7 @@ export function PwaInstallHint() {
           <button
             type="button"
             onClick={() => void install()}
-            className="rounded-lg bg-[#2563EB] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1d4ed8]"
+            className="rounded-lg bg-[#EB205F] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#D01A54]"
           >
             Install
           </button>

@@ -1,7 +1,7 @@
 import Image from "next/image";
 
 import { cn } from "@/lib/utils";
-import { BRAND_SHORT_NAME, COMPANY_NAME } from "@/modules/brand/lib/brand";
+import { BRAND_ACCENT, BRAND_SHORT_NAME, COMPANY_NAME } from "@/modules/brand/lib/brand";
 
 export const BUYHUB_LOGO_PATH = "/DHOOM-LOGO.png";
 export const BUYHUB_ICON_PATH = "/icon.png";
@@ -38,7 +38,7 @@ export function BuyHubLogo({
         <div className="flex min-w-0 flex-1 flex-col">
           <span className="text-[15px] font-black tracking-tight text-slate-900">
             {BRAND_SHORT_NAME}
-            <span className="text-[#2563EB]"> TRADING</span>
+            <span style={{ color: BRAND_ACCENT }}> TRADING</span>
           </span>
           {wordmarkSuffix ? (
             <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400">

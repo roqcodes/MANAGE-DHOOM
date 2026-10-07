@@ -271,7 +271,7 @@ export function AdminRefreshStatusButton() {
                 <ul className="mt-2.5 space-y-1.5 border-t border-slate-100 pt-2.5">
                   {activityMessages.map((msg) => (
                     <li key={msg} className="flex items-start gap-2 text-xs text-slate-700">
-                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[#2563EB]" aria-hidden />
+                      <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-[#EB205F]" aria-hidden />
                       <span>{msg}</span>
                     </li>
                   ))}

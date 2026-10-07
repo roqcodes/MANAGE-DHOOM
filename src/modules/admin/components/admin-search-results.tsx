@@ -46,7 +46,7 @@ const BADGE_STYLES: Record<AdminSearchBadgeTone, string> = {
 };
 
 const PAGE_ICON_STYLES = [
-  "bg-blue-50 text-blue-600 ring-blue-100",
+  "bg-slate-50 text-slate-600 ring-slate-100",
   "bg-violet-50 text-violet-600 ring-violet-100",
   "bg-emerald-50 text-emerald-600 ring-emerald-100",
   "bg-amber-50 text-amber-600 ring-amber-100",

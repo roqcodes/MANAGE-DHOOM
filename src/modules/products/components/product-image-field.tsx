@@ -10,7 +10,7 @@ import {
   validateImageFile,
 } from "@/modules/products/lib/cloudinary-upload";
 
-const BRAND = "#2563EB";
+const BRAND = "#EB205F";
 
 type Mode = "upload" | "url";
 
@@ -212,7 +212,7 @@ export function ProductImageField({
         )
       ) : (
         <input
-          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#EB205F] focus:ring-2 focus:ring-[#EB205F]/10"
           value={value}
           onChange={(e) => {
             onChange(e.target.value);

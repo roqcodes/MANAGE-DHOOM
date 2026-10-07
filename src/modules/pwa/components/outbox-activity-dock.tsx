@@ -66,7 +66,7 @@ function QueueRow({
             ? "text-sky-600 dark:text-sky-400"
             : failed
               ? "text-amber-600 dark:text-amber-400"
-              : "text-indigo-600 dark:text-indigo-400",
+              : "text-slate-600 dark:text-slate-400",
         )}
       >
         {syncing ? (
