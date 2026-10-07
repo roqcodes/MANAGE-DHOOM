@@ -1,0 +1,219 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.addresses (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  label text,
+  address_line text,
+  city text,
+  state text,
+  pincode text,
+  latitude numeric,
+  longitude numeric,
+  is_default boolean DEFAULT false,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT addresses_pkey PRIMARY KEY (id),
+  CONSTRAINT addresses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  action text,
+  entity text,
+  entity_id uuid,
+  old_data jsonb,
+  new_data jsonb,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT audit_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.cart_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  cart_id uuid,
+  variant_id uuid,
+  quantity integer,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT cart_items_pkey PRIMARY KEY (id),
+  CONSTRAINT cart_items_cart_id_fkey FOREIGN KEY (cart_id) REFERENCES public.carts(id),
+  CONSTRAINT cart_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.carts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT carts_pkey PRIMARY KEY (id),
+  CONSTRAINT carts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.categories (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text,
+  parent_id uuid,
+  created_at timestamp without time zone DEFAULT now(),
+  image_url text,
+  CONSTRAINT categories_pkey PRIMARY KEY (id),
+  CONSTRAINT categories_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.categories(id)
+);
+CREATE TABLE public.inventory (
+  variant_id uuid NOT NULL,
+  stock integer DEFAULT 0,
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT inventory_pkey PRIMARY KEY (variant_id),
+  CONSTRAINT inventory_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.order_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  order_id uuid,
+  variant_id uuid,
+  quantity integer,
+  price numeric,
+  created_at timestamp without time zone DEFAULT now(),
+  vendor_id uuid,
+  base_price numeric,
+  final_price numeric,
+  margin_amount numeric,
+  product_name text,
+  CONSTRAINT order_items_pkey PRIMARY KEY (id),
+  CONSTRAINT order_items_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
+  CONSTRAINT order_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.orders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  address_id uuid,
+  total_amount numeric,
+  status text DEFAULT 'pending'::text,
+  payment_status text DEFAULT 'pending'::text,
+  created_at timestamp without time zone DEFAULT now(),
+  delivery_user_id uuid,
+  CONSTRAINT orders_pkey PRIMARY KEY (id),
+  CONSTRAINT orders_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT orders_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.addresses(id),
+  CONSTRAINT orders_delivery_user_id_fkey FOREIGN KEY (delivery_user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.pricing_rules (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid,
+  margin_percent numeric,
+  fixed_markup numeric,
+  is_active boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT pricing_rules_pkey PRIMARY KEY (id),
+  CONSTRAINT pricing_rules_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+CREATE TABLE public.product_variants (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  product_id uuid,
+  name text,
+  price numeric,
+  mrp numeric,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT product_variants_pkey PRIMARY KEY (id),
+  CONSTRAINT product_variants_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id)
+);
+CREATE TABLE public.products (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text,
+  description text,
+  category_id uuid,
+  image_url text,
+  is_active boolean DEFAULT true,
+  use_smart_pricing boolean NOT NULL DEFAULT false,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT products_pkey PRIMARY KEY (id),
+  CONSTRAINT products_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id)
+);
+CREATE TABLE public.purchase_order_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  po_id uuid,
+  variant_id uuid,
+  quantity integer,
+  price numeric,
+  CONSTRAINT purchase_order_items_pkey PRIMARY KEY (id),
+  CONSTRAINT purchase_order_items_po_id_fkey FOREIGN KEY (po_id) REFERENCES public.purchase_orders(id),
+  CONSTRAINT purchase_order_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.purchase_orders (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  vendor_id uuid,
+  status text DEFAULT 'pending'::text,
+  total_amount numeric,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT purchase_orders_pkey PRIMARY KEY (id),
+  CONSTRAINT purchase_orders_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id)
+);
+CREATE TABLE public.shopping_list_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  list_id uuid,
+  variant_id uuid,
+  quantity integer,
+  CONSTRAINT shopping_list_items_pkey PRIMARY KEY (id),
+  CONSTRAINT shopping_list_items_list_id_fkey FOREIGN KEY (list_id) REFERENCES public.shopping_lists(id),
+  CONSTRAINT shopping_list_items_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.shopping_lists (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  name text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT shopping_lists_pkey PRIMARY KEY (id),
+  CONSTRAINT shopping_lists_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.transactions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  amount numeric,
+  type text,
+  reference text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT transactions_pkey PRIMARY KEY (id),
+  CONSTRAINT transactions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.users (
+  id uuid NOT NULL DEFAULT auth.uid(),
+  name text,
+  email text UNIQUE,
+  phone text,
+  created_at timestamp without time zone DEFAULT now(),
+  role USER-DEFINED,
+  is_verified boolean DEFAULT false,
+  CONSTRAINT users_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.vendor_pricing_overrides (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  vendor_id uuid,
+  variant_id uuid,
+  override_price numeric,
+  override_margin numeric,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT vendor_pricing_overrides_pkey PRIMARY KEY (id),
+  CONSTRAINT vendor_pricing_overrides_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id),
+  CONSTRAINT vendor_pricing_overrides_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.vendor_products (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  vendor_id uuid,
+  variant_id uuid,
+  base_price numeric NOT NULL,
+  stock integer DEFAULT 0,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT vendor_products_pkey PRIMARY KEY (id),
+  CONSTRAINT vendor_products_vendor_id_fkey FOREIGN KEY (vendor_id) REFERENCES public.vendors(id),
+  CONSTRAINT vendor_products_variant_id_fkey FOREIGN KEY (variant_id) REFERENCES public.product_variants(id)
+);
+CREATE TABLE public.vendors (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text,
+  contact text,
+  is_active boolean DEFAULT true,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT vendors_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.wallet (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid,
+  balance numeric DEFAULT 0,
+  updated_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT wallet_pkey PRIMARY KEY (id),
+  CONSTRAINT wallet_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
