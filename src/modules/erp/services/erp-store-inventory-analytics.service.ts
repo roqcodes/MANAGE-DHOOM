@@ -33,7 +33,7 @@ type InvoiceLineRow = {
   product_id: string | null;
   unit_price: number | null;
   quantity: number | null;
-  line_total: number | null;
+  total_amount: number | null;
   invoices: {
     id: string;
     invoice_number: string | null;
@@ -140,7 +140,7 @@ function buildSalesGlance(lines: InvoiceLineRow[], recentLimit = 8): StoreProduc
         customerName: inv.users?.name ?? null,
         quantity: qty,
         unitPrice: unit,
-        lineTotal: Number(line.line_total ?? qty * unit),
+        lineTotal: Number(line.total_amount ?? qty * unit),
       });
     }
   }
@@ -182,7 +182,7 @@ async function loadInvoiceLinesForProducts(storeId: string, productIds: string[]
   const { data, error } = await supabase
     .from("invoice_items")
     .select(
-      `product_id, unit_price, quantity, line_total,
+      `product_id, unit_price, quantity, total_amount,
       invoices!inner(id, invoice_number, created_at, status, store_id, users:users!invoices_user_id_fkey(name))`,
     )
     .eq("invoices.store_id", storeId)

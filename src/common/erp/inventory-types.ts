@@ -114,7 +114,7 @@ export interface ItemTransactionRow {
   transfer_store_id: string | null;
   transfer_store_name: string | null;
   type: string;
-  variant_id: string;
+  variant_id: string | null;
   product_name: string;
   variant_name: string | null;
   barcode: string | null;

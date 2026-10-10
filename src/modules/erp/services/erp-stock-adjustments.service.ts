@@ -131,14 +131,109 @@ export async function finalizeStockAdjustment(adjustmentId: string): Promise<voi
   });
 }
 
+export type StockAdjustmentLineDetail = {
+  id: string;
+  adjustment_id: string;
+  variant_id: string | null;
+  product_id: string | null;
+  direction: string;
+  quantity: number;
+  purchase_cost: number;
+  line_total: number;
+  product_name: string;
+  variant_name: string | null;
+  barcode: string | null;
+};
+
 export async function getStockAdjustmentDetail(id: string) {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("erp_stock_adjustments")
-    .select("*, stores(name), erp_stock_adjustment_lines(*)")
+    .select("*, stores(name)")
     .eq("id", id)
     .single();
   if (error) throw new Error(error.message);
-  return data;
+
+  const { data: rawLines, error: linesError } = await supabase
+    .from("erp_stock_adjustment_lines")
+    .select(
+      "id, adjustment_id, variant_id, product_id, direction, quantity, purchase_cost, line_total",
+    )
+    .eq("adjustment_id", id)
+    .order("id", { ascending: true });
+  if (linesError) throw new Error(linesError.message);
+
+  const variantIds = [
+    ...new Set(
+      (rawLines ?? []).map((l) => l.variant_id).filter((vid): vid is string => vid != null),
+    ),
+  ];
+  const productIds = [
+    ...new Set(
+      (rawLines ?? [])
+        .map((l) => l.product_id)
+        .filter((pid): pid is string => pid != null),
+    ),
+  ];
+
+  const variantMap = new Map<
+    string,
+    { product_name: string; variant_name: string | null; barcode: string | null }
+  >();
+  const productMap = new Map<string, { product_name: string; barcode: string | null }>();
+
+  const [variantsRes, productsRes] = await Promise.all([
+    variantIds.length > 0
+      ? supabase
+          .from("product_variants")
+          .select("id, name, barcode, products(name)")
+          .in("id", variantIds)
+      : Promise.resolve({
+          data: [] as {
+            id: string;
+            name: string | null;
+            barcode: string | null;
+            products: { name: string } | null;
+          }[],
+        }),
+    productIds.length > 0
+      ? supabase.from("products").select("id, name, barcode").in("id", productIds)
+      : Promise.resolve({ data: [] as { id: string; name: string | null; barcode: string | null }[] }),
+  ]);
+
+  for (const v of variantsRes.data ?? []) {
+    const product = v.products as { name: string } | null;
+    variantMap.set(v.id, {
+      product_name: product?.name ?? "—",
+      variant_name: v.name,
+      barcode: v.barcode,
+    });
+  }
+  for (const p of productsRes.data ?? []) {
+    productMap.set(p.id, {
+      product_name: p.name ?? "—",
+      barcode: p.barcode,
+    });
+  }
+
+  const erp_stock_adjustment_lines: StockAdjustmentLineDetail[] = (rawLines ?? []).map((line) => {
+    const variant = line.variant_id ? variantMap.get(line.variant_id) : undefined;
+    const product = line.product_id ? productMap.get(line.product_id) : undefined;
+    return {
+      id: line.id,
+      adjustment_id: line.adjustment_id,
+      variant_id: line.variant_id,
+      product_id: line.product_id,
+      direction: line.direction,
+      quantity: Number(line.quantity ?? 0),
+      purchase_cost: Number(line.purchase_cost ?? 0),
+      line_total: Number(line.line_total ?? 0),
+      product_name: variant?.product_name ?? product?.product_name ?? "—",
+      variant_name: variant?.variant_name ?? null,
+      barcode: variant?.barcode ?? product?.barcode ?? null,
+    };
+  });
+
+  return { ...data, erp_stock_adjustment_lines };
 }

@@ -2439,27 +2439,30 @@ export type Database = {
           direction: string
           id: string
           line_total: number
+          product_id: string | null
           purchase_cost: number
           quantity: number
-          variant_id: string
+          variant_id: string | null
         }
         Insert: {
           adjustment_id: string
           direction: string
           id?: string
           line_total?: number
+          product_id?: string | null
           purchase_cost?: number
           quantity: number
-          variant_id: string
+          variant_id?: string | null
         }
         Update: {
           adjustment_id?: string
           direction?: string
           id?: string
           line_total?: number
+          product_id?: string | null
           purchase_cost?: number
           quantity?: number
-          variant_id?: string
+          variant_id?: string | null
         }
         Relationships: [
           {
@@ -2467,6 +2470,13 @@ export type Database = {
             columns: ["adjustment_id"]
             isOneToOne: false
             referencedRelation: "erp_stock_adjustments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_stock_adjustment_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
@@ -4706,6 +4716,7 @@ export type Database = {
           balance_after: number | null
           created_at: string
           id: string
+          product_id: string | null
           quantity: number
           reason: string | null
           reference_id: string | null
@@ -4715,12 +4726,13 @@ export type Database = {
           transfer_store_id: string | null
           type: string
           user_id: string | null
-          variant_id: string
+          variant_id: string | null
         }
         Insert: {
           balance_after?: number | null
           created_at?: string
           id?: string
+          product_id?: string | null
           quantity: number
           reason?: string | null
           reference_id?: string | null
@@ -4730,12 +4742,13 @@ export type Database = {
           transfer_store_id?: string | null
           type: string
           user_id?: string | null
-          variant_id: string
+          variant_id?: string | null
         }
         Update: {
           balance_after?: number | null
           created_at?: string
           id?: string
+          product_id?: string | null
           quantity?: number
           reason?: string | null
           reference_id?: string | null
@@ -4745,7 +4758,7 @@ export type Database = {
           transfer_store_id?: string | null
           type?: string
           user_id?: string | null
-          variant_id?: string
+          variant_id?: string | null
         }
         Relationships: [
           {

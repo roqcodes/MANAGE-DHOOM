@@ -15,7 +15,6 @@ import {
   fetchCustomerSearchOptions,
   fetchVendorSearchOptions,
   resolveCustomerPickerOption,
-  resolveVendorPickerOption,
   type EntitySearchOption,
 } from "@/modules/erp/lib/entity-live-search.client";
 import type { ErpSalesProductSearchRow } from "@/common/erp/sales-types";
@@ -31,6 +30,18 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { useSearchListKeyboard } from "@/modules/admin/ui/use-search-list-keyboard";
 
 export type { EntitySearchOption } from "@/modules/erp/lib/entity-live-search.client";
+
+function entityOptionDisplayChanged(
+  a: EntitySearchOption,
+  b: EntitySearchOption,
+): boolean {
+  return (
+    a.label !== b.label ||
+    a.sublabel !== b.sublabel ||
+    a.meta !== b.meta ||
+    a.amount !== b.amount
+  );
+}
 
 type EntitySearchSelectProps = {
   value: string | null;
@@ -141,10 +152,17 @@ export function EntitySearchSelect({
 
       const resolver = resolveSelectedRef.current;
       if (resolver) {
+        // Commit the clicked row immediately; search hits are already authoritative for UX.
+        commit(option);
         void resolver(option.id)
-          .then(commit)
+          .then((resolved) => {
+            if (entityOptionDisplayChanged(option, resolved)) {
+              onChange(resolved.id, resolved);
+            }
+          })
           .catch((err: unknown) => {
             setFetchError(err instanceof Error ? err.message : "Could not load selection");
+            onChange(null);
           });
         return;
       }
@@ -400,7 +418,6 @@ export function VendorSearchSelect({
       className={className}
       disabled={disabled}
       cacheScope="vendor"
-      resolveSelectedOption={resolveVendorPickerOption}
       placeholder={placeholder ?? "Select vendor"}
       searchPlaceholder="Search vendor name, TRN, phone…"
       emptyText="No vendors found"

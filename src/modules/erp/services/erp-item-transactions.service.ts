@@ -28,7 +28,7 @@ export async function listItemTransactions(
   let dataQuery = supabase
     .from("stock_movements")
     .select(
-      "id, created_at, store_id, transfer_store_id, type, variant_id, quantity, transaction_price, balance_after, reference_id, reference_type, reason",
+      "id, created_at, store_id, transfer_store_id, type, variant_id, product_id, quantity, transaction_price, balance_after, reference_id, reference_type, reason",
     )
     .order("created_at", { ascending: false })
     .range(from, from + limit - 1);
@@ -63,14 +63,29 @@ export async function listItemTransactions(
   const data = dataResult.data;
   const count = countResult.count;
 
-  const variantIds = [...new Set((data ?? []).map((r) => r.variant_id))];
+  const variantIds = [
+    ...new Set(
+      (data ?? []).map((r) => r.variant_id).filter((id): id is string => id != null),
+    ),
+  ];
+  const productIds = [
+    ...new Set(
+      (data ?? [])
+        .filter((r) => !r.variant_id && r.product_id)
+        .map((r) => r.product_id as string),
+    ),
+  ];
   const storeIds = new Set<string>();
   for (const row of data ?? []) {
     if (row.store_id) storeIds.add(row.store_id);
     if (row.transfer_store_id) storeIds.add(row.transfer_store_id);
   }
 
-  const variantMap = new Map<string, { product_name: string; variant_name: string | null; barcode: string | null }>();
+  const variantMap = new Map<
+    string,
+    { product_name: string; variant_name: string | null; barcode: string | null }
+  >();
+  const productMap = new Map<string, { product_name: string; barcode: string | null }>();
   const storeMap = new Map<string, string>();
   const invoiceMap = new Map<string, string>();
 
@@ -78,13 +93,16 @@ export async function listItemTransactions(
     .filter((r) => r.reference_type === "invoice" && r.reference_id)
     .map((r) => r.reference_id as string);
 
-  const [variantsRes, storesRes, invoicesRes] = await Promise.all([
+  const [variantsRes, productsRes, storesRes, invoicesRes] = await Promise.all([
     variantIds.length > 0
       ? supabase
           .from("product_variants")
           .select("id, name, barcode, products(name)")
           .in("id", variantIds)
       : Promise.resolve({ data: [] as { id: string; name: string | null; barcode: string | null; products: { name: string } | null }[] }),
+    productIds.length > 0
+      ? supabase.from("products").select("id, name, barcode").in("id", productIds)
+      : Promise.resolve({ data: [] as { id: string; name: string | null; barcode: string | null }[] }),
     storeIds.size > 0
       ? supabase.from("stores").select("id, name").in("id", [...storeIds])
       : Promise.resolve({ data: [] as { id: string; name: string }[] }),
@@ -101,11 +119,19 @@ export async function listItemTransactions(
       barcode: v.barcode,
     });
   }
+  for (const p of productsRes.data ?? []) {
+    productMap.set(p.id, {
+      product_name: p.name ?? "—",
+      barcode: p.barcode,
+    });
+  }
   for (const s of storesRes.data ?? []) storeMap.set(s.id, s.name);
   for (const inv of invoicesRes.data ?? []) invoiceMap.set(inv.id, inv.invoice_number);
 
   let rows: ItemTransactionRow[] = (data ?? []).map((row) => {
-    const variant = variantMap.get(row.variant_id);
+    const variant = row.variant_id ? variantMap.get(row.variant_id) : undefined;
+    const product =
+      !variant && row.product_id ? productMap.get(row.product_id) : undefined;
     return {
       id: row.id,
       created_at: row.created_at,
@@ -117,9 +143,9 @@ export async function listItemTransactions(
         : null,
       type: row.type,
       variant_id: row.variant_id,
-      product_name: variant?.product_name ?? "—",
+      product_name: variant?.product_name ?? product?.product_name ?? "—",
       variant_name: variant?.variant_name ?? null,
-      barcode: variant?.barcode ?? null,
+      barcode: variant?.barcode ?? product?.barcode ?? null,
       quantity: Number(row.quantity ?? 0),
       transaction_price: row.transaction_price != null ? Number(row.transaction_price) : null,
       balance_after: row.balance_after != null ? Number(row.balance_after) : null,

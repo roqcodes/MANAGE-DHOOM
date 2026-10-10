@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import type {
   ErpLandedCostItem,
@@ -159,6 +160,9 @@ export function PurchaseBillFormView({
   const isModal = variant === "modal";
 
   const poIdParam = poIdFromQuery ?? searchParams.get("poId") ?? undefined;
+  const [poPrefillLoading, setPoPrefillLoading] = useState(
+    () => mode === "create" && Boolean(poIdParam),
+  );
 
   const [vendorId, setVendorId] = useState("");
   const [vendorLabel, setVendorLabel] = useState("");
@@ -242,21 +246,48 @@ export function PurchaseBillFormView({
   }, [billId, mode]);
 
   useEffect(() => {
-    if (mode !== "create" || !poIdParam) return;
-    adminGet<{ po: ErpPurchaseOrderDetail }>(`erp/purchase-orders/${poIdParam}`).then((res) => {
-      const po = res.po;
-      setVendorId(po.vendor_id ?? po.vendors?.id ?? "");
-      setVendorLabel(po.vendors?.name ?? "");
-      setStoreId(po.store_id ?? "");
-      setPoId(po.id);
-      setExpectedDeliveryDate(po.expected_delivery_date ?? "");
-      setReference(po.reference ?? "");
-      setNotes(po.notes ?? "");
-      setDiscount(po.discount ?? 0);
-      if (po.purchase_order_items.length) setLines(poLinesToForm(po));
-      setLandedCosts(poLandedCostsToForm(po));
-    });
+    if (mode !== "create" || !poIdParam) {
+      setPoPrefillLoading(false);
+      return;
+    }
+    setPoPrefillLoading(true);
+    let cancelled = false;
+    adminGet<{ po: ErpPurchaseOrderDetail }>(`erp/purchase-orders/${poIdParam}`)
+      .then((res) => {
+        if (cancelled) return;
+        const po = res.po;
+        setVendorId(po.vendor_id ?? po.vendors?.id ?? "");
+        setVendorLabel(po.vendors?.name ?? "");
+        setStoreId(po.store_id ?? "");
+        setPoId(po.id);
+        setExpectedDeliveryDate(po.expected_delivery_date ?? "");
+        setReference(po.reference ?? "");
+        setNotes(po.notes ?? "");
+        setDiscount(po.discount ?? 0);
+        if (po.purchase_order_items.length) setLines(poLinesToForm(po));
+        setLandedCosts(poLandedCostsToForm(po));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(
+          err instanceof Error ? err.message : "Failed to load purchase order for this invoice",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setPoPrefillLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [mode, poIdParam, poPrefillToken, setStoreId]);
+
+  const formLoading = loading || poPrefillLoading;
+  const poPrefillFallback = (
+    <div className="flex min-h-[min(24rem,50vh)] flex-col items-center justify-center gap-3 p-8">
+      <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+      <p className="text-sm text-muted-foreground">Loading invoice from purchase order…</p>
+    </div>
+  );
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -512,8 +543,8 @@ export function PurchaseBillFormView({
       formId={formId}
       pending={pending}
       footer={footer}
-      loading={loading}
-      loadingFallback={<AdminPageSkeleton />}
+      loading={formLoading}
+      loadingFallback={poPrefillLoading ? poPrefillFallback : <AdminPageSkeleton />}
     >
       <form id={formId} className="space-y-4" onSubmit={(e) => e.preventDefault()}>
         <AdminFormModalLayout sidebar={totalsSidebar}>
@@ -588,7 +619,7 @@ export function PurchaseBillFormView({
                       Mark items as received
                     </Label>
                     <p className="text-muted-foreground text-sm">
-                      When finalized, increases store stock on this bill (Zoho-style). Turn off if
+                      When finalized, increases store stock on this bill, turn off if
                       you will record a purchase receive after the vendor invoice arrives.
                     </p>
                   </div>

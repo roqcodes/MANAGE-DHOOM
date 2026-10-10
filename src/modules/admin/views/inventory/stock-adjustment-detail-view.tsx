@@ -23,11 +23,15 @@ type AdjustmentDetail = {
   stores: { name: string } | null;
   erp_stock_adjustment_lines: Array<{
     id: string;
-    variant_id: string;
+    variant_id: string | null;
+    product_id: string | null;
     direction: string;
     quantity: number;
     purchase_cost: number;
     line_total: number;
+    product_name: string;
+    variant_name: string | null;
+    barcode: string | null;
   }>;
 };
 
@@ -72,6 +76,14 @@ export function StockAdjustmentDetailView({ adjustmentId }: { adjustmentId: stri
       </AdminPageLayout>
     );
   }
+
+  const lines = detail.erp_stock_adjustment_lines ?? [];
+
+  const lineLabel = (line: (typeof lines)[number]) => {
+    const base = line.product_name && line.product_name !== "—" ? line.product_name : null;
+    if (base && line.variant_name) return `${base} — ${line.variant_name}`;
+    return base ?? line.barcode ?? line.product_id ?? line.variant_id ?? "—";
+  };
 
   return (
     <AdminPageLayout>
@@ -147,6 +159,7 @@ export function StockAdjustmentDetailView({ adjustmentId }: { adjustmentId: stri
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
                 <tr>
+                  <th className="px-3 py-2">Item</th>
                   <th className="px-3 py-2">Direction</th>
                   <th className="px-3 py-2">Qty</th>
                   <th className="px-3 py-2">Purchase cost</th>
@@ -154,8 +167,16 @@ export function StockAdjustmentDetailView({ adjustmentId }: { adjustmentId: stri
                 </tr>
               </thead>
               <tbody>
-                {detail.erp_stock_adjustment_lines.map((line) => (
+                {lines.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                      No line items on this adjustment.
+                    </td>
+                  </tr>
+                ) : null}
+                {lines.map((line) => (
                   <tr key={line.id} className="border-t">
+                    <td className="px-3 py-2">{lineLabel(line)}</td>
                     <td className="px-3 py-2 capitalize">{line.direction}</td>
                     <td className="px-3 py-2 tabular-nums">{line.quantity}</td>
                     <td className="px-3 py-2 tabular-nums">
