@@ -88,7 +88,7 @@ export function ResetPasswordScreen() {
   }
 
   return (
-    <main className="relative isolate flex min-h-full overflow-hidden bg-white">
+    <main className="relative isolate flex h-dvh min-h-dvh overflow-x-hidden overflow-y-auto overscroll-y-contain bg-white">
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute -right-24 -top-52 h-[500px] w-[500px] rounded-full bg-[#EB205F]/15" />
         <div className="absolute -bottom-40 -left-24 h-[500px] w-[500px] rounded-full bg-[#4F46E5]/8" />
