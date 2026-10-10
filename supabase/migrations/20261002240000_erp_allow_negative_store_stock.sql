@@ -27,6 +27,8 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.app_settings_allow_negative_store_stock() TO authenticated;
 
+DROP FUNCTION IF EXISTS public.store_product_inventory_apply_delta(uuid, uuid, numeric, uuid);
+
 CREATE OR REPLACE FUNCTION public.store_product_inventory_apply_delta(
   p_store_id uuid,
   p_product_id uuid,
@@ -85,6 +87,10 @@ BEGIN
   RETURN v_new;
 END;
 $$;
+
+GRANT EXECUTE ON FUNCTION public.store_product_inventory_apply_delta(
+  uuid, uuid, numeric, uuid, boolean
+) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.assert_erp_sales_lines_store_stock(
   p_store_id uuid,
