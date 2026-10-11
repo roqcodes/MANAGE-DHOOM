@@ -38,8 +38,8 @@ export const adminQueryKeys = {
     ["admin", "online-stock-transfers", storeId ?? "active", status ?? "all"] as const,
   onlineToPhysicalTransfers: (storeId?: string | null) =>
     ["admin", "online-to-physical", storeId ?? "active"] as const,
-  orders: (status: string, userId: string | null, page: number) =>
-    ["admin", "orders", status, userId ?? "", page] as const,
+  orders: (status: string, userId: string | null, page: number, storeId?: string | null) =>
+    ["admin", "orders", status, userId ?? "", page, storeId ?? "active"] as const,
   salesOrders: (status: string, userId: string | null, page: number, storeId?: string | null) =>
     ["admin", "sales-orders", status, userId ?? "", page, storeId ?? "active"] as const,
   purchaseOrders: (

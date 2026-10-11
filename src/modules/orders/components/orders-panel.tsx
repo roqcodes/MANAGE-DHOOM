@@ -142,10 +142,9 @@ export function OrdersPanel({
 
   const isFiltering =
     search.trim().length > 0 ||
-    dateFrom.length > 0 ||
-    dateTo.length > 0 ||
     viewFilter !== "all" ||
-    selectedUserId !== null;
+    selectedUserId !== null ||
+    datePreset === "custom";
 
   const activeFilterLabel =
     ORDERS_VIEW_FILTERS.find((f) => f.id === viewFilter)?.label ?? "All";

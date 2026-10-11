@@ -15,6 +15,7 @@ import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleto
 import { OrdersPanel } from "@/modules/orders/components/orders-panel";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 
 function parseOrderStatus(raw: string | null): OrderStatusFilter {
   if (raw && (ORDER_STATUS_FILTERS as readonly string[]).includes(raw)) {
@@ -24,6 +25,7 @@ function parseOrderStatus(raw: string | null): OrderStatusFilter {
 }
 
 export function AdminOrdersView() {
+  const { activeStoreId, loading: erpContextLoading } = useErpStores();
   const searchParams = useSearchParams();
   const status = parseOrderStatus(searchParams.get("status"));
   const rawUser = searchParams.get("userId")?.trim();
@@ -31,12 +33,14 @@ export function AdminOrdersView() {
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
 
   const { data, isPending, isError, error } = useQuery({
-    queryKey: adminQueryKeys.orders(status, userId, page),
+    queryKey: adminQueryKeys.orders(status, userId, page, activeStoreId),
     queryFn: () => {
       const q = new URLSearchParams();
+      q.set("channel", "online");
       if (status !== "all") q.set("status", status);
       if (userId) q.set("userId", userId);
       if (page > 0) q.set("page", String(page));
+      if (activeStoreId) q.set("storeId", activeStoreId);
       const qs = q.toString();
       return adminGet<{
         data: Order[];
@@ -46,9 +50,10 @@ export function AdminOrdersView() {
         userId: string | null;
         filterUsers: OrderFilterUserRow[];
         stats: OrderCatalogStats;
-      }>(`orders${qs ? `?${qs}` : ""}`);
+      }>(`orders?${qs}`);
     },
     placeholderData: keepPreviousData,
+    enabled: !erpContextLoading,
   });
 
   if (isPending && !data) return <AdminPageSkeleton />;

@@ -48,6 +48,16 @@ function applyOrderChannelFilterOnOrderItems(query: any, channel: OrderChannel) 
   });
 }
 
+/** ERP sales orders are store-scoped; app/POS online orders may have null store_id. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function applyOrderStoreScope(query: any, channel: OrderChannel, storeId: string | null) {
+  if (!storeId) return query;
+  if (channel === "online") {
+    return query.or(`store_id.eq.${storeId},store_id.is.null`);
+  }
+  return query.eq("store_id", storeId);
+}
+
 type OrderListRow = Omit<Order, "item_count" | "order_items_preview" | "customer_order_count" | "store_name"> & {
   order_items?: OrderItemPreview[] | null;
   stores?: { name: string } | null;
@@ -142,7 +152,7 @@ export async function getOrders(
 
   if (status !== "all") query = query.eq("status", status);
   if (userId) query = query.eq("user_id", userId);
-  if (activeStoreId) query = query.eq("store_id", activeStoreId);
+  query = applyOrderStoreScope(query, channel, activeStoreId);
 
   const { data, count } = await query;
   const rows = (data ?? []) as unknown as OrderListRow[];
@@ -278,7 +288,7 @@ export async function getOrdersCatalogStats(
   const supabase = await createSupabaseServerClient();
   const activeStoreId = await resolveErpStoreId(storeId);
 
-  if (activeStoreId) {
+  if (activeStoreId && channel === "erp") {
     const rpc = await invokeRpc(supabase, "get_admin_order_channel_stats", {
       p_store_id: activeStoreId,
       p_channel: channel,
@@ -311,7 +321,7 @@ export async function getOrdersCatalogStats(
 
   const scopeOrders = (query: ReturnType<typeof supabase.from>) => {
     let scoped = applyOrderChannelFilter(query, channel);
-    if (activeStoreId) scoped = scoped.eq("store_id", activeStoreId);
+    scoped = applyOrderStoreScope(scoped, channel, activeStoreId);
     return scoped;
   };
 

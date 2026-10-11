@@ -36,10 +36,11 @@ export async function GET(request: Request) {
   const userId = rawUser && rawUser.length > 0 ? rawUser : null;
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const channel = parseChannel(searchParams.get("channel"));
+  const storeId = searchParams.get("storeId") ?? undefined;
 
   const [{ data, total }, stats] = await Promise.all([
-    getOrders(status, userId, page, channel),
-    getOrdersCatalogStats(channel),
+    getOrders(status, userId, page, channel, storeId),
+    getOrdersCatalogStats(channel, storeId),
   ]);
 
   return NextResponse.json({

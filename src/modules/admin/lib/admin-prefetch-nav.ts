@@ -165,9 +165,12 @@ export function prefetchAdminRoute(
   }
 
   if (p === "/admin/orders") {
+    const qs = storeId
+      ? `?channel=online&storeId=${encodeURIComponent(storeId)}`
+      : "?channel=online";
     return qc.prefetchQuery({
-      queryKey: adminQueryKeys.orders("all", null, 0),
-      queryFn: () => adminGet("orders?channel=online"),
+      queryKey: adminQueryKeys.orders("all", null, 0, storeId),
+      queryFn: () => adminGet(`orders${qs}`),
       staleTime: STALE,
     });
   }
