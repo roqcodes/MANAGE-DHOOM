@@ -67,5 +67,11 @@ export function formatPortalAuthError(
     return 'Too many attempts. Please wait a moment and try again.';
   }
 
+  if (/^forbidden$/i.test(lower) || /signups? not allowed|signups? disabled/i.test(lower)) {
+    return mode === 'request-access'
+      ? 'Could not create the access request. Confirm email sign-ups are enabled, then try again with a new email.'
+      : 'You do not have permission to do that.';
+  }
+
   return message;
 }

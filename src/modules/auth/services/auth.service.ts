@@ -226,13 +226,18 @@ export async function requestAccess(input: {
     password: input.password,
     options: {
       data: {
-        portal_access_request: true,
+        // Strings: Postgres `->>` compares text; a JSON boolean `true` used to fail the RPC.
+        portal_access_request: "true",
         name: input.name,
         phone: input.phone,
         role: input.role,
       },
     },
   });
+
+  if (data.session) {
+    await supabase.auth.setSession(data.session);
+  }
 
   if (error) {
     await recordAuthAudit({
