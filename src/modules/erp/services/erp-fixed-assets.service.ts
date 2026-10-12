@@ -41,10 +41,11 @@ export async function listFixedAssets(
   let query = supabase
     .from("erp_fixed_assets")
     .select(
-      "id, asset_number, name, serial_number, brand, purchase_date, purchase_amount, warranty_expiry, store_id, vendor_id, stores(name), vendors(name)",
+      "id, asset_number, name, serial_number, brand, purchase_date, purchase_amount, warranty_expiry, store_id, vendor_id, created_at, updated_at, stores(name), vendors(name)",
       { count: "exact" },
     )
-    .order("purchase_date", { ascending: false });
+    .order("purchase_date", { ascending: false })
+    .order("updated_at", { ascending: false });
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
 
@@ -70,6 +71,8 @@ export async function listFixedAssets(
     warranty_expiry: row.warranty_expiry,
     store_name: row.stores?.name ?? null,
     vendor_name: row.vendors?.name ?? null,
+    created_at: (row as { created_at?: string }).created_at ?? null,
+    updated_at: (row as { updated_at?: string }).updated_at ?? null,
   }));
 
   return { data: rows, total: count ?? 0 };

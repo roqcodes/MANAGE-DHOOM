@@ -17,6 +17,7 @@ import {
   ErpStoreTableGlance,
   AdminTableRow,
   SortableTableHead,
+  AdminTableDateTime,
   useAdminDateRange,
   useDebouncedValue,
   useSortableData,
@@ -166,7 +167,7 @@ export function ItemTransactionsListView() {
             {sorted.map((r) => (
               <AdminTableRow key={r.id}>
                 <AdminTableCell className="text-muted-foreground">
-                  {new Date(r.created_at).toLocaleDateString()}
+                  <AdminTableDateTime at={r.created_at} />
                 </AdminTableCell>
                 <AdminTableCell>
                   <ErpStoreTableGlance storeId={r.store_id} name={r.store_name} />

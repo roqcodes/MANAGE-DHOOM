@@ -307,11 +307,12 @@ export async function getVendorPurchaseBills(
   let query = supabase
     .from("erp_purchase_bills")
     .select(
-      "id, purchase_bill_number, vendor_bill_number, vendor_id, store_id, po_id, status, total_amount, landed_cost_total, amount_paid, credits_applied, balance_due, purchase_date, due_date, vendors(name), stores(name), purchase_orders(po_number)",
+      "id, purchase_bill_number, vendor_bill_number, vendor_id, store_id, po_id, status, total_amount, landed_cost_total, amount_paid, credits_applied, balance_due, purchase_date, due_date, created_at, updated_at, vendors(name), stores(name), purchase_orders(po_number)",
       { count: "exact" },
     )
     .eq("vendor_id", vendorId)
     .order("purchase_date", { ascending: false })
+    .order("updated_at", { ascending: false })
     .range(from, from + limit - 1);
 
   if (storeId) query = query.eq("store_id", storeId);
@@ -348,6 +349,8 @@ export async function getVendorPurchaseBills(
         vendor_name: vendor?.name ?? null,
         store_name: store?.name ?? null,
         po_number: po?.po_number ?? null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
       };
     }),
     total: count ?? 0,

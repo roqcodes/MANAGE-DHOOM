@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import { erpDocumentDateSortKey } from "@/lib/format-date";
 import type {
   BulkCustomerPaymentAllocationRow,
   BulkCustomerPaymentBatchRow,
@@ -150,10 +151,11 @@ export async function listErpPayments(filters: PaymentListFilters = {}): Promise
     supabase
       .from("erp_customer_payments")
       .select(
-        "id, payment_number, store_id, user_id, payment_date, payment_mode, total_amount, is_bulk, unallocated_amount, bank_charges, users:users!erp_customer_payments_user_id_fkey(name), stores(name), erp_payment_allocations(invoices(invoice_number))",
+        "id, payment_number, store_id, user_id, payment_date, payment_mode, total_amount, is_bulk, unallocated_amount, bank_charges, created_at, users:users!erp_customer_payments_user_id_fkey(name), stores(name), erp_payment_allocations(invoices(invoice_number))",
         { count: "exact" },
       )
       .order("payment_date", { ascending: false })
+      .order("created_at", { ascending: false })
       .range(from, from + limit - 1),
     scopedFilters,
   ).eq("is_bulk", false);
@@ -179,6 +181,7 @@ export async function listErpPayments(filters: PaymentListFilters = {}): Promise
       store_name: store?.name ?? null,
       invoice_number: invoiceNumbersFromAllocations(allocations),
       bank_charges: Number(row.bank_charges ?? 0),
+      created_at: (row.created_at as string | null) ?? null,
     };
   });
 
@@ -655,7 +658,7 @@ export async function listBulkCustomerPaymentBatches(
   let query = supabase
     .from("erp_customer_payments")
     .select(
-      "id, payment_number, payment_date, store_id, payment_mode, total_amount, reference, notes, created_by, customer_count, invoices_count",
+      "id, payment_number, payment_date, store_id, payment_mode, total_amount, reference, notes, created_by, customer_count, invoices_count, created_at",
     )
     .eq("is_bulk", true)
     .like("reference", `${CUSTOMER_BULK_REF_PREFIX}%`);
@@ -698,11 +701,18 @@ export async function listBulkCustomerPaymentBatches(
     const invoicesCount = Number(row.invoices_count ?? 0);
     const receipt = (row.notes as string | null)?.trim() || row.payment_number;
 
+    const createdAt = (row.created_at as string | null) ?? null;
     const existing = batchMap.get(ref);
     if (existing) {
       existing.total_amount += amt;
       existing.customer_count += 1;
       existing.invoices_count += invoicesCount;
+      if (
+        createdAt &&
+        (!existing.created_at || createdAt.localeCompare(existing.created_at) > 0)
+      ) {
+        existing.created_at = createdAt;
+      }
       if (receipt) {
         existing.receipts = existing.receipts
           ? `${existing.receipts}, ${receipt}`
@@ -724,12 +734,15 @@ export async function listBulkCustomerPaymentBatches(
           ? creatorNames.get(row.created_by as string) ?? null
           : null,
         notes: (row.notes as string | null) ?? null,
+        created_at: createdAt,
       });
     }
   }
 
   let batches = Array.from(batchMap.values()).sort((a, b) =>
-    b.payment_date.localeCompare(a.payment_date),
+    erpDocumentDateSortKey(b.payment_date, b).localeCompare(
+      erpDocumentDateSortKey(a.payment_date, a),
+    ),
   );
 
   const search = options.search?.trim().toLowerCase();

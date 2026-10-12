@@ -31,6 +31,7 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
@@ -243,7 +244,9 @@ export function PaymentsListView() {
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
-                <AdminTableCell className="text-muted-foreground">{row.payment_date}</AdminTableCell>
+                <AdminTableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={row.payment_date} activity={row} />
+                </AdminTableCell>
                 <AdminTableCell>
                   <ErpDocumentTableGlance
                     triggerLabel={formatErpDocRef("PR", row.id)}

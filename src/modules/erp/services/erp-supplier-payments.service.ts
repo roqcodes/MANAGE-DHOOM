@@ -17,6 +17,7 @@ import type {
 import { ERP_SUPPLIER_PAYMENT_MODES } from "@/common/erp/purchasing-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
+import { erpDocumentDateSortKey } from "@/lib/format-date";
 import {
   requireErpStoreId,
   resolveErpStoreId,
@@ -184,7 +185,7 @@ const SUPPLIER_PAYMENT_ACCOUNT_SELECT =
   "accounts!erp_supplier_payments_account_id_fkey(name)";
 
 const PAYMENT_LIST_SELECT =
-  `id, payment_number, vendor_id, store_id, payment_date, payment_mode, total_amount, is_bulk, unallocated_amount, reference, vendors(name), stores(name), ${SUPPLIER_PAYMENT_ACCOUNT_SELECT}, erp_supplier_payment_allocations(amount, erp_purchase_bills(id, purchase_bill_number))`;
+  `id, payment_number, vendor_id, store_id, payment_date, payment_mode, total_amount, is_bulk, unallocated_amount, reference, created_at, vendors(name), stores(name), ${SUPPLIER_PAYMENT_ACCOUNT_SELECT}, erp_supplier_payment_allocations(amount, erp_purchase_bills(id, purchase_bill_number))`;
 
 function mapPaymentListRow(row: Record<string, unknown>): ErpSupplierPaymentListRow {
   const vendor = row.vendors as { name: string | null } | null;
@@ -220,6 +221,7 @@ function mapPaymentListRow(row: Record<string, unknown>): ErpSupplierPaymentList
     account_name: account?.name ?? null,
     bill_numbers: billNumbers || null,
     payment_made_for: paymentMadeFor,
+    created_at: (row.created_at as string | null) ?? null,
   };
 }
 
@@ -664,7 +666,7 @@ export async function listBulkPaymentBatches(
   let query = supabase
     .from("erp_supplier_payments")
     .select(
-      `reference, payment_date, store_id, payment_mode, total_amount, notes, created_by, stores(name), ${SUPPLIER_PAYMENT_ACCOUNT_SELECT}`,
+      `reference, payment_date, store_id, payment_mode, total_amount, notes, created_by, created_at, stores(name), ${SUPPLIER_PAYMENT_ACCOUNT_SELECT}`,
     )
     .eq("is_bulk", true)
     .like("reference", `${BULK_REF_PREFIX}%`);
@@ -688,9 +690,16 @@ export async function listBulkPaymentBatches(
     const account = row.accounts as { name: string } | null;
     const existing = batchMap.get(ref);
     const amt = Number(row.total_amount ?? 0);
+    const createdAt = (row.created_at as string | null) ?? null;
     if (existing) {
       existing.total_amount += amt;
       existing.supplier_count += 1;
+      if (
+        createdAt &&
+        (!existing.created_at || createdAt.localeCompare(existing.created_at) > 0)
+      ) {
+        existing.created_at = createdAt;
+      }
     } else {
       batchMap.set(ref, {
         batch_id: ref,
@@ -703,12 +712,15 @@ export async function listBulkPaymentBatches(
         notes: (row.notes as string | null) ?? null,
         created_by_name: row.created_by ? String(row.created_by).slice(0, 8) : null,
         supplier_count: 1,
+        created_at: createdAt,
       });
     }
   }
 
   const batches = Array.from(batchMap.values()).sort((a, b) =>
-    b.payment_date.localeCompare(a.payment_date),
+    erpDocumentDateSortKey(b.payment_date, b).localeCompare(
+      erpDocumentDateSortKey(a.payment_date, a),
+    ),
   );
 
   const page = options.page ?? 0;

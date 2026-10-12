@@ -22,6 +22,7 @@ import {
   AdminTableRow,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
@@ -158,7 +159,9 @@ export function JournalEntriesListView() {
                     {formatErpDocRef("JE", row.id)}
                   </AdminTableLink>
                 </AdminTableCell>
-                <AdminTableCell>{row.transaction_date}</AdminTableCell>
+                <AdminTableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={row.transaction_date} activity={row} />
+                </AdminTableCell>
                 <AdminTableCell className="max-w-xs truncate">{row.description}</AdminTableCell>
                 <AdminTableCell className="text-muted-foreground">
                   {row.source_entity_type ?? "manual"}

@@ -504,38 +504,58 @@ export function PurchaseBillFormView({
   const description = billNumber ?? "Record vendor bills, line items, and landed costs.";
 
   const totalsSidebar = (
-    <Card className="h-fit">
-      <CardHeader>
-        <CardTitle>Total</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Subtotal</span>
-          <span>{formatCurrencyAmount(totals.subtotal)}</span>
+    <div className="space-y-4">
+      <Card className="h-fit">
+        <CardHeader>
+          <CardTitle>Total</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span>{formatCurrencyAmount(totals.subtotal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Tax</span>
+            <span>{formatCurrencyAmount(totals.tax)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Landed</span>
+            <span>{formatCurrencyAmount(totals.landed)}</span>
+          </div>
+          <div className="space-y-1 border-t pt-3">
+            <AdminFormField label="Discount">
+              <NumericInput
+                min={0}
+                value={discount}
+                onValueChange={setDiscount}
+              />
+            </AdminFormField>
+          </div>
+          <div className="flex justify-between border-t pt-3 font-semibold">
+            <span>Grand total</span>
+            <span>{formatCurrencyAmount(totals.total)}</span>
+          </div>
+        </CardContent>
+      </Card>
+      {!poId ? (
+        <div className="flex items-start gap-3">
+          <Checkbox
+            id={`${formId}-mark-received`}
+            checked={physicalReceiptOnBill}
+            onCheckedChange={(v) => setPhysicalReceiptOnBill(v === true)}
+          />
+          <div className="grid gap-1">
+            <Label htmlFor={`${formId}-mark-received`} className="font-normal">
+              Mark items as received
+            </Label>
+            <p className="text-muted-foreground text-sm">
+              When finalized, increases store stock on this bill, turn off if
+              you will record a purchase receive after the vendor invoice arrives.
+            </p>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Tax</span>
-          <span>{formatCurrencyAmount(totals.tax)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Landed</span>
-          <span>{formatCurrencyAmount(totals.landed)}</span>
-        </div>
-        <div className="space-y-1 border-t pt-3">
-          <AdminFormField label="Discount">
-            <NumericInput
-              min={0}
-              value={discount}
-              onValueChange={setDiscount}
-            />
-          </AdminFormField>
-        </div>
-        <div className="flex justify-between border-t pt-3 font-semibold">
-          <span>Grand total</span>
-          <span>{formatCurrencyAmount(totals.total)}</span>
-        </div>
-      </CardContent>
-    </Card>
+      ) : null}
+    </div>
   );
 
   const footer = isModal ? (
@@ -639,27 +659,9 @@ export function PurchaseBillFormView({
               <AdminFormField label="Reference">
                 <Input value={reference} onChange={(e) => setReference(e.target.value)} />
               </AdminFormField>
-              <AdminFormField label="Notes" className="sm:col-span-2">
+              <AdminFormField label="Notes">
                 <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
               </AdminFormField>
-              {!poId ? (
-                <div className="flex items-start gap-3 sm:col-span-2">
-                  <Checkbox
-                    id={`${formId}-mark-received`}
-                    checked={physicalReceiptOnBill}
-                    onCheckedChange={(v) => setPhysicalReceiptOnBill(v === true)}
-                  />
-                  <div className="grid gap-1">
-                    <Label htmlFor={`${formId}-mark-received`} className="font-normal">
-                      Mark items as received
-                    </Label>
-                    <p className="text-muted-foreground text-sm">
-                      When finalized, increases store stock on this bill, turn off if
-                      you will record a purchase receive after the vendor invoice arrives.
-                    </p>
-                  </div>
-                </div>
-              ) : null}
             </AdminFormGrid>
           </AdminFormSection>
 

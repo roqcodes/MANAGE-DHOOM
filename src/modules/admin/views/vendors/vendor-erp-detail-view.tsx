@@ -16,7 +16,7 @@ import { AdminDetailSkeleton } from "@/modules/admin/components/admin-page-skele
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { formatAuditLogUserDetail } from "@/modules/erp/lib/audit-log-display";
 import { formatCurrencyAmount } from "@/lib/format-currency";
-import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
+import { AdminPageHeader, AdminPageLayout, AdminTableDateTime } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
 
@@ -198,7 +198,9 @@ export function VendorErpDetailView() {
             <tbody>
               {purchases.map((b) => (
                 <tr key={b.id} className="border-t">
-                  <td className="px-3 py-2">{b.purchase_date}</td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    <AdminTableDateTime documentDate={b.purchase_date} activity={b} />
+                  </td>
                   <td className="px-3 py-2">
                     <Link href={`/admin/erp/purchase-bills/${b.id}`} className="text-primary hover:underline">
                       {b.purchase_bill_number}

@@ -17,6 +17,7 @@ import type {
 import {
   AdminTableCell,
   AdminTableRow,
+  AdminTableDateTime,
   ErpStoreTableGlance,
   ErpVendorTableGlance,
 } from "@/modules/admin/ui";
@@ -127,7 +128,12 @@ export function PurchaseBillOutboxTableRows({
               "border-b border-amber-200/50 bg-amber-50/30 hover:bg-amber-50/50",
             )}
           >
-            <AdminTableCell>{payload.purchaseDate}</AdminTableCell>
+            <AdminTableCell className="text-muted-foreground">
+              <AdminTableDateTime
+                documentDate={payload.purchaseDate}
+                at={new Date(op.createdAt).toISOString()}
+              />
+            </AdminTableCell>
             <AdminTableCell>
               <span className="font-medium text-amber-950">
                 Queued · {displayErpDocumentNumber(null, "PB", shortId)}

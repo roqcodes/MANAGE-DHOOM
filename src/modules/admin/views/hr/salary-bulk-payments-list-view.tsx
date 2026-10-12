@@ -22,6 +22,7 @@ import {
   AdminTableHeader,
   AdminTableRow,
   SortableTableHead,
+  AdminTableDateTime,
   useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
@@ -164,7 +165,7 @@ export function SalaryBulkPaymentsListView() {
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
                 <AdminTableCell className="tabular-nums text-muted-foreground">
-                  {formatDisplayDate(row.payment_date)}
+                  <AdminTableDateTime documentDate={row.payment_date} activity={row} />
                 </AdminTableCell>
                 <AdminTableCell className="max-w-[140px] truncate text-sm">
                   {row.store_name ?? "—"}

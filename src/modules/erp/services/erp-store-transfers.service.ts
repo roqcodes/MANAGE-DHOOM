@@ -42,10 +42,11 @@ export async function listStoreTransfers(
   let query = supabase
     .from("erp_store_transfers")
     .select(
-      "id, transfer_number, from_store_id, to_store_id, transfer_date, status",
+      "id, transfer_number, from_store_id, to_store_id, transfer_date, status, created_at, updated_at",
       { count: "exact" },
     )
     .order("transfer_date", { ascending: false })
+    .order("updated_at", { ascending: false })
     .range(from, from + limit - 1);
 
   query = applyTransferStoreScope(query, activeStoreId, filters);
@@ -84,6 +85,8 @@ export async function listStoreTransfers(
       status: row.status,
       from_store_name: storeMap.get(row.from_store_id) ?? null,
       to_store_name: storeMap.get(row.to_store_id) ?? null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     })),
     total: count ?? 0,
   };

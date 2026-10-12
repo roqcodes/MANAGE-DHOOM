@@ -20,6 +20,7 @@ import {
   AdminTableHeader,
   AdminTableRow,
   SortableTableHead,
+  AdminTableDateTime,
   useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
@@ -191,7 +192,9 @@ export function ProfitWithdrawalsListView() {
                 <AdminTableCell className="font-mono text-sm">
                   <span title={row.transaction_number}>{formatErpDocRef("PW", row.id)}</span>
                 </AdminTableCell>
-                <AdminTableCell className="text-muted-foreground">{row.transaction_date}</AdminTableCell>
+                <AdminTableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={row.transaction_date} activity={row} />
+                </AdminTableCell>
                 <AdminTableCell>{row.store_name ?? "—"}</AdminTableCell>
                 <AdminTableCell className="font-medium">{row.from_account_name}</AdminTableCell>
                 <AdminTableCell>{row.to_account_name ?? "Drawings"}</AdminTableCell>

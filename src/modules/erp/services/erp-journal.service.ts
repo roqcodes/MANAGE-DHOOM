@@ -21,10 +21,11 @@ export async function listJournalEntries(
   let query = supabase
     .from("journal_entries")
     .select(
-      "id, journal_number, transaction_date, description, store_id, source_entity_type, source_entity_id, total_debit, total_credit, status, created_at, stores(name)",
+      "id, journal_number, transaction_date, description, store_id, source_entity_type, source_entity_id, total_debit, total_credit, status, created_at, updated_at, stores(name)",
       { count: "exact" },
     )
-    .order("transaction_date", { ascending: false });
+    .order("transaction_date", { ascending: false })
+    .order("updated_at", { ascending: false });
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
   const { data, error, count } = await query.range(from, from + limit - 1);
   if (error) throw new Error(error.message);
@@ -43,6 +44,7 @@ export async function listJournalEntries(
       total_credit: Number(row.total_credit),
       status: row.status,
       created_at: row.created_at,
+      updated_at: row.updated_at,
     };
   });
 

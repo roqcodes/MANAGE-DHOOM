@@ -27,6 +27,7 @@ import {
   AdminTableRow,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useDebouncedValue,
   useSortableData,
 } from "@/modules/admin/ui";
@@ -178,7 +179,9 @@ export function VatPaymentsListView() {
                 <AdminTableCell className="font-medium">
                   <span title={row.payment_number}>{formatErpDocRef("VP", row.id)}</span>
                 </AdminTableCell>
-                <AdminTableCell>{formatDisplayDate(row.payment_date)}</AdminTableCell>
+                <AdminTableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={row.payment_date} activity={row} />
+                </AdminTableCell>
                 <AdminTableCell className="text-muted-foreground">{row.reference || "—"}</AdminTableCell>
                 <AdminTableCell>
                   {row.store_id && row.store_name ? (

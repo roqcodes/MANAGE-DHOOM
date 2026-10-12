@@ -106,6 +106,8 @@ function mapExpenseRow(
     vendor_name: vendorId ? vendorNames.get(vendorId) ?? null : null,
     customer_name: userId ? customerNames.get(userId) ?? null : null,
     store_name: store?.name ?? null,
+    created_at: (row.created_at as string | null) ?? null,
+    updated_at: (row.updated_at as string | null) ?? null,
   };
 }
 
@@ -186,10 +188,11 @@ export async function listExpenses(
   let query = supabase
     .from("erp_expenses")
     .select(
-      "id, expense_number, store_id, expense_date, amount, total_amount, reference, account_id, paid_through_account_id, vendor_id, user_id, stores(name)",
+      "id, expense_number, store_id, expense_date, amount, total_amount, reference, account_id, paid_through_account_id, vendor_id, user_id, created_at, updated_at, stores(name)",
       { count: "exact" },
     )
-    .order("expense_date", { ascending: false });
+    .order("expense_date", { ascending: false })
+    .order("updated_at", { ascending: false });
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
   if (filters.accountId) query = query.eq("account_id", filters.accountId);

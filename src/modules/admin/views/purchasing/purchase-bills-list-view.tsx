@@ -30,6 +30,7 @@ import {
   ErpVendorTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
@@ -237,7 +238,9 @@ export function PurchaseBillsListView() {
               const canEdit = r.status === "draft";
               return (
                 <AdminTableRow key={r.id}>
-                  <AdminTableCell>{r.purchase_date}</AdminTableCell>
+                  <AdminTableCell className="text-muted-foreground">
+                    <AdminTableDateTime documentDate={r.purchase_date} activity={r} />
+                  </AdminTableCell>
                   <AdminTableCell>
                     <ErpDocumentTableGlance
                       triggerLabel={displayErpDocumentNumber(r.purchase_bill_number, "PB", r.id)}

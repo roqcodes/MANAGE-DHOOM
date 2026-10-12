@@ -161,7 +161,7 @@ export async function listAccountTransactions(
   let query = supabase
     .from("erp_account_transactions")
     .select(
-      "id, transaction_number, transaction_date, transaction_type, details, debit_amount, credit_amount, running_balance, reference, payment_type, store_id, account_id",
+      "id, transaction_number, transaction_date, transaction_type, details, debit_amount, credit_amount, running_balance, reference, payment_type, store_id, account_id, created_at, updated_at",
     )
     .eq("account_id", accountId)
     .order("transaction_date", { ascending: false })
@@ -188,6 +188,8 @@ export async function listAccountTransactions(
       store_name: null,
       account_id: row.account_id,
       account_name: null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     }));
 }
 
@@ -260,7 +262,7 @@ export async function listPaymentStatements(filters?: {
   let query = supabase
     .from("erp_account_transactions")
     .select(
-      "id, transaction_date, transaction_type, details, payment_type, debit_amount, credit_amount, running_balance, store_id, account_id",
+      "id, transaction_date, transaction_type, details, payment_type, debit_amount, credit_amount, running_balance, store_id, account_id, created_at, updated_at",
     )
     .order("transaction_date", { ascending: true })
     .order("created_at", { ascending: true })
@@ -310,6 +312,8 @@ export async function listPaymentStatements(filters?: {
       debit_amount: Number(row.debit_amount),
       credit_amount: Number(row.credit_amount),
       running_balance: row.running_balance != null ? Number(row.running_balance) : null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     }));
 
   if (filters?.search?.trim()) {
@@ -355,10 +359,11 @@ export async function listProfitWithdrawals(filters?: {
   let query = supabase
     .from("erp_account_transactions")
     .select(
-      "id, transaction_number, transaction_date, details, reference, credit_amount, payment_type, store_id, account_id, counter_account_id",
+      "id, transaction_number, transaction_date, details, reference, credit_amount, payment_type, store_id, account_id, counter_account_id, created_at, updated_at",
     )
     .eq("transaction_type", "profit_withdrawal")
     .order("transaction_date", { ascending: false })
+    .order("updated_at", { ascending: false })
     .limit(filters?.limit ?? 200);
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
@@ -409,6 +414,8 @@ export async function listProfitWithdrawals(filters?: {
       details: row.details,
       amount: Number(row.credit_amount),
       payment_type: row.payment_type,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     }));
 
   if (filters?.search?.trim()) {

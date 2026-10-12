@@ -35,10 +35,11 @@ export async function listCreditNotes(
   let query = supabase
     .from("erp_credit_notes")
     .select(
-      "id, credit_note_number, user_id, store_id, status, total_amount, balance_remaining, credit_note_date, users:users!erp_credit_notes_user_id_fkey(name), stores(name)",
+      "id, credit_note_number, user_id, store_id, status, total_amount, balance_remaining, credit_note_date, created_at, updated_at, users:users!erp_credit_notes_user_id_fkey(name), stores(name)",
       { count: "exact" },
     )
-    .order("created_at", { ascending: false })
+    .order("credit_note_date", { ascending: false })
+    .order("updated_at", { ascending: false })
     .range(from, from + limit - 1);
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
@@ -66,6 +67,8 @@ export async function listCreditNotes(
         credit_note_date: row.credit_note_date,
         customer_name: user?.name ?? null,
         store_name: store?.name ?? null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
       };
     }),
     total: count ?? 0,

@@ -42,7 +42,7 @@ import {
   SalesLoadingState,
   SalesPageLayout,
 } from "@/modules/erp/components/sales-module-ui";
-import { SortableTableHead, useSortableData } from "@/modules/admin/ui";
+import { SortableTableHead, AdminTableDateTime, useSortableData } from "@/modules/admin/ui";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import {
   BalanceBadge,
@@ -355,7 +355,7 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
                 {sorted.map((tx) => (
                   <TableRow key={tx.id}>
                     <TableCell className="text-sm text-muted-foreground">
-                      {tx.transaction_date}
+                      <AdminTableDateTime documentDate={tx.transaction_date} activity={tx} />
                     </TableCell>
                     <TableCell className="hidden text-sm md:table-cell">
                       {tx.store_name ?? "—"}

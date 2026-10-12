@@ -20,7 +20,7 @@ import {
   SalesPageHeader,
   SalesPageLayout,
 } from "@/modules/erp/components/sales-module-ui";
-import { SortableTableHead, useAdminDateRange, useSortableData } from "@/modules/admin/ui";
+import { SortableTableHead, AdminTableDateTime, useAdminDateRange, useSortableData } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { formatBankingType } from "@/modules/admin/views/banking/banking-ui";
@@ -222,7 +222,9 @@ export function PaymentStatementView() {
             {sorted.map((row, index) => (
               <TableRow key={row.id}>
                 <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                <TableCell className="text-sm">{row.transaction_date}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  <AdminTableDateTime documentDate={row.transaction_date} activity={row} />
+                </TableCell>
                 <TableCell className="text-sm">{row.store_name ?? "—"}</TableCell>
                 <TableCell className="text-sm font-medium">{row.account_name}</TableCell>
                 <TableCell className="text-sm">{formatBankingType(row.transaction_type)}</TableCell>

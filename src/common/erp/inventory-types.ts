@@ -50,6 +50,8 @@ export interface ErpStockAdjustmentListRow {
   total_add_cost: number;
   total_remove_cost: number;
   store_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpTransferRequestListRow {
@@ -61,6 +63,8 @@ export interface ErpTransferRequestListRow {
   status: string;
   from_store_name: string | null;
   to_store_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpStoreTransferListRow {
@@ -72,6 +76,8 @@ export interface ErpStoreTransferListRow {
   status: string;
   from_store_name: string | null;
   to_store_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface StockDetailRow {

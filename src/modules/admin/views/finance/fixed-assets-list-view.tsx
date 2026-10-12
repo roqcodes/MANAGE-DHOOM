@@ -37,6 +37,7 @@ import {
   AdminTableRow,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
@@ -237,7 +238,7 @@ export function FixedAssetsListView() {
                     {row.brand ?? "—"}
                   </AdminTableCell>
                   <AdminTableCell className="text-sm tabular-nums text-muted-foreground">
-                    {formatDisplayDate(row.purchase_date)}
+                    <AdminTableDateTime documentDate={row.purchase_date} activity={row} />
                   </AdminTableCell>
                   <AdminTableCell className="text-sm text-muted-foreground">
                     {row.warranty_expiry ? (

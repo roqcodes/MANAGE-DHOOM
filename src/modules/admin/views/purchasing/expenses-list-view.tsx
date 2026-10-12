@@ -31,6 +31,7 @@ import {
   ErpVendorTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
@@ -234,7 +235,7 @@ export function ExpensesListView() {
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
                 <AdminTableCell className="tabular-nums text-muted-foreground">
-                  {formatDisplayDate(row.expense_date)}
+                  <AdminTableDateTime documentDate={row.expense_date} activity={row} />
                 </AdminTableCell>
                 <AdminTableCell className="max-w-[140px] truncate text-sm">
                   <ErpStoreTableGlance storeId={row.store_id} name={row.store_name} />

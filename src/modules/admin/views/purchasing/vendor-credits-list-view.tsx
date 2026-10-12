@@ -28,6 +28,7 @@ import {
   ErpVendorTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
@@ -187,7 +188,9 @@ export function VendorCreditsListView() {
                 <AdminTableCell align="right" className="tabular-nums">
                   {formatCurrencyAmount(r.balance_remaining)}
                 </AdminTableCell>
-                <AdminTableCell>{r.credit_date}</AdminTableCell>
+                <AdminTableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={r.credit_date} activity={r} />
+                </AdminTableCell>
                 <AdminTableCell align="right">
                   <ErpListRowActions
                     viewHref={`/admin/erp/vendor-credits/${r.id}`}

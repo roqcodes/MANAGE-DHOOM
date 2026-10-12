@@ -62,6 +62,8 @@ export interface ErpSalaryPaymentListRow {
   payment_mode: string;
   paid_through_name: string | null;
   bulk_payment_id: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpSalaryPaymentDetail extends ErpSalaryPaymentListRow {
@@ -81,6 +83,8 @@ export interface ErpSalaryBulkPaymentListRow {
   total_amount: number;
   notes: string | null;
   reference: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpSalaryBulkPaymentLine {

@@ -28,6 +28,7 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
@@ -172,7 +173,7 @@ export function CreditNotesListView() {
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
                 <AdminTableCell className="text-muted-foreground">
-                  {row.credit_note_date}
+                  <AdminTableDateTime documentDate={row.credit_note_date} activity={row} />
                 </AdminTableCell>
                 <AdminTableCell>
                   <ErpDocumentTableGlance

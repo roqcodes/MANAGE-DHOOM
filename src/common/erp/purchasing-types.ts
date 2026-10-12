@@ -55,6 +55,8 @@ export interface ErpPurchaseBillListRow {
   store_name: string | null;
   po_number: string | null;
   display_status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpPurchaseOrderListRow {
@@ -281,6 +283,8 @@ export interface ErpSupplierPaymentListRow {
   account_name: string | null;
   bill_numbers: string | null;
   payment_made_for: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface SupplierPaymentModeTotals {
@@ -335,6 +339,8 @@ export interface BulkSupplierPaymentBatchRow {
   notes: string | null;
   created_by_name: string | null;
   supplier_count: number;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface BulkSupplierPaymentLine {
@@ -388,6 +394,8 @@ export interface ErpVendorCreditListRow {
   credit_date: string;
   vendor_name: string | null;
   store_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpExpenseListRow {
@@ -404,6 +412,8 @@ export interface ErpExpenseListRow {
   vendor_name: string | null;
   customer_name: string | null;
   store_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpExpenseDetail {

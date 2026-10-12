@@ -27,10 +27,11 @@ export async function listVendorCredits(
   let query = supabase
     .from("erp_vendor_credits")
     .select(
-      "id, credit_number, vendor_id, store_id, status, total_amount, balance_remaining, credit_date, vendors(name), stores(name)",
+      "id, credit_number, vendor_id, store_id, status, total_amount, balance_remaining, credit_date, created_at, updated_at, vendors(name), stores(name)",
       { count: "exact" },
     )
     .order("credit_date", { ascending: false })
+    .order("updated_at", { ascending: false })
     .range(from, from + limit - 1);
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
 
@@ -53,6 +54,8 @@ export async function listVendorCredits(
         credit_date: row.credit_date,
         vendor_name: vendor?.name ?? null,
         store_name: store?.name ?? null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
       };
     }),
     total: count ?? 0,

@@ -25,6 +25,7 @@ import {
   AdminTableRow,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
@@ -216,7 +217,7 @@ export function SalaryPaymentsListView() {
                   {row.store_name ?? "—"}
                 </AdminTableCell>
                 <AdminTableCell className="tabular-nums text-muted-foreground">
-                  {formatDisplayDate(row.payment_date)}
+                  <AdminTableDateTime documentDate={row.payment_date} activity={row} />
                 </AdminTableCell>
                 <AdminTableCell align="right" className="font-semibold tabular-nums">
                   {formatCurrencyAmount(row.total_paid_amount)}

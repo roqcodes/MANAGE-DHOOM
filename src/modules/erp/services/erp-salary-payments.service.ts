@@ -73,6 +73,7 @@ function mapPaymentRow(row: Record<string, unknown>): ErpSalaryPaymentListRow {
     payment_mode: row.payment_mode as string,
     paid_through_name: account?.name ?? null,
     bulk_payment_id: (row.bulk_payment_id as string | null) ?? null,
+    created_at: (row.created_at as string | null) ?? null,
   };
 }
 
@@ -103,6 +104,7 @@ export async function listSalaryPayments(
     .select(PAYMENT_SELECT, { count: "exact" })
     .is("bulk_payment_id", null)
     .order("payment_date", { ascending: false })
+    .order("created_at", { ascending: false })
     .range(from, from + limit - 1);
 
   if (storeId) query = query.eq("store_id", storeId);
@@ -247,10 +249,11 @@ export async function listSalaryBulkPayments(
   let query = supabase
     .from("erp_salary_bulk_payments")
     .select(
-      "id, bulk_number, store_id, payment_date, payment_mode, total_amount, notes, reference, stores(name), accounts!erp_salary_bulk_payments_paid_through_account_id_fkey(name)",
+      "id, bulk_number, store_id, payment_date, payment_mode, total_amount, notes, reference, created_at, stores(name), accounts!erp_salary_bulk_payments_paid_through_account_id_fkey(name)",
       { count: "exact" },
     )
     .order("payment_date", { ascending: false })
+    .order("created_at", { ascending: false })
     .range(from, from + limit - 1);
 
   if (storeId) query = query.eq("store_id", storeId);
@@ -278,6 +281,7 @@ export async function listSalaryBulkPayments(
         total_amount: Number(row.total_amount ?? 0),
         notes: row.notes,
         reference: row.reference,
+        created_at: row.created_at,
       };
     }),
     total: count ?? 0,

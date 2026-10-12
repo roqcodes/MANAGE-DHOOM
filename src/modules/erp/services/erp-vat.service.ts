@@ -466,10 +466,11 @@ export async function listVatPayments(
   let query = supabase
     .from("erp_vat_payments")
     .select(
-      "id, payment_number, vat_return_id, store_id, payment_date, reference, payment_type, paid_from_account_id, amount, notes, erp_vat_returns(return_number, period_label)",
+      "id, payment_number, vat_return_id, store_id, payment_date, reference, payment_type, paid_from_account_id, amount, notes, created_at, updated_at, erp_vat_returns(return_number, period_label)",
       { count: "exact" },
     )
-    .order("payment_date", { ascending: false });
+    .order("payment_date", { ascending: false })
+    .order("updated_at", { ascending: false });
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
   const term = filters.search?.trim();
@@ -527,6 +528,8 @@ export async function listVatPayments(
       amount: Number(row.amount ?? 0),
       return_number: vatReturn?.return_number ?? null,
       period_label: vatReturn?.period_label ?? null,
+      created_at: (row.created_at as string | null) ?? null,
+      updated_at: (row.updated_at as string | null) ?? null,
     };
   });
 

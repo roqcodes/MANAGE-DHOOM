@@ -35,7 +35,7 @@ import {
   SalesPageHeader,
   SalesPageLayout,
 } from "@/modules/erp/components/sales-module-ui";
-import { SortableTableHead, useErpFormModal, useSortableData, ErpCustomerTableGlance, ErpDocumentTableGlance, ErpStoreTableGlance } from "@/modules/admin/ui";
+import { SortableTableHead, AdminTableDateTime, useErpFormModal, useSortableData, ErpCustomerTableGlance, ErpDocumentTableGlance, ErpStoreTableGlance } from "@/modules/admin/ui";
 import { EstimateFormView } from "@/modules/admin/views/sales/estimate-form-view";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 
@@ -168,7 +168,9 @@ export function AdminErpEstimatesView() {
                 <TableCell className="text-right font-semibold tabular-nums">
                   {formatCurrencyAmount(row.total_amount)}
                 </TableCell>
-                <TableCell className="text-muted-foreground">{row.estimate_date}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={row.estimate_date} activity={row} />
+                </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -341,7 +343,9 @@ export function AdminErpPaymentsView() {
                 <TableCell className="text-right font-semibold tabular-nums">
                   {formatCurrencyAmount(row.total_amount)}
                 </TableCell>
-                <TableCell className="text-muted-foreground">{row.payment_date}</TableCell>
+                <TableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={row.payment_date} activity={row} />
+                </TableCell>
                 <TableCell>{row.is_bulk ? "Yes" : "No"}</TableCell>
                 <TableCell>
                   <DropdownMenu>

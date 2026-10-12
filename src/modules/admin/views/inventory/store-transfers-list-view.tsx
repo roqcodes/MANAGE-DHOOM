@@ -27,6 +27,7 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
@@ -149,7 +150,9 @@ export function StoreTransfersListView() {
                 <AdminTableCell>
                   <ErpStoreTableGlance storeId={r.to_store_id} name={r.to_store_name} />
                 </AdminTableCell>
-                <AdminTableCell>{r.transfer_date}</AdminTableCell>
+                <AdminTableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={r.transfer_date} activity={r} />
+                </AdminTableCell>
                 <AdminTableCell>
                   <StatusBadge status={r.status} />
                 </AdminTableCell>

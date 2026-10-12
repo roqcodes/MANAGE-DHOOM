@@ -47,6 +47,7 @@ export type JournalEntryListRow = {
   total_credit: number;
   status: string;
   created_at: string;
+  updated_at?: string | null;
 };
 
 export type JournalEntryLineRow = {
@@ -83,6 +84,8 @@ export type AccountTransactionRow = {
   store_name: string | null;
   account_id: string;
   account_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type PaymentStatementRow = {
@@ -96,6 +99,8 @@ export type PaymentStatementRow = {
   debit_amount: number;
   credit_amount: number;
   running_balance: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type ProfitWithdrawalRow = {
@@ -109,6 +114,8 @@ export type ProfitWithdrawalRow = {
   details: string;
   amount: number;
   payment_type: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type AccountStoreBalanceRow = {
@@ -231,6 +238,8 @@ export type VatPaymentListRow = {
   amount: number;
   return_number: string | null;
   period_label: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type FixedAssetListRow = {
@@ -244,6 +253,8 @@ export type FixedAssetListRow = {
   warranty_expiry: string | null;
   store_name: string | null;
   vendor_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type FixedAssetMaintenanceInfo = {

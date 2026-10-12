@@ -24,6 +24,7 @@ export interface ErpInvoiceListRow {
   credits_applied: number;
   balance_due: number;
   created_at: string;
+  updated_at?: string | null;
   due_date: string | null;
   source: string;
   customer_name: string | null;
@@ -41,6 +42,8 @@ export interface ErpEstimateListRow {
   valid_until: string | null;
   customer_name: string | null;
   store_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpPaymentListRow {
@@ -57,6 +60,8 @@ export interface ErpPaymentListRow {
   store_name: string | null;
   invoice_number: string | null;
   bank_charges: number;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface ErpPaymentSummary {
@@ -98,6 +103,8 @@ export interface ErpCreditNoteListRow {
   credit_note_date: string;
   customer_name: string | null;
   store_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface CustomerErpSummary {
@@ -202,6 +209,8 @@ export interface BulkCustomerPaymentBatchRow {
   invoices_count: number;
   created_by_name: string | null;
   notes: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 export interface BulkCustomerPaymentLine {

@@ -32,6 +32,7 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
@@ -232,7 +233,9 @@ export function SupplierBulkPaymentsListView() {
                     ]}
                   />
                 </AdminTableCell>
-                <AdminTableCell>{r.payment_date}</AdminTableCell>
+                <AdminTableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={r.payment_date} activity={r} />
+                </AdminTableCell>
                 <AdminTableCell>
                   <ErpStoreTableGlance storeId={r.store_id} name={r.store_name} />
                 </AdminTableCell>

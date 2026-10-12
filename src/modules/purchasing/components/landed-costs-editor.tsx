@@ -61,15 +61,23 @@ export function LandedCostsEditor({
     return roundMoney(sum);
   }, [rows]);
 
-  const prevLandedTotal = useRef(total);
+  const linesRef = useRef(purchaseLines);
+  linesRef.current = purchaseLines;
+  const onLinesChangeRef = useRef(onPurchaseLinesChange);
+  onLinesChangeRef.current = onPurchaseLinesChange;
+  const prevLandedTotal = useRef<number | null>(null);
   useEffect(() => {
-    if (!purchaseLines || !onPurchaseLinesChange) return;
+    if (prevLandedTotal.current == null) {
+      prevLandedTotal.current = total;
+      return;
+    }
     if (prevLandedTotal.current === total) return;
     prevLandedTotal.current = total;
-    onPurchaseLinesChange(
-      purchaseLines.map((l) => ({ ...l, landedCostAllocated: undefined })),
-    );
-  }, [total, purchaseLines, onPurchaseLinesChange]);
+    const currentLines = linesRef.current;
+    const setLines = onLinesChangeRef.current;
+    if (!currentLines || !setLines) return;
+    setLines(currentLines.map((l) => ({ ...l, landedCostAllocated: undefined })));
+  }, [total]);
 
   function addFromMaster(item: ErpLandedCostItem) {
     onChange([

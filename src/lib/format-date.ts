@@ -50,3 +50,77 @@ export function formatDateOnly(
   const normalized = toDateInputValue(value);
   return normalized || fallback;
 }
+
+export type ErpListActivityTimestamps = {
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+/** Prefer updated_at for “last activity” time on list rows. */
+export function erpActivityTimestamp(
+  row?: ErpListActivityTimestamps | null,
+): string | null {
+  if (!row) return null;
+  const raw = row.updated_at ?? row.created_at;
+  if (!raw?.trim()) return null;
+  const t = Date.parse(raw);
+  return Number.isNaN(t) ? null : raw;
+}
+
+function parseTimestampMs(value: string | null | undefined): number | null {
+  if (!value?.trim()) return null;
+  const t = Date.parse(value);
+  return Number.isNaN(t) ? null : t;
+}
+
+/**
+ * Lexicographic sort key: document date, then last-updated/created time.
+ * Use with useSortableData string comparison (asc/desc).
+ */
+export function erpDocumentDateSortKey(
+  documentDate: string | null | undefined,
+  row?: ErpListActivityTimestamps | null,
+): string {
+  const datePart = toDateInputValue(documentDate) || "0000-00-00";
+  const activity = erpActivityTimestamp(row);
+  const iso =
+    activity && parseTimestampMs(activity) != null
+      ? new Date(activity).toISOString()
+      : `${datePart}T00:00:00.000Z`;
+  return `${datePart}|${iso}`;
+}
+
+/** Full instant sort key for created_at / updated_at columns. */
+export function erpInstantSortKey(value: string | null | undefined): string {
+  const ms = parseTimestampMs(value);
+  return ms != null ? new Date(ms).toISOString() : "0000-00-00T00:00:00.000Z";
+}
+
+const LIST_TIME_FORMAT: Intl.DateTimeFormatOptions = {
+  hour: "numeric",
+  minute: "2-digit",
+};
+
+/** Local time label for an ISO / timestamptz value. */
+export function formatTimeLocal(
+  value: string | null | undefined,
+): string | null {
+  const ms = parseTimestampMs(value);
+  if (ms == null) return null;
+  return new Intl.DateTimeFormat(undefined, LIST_TIME_FORMAT).format(new Date(ms));
+}
+
+/** Compact list date (dd-MMM-yyyy) from a document date or timestamp. */
+export function formatListDateLabel(
+  documentDate: string | null | undefined,
+): string {
+  const normalized = toDateInputValue(documentDate);
+  if (!normalized) return "—";
+  const d = new Date(`${normalized}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return normalized;
+  return new Intl.DateTimeFormat(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}

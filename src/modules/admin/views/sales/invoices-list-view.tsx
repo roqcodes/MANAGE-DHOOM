@@ -27,6 +27,7 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
@@ -208,7 +209,7 @@ export function InvoicesListView() {
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
                 <AdminTableCell className="text-muted-foreground">
-                  {row.created_at?.slice(0, 10)}
+                  <AdminTableDateTime at={row.created_at} activity={row} />
                 </AdminTableCell>
                 <AdminTableCell>
                   <ErpDocumentTableGlance

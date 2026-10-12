@@ -171,6 +171,10 @@ function coalesceNumber(n: number): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function isExplicitLandedAlloc(value: number | null | undefined): value is number {
+  return value != null && Number.isFinite(value);
+}
+
 function coalesceQty(n: number): number {
   const q = coalesceNumber(n);
   return q > 0 ? q : 0;
@@ -188,10 +192,7 @@ export function getEffectiveLandedAllocations(
     taxRatePercentByKey,
   );
   const out = new Map<string, number>();
-  const hasManual = lines.some((l) => {
-    const m = manualByKey[l.key];
-    return m != null && Number.isFinite(m);
-  });
+  const hasManual = lines.some((l) => isExplicitLandedAlloc(manualByKey[l.key]));
   if (!hasManual) {
     for (const [key, b] of auto) {
       out.set(key, b.landedAllocated);
@@ -201,14 +202,13 @@ export function getEffectiveLandedAllocations(
   const manualSum = roundMoney(
     lines.reduce((s, line) => {
       const m = manualByKey[line.key];
-      return m != null && Number.isFinite(m) ? s + m : s;
+      return isExplicitLandedAlloc(m) ? s + m : s;
     }, 0),
   );
   const remaining = roundMoney(Math.max(0, landedTotal - manualSum));
-  const unsetLines = lines.filter((line) => {
-    const m = manualByKey[line.key];
-    return m == null || !Number.isFinite(m);
-  });
+  const unsetLines = lines.filter(
+    (line) => !isExplicitLandedAlloc(manualByKey[line.key]),
+  );
   const autoRemainder =
     unsetLines.length > 0 && remaining > 0
       ? computePurchaseLineLandedAllocations(
@@ -220,15 +220,12 @@ export function getEffectiveLandedAllocations(
 
   for (const line of lines) {
     const m = manualByKey[line.key];
-    if (m != null && Number.isFinite(m)) {
+    if (isExplicitLandedAlloc(m)) {
       out.set(line.key, roundMoney(Math.max(0, m)));
     } else {
-      out.set(
-        line.key,
-        autoRemainder.get(line.key)?.landedAllocated ??
-          auto.get(line.key)?.landedAllocated ??
-          0,
-      );
+      // Unset lines keep leftover only — never re-split the full total (that
+      // would overwrite other items when one amount is edited).
+      out.set(line.key, autoRemainder.get(line.key)?.landedAllocated ?? 0);
     }
   }
   return out;
@@ -276,16 +273,24 @@ export function resolveDocumentLandedAllocations(
   }
   const allocRows = allocationRowsFromFormLines(lines);
   const manualByKey = manualByKeyFromLines(lines);
-  const allExplicit = allocRows.every((row) => {
-    const m = manualByKey[row.key];
-    return m != null && Number.isFinite(m);
-  });
+  const allExplicit = allocRows.every((row) =>
+    isExplicitLandedAlloc(manualByKey[row.key]),
+  );
   if (allExplicit) {
-    const out = new Map<string, number>();
-    for (const row of allocRows) {
-      out.set(row.key, roundMoney(Math.max(0, manualByKey[row.key] as number)));
+    const manualSum = roundMoney(
+      allocRows.reduce(
+        (s, row) => s + Math.max(0, manualByKey[row.key] as number),
+        0,
+      ),
+    );
+    // All zeros is not a split — fall through to value-based auto allocation.
+    if (manualSum > 0) {
+      const out = new Map<string, number>();
+      for (const row of allocRows) {
+        out.set(row.key, roundMoney(Math.max(0, manualByKey[row.key] as number)));
+      }
+      return out;
     }
-    return out;
   }
   return getEffectiveLandedAllocations(
     allocRows,
@@ -310,15 +315,42 @@ export function commitResolvedLandedAllocationsToLines(
 ): PurchaseLineFormRow[] {
   const landedTotal = sumDocumentLandedCostTotal(landedCosts);
   if (landedTotal <= 0) {
-    return lines;
+    return lines.map((l) => ({ ...l, landedCostAllocated: undefined }));
   }
   const amounts = resolveDocumentLandedAllocations(lines, landedCosts);
   return lines.map((l) => {
     const alloc = amounts.get(l.key);
     if (alloc == null) {
-      return l;
+      return { ...l, landedCostAllocated: undefined };
     }
     return { ...l, landedCostAllocated: alloc };
+  });
+}
+
+/**
+ * User edited one item's landed share: freeze every other line at the amount
+ * currently shown so sibling rows are not recalculated.
+ */
+export function applyManualLineLandedAllocation(
+  lines: PurchaseLineFormRow[],
+  landedCosts: LandedCostFormRow[],
+  lineKey: string,
+  amount: number,
+): PurchaseLineFormRow[] {
+  const clamped = roundMoney(Math.max(0, amount));
+  const snapshot = resolveDocumentLandedAllocations(lines, landedCosts);
+  return lines.map((l) => {
+    if (l.key === lineKey) {
+      return { ...l, landedCostAllocated: clamped };
+    }
+    if (isExplicitLandedAlloc(l.landedCostAllocated)) {
+      return l;
+    }
+    const frozen = snapshot.get(l.key);
+    if (frozen == null) {
+      return l;
+    }
+    return { ...l, landedCostAllocated: frozen };
   });
 }
 
@@ -352,10 +384,7 @@ export function canApplyManualLandedAllocations(
   const eligible = lines.filter((l) => l.quantity > 0);
   if (!eligible.length) return false;
   if (
-    !eligible.every(
-      (l) =>
-        l.landedCostAllocated != null && Number.isFinite(l.landedCostAllocated),
-    )
+    !eligible.every((l) => isExplicitLandedAlloc(l.landedCostAllocated))
   ) {
     return false;
   }

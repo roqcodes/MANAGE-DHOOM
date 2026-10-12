@@ -40,6 +40,7 @@ export {
   AdminTableCell,
   SortableTableHead,
 } from "./admin-data-table";
+export { AdminTableDateTime, type AdminTableDateTimeProps } from "./admin-table-date-time";
 export {
   EntitySearchSelect,
   CustomerSearchSelect,

@@ -28,6 +28,7 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  AdminTableDateTime,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
@@ -158,7 +159,9 @@ export function StockAdjustmentsListView() {
                 <AdminTableCell>
                   <ErpStoreTableGlance storeId={r.store_id} name={r.store_name} />
                 </AdminTableCell>
-                <AdminTableCell>{r.adjustment_date}</AdminTableCell>
+                <AdminTableCell className="text-muted-foreground">
+                  <AdminTableDateTime documentDate={r.adjustment_date} activity={r} />
+                </AdminTableCell>
                 <AdminTableCell>
                   <StatusBadge status={r.status} />
                 </AdminTableCell>

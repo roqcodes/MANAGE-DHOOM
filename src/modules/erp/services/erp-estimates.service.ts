@@ -36,10 +36,11 @@ export async function listEstimates(
   let query = supabase
     .from("erp_estimates")
     .select(
-      "id, estimate_number, user_id, store_id, status, total_amount, estimate_date, valid_until, users:users!erp_estimates_user_id_fkey(name), stores(name)",
+      "id, estimate_number, user_id, store_id, status, total_amount, estimate_date, valid_until, created_at, updated_at, users:users!erp_estimates_user_id_fkey(name), stores(name)",
       { count: "exact" },
     )
-    .order("created_at", { ascending: false })
+    .order("estimate_date", { ascending: false })
+    .order("updated_at", { ascending: false })
     .range(from, from + limit - 1);
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
 
@@ -62,6 +63,8 @@ export async function listEstimates(
         valid_until: row.valid_until,
         customer_name: user?.name ?? null,
         store_name: store?.name ?? null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
       };
     }),
     total: count ?? 0,

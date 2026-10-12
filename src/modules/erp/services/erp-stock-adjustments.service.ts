@@ -25,8 +25,9 @@ export async function listStockAdjustments(
 
   let query = supabase
     .from("erp_stock_adjustments")
-    .select("id, adjustment_number, store_id, adjustment_date, status, total_add_cost, total_remove_cost", { count: "exact" })
+    .select("id, adjustment_number, store_id, adjustment_date, status, total_add_cost, total_remove_cost, created_at, updated_at", { count: "exact" })
     .order("adjustment_date", { ascending: false })
+    .order("updated_at", { ascending: false })
     .range(from, from + limit - 1);
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
@@ -55,6 +56,8 @@ export async function listStockAdjustments(
       total_add_cost: Number(row.total_add_cost ?? 0),
       total_remove_cost: Number(row.total_remove_cost ?? 0),
       store_name: storeMap.get(row.store_id) ?? null,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     })),
     total: count ?? 0,
   };

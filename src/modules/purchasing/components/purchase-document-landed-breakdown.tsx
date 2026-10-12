@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  commitResolvedLandedAllocationsToLines,
+  applyManualLineLandedAllocation,
   getLandedAllocationRemainder,
   isLandedAllocationBalanced,
   resolveDocumentLandedAllocations,
@@ -53,11 +53,9 @@ export function PurchaseDocumentLandedBreakdown({
 
   function updateAllocation(lineKey: string, amount: number) {
     if (!Number.isFinite(amount)) return;
-    const clamped = roundMoney(Math.max(0, amount));
-    const withEdit = lines.map((l) =>
-      l.key === lineKey ? { ...l, landedCostAllocated: clamped } : l,
+    onLinesChange(
+      applyManualLineLandedAllocation(lines, landedCosts, lineKey, amount),
     );
-    onLinesChange(commitResolvedLandedAllocationsToLines(withEdit, landedCosts));
   }
 
   function resetToAuto() {

@@ -2,7 +2,38 @@
 
 import { useMemo, useState } from "react";
 
+import {
+  erpDocumentDateSortKey,
+  erpInstantSortKey,
+  type ErpListActivityTimestamps,
+} from "@/lib/format-date";
+
 export type SortDirection = "asc" | "desc";
+
+function isDateFieldKey(key: string): boolean {
+  return key.endsWith("_date") || key === "date";
+}
+
+function isInstantFieldKey(key: string): boolean {
+  return key.endsWith("_at");
+}
+
+function defaultSortValue(
+  row: Record<string, unknown>,
+  key: string,
+): unknown {
+  const val = row[key];
+  if (isInstantFieldKey(key) && typeof val === "string") {
+    return erpInstantSortKey(val);
+  }
+  if (isDateFieldKey(key)) {
+    const activity = row as ErpListActivityTimestamps;
+    if (activity.updated_at != null || activity.created_at != null) {
+      return erpDocumentDateSortKey(val as string, activity);
+    }
+  }
+  return val;
+}
 
 export function useSortableData<T>(
   rows: T[],
@@ -27,7 +58,8 @@ export function useSortableData<T>(
 
     const read = (row: T) => {
       if (getSortValue) return getSortValue(row, sortKey);
-      return (row as unknown as Record<string, unknown>)[sortKey];
+      const record = row as unknown as Record<string, unknown>;
+      return defaultSortValue(record, sortKey);
     };
 
     const copy = [...rows];
