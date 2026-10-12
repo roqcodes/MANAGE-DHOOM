@@ -47,7 +47,6 @@ import { OutboxEnqueueError } from "@/lib/sync/outbox-errors";
 import { adminPost } from "@/modules/admin/lib/admin-api-client";
 import { salesOrderResourceScope } from "@/modules/orders/types/sales-order-update-payload";
 import {
-  customerInitials,
   CustomerEditedPill,
   formatAddressLine,
   formatInr,
@@ -64,6 +63,7 @@ import {
   PaymentPill,
   shortOrderRef,
 } from "@/modules/orders/components/orders-ui";
+import { CustomerAvatar } from "@/modules/customers/components/customers-ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
@@ -1081,9 +1081,12 @@ export function OrderDetailPanel({ order }: { order: OrderWithItems }) {
             </CardHeader>
             <CardContent className="flex flex-col gap-5 pt-5">
               <div className="flex items-start gap-3">
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                  {customerInitials(order.users?.name)}
-                </span>
+                <CustomerAvatar
+                  name={order.users?.name}
+                  avatarUrl={order.users?.avatar_url}
+                  size="lg"
+                  className="shrink-0"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="text-base font-semibold leading-tight">
                     {order.users?.name ?? "Guest"}

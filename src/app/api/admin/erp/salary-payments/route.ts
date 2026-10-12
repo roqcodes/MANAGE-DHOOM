@@ -28,10 +28,19 @@ export async function GET(request: Request) {
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const storeId = searchParams.get("storeId") ?? undefined;
   const period = searchParams.get("period") ?? undefined;
+  const dateFrom = searchParams.get("dateFrom") ?? undefined;
+  const dateTo = searchParams.get("dateTo") ?? undefined;
   const search = searchParams.get("search") ?? undefined;
 
   try {
-    const result = await listSalaryPayments({ page, storeId, period, search });
+    const result = await listSalaryPayments({
+      page,
+      storeId,
+      period,
+      dateFrom,
+      dateTo,
+      search,
+    });
     return NextResponse.json(result);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to list salary payments";

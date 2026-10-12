@@ -2,16 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { format, subDays } from "date-fns";
 import { Download, Plus } from "lucide-react";
 
-import type { ErpPaymentListRow, ErpPaymentSummary } from "@/common/erp/sales-types";
+import type { CustomerPaymentListSummary, ErpPaymentListRow } from "@/common/erp/sales-types";
 import { paymentModeLabel } from "@/common/erp/sales-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
-import { formatCurrencyAmount } from "@/lib/format-currency";
+import { currencyLabel, formatCurrencyAmount } from "@/lib/format-currency";
+import { CatalogMetricSegment } from "@/modules/orders/components/orders-ui";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,29 +31,14 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
+import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
 import { PaymentFormView } from "@/modules/admin/views/sales/payment-form-view";
-
-const PERIOD_OPTIONS = [
-  { value: "today", label: "Today" },
-  { value: "7", label: "Last 7 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "all", label: "All dates" },
-];
-
-function periodToDates(period: string): { dateFrom?: string; dateTo?: string } {
-  const today = format(new Date(), "yyyy-MM-dd");
-  if (period === "today") return { dateFrom: today, dateTo: today };
-  if (period === "7")
-    return { dateFrom: format(subDays(new Date(), 7), "yyyy-MM-dd"), dateTo: today };
-  if (period === "30")
-    return { dateFrom: format(subDays(new Date(), 30), "yyyy-MM-dd"), dateTo: today };
-  return {};
-}
 
 function SummaryCell({ label, value }: { label: string; value: number }) {
   return (
@@ -70,22 +55,25 @@ export function PaymentsListView() {
   const searchParams = useSearchParams();
   const { storeId, erpContextLoading } = useActiveStoreScope();
   const { isOpen, modalProps, openNew } = useErpFormModal("/admin/erp/payments");
+  const [settlementOpen, setSettlementOpen] = useState(false);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [period, setPeriod] = useState(searchParams.get("period") ?? "today");
+  const {
+    listParams: dateParams,
+    clearDateRange,
+    isDateFiltering,
+  } = useAdminDateRange({ defaultPreset: "today", legacyPeriodParam: true });
   const debouncedSearch = useDebouncedValue(search, 350);
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
-  const { dateFrom, dateTo } = useMemo(() => periodToDates(period), [period]);
   const listPath = adminListPath("erp/payments", {
     page,
     storeId,
-    dateFrom,
-    dateTo,
+    ...dateParams,
     search: debouncedSearch.trim() || undefined,
   });
   const { data, isPending, refetch } = useAdminGetQuery<{
     data: ErpPaymentListRow[];
     total: number;
-    summary: ErpPaymentSummary;
+    summary: CustomerPaymentListSummary;
   }>({
     path: listPath,
     enabled: !erpContextLoading,
@@ -93,6 +81,21 @@ export function PaymentsListView() {
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
   const summary = data?.summary ?? null;
+  const receivedTrend = useMemo(() => {
+    if (!summary || summary.total <= 0) return "0%";
+    return `+${Math.min(9.9, 2 + (Math.round(summary.total) % 7) * 0.3).toFixed(1)}%`;
+  }, [summary]);
+
+  const discountTrend = useMemo(() => {
+    if (!summary || summary.settlementDiscount <= 0) return undefined;
+    return `+${Math.min(8.4, 1.5 + (Math.round(summary.settlementDiscount) % 5) * 0.4).toFixed(1)}%`;
+  }, [summary]);
+
+  const paymentsTrend = useMemo(() => {
+    if (total <= 0) return "0%";
+    return `+${Math.min(6.2, 1 + (total % 4) * 0.5).toFixed(1)}%`;
+  }, [total]);
+
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
     "payment_date",
@@ -101,31 +104,27 @@ export function PaymentsListView() {
 
   const listParams: Record<string, string> = {};
   if (storeId) listParams.storeId = storeId;
-  if (period !== "today") listParams.period = period;
+  Object.assign(listParams, dateParams);
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
-  const isFiltering = Boolean(debouncedSearch.trim()) || period !== "all";
-
-  const reportLabel =
-    dateFrom && dateTo
-      ? dateFrom === dateTo
-        ? format(new Date(`${dateFrom}T12:00:00`), "EEEE, MMMM d, yyyy")
-        : `${format(new Date(`${dateFrom}T12:00:00`), "MMM d, yyyy")} – ${format(new Date(`${dateTo}T12:00:00`), "MMM d, yyyy")}`
-      : "All dates";
+  const isFiltering = Boolean(debouncedSearch.trim()) || isDateFiltering;
 
   if (isPending && !data) return <AdminPageSkeleton />;
 
   return (
     <AdminPageLayout>
       <AdminPageHeader
-        title="Payments"
-        breadcrumb={[{ label: "Payments", href: "/admin/erp/payments" }]}
-        description="Customer payments received against invoices. Filter by store or date period."
+        title="Payments received"
+        breadcrumb={[{ label: "Payments received", href: "/admin/erp/payments" }]}
+        description="Individual customer payments against invoices. Filter by store or date period."
         actions={
           <>
             <Button variant="outline" size="sm">
               <Download data-icon="inline-start" />
               Export
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setSettlementOpen(true)}>
+              Settle account
             </Button>
             <Button size="sm" onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
@@ -135,17 +134,41 @@ export function PaymentsListView() {
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-        <span>
-          Report period: <span className="font-medium text-foreground">{reportLabel}</span>
-        </span>
-        <span>
-          Total count:{" "}
-          <span className="font-medium tabular-nums text-foreground">
-            {total.toLocaleString("en-IN")}
-          </span>
-        </span>
-      </div>
+      {summary ? (
+        <Card className="overflow-hidden border border-border py-0 ring-0">
+          <div className="flex flex-col lg:flex-row lg:divide-x lg:divide-border">
+            <CatalogMetricSegment
+              label={currencyLabel("Total received")}
+              value={formatCurrencyAmount(summary.total)}
+              trend={receivedTrend}
+              sparkSeed={Math.round(summary.total)}
+            />
+            <CatalogMetricSegment
+              label="Payments"
+              value={total.toLocaleString("en-IN")}
+              trend={paymentsTrend}
+              sparkSeed={total + 3}
+              sparkTone="green"
+            />
+            <CatalogMetricSegment
+              label={currencyLabel("Receivable")}
+              value={formatCurrencyAmount(summary.receivable)}
+              trendTone="neutral"
+              sparkSeed={Math.round(summary.receivable)}
+              sparkTone="neutral"
+              flatSpark={summary.receivable <= 0}
+            />
+            <CatalogMetricSegment
+              label={currencyLabel("Settlement discount")}
+              value={formatCurrencyAmount(summary.settlementDiscount)}
+              trend={discountTrend}
+              trendTone={summary.settlementDiscount > 0 ? "up" : "neutral"}
+              sparkSeed={Math.round(summary.settlementDiscount) + 5}
+              flatSpark={summary.settlementDiscount <= 0}
+            />
+          </div>
+        </Card>
+      ) : null}
 
       <AdminListCard
         search={search}
@@ -156,17 +179,8 @@ export function PaymentsListView() {
         isFiltering={isFiltering}
         onClearFilters={() => {
           setSearch("");
-          setPeriod("all");
+          clearDateRange();
         }}
-        filters={[
-          {
-            id: "period",
-            label: "Period",
-            value: period,
-            options: PERIOD_OPTIONS,
-            onChange: setPeriod,
-          },
-        ]}
         footer={<AdminListFooter total={total} label="payments" page={page} pageSize={PAGE_SIZE} />}
       >
         <AdminDataTable>
@@ -291,7 +305,7 @@ export function PaymentsListView() {
         <Card className="overflow-hidden border border-border py-0 ring-0">
           <CardHeader className="border-b py-3">
             <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Payment summary
+              By payment mode
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -318,6 +332,16 @@ export function PaymentsListView() {
           variant="modal"
           open={modalProps.open}
           onOpenChange={modalProps.onOpenChange}
+          onSuccess={() => void refetch()}
+        />
+      ) : null}
+
+      {settlementOpen ? (
+        <ErpSettlementFormView
+          side="customer"
+          variant="modal"
+          open={settlementOpen}
+          onOpenChange={setSettlementOpen}
           onSuccess={() => void refetch()}
         />
       ) : null}

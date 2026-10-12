@@ -59,6 +59,10 @@ function normalizeFractionDigits(
 }
 
 import { isSarCurrency } from "@/lib/currency-symbol";
+import {
+  DISPLAY_DECIMAL_PLACES,
+  roundForDisplay,
+} from "@/lib/decimal-precision";
 
 export function formatCurrency(
   amount: number | null | undefined,
@@ -80,14 +84,15 @@ export function formatCurrencyAmount(
 ): string {
   if (amount == null || !Number.isFinite(amount)) return "—";
   const s = settings ?? activeSettings;
+  const displayAmount = roundForDisplay(amount);
   const fmt = normalizeFractionDigits({
     style: "decimal",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: DISPLAY_DECIMAL_PLACES,
     numberingSystem: "latn",
     ...options,
   });
-  return new Intl.NumberFormat(s.locale, fmt).format(amount);
+  return new Intl.NumberFormat(s.locale, fmt).format(displayAmount);
 }
 
 /** Compact amounts for dashboards (e.g. $1.2K, ₹2.5L). */

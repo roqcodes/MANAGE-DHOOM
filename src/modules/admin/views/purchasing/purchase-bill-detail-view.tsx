@@ -47,6 +47,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import {
+  landedAllocFromStoredLine,
+  loadedUnitCostFromStoredLine,
+} from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { cn } from "@/lib/utils";
 
@@ -85,6 +89,8 @@ type BillDetail = {
     tax_rate_percent: number;
     tax_amount: number;
     line_total: number;
+    landed_cost_allocated?: number;
+    unit_loaded_cost?: number | null;
   }>;
   erp_purchase_bill_landed_costs: Array<{
     name: string;
@@ -573,31 +579,58 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
                         <TableHead>Product</TableHead>
                         <TableHead className="text-right">Qty</TableHead>
                         <TableHead className="text-right">Rate</TableHead>
+                        {bill.landed_cost_total > 0 ? (
+                          <TableHead className="text-right">Loaded unit</TableHead>
+                        ) : null}
                         <TableHead className="text-right">Tax %</TableHead>
                         <TableHead className="text-right">Tax</TableHead>
+                        {bill.landed_cost_total > 0 ? (
+                          <TableHead className="text-right">Landed</TableHead>
+                        ) : null}
                         <TableHead className="text-right">Total</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {bill.erp_purchase_bill_lines.map((line, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="text-muted-foreground">{index + 1}</TableCell>
-                          <TableCell className="font-medium">{line.product_name}</TableCell>
-                          <TableCell className="text-right tabular-nums">{line.quantity}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatCurrencyAmount(line.purchase_price)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {line.tax_rate_percent}%
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatCurrencyAmount(line.tax_amount)}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold tabular-nums">
-                            {formatCurrencyAmount(line.line_total)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {bill.erp_purchase_bill_lines.map((line, index) => {
+                        const landedAlloc = landedAllocFromStoredLine(line);
+                        const loadedUnit = loadedUnitCostFromStoredLine({
+                          quantity: line.quantity,
+                          purchasePrice: line.purchase_price,
+                          landed_cost_allocated: line.landed_cost_allocated,
+                          unit_loaded_cost: line.unit_loaded_cost,
+                        });
+                        return (
+                          <TableRow key={index}>
+                            <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                            <TableCell className="font-medium">{line.product_name}</TableCell>
+                            <TableCell className="text-right tabular-nums">{line.quantity}</TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatCurrencyAmount(line.purchase_price)}
+                            </TableCell>
+                            {bill.landed_cost_total > 0 ? (
+                              <TableCell className="text-right tabular-nums text-muted-foreground">
+                                {formatCurrencyAmount(loadedUnit)}
+                              </TableCell>
+                            ) : null}
+                            <TableCell className="text-right tabular-nums">
+                              {line.tax_rate_percent}%
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {formatCurrencyAmount(line.tax_amount)}
+                            </TableCell>
+                            {bill.landed_cost_total > 0 ? (
+                              <TableCell className="text-right tabular-nums">
+                                {landedAlloc > 0
+                                  ? formatCurrencyAmount(landedAlloc)
+                                  : "—"}
+                              </TableCell>
+                            ) : null}
+                            <TableCell className="text-right font-semibold tabular-nums">
+                              {formatCurrencyAmount(line.line_total)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

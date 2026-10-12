@@ -12,10 +12,20 @@ export async function GET(request: Request) {
   const storeId = searchParams.get("storeId") ?? undefined;
   const employeeId = searchParams.get("employeeId") ?? undefined;
   const period = searchParams.get("period") ?? undefined;
+  const dateFrom = searchParams.get("dateFrom") ?? undefined;
+  const dateTo = searchParams.get("dateTo") ?? undefined;
   const search = searchParams.get("search") ?? undefined;
 
   try {
-    const result = await listPaySlips({ page, storeId, employeeId, period, search });
+    const result = await listPaySlips({
+      page,
+      storeId,
+      employeeId,
+      period,
+      dateFrom,
+      dateTo,
+      search,
+    });
     return NextResponse.json(result);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to list pay slips";

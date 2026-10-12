@@ -1,6 +1,8 @@
-/** Match billing UI money rounding (2 decimal places). */
+import { roundMoney } from "@/lib/decimal-precision";
+
+/** Match ERP money rounding (4 decimal places). */
 export function roundPosMoney2(n: number): number {
-  return Math.round(n * 100) / 100;
+  return roundMoney(n);
 }
 
 export type PosCheckoutLineTotalInput = {

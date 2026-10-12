@@ -7,6 +7,10 @@ import { AdminPrintSkeleton } from "@/modules/admin/components/admin-page-skelet
 import { InvoicePrintToolbar } from "@/modules/admin/components/invoice-print-toolbar";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import {
+  landedAllocFromStoredLine,
+  loadedUnitCostFromStoredLine,
+} from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { downloadElementAsPdf } from "@/lib/html2pdf-download";
 
 type PurchaseBillPrintData = {
@@ -29,6 +33,8 @@ type PurchaseBillPrintData = {
     purchase_price: number;
     tax_rate_percent: number;
     line_total: number;
+    landed_cost_allocated?: number;
+    unit_loaded_cost?: number | null;
   }>;
 };
 
@@ -102,20 +108,39 @@ export function ErpPurchaseBillPrintPage() {
               <th className="py-2">Item</th>
               <th className="py-2">Qty</th>
               <th className="py-2">Rate</th>
+              {bill.landed_cost_total > 0 ? <th className="py-2">Loaded unit</th> : null}
               <th className="py-2">Tax</th>
+              {bill.landed_cost_total > 0 ? <th className="py-2 text-right">Landed</th> : null}
               <th className="py-2 text-right">Total</th>
             </tr>
           </thead>
           <tbody>
-            {bill.erp_purchase_bill_lines.map((line, i) => (
-              <tr key={i} className="border-b border-slate-100">
-                <td className="py-2">{line.product_name}</td>
-                <td className="py-2">{line.quantity}</td>
-                <td className="py-2">{formatCurrencyAmount(line.purchase_price)}</td>
-                <td className="py-2">{line.tax_rate_percent}%</td>
-                <td className="py-2 text-right">{formatCurrencyAmount(line.line_total)}</td>
-              </tr>
-            ))}
+            {bill.erp_purchase_bill_lines.map((line, i) => {
+              const landedAlloc = landedAllocFromStoredLine(line);
+              const loadedUnit = loadedUnitCostFromStoredLine({
+                quantity: line.quantity,
+                purchasePrice: line.purchase_price,
+                landed_cost_allocated: line.landed_cost_allocated,
+                unit_loaded_cost: line.unit_loaded_cost,
+              });
+              return (
+                <tr key={i} className="border-b border-slate-100">
+                  <td className="py-2">{line.product_name}</td>
+                  <td className="py-2">{line.quantity}</td>
+                  <td className="py-2">{formatCurrencyAmount(line.purchase_price)}</td>
+                  {bill.landed_cost_total > 0 ? (
+                    <td className="py-2">{formatCurrencyAmount(loadedUnit)}</td>
+                  ) : null}
+                  <td className="py-2">{line.tax_rate_percent}%</td>
+                  {bill.landed_cost_total > 0 ? (
+                    <td className="py-2 text-right">
+                      {landedAlloc > 0 ? formatCurrencyAmount(landedAlloc) : "—"}
+                    </td>
+                  ) : null}
+                  <td className="py-2 text-right">{formatCurrencyAmount(line.line_total)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         <div className="ml-auto max-w-xs space-y-1 text-sm">

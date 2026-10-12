@@ -2,6 +2,10 @@ import "server-only";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import {
+  addMonthsToDateInput,
+  DEFAULT_INVOICE_DUE_MONTHS,
+} from "@/lib/format-date";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { createErpInvoice } from "@/modules/erp/services/erp-invoices.service";
 import { convertOrderToInvoice } from "@/modules/erp/services/convert-order-to-invoice.service";
@@ -34,11 +38,12 @@ export async function billExpenseToCustomer(expenseId: string): Promise<string> 
   const total = Number(expense.total_amount ?? expense.amount ?? 0);
   const taxPercent = Number(expense.tax_percent ?? 0);
 
+  const invoiceDate = new Date().toISOString().slice(0, 10);
   const invoiceId = await createErpInvoice({
     userId: expenseRow.billable_customer_id,
     storeId: expense.store_id ?? undefined,
-    invoiceDate: new Date().toISOString().slice(0, 10),
-    dueDate: new Date().toISOString().slice(0, 10),
+    invoiceDate,
+    dueDate: addMonthsToDateInput(invoiceDate, DEFAULT_INVOICE_DUE_MONTHS),
     lines: [
       {
         productName: expense.reference?.trim() || "Billable expense",

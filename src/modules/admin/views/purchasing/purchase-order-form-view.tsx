@@ -28,6 +28,10 @@ import { coalesceNumber } from "@/lib/numeric-input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { calcPurchaseLine } from "@/common/erp/purchasing-types";
+import {
+  commitResolvedLandedAllocationsToLines,
+  isLandedAllocationBalanced,
+} from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
 import { dispatchOutboxChanged } from "@/lib/sync/outbox-browser-events";
@@ -160,6 +164,10 @@ export function PurchaseOrderFormView({
                 quantity: item.quantity,
                 purchasePrice: item.price,
                 taxRatePercent: item.tax_rate_percent,
+                landedCostAllocated:
+                  (po.landed_cost_total ?? 0) > 0
+                    ? Number(item.landed_cost_allocated ?? 0)
+                    : undefined,
               }))
             : [],
         );
@@ -206,6 +214,13 @@ export function PurchaseOrderFormView({
     };
   }, [lines, landedCosts, discount]);
 
+  const landedAllocationBalanced = useMemo(
+    () => isLandedAllocationBalanced(lines, landedCosts),
+    [lines, landedCosts],
+  );
+
+  const saveDisabled = pending || !landedAllocationBalanced;
+
   function handleCancel() {
     if (isModal) {
       onOpenChange?.(false);
@@ -244,7 +259,14 @@ export function PurchaseOrderFormView({
 
   function submit() {
     setError(null);
-    const apiLines = linesToApiInput(lines);
+    if (!landedAllocationBalanced) {
+      setError(
+        "Landed cost allocation must match the landed cost total before saving.",
+      );
+      return;
+    }
+    const linesForSave = commitResolvedLandedAllocationsToLines(lines, landedCosts);
+    const apiLines = linesToApiInput(linesForSave, landedCosts);
     if (!vendorId) {
       setError("Vendor is required");
       return;
@@ -369,6 +391,7 @@ export function PurchaseOrderFormView({
       onCancel={handleCancel}
       submitLabel={mode === "edit" ? "Save changes" : "Save & next"}
       pending={pending}
+      submitDisabled={!landedAllocationBalanced}
     />
   ) : undefined;
 
@@ -464,17 +487,20 @@ export function PurchaseOrderFormView({
           </AdminFormSection>
 
           <AdminFormSection title="Landed costs">
-            <p className="mb-3 text-sm text-muted-foreground">
-              Freight, duty, and other charges are allocated to each line by extended value
-              (quantity × unit price) when stock is received.
-            </p>
             <LandedCostsEditor
               rows={landedCosts}
               onChange={setLandedCosts}
               masterItems={landedMaster}
+              purchaseLines={lines}
+              onPurchaseLinesChange={setLines}
             />
           </AdminFormSection>
 
+          {!landedAllocationBalanced ? (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Allocate landed costs across line items so the total matches before saving.
+            </p>
+          ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
           {!isModal ? (
@@ -482,7 +508,7 @@ export function PurchaseOrderFormView({
               <Link href="/admin/purchase-orders" className={buttonVariants({ variant: "outline" })}>
                 Cancel
               </Link>
-              <Button disabled={pending} onClick={submit}>
+              <Button disabled={saveDisabled} onClick={submit}>
                 {pending ? "Saving…" : mode === "edit" ? "Save changes" : "Save & next"}
               </Button>
             </div>

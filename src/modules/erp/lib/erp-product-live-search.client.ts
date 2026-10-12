@@ -72,7 +72,7 @@ export async function fetchErpProductLiveSearch(
     const rpcRows = await rpcSearchSalesCatalog(trimmed, storeId);
     if (rpcRows) return rpcRows;
   } else {
-    const rpcRows = await rpcSearchPurchaseCatalog(trimmed);
+    const rpcRows = await rpcSearchPurchaseCatalog(trimmed, storeId);
     if (rpcRows) return rpcRows;
   }
 

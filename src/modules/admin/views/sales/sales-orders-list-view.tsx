@@ -1,6 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
@@ -17,6 +18,7 @@ import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { AdminPageHeader, AdminPageLayout, useErpFormModal } from "@/modules/admin/ui";
 import { SalesOrderOutboxBanner } from "@/modules/admin/components/sales-order-outbox-banner";
+import { usePendingSalesOrderCreates } from "@/lib/sync/hooks/use-pending-sales-order-creates";
 import { SalesOrderFormView } from "@/modules/admin/views/sales/sales-order-form-view";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 
@@ -35,6 +37,11 @@ export function SalesOrdersListView() {
   const rawUser = searchParams.get("userId")?.trim();
   const userId = rawUser && rawUser.length > 0 ? rawUser : null;
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
+  const { pending, syncing, needsAttention } = usePendingSalesOrderCreates();
+  const outboxOperations = useMemo(
+    () => [...pending, ...syncing, ...needsAttention],
+    [pending, syncing, needsAttention],
+  );
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: adminQueryKeys.salesOrders(status, userId, page, activeStoreId),
@@ -94,6 +101,7 @@ export function SalesOrdersListView() {
         stats={data.stats}
         channel="erp"
         basePath="/admin/erp/sales-orders"
+        outboxOperations={outboxOperations}
       />
 
       {isOpen ? (

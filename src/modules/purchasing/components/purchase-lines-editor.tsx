@@ -3,7 +3,12 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { PackagePlus, Plus, Trash2 } from "lucide-react";
 
-import type { ErpProductSearchRow, PurchaseLineFormRow } from "@/common/erp/purchasing-types";
+import type {
+  ErpProductSearchRow,
+  LandedCostFormRow,
+  PurchaseLineFormRow,
+} from "@/common/erp/purchasing-types";
+import { resolveDocumentLandedAllocations } from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { calcPurchaseLine, roundMoney } from "@/common/erp/purchasing-types";
 import { ProductLiveSearch } from "@/modules/admin/ui/product-live-search";
 import {
@@ -28,19 +33,20 @@ import {
   resolvePurchaseLineDefaultsFromSelection,
 } from "@/modules/erp/lib/resolve-product-line-defaults.client";
 import { QuickProductCreateModal } from "@/modules/products/components/quick-product-create-modal";
+import { itemExpiryFromDocumentDate } from "@/lib/format-date";
 
 function newLineKey() {
   return `line-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function emptyPurchaseLine(): PurchaseLineFormRow {
+export function emptyPurchaseLine(expiryDate = ""): PurchaseLineFormRow {
   return {
     key: newLineKey(),
     productId: null,
     variantId: null,
     productName: "",
     barcode: "",
-    expiryDate: "",
+    expiryDate,
     quantity: 1,
     purchasePrice: 0,
     taxRatePercent: 0,
@@ -54,6 +60,7 @@ export function PurchaseLinesEditor({
   vendorId,
   showExpiry = false,
   showSerial = false,
+  documentDate,
 }: {
   lines: PurchaseLineFormRow[];
   onChange: (lines: PurchaseLineFormRow[]) => void;
@@ -61,7 +68,12 @@ export function PurchaseLinesEditor({
   vendorId?: string;
   showExpiry?: boolean;
   showSerial?: boolean;
+  /** Bill / invoice date used to default line expiry when showExpiry is true. */
+  documentDate?: string;
 }) {
+  const defaultExpiryDate = showExpiry
+    ? itemExpiryFromDocumentDate(documentDate)
+    : "";
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [createProductName, setCreateProductName] = useState("");
@@ -106,7 +118,7 @@ export function PurchaseLinesEditor({
       variantId: null,
       productName: row.product_name,
       barcode: row.barcode ?? "",
-      expiryDate: "",
+      expiryDate: defaultExpiryDate,
       quantity: 1,
       purchasePrice,
       taxRatePercent,
@@ -121,15 +133,20 @@ export function PurchaseLinesEditor({
       (resolved) => {
         const current = linesRef.current;
         if (!current.some((l) => l.key === key)) return;
-        const updated = current.map((l) =>
-          l.key === key
-            ? {
-                ...l,
-                purchasePrice: resolved.purchasePrice,
-                taxRatePercent: resolved.taxRatePercent,
-              }
-            : l,
-        );
+        const updated = current.map((l) => {
+          if (l.key !== key) return l;
+          const nextPrice =
+            resolved.purchasePrice > 0
+              ? roundMoney(resolved.purchasePrice)
+              : l.purchasePrice > 0
+                ? l.purchasePrice
+                : roundMoney(resolved.purchasePrice);
+          return {
+            ...l,
+            purchasePrice: nextPrice,
+            taxRatePercent: resolved.taxRatePercent,
+          };
+        });
         linesRef.current = updated;
         onChange(updated);
       },
@@ -166,6 +183,7 @@ export function PurchaseLinesEditor({
           <label className="text-xs font-medium text-slate-600">Search product</label>
           <ProductLiveSearch
             catalog="purchase"
+            storeId={storeId}
             placeholder="Name or barcode…"
             allowCreate
             onCreateRequest={(q) => openCreateProduct(q)}
@@ -176,7 +194,11 @@ export function PurchaseLinesEditor({
           <PackagePlus className="size-4" />
           New product
         </Button>
-        <Button type="button" variant="outline" onClick={() => onChange([...lines, emptyPurchaseLine()])}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onChange([...lines, emptyPurchaseLine(defaultExpiryDate)])}
+        >
           <Plus className="size-4" />
           Add line
         </Button>
@@ -242,6 +264,7 @@ export function PurchaseLinesEditor({
                       <NumericInput
                         min={0}
                         step="any"
+                        fractionDigits={4}
                         className="w-24"
                         value={line.purchasePrice}
                         onValueChange={(purchasePrice) =>
@@ -324,17 +347,34 @@ export function PurchaseLinesEditor({
   );
 }
 
-export function linesToApiInput(lines: PurchaseLineFormRow[]) {
+export function linesToApiInput(
+  lines: PurchaseLineFormRow[],
+  landedCosts?: LandedCostFormRow[],
+) {
+  const landedAllocations =
+    landedCosts != null
+      ? resolveDocumentLandedAllocations(lines, landedCosts)
+      : null;
+
   return lines
     .filter((l) => l.productName.trim() && l.quantity > 0)
-    .map((l) => ({
-      productId: l.productId,
-      variantId: l.variantId,
-      productName: l.productName.trim(),
-      barcode: l.barcode || null,
-      expiryDate: l.expiryDate || null,
-      quantity: l.quantity,
-      purchasePrice: l.purchasePrice,
-      taxRatePercent: l.taxRatePercent,
-    }));
+    .map((l) => {
+      const base = {
+        productId: l.productId,
+        variantId: l.variantId,
+        productName: l.productName.trim(),
+        barcode: l.barcode || null,
+        expiryDate: l.expiryDate || null,
+        quantity: l.quantity,
+        purchasePrice: l.purchasePrice,
+        taxRatePercent: l.taxRatePercent,
+      };
+      if (!landedAllocations || landedAllocations.size === 0) {
+        return base;
+      }
+      return {
+        ...base,
+        landedCostAllocated: roundMoney(landedAllocations.get(l.key) ?? 0),
+      };
+    });
 }

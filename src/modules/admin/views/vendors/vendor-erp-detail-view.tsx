@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HandCoins } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
@@ -16,7 +17,8 @@ import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { formatAuditLogUserDetail } from "@/modules/erp/lib/audit-log-display";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
 
 type AuditLog = AuditLogEntry;
 
@@ -30,6 +32,7 @@ export function VendorErpDetailView() {
   const [activity, setActivity] = useState<AuditLog[]>([]);
   const [tab, setTab] = useState<"statement" | "purchases" | "activity">("statement");
   const [loading, setLoading] = useState(true);
+  const [settlementOpen, setSettlementOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -69,9 +72,20 @@ export function VendorErpDetailView() {
           { label: profile.name ?? "Vendor" },
         ]}
         actions={
-          <Link href={`/admin/vendors/${id}/edit`} className={buttonVariants({ variant: "outline" })}>
-            Edit
-          </Link>
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSettlementOpen(true)}
+              disabled={summary.balanceDue <= 0}
+            >
+              <HandCoins data-icon="inline-start" />
+              Settle account
+            </Button>
+            <Link href={`/admin/vendors/${id}/edit`} className={buttonVariants({ variant: "outline" })}>
+              Edit
+            </Link>
+          </>
         }
       />
 
@@ -114,6 +128,28 @@ export function VendorErpDetailView() {
           </button>
         ))}
       </div>
+
+      {settlementOpen ? (
+        <ErpSettlementFormView
+          side="supplier"
+          variant="modal"
+          open={settlementOpen}
+          onOpenChange={setSettlementOpen}
+          initialPartyId={id}
+          initialPartyLabel={profile.name ?? ""}
+          onSuccess={() => {
+            setSettlementOpen(false);
+            setLoading(true);
+            Promise.all([
+              adminGet<VendorErpSummary>(`vendors/${id}/erp`),
+              adminGet<{ lines: VendorStatementLine[] }>(`vendors/${id}/erp?view=statement`),
+            ]).then(([s, st]) => {
+              setSummary(s);
+              setStatement(st.lines);
+            }).finally(() => setLoading(false));
+          }}
+        />
+      ) : null}
 
       {tab === "statement" && (
         <div className="overflow-x-auto rounded-lg border">

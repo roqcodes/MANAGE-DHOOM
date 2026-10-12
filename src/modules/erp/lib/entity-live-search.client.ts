@@ -15,6 +15,7 @@ export type EntitySearchOption = {
   sublabel?: string;
   meta?: string;
   amount?: number;
+  imageUrl?: string;
 };
 
 export const ENTITY_SEARCH_DEBOUNCE_MS = 200;
@@ -36,6 +37,7 @@ type CustomerSearchRow = {
   email: string | null;
   phone: string | null;
   customer_number: string | null;
+  avatar_url?: string | null;
 };
 
 type VendorSearchRow = {
@@ -53,6 +55,7 @@ function mapCustomerRows(rows: CustomerSearchRow[]): EntitySearchOption[] {
     label: c.name?.trim() || c.email || c.phone || "Unnamed customer",
     sublabel: [c.email, c.phone].filter(Boolean).join(" · ") || undefined,
     meta: c.customer_number ? `Customer #${c.customer_number}` : undefined,
+    imageUrl: c.avatar_url?.trim() || undefined,
   }));
 }
 
@@ -137,6 +140,7 @@ export async function resolveCustomerPickerOption(
       email: string | null;
       phone: string | null;
       customerNumber: string | null;
+      avatarUrl: string | null;
     };
   }>(`customers/${customerId}/erp`);
 
@@ -146,6 +150,7 @@ export async function resolveCustomerPickerOption(
     label: profile.name?.trim() || profile.email || profile.phone || "Unnamed customer",
     sublabel: [profile.email, profile.phone].filter(Boolean).join(" · ") || undefined,
     meta: profile.customerNumber ? `Customer #${profile.customerNumber}` : undefined,
+    imageUrl: profile.avatarUrl?.trim() || undefined,
   };
 }
 

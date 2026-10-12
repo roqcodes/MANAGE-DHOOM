@@ -3,8 +3,13 @@
 import { useEffect, useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
-import type { ErpInvoiceListRow, PaidThroughAccountOption } from "@/common/erp/sales-types";
+import type {
+  ErpInvoiceListRow,
+  PaidThroughAccountOption,
+  ReceivableInvoiceRow,
+} from "@/common/erp/sales-types";
 import { ERP_CUSTOMER_PAYMENT_MODES, paymentModeLabel } from "@/common/erp/sales-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -15,6 +20,7 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  CustomerSearchSelect,
   InvoiceSearchSelect,
   type ErpFormViewBaseProps,
 } from "@/modules/admin/ui";
@@ -44,6 +50,22 @@ type PendingLine = {
   receiptRef: string;
 };
 
+function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): PendingLine[] {
+  const byInvoiceId = new Map<string, PendingLine>();
+
+  for (const line of [...prev, ...incoming]) {
+    const existing = byInvoiceId.get(line.invoiceId);
+    if (!existing) {
+      byInvoiceId.set(line.invoiceId, line);
+      continue;
+    }
+    const amount = Math.min(existing.balanceDue, existing.amount + line.amount);
+    byInvoiceId.set(line.invoiceId, { ...existing, amount });
+  }
+
+  return Array.from(byInvoiceId.values());
+}
+
 export type CustomerBulkPaymentFormViewProps = ErpFormViewBaseProps;
 
 export function CustomerBulkPaymentFormView({
@@ -57,18 +79,20 @@ export function CustomerBulkPaymentFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
+  const [isAddingLine, setIsAddingLine] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isModal = variant === "modal";
 
   const [accounts, setAccounts] = useState<PaidThroughAccountOption[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<PaidThroughAccountOption[]>([]);
+  const [userId, setUserId] = useState("");
+  const [customerLabel, setCustomerLabel] = useState("");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
   const [invoiceLabel, setInvoiceLabel] = useState("");
   const [selectedInvoiceBalance, setSelectedInvoiceBalance] = useState(0);
   const [selectedInvoiceCustomer, setSelectedInvoiceCustomer] = useState<string | null>(null);
   const [lineAmount, setLineAmount] = useState("");
   const [receiptRef, setReceiptRef] = useState("");
-  const [fifoAmount, setFifoAmount] = useState("");
   const [lines, setLines] = useState<PendingLine[]>([]);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMode, setPaymentMode] = useState<string>(ERP_CUSTOMER_PAYMENT_MODES[0]);
@@ -111,90 +135,124 @@ export function CustomerBulkPaymentFormView({
     );
   }
 
-  function addLine() {
-    const amt = parseFloat(lineAmount);
-    if (!selectedInvoiceId) return setError("Select an invoice.");
-    if (!amt || amt <= 0) return setError("Enter a positive amount.");
-    if (lines.some((l) => l.invoiceId === selectedInvoiceId)) {
-      return setError("Invoice already added.");
+  async function buildFifoLines(amount: number, excludeInvoiceIds: string[]): Promise<PendingLine[]> {
+    if (!effectiveStoreId) return [];
+    const exclude = excludeInvoiceIds.join(",");
+    const fifoUrl = userId
+      ? `erp/customer-bulk-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&userId=${encodeURIComponent(userId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`
+      : `erp/customer-bulk-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`;
+    const res = await adminGet<{
+      allocations: Array<{
+        invoiceId?: string;
+        invoice_id?: string;
+        amount: number;
+      }>;
+    }>(fifoUrl);
+
+    type InvoiceLookupRow = ErpInvoiceListRow | ReceivableInvoiceRow;
+    let lookupRows: InvoiceLookupRow[] = [];
+    if (userId) {
+      const receivable = await adminGet<{ data: ReceivableInvoiceRow[] }>(
+        `erp/payments?view=receivable-invoices&userId=${encodeURIComponent(userId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
+      );
+      lookupRows = receivable.data ?? [];
+    } else {
+      const q = new URLSearchParams({
+        page: "0",
+        limit: "100",
+        openOnly: "1",
+        storeId: effectiveStoreId,
+      });
+      const full = await adminGet<{ data: ErpInvoiceListRow[] }>(`erp/invoices?${q.toString()}`);
+      lookupRows = (full.data ?? []).filter((row) => row.balance_due > 0);
     }
-    if (amt > selectedInvoiceBalance) return setError("Amount exceeds invoice balance.");
-    setLines((prev) => [
-      ...prev,
-      {
-        invoiceId: selectedInvoiceId,
-        invoiceNumber: invoiceLabel,
-        customerName: selectedInvoiceCustomer,
-        balanceDue: selectedInvoiceBalance,
-        amount: amt,
+    const lookup = new Map(lookupRows.map((row) => [row.id, row]));
+    const pending: PendingLine[] = [];
+
+    for (const alloc of res.allocations) {
+      const invoiceId = alloc.invoiceId ?? alloc.invoice_id;
+      if (!invoiceId || excludeInvoiceIds.includes(invoiceId)) continue;
+      const invoice = lookup.get(invoiceId);
+      if (!invoice) continue;
+      if (
+        userId &&
+        "user_id" in invoice &&
+        invoice.user_id &&
+        invoice.user_id !== userId
+      ) {
+        continue;
+      }
+      pending.push({
+        invoiceId: invoice.id,
+        invoiceNumber: invoice.invoice_number,
+        customerName:
+          ("customer_name" in invoice ? invoice.customer_name : null) ??
+          (customerLabel || null),
+        balanceDue: invoice.balance_due,
+        amount: alloc.amount,
         receiptRef: receiptRef.trim(),
-      },
-    ]);
-    setLineAmount("");
-    setReceiptRef("");
-    setSelectedInvoiceId("");
-    setInvoiceLabel("");
-    setSelectedInvoiceBalance(0);
-    setSelectedInvoiceCustomer(null);
+      });
+    }
+
+    return pending;
+  }
+
+  async function addLine() {
     setError(null);
+    const amt = parseFloat(lineAmount);
+    if (!amt || amt <= 0) return setError("Enter a positive amount.");
+    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+
+    setIsAddingLine(true);
+    try {
+      if (!selectedInvoiceId) {
+        const fifoLines = await buildFifoLines(amt, lines.map((l) => l.invoiceId));
+        if (fifoLines.length === 0) {
+          setError("No open invoices available for FIFO allocation.");
+          return;
+        }
+        setLines((prev) => mergePendingLines(prev, fifoLines));
+        setLineAmount("");
+        setError(null);
+        return;
+      }
+
+      if (lines.some((l) => l.invoiceId === selectedInvoiceId)) {
+        setError("Invoice already added.");
+        return;
+      }
+      if (amt > selectedInvoiceBalance) {
+        setError("Amount exceeds invoice balance.");
+        return;
+      }
+      setLines((prev) =>
+        mergePendingLines(prev, [
+          {
+            invoiceId: selectedInvoiceId,
+            invoiceNumber: invoiceLabel,
+            customerName: selectedInvoiceCustomer ?? (customerLabel || null),
+            balanceDue: selectedInvoiceBalance,
+            amount: amt,
+            receiptRef: receiptRef.trim(),
+          },
+        ]),
+      );
+      setLineAmount("");
+      setReceiptRef("");
+      setSelectedInvoiceId("");
+      setInvoiceLabel("");
+      setSelectedInvoiceBalance(0);
+      setSelectedInvoiceCustomer(null);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add invoice payment.");
+    } finally {
+      setIsAddingLine(false);
+    }
   }
 
   function removeLine(invoiceId: string) {
     setLines((prev) => prev.filter((l) => l.invoiceId !== invoiceId));
-  }
-
-  async function fetchOpenInvoices(): Promise<ErpInvoiceListRow[]> {
-    const q = new URLSearchParams({
-      page: "0",
-      limit: "100",
-      openOnly: "1",
-      storeId: effectiveStoreId,
-    });
-    const full = await adminGet<{ data: ErpInvoiceListRow[] }>(`erp/invoices?${q.toString()}`);
-    return (full.data ?? []).filter((row) => row.balance_due > 0);
-  }
-
-  async function applyFifo() {
-    setError(null);
-    const amount = parseFloat(fifoAmount);
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (!amount || amount <= 0) return setError("Enter a positive FIFO amount.");
-
-    try {
-      const exclude = lines.map((l) => l.invoiceId).join(",");
-      const res = await adminGet<{
-        allocations: Array<{ invoiceId: string; amount: number }>;
-      }>(
-        `erp/customer-bulk-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
-      );
-
-      const openInvoices = await fetchOpenInvoices();
-      const lookup = new Map(openInvoices.map((row) => [row.id, row]));
-      const newLines: PendingLine[] = [];
-
-      for (const alloc of res.allocations) {
-        if (lines.some((line) => line.invoiceId === alloc.invoiceId)) continue;
-        const invoice = lookup.get(alloc.invoiceId);
-        if (!invoice) continue;
-        newLines.push({
-          invoiceId: invoice.id,
-          invoiceNumber: invoice.invoice_number,
-          customerName: invoice.customer_name,
-          balanceDue: invoice.balance_due,
-          amount: alloc.amount,
-          receiptRef: "",
-        });
-      }
-
-      if (newLines.length === 0) {
-        setError("No open invoices available for FIFO allocation.");
-        return;
-      }
-
-      setLines((prev) => [...prev, ...newLines]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "FIFO allocation failed.");
-    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -259,7 +317,7 @@ export function CustomerBulkPaymentFormView({
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        <AdminFormColumns cols={2}>
+        <AdminFormColumns cols={2} columnRatio="2:1">
           <AdminFormSection title="Payment details">
             <AdminFormGrid cols={3}>
               <AdminFormField label="Store" required>
@@ -292,7 +350,7 @@ export function CustomerBulkPaymentFormView({
                   ))}
                 </select>
               </AdminFormField>
-              <AdminFormField label="Deposit to" required className="sm:col-span-2">
+              <AdminFormField label="Deposit to" required>
                 <select
                   className="h-9 w-full rounded-md border px-3 text-sm"
                   value={accountId}
@@ -329,7 +387,7 @@ export function CustomerBulkPaymentFormView({
                   ))}
                 </select>
               </AdminFormField>
-              <AdminFormField label="Notes" className="sm:col-span-2">
+              <AdminFormField label="Notes" className="sm:col-span-2 lg:col-span-3">
                 <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
               </AdminFormField>
             </AdminFormGrid>
@@ -337,7 +395,29 @@ export function CustomerBulkPaymentFormView({
 
           <AdminFormSection title="Add invoice payment">
             <AdminFormGrid cols={1}>
-              <AdminFormField label="Invoice" required>
+              <AdminFormField
+                label="Customer"
+                hint="Optional for FIFO — limits allocation to one customer's invoices."
+              >
+                <CustomerSearchSelect
+                  value={userId || null}
+                  selectedLabel={customerLabel || undefined}
+                  disabled={!effectiveStoreId}
+                  onChange={(id, option) => {
+                    setUserId(id ?? "");
+                    setCustomerLabel(option?.label ?? "");
+                    setSelectedInvoiceId("");
+                    setInvoiceLabel("");
+                    setSelectedInvoiceBalance(0);
+                    setSelectedInvoiceCustomer(null);
+                    setLineAmount("");
+                  }}
+                />
+              </AdminFormField>
+              <AdminFormField
+                label="Invoice"
+                hint="Optional — leave empty to apply the amount FIFO (oldest due first)."
+              >
                 <InvoiceSearchSelect
                   value={selectedInvoiceId || null}
                   selectedLabel={invoiceLabel || undefined}
@@ -369,37 +449,38 @@ export function CustomerBulkPaymentFormView({
                 />
               </AdminFormField>
               <AdminFormField label="Amount">
-                <Input
-                  type="number"
-                  placeholder="Amount"
-                  value={lineAmount}
-                  onChange={(e) => setLineAmount(e.target.value)}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Amount"
+                    value={lineAmount}
+                    onChange={(e) => setLineAmount(e.target.value)}
+                    className="min-w-0 flex-1"
+                    disabled={isAddingLine}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 min-w-[6.5rem] justify-center"
+                    disabled={isAddingLine || !effectiveStoreId}
+                    onClick={() => void addLine()}
+                  >
+                    {isAddingLine ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                        <span className="sr-only">Adding…</span>
+                      </>
+                    ) : selectedInvoiceId ? (
+                      "Add invoice"
+                    ) : (
+                      "Apply FIFO"
+                    )}
+                  </Button>
+                </div>
               </AdminFormField>
             </AdminFormGrid>
-            <div className="mt-3">
-              <Button type="button" variant="outline" onClick={addLine}>
-                Add invoice
-              </Button>
-            </div>
           </AdminFormSection>
         </AdminFormColumns>
-
-        <AdminFormSection title="FIFO allocation">
-          <div className="flex flex-wrap items-end gap-2">
-            <AdminFormField label="Amount to allocate (oldest invoices first)" className="min-w-[200px]">
-              <Input
-                type="number"
-                value={fifoAmount}
-                onChange={(e) => setFifoAmount(e.target.value)}
-                className="w-40"
-              />
-            </AdminFormField>
-            <Button type="button" variant="secondary" onClick={() => void applyFifo()}>
-              Apply FIFO
-            </Button>
-          </div>
-        </AdminFormSection>
 
         {lines.length > 0 ? (
           <Card>

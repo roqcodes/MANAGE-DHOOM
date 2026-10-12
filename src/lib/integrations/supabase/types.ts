@@ -817,6 +817,8 @@ export type Database = {
       erp_customer_payments: {
         Row: {
           account_id: string | null
+          bank_charges: number
+          bank_charges_account_id: string | null
           created_at: string
           created_by: string | null
           customer_count: number
@@ -828,6 +830,8 @@ export type Database = {
           payment_mode: string
           payment_number: string
           reference: string | null
+          settlement_discount: number
+          settlement_discount_account_id: string | null
           store_id: string
           total_amount: number
           unallocated_amount: number
@@ -2718,6 +2722,8 @@ export type Database = {
       erp_supplier_payments: {
         Row: {
           account_id: string | null
+          bank_charges: number
+          bank_charges_account_id: string | null
           bills_count: number
           created_at: string
           created_by: string | null
@@ -2728,6 +2734,8 @@ export type Database = {
           payment_mode: string
           payment_number: string
           reference: string | null
+          settlement_discount: number
+          settlement_discount_account_id: string | null
           store_id: string
           total_amount: number
           unallocated_amount: number
@@ -2735,6 +2743,8 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
+          bank_charges?: number
+          bank_charges_account_id?: string | null
           bills_count?: number
           created_at?: string
           created_by?: string | null
@@ -2745,6 +2755,8 @@ export type Database = {
           payment_mode: string
           payment_number: string
           reference?: string | null
+          settlement_discount?: number
+          settlement_discount_account_id?: string | null
           store_id: string
           total_amount?: number
           unallocated_amount?: number
@@ -2752,6 +2764,8 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
+          bank_charges?: number
+          bank_charges_account_id?: string | null
           bills_count?: number
           created_at?: string
           created_by?: string | null
@@ -2762,6 +2776,8 @@ export type Database = {
           payment_mode?: string
           payment_number?: string
           reference?: string | null
+          settlement_discount?: number
+          settlement_discount_account_id?: string | null
           store_id?: string
           total_amount?: number
           unallocated_amount?: number
@@ -5144,6 +5160,7 @@ export type Database = {
       }
       users: {
         Row: {
+          avatar_url: string | null
           company_name: string | null
           contact_display_name: string | null
           created_at: string
@@ -5162,6 +5179,7 @@ export type Database = {
           trn: string | null
         }
         Insert: {
+          avatar_url?: string | null
           company_name?: string | null
           contact_display_name?: string | null
           created_at?: string
@@ -5180,6 +5198,7 @@ export type Database = {
           trn?: string | null
         }
         Update: {
+          avatar_url?: string | null
           company_name?: string | null
           contact_display_name?: string | null
           created_at?: string
@@ -5757,9 +5776,23 @@ export type Database = {
         }
         Returns: Json
       }
+      check_staff_portal_signup_email: {
+        Args: { p_email: string }
+        Returns: Json
+      }
       check_storefront_signup_email: {
         Args: { p_email: string }
         Returns: Json
+      }
+      create_portal_access_profile: {
+        Args: {
+          p_email: string
+          p_name: string
+          p_phone: string
+          p_role: string
+          p_user_id: string
+        }
+        Returns: undefined
       }
       clear_cart: { Args: { p_user_id: string }; Returns: boolean }
       complete_erp_store_transfer: {
@@ -6473,12 +6506,16 @@ export type Database = {
         Args: {
           p_account_id?: string
           p_allocations?: Json
+          p_bank_charges?: number
+          p_bank_charges_account_id?: string
           p_created_by?: string
           p_is_bulk?: boolean
           p_notes?: string
           p_payment_date: string
           p_payment_mode: string
           p_reference?: string
+          p_settlement_discount?: number
+          p_settlement_discount_account_id?: string
           p_store_id: string
           p_total_amount: number
           p_vendor_id: string

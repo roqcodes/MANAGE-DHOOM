@@ -46,7 +46,13 @@ export async function GET(request: Request) {
       if (!storeId) {
         return NextResponse.json({ error: "Store is required" }, { status: 400 });
       }
-      const allocations = await buildFifoAllocationsForAmount(storeId, amount, exclude);
+      const userId = searchParams.get("userId") ?? undefined;
+      const allocations = await buildFifoAllocationsForAmount(
+        storeId,
+        amount,
+        exclude,
+        userId,
+      );
       return NextResponse.json({ allocations });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to build FIFO allocations";
@@ -57,6 +63,8 @@ export async function GET(request: Request) {
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const storeId = searchParams.get("storeId") ?? undefined;
   const period = searchParams.get("period") ?? undefined;
+  const dateFrom = searchParams.get("dateFrom") ?? undefined;
+  const dateTo = searchParams.get("dateTo") ?? undefined;
   const search = searchParams.get("search") ?? undefined;
 
   try {
@@ -64,6 +72,8 @@ export async function GET(request: Request) {
       page,
       storeId,
       period,
+      dateFrom,
+      dateTo,
       search,
     });
     return NextResponse.json(result);

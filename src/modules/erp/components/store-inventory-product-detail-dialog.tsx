@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 
 import type { StoreInventoryProductDetail } from "@/common/erp/store-inventory-types";
 import { AdminPanelSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { adminListPath } from "@/modules/admin/lib/use-admin-get-query";
+import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -81,27 +83,31 @@ export function StoreInventoryProductDetailDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [detail, setDetail] = useState<StoreInventoryProductDetail | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const detailPath =
+    productId && storeId
+      ? adminListPath(`erp/store-inventory/${productId}`, { storeId })
+      : "";
 
-  useEffect(() => {
-    if (!open || !productId || !storeId) {
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    setDetail(null);
-    const q = new URLSearchParams({ storeId });
-    adminGet<{ data: StoreInventoryProductDetail }>(
-      `erp/store-inventory/${productId}?${q.toString()}`,
-    )
-      .then((res) => setDetail(res.data))
-      .catch((e) =>
-        setError(e instanceof Error ? e.message : "Failed to load product detail"),
-      )
-      .finally(() => setLoading(false));
-  }, [open, productId, storeId]);
+  const {
+    data: detail,
+    isPending: loading,
+    isError,
+    error: queryError,
+  } = useQuery({
+    queryKey: adminQueryKeys.erpGet(detailPath),
+    queryFn: async () => {
+      const res = await adminGet<{ data: StoreInventoryProductDetail }>(detailPath);
+      return res.data;
+    },
+    enabled: open && Boolean(productId && storeId),
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const error = isError
+    ? queryError instanceof Error
+      ? queryError.message
+      : "Failed to load product detail"
+    : null;
 
   const fmt = (n: number | null) =>
     n != null ? formatCurrencyAmount(n) : "—";
@@ -122,7 +128,7 @@ export function StoreInventoryProductDetailDialog({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          {loading ? (
+          {loading && !detail ? (
             <AdminPanelSkeleton rows={8} />
           ) : error ? (
             <p className="text-sm text-destructive">{error}</p>
@@ -152,14 +158,20 @@ export function StoreInventoryProductDetailDialog({
               />
 
               <Tabs defaultValue="purchases" className="space-y-1">
-                <TabsList className="h-10 w-full justify-start gap-1 p-1">
-                  <TabsTrigger value="purchases" className="px-4">
+                <TabsList className="h-10 w-full justify-start gap-1 overflow-x-auto p-1">
+                  <TabsTrigger value="purchases" className="shrink-0 px-4">
                     Purchases
                   </TabsTrigger>
-                  <TabsTrigger value="sales" className="px-4">
+                  <TabsTrigger value="sales" className="shrink-0 px-4">
                     Sales
                   </TabsTrigger>
-                  <TabsTrigger value="movements" className="px-4">
+                  <TabsTrigger value="sales-returns" className="shrink-0 px-4">
+                    Sales returns
+                  </TabsTrigger>
+                  <TabsTrigger value="vendor-returns" className="shrink-0 px-4">
+                    Vendor returns
+                  </TabsTrigger>
+                  <TabsTrigger value="movements" className="shrink-0 px-4">
                     Movements
                   </TabsTrigger>
                 </TabsList>
@@ -168,10 +180,10 @@ export function StoreInventoryProductDetailDialog({
                   <StatGrid
                     title="Purchase summary"
                     items={[
-                      { label: "Min cost", value: fmt(detail.purchase.minUnitCost) },
-                      { label: "Max cost", value: fmt(detail.purchase.maxUnitCost) },
+                      { label: "Min (loaded)", value: fmt(detail.purchase.minUnitCost) },
+                      { label: "Max (loaded)", value: fmt(detail.purchase.maxUnitCost) },
                       {
-                        label: "Avg (weighted)",
+                        label: "Avg (loaded)",
                         value: fmt(detail.purchase.avgUnitCost),
                       },
                       {
@@ -201,7 +213,19 @@ export function StoreInventoryProductDetailDialog({
                         align="right"
                         className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                       >
-                        Unit cost
+                        Rate
+                      </AdminTableCell>
+                      <AdminTableCell
+                        align="right"
+                        className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Landed
+                      </AdminTableCell>
+                      <AdminTableCell
+                        align="right"
+                        className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Loaded unit
                       </AdminTableCell>
                     </AdminTableHeader>
                     <AdminTableBody>
@@ -213,7 +237,7 @@ export function StoreInventoryProductDetailDialog({
                         </AdminTableRow>
                       ) : (
                         detail.purchase.recent.map((row) => (
-                          <AdminTableRow key={`${row.billId}-${row.billDate}`}>
+                          <AdminTableRow key={row.lineId}>
                             <AdminTableCell className="px-4 py-3">
                               <Link
                                 href={`/admin/erp/purchase-bills/${row.billId}`}
@@ -232,6 +256,14 @@ export function StoreInventoryProductDetailDialog({
                               {row.quantity}
                             </AdminTableCell>
                             <AdminTableCell align="right" className="px-4 py-3 tabular-nums">
+                              {fmt(row.unitPrice)}
+                            </AdminTableCell>
+                            <AdminTableCell align="right" className="px-4 py-3 tabular-nums">
+                              {row.landedCostAllocated != null && row.landedCostAllocated > 0
+                                ? fmt(row.landedCostAllocated)
+                                : "—"}
+                            </AdminTableCell>
+                            <AdminTableCell align="right" className="px-4 py-3 tabular-nums font-medium">
                               {fmt(row.loadedUnitCost ?? row.unitPrice)}
                             </AdminTableCell>
                           </AdminTableRow>
@@ -290,7 +322,7 @@ export function StoreInventoryProductDetailDialog({
                         </AdminTableRow>
                       ) : (
                         detail.sales.recent.map((row) => (
-                          <AdminTableRow key={`${row.invoiceId}-${row.invoiceDate}`}>
+                          <AdminTableRow key={row.lineId}>
                             <AdminTableCell className="px-4 py-3">
                               <Link
                                 href={`/admin/erp/invoices/${row.invoiceId}`}
@@ -304,6 +336,160 @@ export function StoreInventoryProductDetailDialog({
                             </AdminTableCell>
                             <AdminTableCell className="px-4 py-3">
                               {row.customerName ?? "—"}
+                            </AdminTableCell>
+                            <AdminTableCell align="right" className="px-4 py-3 tabular-nums">
+                              {row.quantity}
+                            </AdminTableCell>
+                            <AdminTableCell align="right" className="px-4 py-3 tabular-nums">
+                              {fmt(row.unitPrice)}
+                            </AdminTableCell>
+                          </AdminTableRow>
+                        ))
+                      )}
+                    </AdminTableBody>
+                  </AdminDataTable>
+                </TabsContent>
+
+                <TabsContent value="sales-returns" className="mt-4 space-y-4">
+                  <StatGrid
+                    title="Sales return summary"
+                    items={[
+                      { label: "Min price", value: fmt(detail.salesReturns.minUnitPrice) },
+                      { label: "Max price", value: fmt(detail.salesReturns.maxUnitPrice) },
+                      {
+                        label: "Avg (weighted)",
+                        value: fmt(detail.salesReturns.avgUnitPrice),
+                      },
+                      {
+                        label: "Qty returned",
+                        value: String(detail.salesReturns.totalQtyReturned),
+                      },
+                    ]}
+                  />
+                  <AdminDataTable className="rounded-lg border border-border/50">
+                    <AdminTableHeader>
+                      <AdminTableCell className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Credit note
+                      </AdminTableCell>
+                      <AdminTableCell className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Date
+                      </AdminTableCell>
+                      <AdminTableCell className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Customer
+                      </AdminTableCell>
+                      <AdminTableCell
+                        align="right"
+                        className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Qty
+                      </AdminTableCell>
+                      <AdminTableCell
+                        align="right"
+                        className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Unit
+                      </AdminTableCell>
+                    </AdminTableHeader>
+                    <AdminTableBody>
+                      {detail.salesReturns.recent.length === 0 ? (
+                        <AdminTableRow>
+                          <AdminTableCell className="px-4 py-6 text-muted-foreground">
+                            No sales return lines for this store.
+                          </AdminTableCell>
+                        </AdminTableRow>
+                      ) : (
+                        detail.salesReturns.recent.map((row) => (
+                          <AdminTableRow key={row.lineId}>
+                            <AdminTableCell className="px-4 py-3">
+                              <Link
+                                href={`/admin/erp/credit-notes/${row.creditNoteId}`}
+                                className="font-medium text-primary hover:underline"
+                              >
+                                {row.creditNoteNumber}
+                              </Link>
+                            </AdminTableCell>
+                            <AdminTableCell className="px-4 py-3 text-muted-foreground">
+                              {row.creditNoteDate}
+                            </AdminTableCell>
+                            <AdminTableCell className="px-4 py-3">
+                              {row.customerName ?? "—"}
+                            </AdminTableCell>
+                            <AdminTableCell align="right" className="px-4 py-3 tabular-nums">
+                              {row.quantity}
+                            </AdminTableCell>
+                            <AdminTableCell align="right" className="px-4 py-3 tabular-nums">
+                              {fmt(row.unitPrice)}
+                            </AdminTableCell>
+                          </AdminTableRow>
+                        ))
+                      )}
+                    </AdminTableBody>
+                  </AdminDataTable>
+                </TabsContent>
+
+                <TabsContent value="vendor-returns" className="mt-4 space-y-4">
+                  <StatGrid
+                    title="Vendor return summary"
+                    items={[
+                      { label: "Min price", value: fmt(detail.vendorReturns.minUnitPrice) },
+                      { label: "Max price", value: fmt(detail.vendorReturns.maxUnitPrice) },
+                      {
+                        label: "Avg (weighted)",
+                        value: fmt(detail.vendorReturns.avgUnitPrice),
+                      },
+                      {
+                        label: "Qty returned",
+                        value: String(detail.vendorReturns.totalQtyReturned),
+                      },
+                    ]}
+                  />
+                  <AdminDataTable className="rounded-lg border border-border/50">
+                    <AdminTableHeader>
+                      <AdminTableCell className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Vendor credit
+                      </AdminTableCell>
+                      <AdminTableCell className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Date
+                      </AdminTableCell>
+                      <AdminTableCell className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Vendor
+                      </AdminTableCell>
+                      <AdminTableCell
+                        align="right"
+                        className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Qty
+                      </AdminTableCell>
+                      <AdminTableCell
+                        align="right"
+                        className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      >
+                        Unit
+                      </AdminTableCell>
+                    </AdminTableHeader>
+                    <AdminTableBody>
+                      {detail.vendorReturns.recent.length === 0 ? (
+                        <AdminTableRow>
+                          <AdminTableCell className="px-4 py-6 text-muted-foreground">
+                            No vendor return lines for this store.
+                          </AdminTableCell>
+                        </AdminTableRow>
+                      ) : (
+                        detail.vendorReturns.recent.map((row) => (
+                          <AdminTableRow key={row.lineId}>
+                            <AdminTableCell className="px-4 py-3">
+                              <Link
+                                href={`/admin/erp/vendor-credits/${row.vendorCreditId}`}
+                                className="font-medium text-primary hover:underline"
+                              >
+                                {row.creditNumber}
+                              </Link>
+                            </AdminTableCell>
+                            <AdminTableCell className="px-4 py-3 text-muted-foreground">
+                              {row.creditDate}
+                            </AdminTableCell>
+                            <AdminTableCell className="px-4 py-3">
+                              {row.vendorName ?? "—"}
                             </AdminTableCell>
                             <AdminTableCell align="right" className="px-4 py-3 tabular-nums">
                               {row.quantity}

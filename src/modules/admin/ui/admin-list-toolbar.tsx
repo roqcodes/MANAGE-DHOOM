@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Ban, Calendar, ChevronDown, Search, X } from "lucide-react";
+import { Ban, ChevronDown, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,14 +12,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
 export type AdminFilterOption = { value: string; label: string };
@@ -32,6 +30,7 @@ export type AdminListFilter = {
   onChange: (value: string) => void;
 };
 
+/** @deprecated Use AdminDateFilterControl */
 export type AdminDateRange = {
   from: string;
   to: string;
@@ -39,12 +38,19 @@ export type AdminDateRange = {
   onToChange: (value: string) => void;
 };
 
+/** @deprecated Date range lives in the app header. */
+export type AdminDateFilterControl = {
+  value?: unknown;
+  onChange?: unknown;
+};
+
 export function AdminListCard({
   filters,
   search,
   onSearchChange,
   searchPlaceholder = "Search…",
-  dateRange,
+  dateFilter: _dateFilter,
+  dateRange: _dateRange,
   toolbarExtra,
   emptyMessage,
   isEmpty,
@@ -58,6 +64,9 @@ export function AdminListCard({
   search: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder?: string;
+  /** @deprecated Use the app header date picker */
+  dateFilter?: AdminDateFilterControl;
+  /** @deprecated Use the app header date picker */
   dateRange?: AdminDateRange;
   toolbarExtra?: ReactNode;
   emptyMessage: string;
@@ -141,33 +150,8 @@ export function AdminListCard({
             ) : null}
           </InputGroup>
 
-          {(dateRange || toolbarExtra) && (
+          {toolbarExtra ? (
             <div className="flex flex-wrap items-end gap-3">
-              {dateRange ? (
-                <div className="flex flex-wrap items-end gap-2">
-                  <div className="space-y-1">
-                    <Label className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                      <Calendar className="size-3" />
-                      From
-                    </Label>
-                    <Input
-                      type="date"
-                      value={dateRange.from}
-                      onChange={(e) => dateRange.onFromChange(e.target.value)}
-                      className="h-8 w-[140px] text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">To</Label>
-                    <Input
-                      type="date"
-                      value={dateRange.to}
-                      onChange={(e) => dateRange.onToChange(e.target.value)}
-                      className="h-8 w-[140px] text-xs"
-                    />
-                  </div>
-                </div>
-              ) : null}
               {toolbarExtra}
               {isFiltering && onClearFilters ? (
                 <Button variant="ghost" size="sm" onClick={onClearFilters} className="h-8">
@@ -175,7 +159,7 @@ export function AdminListCard({
                 </Button>
               ) : null}
             </div>
-          )}
+          ) : null}
         </div>
 
         {isEmpty ? (

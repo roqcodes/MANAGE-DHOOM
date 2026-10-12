@@ -40,10 +40,6 @@ export function VendorCreditsListView() {
     search,
     setSearch,
     debouncedSearch,
-    dateFrom,
-    setDateFrom,
-    dateTo,
-    setDateTo,
     page,
     listParams,
     isFiltering,
@@ -102,12 +98,6 @@ export function VendorCreditsListView() {
         emptyMessage="No vendor credits found."
         isFiltering={isFiltering}
         onClearFilters={clearFilters}
-        dateRange={{
-          from: dateFrom,
-          to: dateTo,
-          onFromChange: setDateFrom,
-          onToChange: setDateTo,
-        }}
         footer={<AdminListFooter total={total} label="credits" page={page} pageSize={PAGE_SIZE} />}
       >
         <AdminDataTable>

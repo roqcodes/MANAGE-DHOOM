@@ -44,15 +44,18 @@ export function AdminTableRow({
   children,
   className,
   onClick,
+  onMouseEnter,
 }: {
   children: ReactNode;
   className?: string;
   onClick?: () => void;
+  onMouseEnter?: () => void;
 }) {
   return (
     <TableRow
       className={cn(onClick && "cursor-pointer", "hover:bg-muted/30", className)}
       onClick={onClick}
+      onMouseEnter={onMouseEnter}
     >
       {children}
     </TableRow>

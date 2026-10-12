@@ -8,7 +8,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { CustomerErpProfile, SalesLineFormRow } from "@/common/erp/sales-types";
 import { calcSalesLine, roundSalesMoney } from "@/common/erp/sales-types";
-import { toDateInputValue } from "@/lib/format-date";
+import {
+  addMonthsToDateInput,
+  DEFAULT_INVOICE_DUE_MONTHS,
+  toDateInputValue,
+} from "@/lib/format-date";
 import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
 import { dispatchOutboxChanged } from "@/lib/sync/outbox-browser-events";
@@ -102,7 +106,9 @@ export function InvoiceFormView({
   const [customerLabel, setCustomerLabel] = useState("");
   const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
-  const [dueDate, setDueDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(() =>
+    addMonthsToDateInput(new Date().toISOString().slice(0, 10), DEFAULT_INVOICE_DUE_MONTHS),
+  );
   const [discount, setDiscount] = useState(0);
   const [taxInclusive, setTaxInclusive] = useState(true);
   const [notes, setNotes] = useState("");
@@ -112,6 +118,12 @@ export function InvoiceFormView({
     const preselected = searchParams.get("customerId");
     if (preselected && mode === "create") setCustomerId(preselected);
   }, [searchParams, mode]);
+
+  useEffect(() => {
+    if (mode === "create") {
+      setDueDate(addMonthsToDateInput(invoiceDate, DEFAULT_INVOICE_DUE_MONTHS));
+    }
+  }, [invoiceDate, mode]);
 
   useEffect(() => {
     if (mode !== "edit" || !invoiceId) return;
@@ -208,7 +220,7 @@ export function InvoiceFormView({
     setCustomerLabel("");
     const today = new Date().toISOString().slice(0, 10);
     setInvoiceDate(today);
-    setDueDate(today);
+    setDueDate(addMonthsToDateInput(today, DEFAULT_INVOICE_DUE_MONTHS));
     setDiscount(0);
     setTaxInclusive(true);
     setNotes("");

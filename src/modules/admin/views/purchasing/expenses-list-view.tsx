@@ -31,18 +31,13 @@ import {
   ErpVendorTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { ExpenseFormView } from "@/modules/admin/views/purchasing/expense-form-view";
-
-const PERIOD_OPTIONS = [
-  { value: "all", label: "All dates" },
-  { value: "this_month", label: "This month" },
-  { value: "today", label: "Today" },
-];
 
 function formatDisplayDate(value: string) {
   try {
@@ -58,7 +53,11 @@ export function ExpensesListView() {
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/expenses");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [period, setPeriod] = useState(searchParams.get("period") ?? "this_month");
+  const {
+    listParams: dateParams,
+    clearDateRange,
+    isDateFiltering,
+  } = useAdminDateRange({ defaultPreset: "this_month", legacyPeriodParam: true });
   const [accountId, setAccountId] = useState(searchParams.get("accountId") ?? "");
   const debouncedSearch = useDebouncedValue(search, 350);
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
@@ -71,7 +70,7 @@ export function ExpensesListView() {
   const listPath = adminListPath("erp/expenses", {
     page,
     storeId,
-    period: period !== "all" ? period : undefined,
+    ...dateParams,
     accountId: accountId || undefined,
     search: debouncedSearch.trim() || undefined,
   });
@@ -102,7 +101,7 @@ export function ExpensesListView() {
 
   const listParams: Record<string, string> = {};
   if (storeId) listParams.storeId = storeId;
-  if (period !== "all") listParams.period = period;
+  Object.assign(listParams, dateParams);
   if (accountId) listParams.accountId = accountId;
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
@@ -142,15 +141,14 @@ export function ExpensesListView() {
         isEmpty={sorted.length === 0}
         emptyMessage="No expenses found."
         isFiltering={
-          Boolean(debouncedSearch.trim()) || Boolean(accountId) || period !== "all"
+          Boolean(debouncedSearch.trim()) || Boolean(accountId) || isDateFiltering
         }
         onClearFilters={() => {
           setSearch("");
           setAccountId("");
-          setPeriod("all");
+          clearDateRange();
         }}
         filters={[
-          { id: "period", label: "Period", value: period, options: PERIOD_OPTIONS, onChange: setPeriod },
           {
             id: "account",
             label: "Expense type",

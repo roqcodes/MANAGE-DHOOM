@@ -17,6 +17,7 @@ import {
   ErpStoreTableGlance,
   AdminTableRow,
   SortableTableHead,
+  useAdminDateRange,
   useDebouncedValue,
   useSortableData,
 } from "@/modules/admin/ui";
@@ -39,15 +40,14 @@ const TRANSACTION_TYPES = [
 export function ItemTransactionsListView() {
   const { storeId, erpContextLoading } = useActiveStoreScope();
   const [type, setType] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const { listParams: dateParams, clearDateRange, isDateFiltering } =
+    useAdminDateRange();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
   const listPath = adminListPath("erp/item-transactions", {
     storeId,
     type: type !== "all" ? type : undefined,
-    dateFrom: dateFrom || undefined,
-    dateTo: dateTo || undefined,
+    ...dateParams,
     search: debouncedSearch.trim() || undefined,
   });
   const { data, isPending } = useAdminGetQuery<{ data: ItemTransactionRow[]; total: number }>({
@@ -78,18 +78,13 @@ export function ItemTransactionsListView() {
         searchPlaceholder="Search item, barcode, invoice…"
         isEmpty={sorted.length === 0}
         emptyMessage="No item transactions found."
-        isFiltering={type !== "all" || Boolean(dateFrom) || Boolean(dateTo) || Boolean(debouncedSearch.trim())}
+        isFiltering={
+          type !== "all" || isDateFiltering || Boolean(debouncedSearch.trim())
+        }
         onClearFilters={() => {
           setSearch("");
           setType("all");
-          setDateFrom("");
-          setDateTo("");
-        }}
-        dateRange={{
-          from: dateFrom,
-          to: dateTo,
-          onFromChange: setDateFrom,
-          onToChange: setDateTo,
+          clearDateRange();
         }}
         filters={[
           {

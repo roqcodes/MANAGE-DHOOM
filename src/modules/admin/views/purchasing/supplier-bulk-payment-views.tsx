@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 import type {
   BulkSupplierPaymentBatchRow,
@@ -50,6 +51,22 @@ type PendingLine = {
   amount: number;
 };
 
+function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): PendingLine[] {
+  const byBillId = new Map<string, PendingLine>();
+
+  for (const line of [...prev, ...incoming]) {
+    const existing = byBillId.get(line.purchaseBillId);
+    if (!existing) {
+      byBillId.set(line.purchaseBillId, line);
+      continue;
+    }
+    const amount = Math.min(existing.balanceDue, existing.amount + line.amount);
+    byBillId.set(line.purchaseBillId, { ...existing, amount });
+  }
+
+  return Array.from(byBillId.values());
+}
+
 export type SupplierBulkPaymentFormViewProps = ErpFormViewBaseProps;
 
 export function SupplierBulkPaymentFormView({
@@ -63,6 +80,7 @@ export function SupplierBulkPaymentFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
+  const [isAddingLine, setIsAddingLine] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isModal = variant === "modal";
 
@@ -74,7 +92,6 @@ export function SupplierBulkPaymentFormView({
   const [billLabel, setBillLabel] = useState("");
   const [selectedBillBalance, setSelectedBillBalance] = useState(0);
   const [lineAmount, setLineAmount] = useState("");
-  const [fifoAmount, setFifoAmount] = useState("");
   const [lines, setLines] = useState<PendingLine[]>([]);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMode, setPaymentMode] = useState<string>(ERP_SUPPLIER_PAYMENT_MODES[0]);
@@ -117,83 +134,124 @@ export function SupplierBulkPaymentFormView({
     );
   }
 
-  function addLine() {
-    const amt = parseFloat(lineAmount);
-    if (!vendorId) return setError("Select a vendor.");
-    if (!selectedBillId) return setError("Select a purchase bill.");
-    if (!amt || amt <= 0) return setError("Enter a positive amount.");
-    if (lines.some((l) => l.purchaseBillId === selectedBillId)) {
-      return setError("Bill already added.");
+  async function buildFifoLines(amount: number, excludeBillIds: string[]): Promise<PendingLine[]> {
+    if (!effectiveStoreId) return [];
+    const exclude = excludeBillIds.join(",");
+    const fifoUrl = vendorId
+      ? `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&vendorId=${encodeURIComponent(vendorId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`
+      : `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`;
+    const res = await adminGet<{
+      allocations: Array<{
+        purchaseBillId?: string;
+        purchase_bill_id?: string;
+        amount: number;
+      }>;
+    }>(fifoUrl);
+
+    type BillLookup = {
+      id: string;
+      purchase_bill_number: string;
+      balance_due: number;
+      vendor_name?: string | null;
+    };
+    const lookup = new Map<string, BillLookup>();
+    if (vendorId) {
+      const billsRes = await adminGet<{ data: BillLookup[] }>(
+        `erp/supplier-payments?view=payable-bills&vendorId=${encodeURIComponent(vendorId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
+      );
+      for (const row of billsRes.data ?? []) {
+        if (row.balance_due > 0) lookup.set(row.id, row);
+      }
+    } else {
+      const q = new URLSearchParams({
+        page: "0",
+        limit: "100",
+        openOnly: "1",
+        storeId: effectiveStoreId,
+      });
+      const full = await adminGet<{ data: ErpPurchaseBillListRow[] }>(
+        `erp/purchase-bills?${q.toString()}`,
+      );
+      for (const row of full.data ?? []) {
+        if (row.balance_due > 0) lookup.set(row.id, row);
+      }
     }
-    if (amt > selectedBillBalance) return setError("Amount exceeds bill balance.");
-    setLines((prev) => [
-      ...prev,
-      {
-        purchaseBillId: selectedBillId,
-        billNumber: billLabel,
-        vendorName: vendorLabel || null,
-        balanceDue: selectedBillBalance,
-        amount: amt,
-      },
-    ]);
-    setLineAmount("");
-    setSelectedBillId("");
-    setBillLabel("");
-    setSelectedBillBalance(0);
+    const pending: PendingLine[] = [];
+
+    for (const alloc of res.allocations) {
+      const purchaseBillId = alloc.purchaseBillId ?? alloc.purchase_bill_id;
+      if (!purchaseBillId || excludeBillIds.includes(purchaseBillId)) continue;
+      const bill = lookup.get(purchaseBillId);
+      if (!bill) continue;
+      pending.push({
+        purchaseBillId: bill.id,
+        billNumber: bill.purchase_bill_number,
+        vendorName: bill.vendor_name ?? (vendorLabel || null),
+        balanceDue: bill.balance_due,
+        amount: alloc.amount,
+      });
+    }
+
+    return pending;
+  }
+
+  async function addLine() {
     setError(null);
+    const amt = parseFloat(lineAmount);
+    if (!amt || amt <= 0) return setError("Enter a positive amount.");
+    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+
+    setIsAddingLine(true);
+    try {
+      if (!selectedBillId) {
+        const fifoLines = await buildFifoLines(amt, lines.map((l) => l.purchaseBillId));
+        if (fifoLines.length === 0) {
+          setError("No open bills available for FIFO allocation.");
+          return;
+        }
+        setLines((prev) => mergePendingLines(prev, fifoLines));
+        setLineAmount("");
+        setError(null);
+        return;
+      }
+
+      if (!vendorId) {
+        setError("Select a vendor when adding a specific bill.");
+        return;
+      }
+      if (lines.some((l) => l.purchaseBillId === selectedBillId)) {
+        setError("Bill already added.");
+        return;
+      }
+      if (amt > selectedBillBalance) {
+        setError("Amount exceeds bill balance.");
+        return;
+      }
+      setLines((prev) =>
+        mergePendingLines(prev, [
+          {
+            purchaseBillId: selectedBillId,
+            billNumber: billLabel,
+            vendorName: vendorLabel || null,
+            balanceDue: selectedBillBalance,
+            amount: amt,
+          },
+        ]),
+      );
+      setLineAmount("");
+      setSelectedBillId("");
+      setBillLabel("");
+      setSelectedBillBalance(0);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to add bill payment.");
+    } finally {
+      setIsAddingLine(false);
+    }
   }
 
   function removeLine(billId: string) {
     setLines((prev) => prev.filter((l) => l.purchaseBillId !== billId));
-  }
-
-  async function applyFifo() {
-    setError(null);
-    const amount = parseFloat(fifoAmount);
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (!amount || amount <= 0) return setError("Enter a positive FIFO amount.");
-
-    try {
-      const exclude = lines.map((l) => l.purchaseBillId).join(",");
-      const res = await adminGet<{
-        allocations: Array<{ purchaseBillId: string; amount: number }>;
-      }>(
-        `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
-      );
-
-      const q = new URLSearchParams({ page: "0", limit: "100", openOnly: "1", storeId: effectiveStoreId });
-      const full = await adminGet<{ data: ErpPurchaseBillListRow[] }>(
-        `erp/purchase-bills?${q.toString()}`,
-      );
-      const lookup = new Map(
-        (full.data ?? [])
-          .filter((row) => row.balance_due > 0)
-          .map((row) => [row.id, row]),
-      );
-      const newLines: PendingLine[] = [];
-
-      for (const alloc of res.allocations) {
-        if (lines.some((line) => line.purchaseBillId === alloc.purchaseBillId)) continue;
-        const bill = lookup.get(alloc.purchaseBillId);
-        if (!bill) continue;
-        newLines.push({
-          purchaseBillId: bill.id,
-          billNumber: bill.purchase_bill_number,
-          vendorName: bill.vendor_name,
-          balanceDue: bill.balance_due,
-          amount: alloc.amount,
-        });
-      }
-
-      if (newLines.length === 0) {
-        setError("No open bills available for FIFO allocation.");
-        return;
-      }
-
-      setLines((prev) => [...prev, ...newLines]);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "FIFO allocation failed.");
-    }
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -258,7 +316,7 @@ export function SupplierBulkPaymentFormView({
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        <AdminFormColumns cols={2}>
+        <AdminFormColumns cols={2} columnRatio="2:1">
           <AdminFormSection title="Payment details">
             <AdminFormGrid cols={3}>
               <AdminFormField label="Store" required>
@@ -291,7 +349,7 @@ export function SupplierBulkPaymentFormView({
                   ))}
                 </select>
               </AdminFormField>
-              <AdminFormField label="Paid through account" required className="sm:col-span-2">
+              <AdminFormField label="Paid through account" required>
                 <select
                   className="h-9 w-full rounded-md border px-3 text-sm"
                   value={accountId}
@@ -328,7 +386,7 @@ export function SupplierBulkPaymentFormView({
                   ))}
                 </select>
               </AdminFormField>
-              <AdminFormField label="Notes" className="sm:col-span-2">
+              <AdminFormField label="Notes" className="sm:col-span-2 lg:col-span-3">
                 <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
               </AdminFormField>
             </AdminFormGrid>
@@ -336,7 +394,10 @@ export function SupplierBulkPaymentFormView({
 
           <AdminFormSection title="Add bill payment">
             <AdminFormGrid cols={1}>
-              <AdminFormField label="Vendor" required>
+              <AdminFormField
+                label="Vendor"
+                hint="Optional for FIFO — limits allocation to one vendor's bills."
+              >
                 <VendorSearchSelect
                   value={vendorId || null}
                   selectedLabel={vendorLabel || undefined}
@@ -351,7 +412,10 @@ export function SupplierBulkPaymentFormView({
                   }}
                 />
               </AdminFormField>
-              <AdminFormField label="Purchase bill" required>
+              <AdminFormField
+                label="Purchase bill"
+                hint="Optional — leave empty to apply the amount FIFO (oldest due first)."
+              >
                 <PurchaseBillSearchSelect
                   value={selectedBillId || null}
                   selectedLabel={billLabel || undefined}
@@ -374,37 +438,38 @@ export function SupplierBulkPaymentFormView({
                 </p>
               ) : null}
               <AdminFormField label="Amount">
-                <Input
-                  type="number"
-                  placeholder="Amount"
-                  value={lineAmount}
-                  onChange={(e) => setLineAmount(e.target.value)}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Amount"
+                    value={lineAmount}
+                    onChange={(e) => setLineAmount(e.target.value)}
+                    className="min-w-0 flex-1"
+                    disabled={isAddingLine}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0 min-w-[6.5rem] justify-center"
+                    disabled={isAddingLine || !effectiveStoreId}
+                    onClick={() => void addLine()}
+                  >
+                    {isAddingLine ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                        <span className="sr-only">Adding…</span>
+                      </>
+                    ) : selectedBillId ? (
+                      "Add bill"
+                    ) : (
+                      "Apply FIFO"
+                    )}
+                  </Button>
+                </div>
               </AdminFormField>
             </AdminFormGrid>
-            <div className="mt-3">
-              <Button type="button" variant="outline" onClick={addLine}>
-                Add bill
-              </Button>
-            </div>
           </AdminFormSection>
         </AdminFormColumns>
-
-        <AdminFormSection title="FIFO allocation">
-          <div className="flex flex-wrap items-end gap-2">
-            <AdminFormField label="Amount to allocate (oldest bills first)" className="min-w-[200px]">
-              <Input
-                type="number"
-                value={fifoAmount}
-                onChange={(e) => setFifoAmount(e.target.value)}
-                className="w-40"
-              />
-            </AdminFormField>
-            <Button type="button" variant="secondary" onClick={() => void applyFifo()}>
-              Apply FIFO
-            </Button>
-          </div>
-        </AdminFormSection>
 
         {lines.length > 0 ? (
           <Card>

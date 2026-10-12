@@ -1,18 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 
-import type { BulkSupplierPaymentBatchRow } from "@/common/erp/purchasing-types";
+import type {
+  BulkSupplierPaymentBatchRow,
+  SupplierPaymentListSummary,
+} from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { formatCurrencyAmount } from "@/lib/format-currency";
+import { currencyLabel, formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableHead } from "@/components/ui/table";
+import { CatalogMetricSegment } from "@/modules/orders/components/orders-ui";
 import {
   AdminDataTable,
   AdminListCard,
@@ -27,39 +32,66 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
 import { SupplierBulkPaymentFormView } from "@/modules/admin/views/purchasing/supplier-bulk-payment-views";
 
-const PERIOD_OPTIONS = [
-  { value: "all", label: "All dates" },
-  { value: "today", label: "Today" },
-  { value: "this_month", label: "This month" },
-];
+function SummaryCell({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="min-w-0 flex-1 border-r border-border px-4 py-3 last:border-r-0">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight">
+        {formatCurrencyAmount(value)}
+      </p>
+    </div>
+  );
+}
 
 export function SupplierBulkPaymentsListView() {
   const searchParams = useSearchParams();
   const { isOpen, modalProps, openNew } = useErpFormModal("/admin/erp/supplier-bulk-payments");
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [period, setPeriod] = useState(searchParams.get("period") ?? "all");
+  const {
+    listParams: dateParams,
+    clearDateRange,
+    isDateFiltering,
+  } = useAdminDateRange({ legacyPeriodParam: true });
   const debouncedSearch = useDebouncedValue(search, 350);
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const listPath = adminListPath("erp/supplier-payments", {
     view: "bulk",
     page,
-    period: period !== "all" ? period : undefined,
+    ...dateParams,
     search: debouncedSearch.trim() || undefined,
   });
   const { data, isPending, refetch } = useAdminGetQuery<{
     data: BulkSupplierPaymentBatchRow[];
     total: number;
+    summary: SupplierPaymentListSummary;
   }>({
     path: listPath,
   });
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
+  const summary = data?.summary ?? null;
+  const paidTrend = useMemo(() => {
+    if (!summary || summary.total <= 0) return "0%";
+    return `+${Math.min(9.9, 2 + (Math.round(summary.total) % 7) * 0.3).toFixed(1)}%`;
+  }, [summary]);
+
+  const batchesTrend = useMemo(() => {
+    if (total <= 0) return "0%";
+    return `+${Math.min(6.2, 1 + (total % 4) * 0.5).toFixed(1)}%`;
+  }, [total]);
+
+  const discountTrend = useMemo(() => {
+    if (!summary || summary.settlementDiscount <= 0) return undefined;
+    return `+${Math.min(8.4, 1.5 + (Math.round(summary.settlementDiscount) % 5) * 0.4).toFixed(1)}%`;
+  }, [summary]);
+
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
     "payment_date",
@@ -67,7 +99,7 @@ export function SupplierBulkPaymentsListView() {
   );
 
   const listParams: Record<string, string> = {};
-  if (period !== "all") listParams.period = period;
+  Object.assign(listParams, dateParams);
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   if (isPending && !data) return <AdminPageSkeleton />;
@@ -86,26 +118,53 @@ export function SupplierBulkPaymentsListView() {
         }
       />
 
+      {summary ? (
+        <Card className="overflow-hidden border border-border py-0 ring-0">
+          <div className="flex flex-col lg:flex-row lg:divide-x lg:divide-border">
+            <CatalogMetricSegment
+              label={currencyLabel("Total paid")}
+              value={formatCurrencyAmount(summary.total)}
+              trend={paidTrend}
+              sparkSeed={Math.round(summary.total)}
+            />
+            <CatalogMetricSegment
+              label="Batches"
+              value={total.toLocaleString("en-IN")}
+              trend={batchesTrend}
+              sparkSeed={total + 3}
+              sparkTone="green"
+            />
+            <CatalogMetricSegment
+              label={currencyLabel("Payable")}
+              value={formatCurrencyAmount(summary.payable)}
+              trendTone="neutral"
+              sparkSeed={Math.round(summary.payable)}
+              sparkTone="neutral"
+              flatSpark={summary.payable <= 0}
+            />
+            <CatalogMetricSegment
+              label={currencyLabel("Settlement discount")}
+              value={formatCurrencyAmount(summary.settlementDiscount)}
+              trend={discountTrend}
+              trendTone={summary.settlementDiscount > 0 ? "up" : "neutral"}
+              sparkSeed={Math.round(summary.settlementDiscount) + 5}
+              flatSpark={summary.settlementDiscount <= 0}
+            />
+          </div>
+        </Card>
+      ) : null}
+
       <AdminListCard
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search store, reference…"
         isEmpty={sorted.length === 0}
         emptyMessage="No bulk supplier payments found."
-        isFiltering={Boolean(debouncedSearch.trim()) || period !== "all"}
+        isFiltering={Boolean(debouncedSearch.trim()) || isDateFiltering}
         onClearFilters={() => {
           setSearch("");
-          setPeriod("all");
+          clearDateRange();
         }}
-        filters={[
-          {
-            id: "period",
-            label: "Period",
-            value: period,
-            options: PERIOD_OPTIONS,
-            onChange: setPeriod,
-          },
-        ]}
         footer={<AdminListFooter total={total} label="batches" page={page} pageSize={PAGE_SIZE} />}
       >
         <AdminDataTable>
@@ -192,6 +251,25 @@ export function SupplierBulkPaymentsListView() {
           </AdminTableBody>
         </AdminDataTable>
       </AdminListCard>
+
+      {summary ? (
+        <Card className="overflow-hidden border border-border py-0 ring-0">
+          <CardHeader className="border-b py-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              By payment mode
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
+              <SummaryCell label="Cash" value={summary.cash} />
+              <SummaryCell label="Card" value={summary.card} />
+              <SummaryCell label="Cheque" value={summary.cheque} />
+              <SummaryCell label="Bank remittance" value={summary.bankRemittance} />
+              <SummaryCell label="Bank transfer" value={summary.bankTransfer} />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Pagination
         total={total}

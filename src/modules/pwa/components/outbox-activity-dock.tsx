@@ -203,7 +203,7 @@ export function OutboxActivityDock() {
           animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
           exit={{ opacity: 0, y: -8, scale: 0.96, filter: "blur(6px)" }}
           transition={{ type: "spring", stiffness: 380, damping: 28 }}
-          className="pointer-events-auto fixed right-3 top-[3.35rem] z-[45] max-w-[min(24rem,calc(100vw-1.5rem))] sm:right-4 sm:top-[3.6rem]"
+          className="pointer-events-auto fixed right-3 top-[3.35rem] z-[100] max-w-[min(24rem,calc(100vw-1.5rem))] sm:right-4 sm:top-[3.6rem]"
         >
           <div
             className="relative overflow-hidden rounded-[22px] border border-white/80 bg-white/75 p-1.5 shadow-[0_12px_32px_-6px_rgba(30,41,59,0.16),0_0_0_1px_rgba(255,255,255,0.7)_inset,0_4px_14px_rgba(56,189,248,0.1)] backdrop-blur-2xl dark:border-white/20 dark:bg-slate-900/75 dark:shadow-[0_14px_36px_-8px_rgba(0,0,0,0.45),inset_0_1px_2px_rgba(255,255,255,0.2)]"

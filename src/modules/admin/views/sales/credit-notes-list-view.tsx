@@ -52,10 +52,6 @@ export function CreditNotesListView() {
     setStatus,
     storeId,
     setStoreId,
-    dateFrom,
-    setDateFrom,
-    dateTo,
-    setDateTo,
     page,
     listParams,
     isFiltering,
@@ -103,12 +99,6 @@ export function CreditNotesListView() {
         emptyMessage="No credit notes found."
         isFiltering={isFiltering}
         onClearFilters={clearFilters}
-        dateRange={{
-          from: dateFrom,
-          to: dateTo,
-          onFromChange: setDateFrom,
-          onToChange: setDateTo,
-        }}
         filters={[
           {
             id: "status",

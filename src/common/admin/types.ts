@@ -30,6 +30,7 @@ export interface DBUser {
   name: string | null;
   email: string | null;
   phone: string | null;
+  avatar_url?: string | null;
   role: string | null;
   is_verified: boolean | null;
   created_at: string | null;
@@ -268,6 +269,7 @@ export interface OrderUser {
   name: string | null;
   email: string | null;
   phone: string | null;
+  avatar_url?: string | null;
 }
 
 export interface OrderItemPreview {

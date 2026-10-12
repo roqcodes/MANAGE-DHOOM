@@ -31,6 +31,7 @@ export interface CustomerSummary {
   customer_notes?: string | null;
   opening_balance?: number | null;
   opening_balance_date?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface WalletTransaction {
@@ -77,7 +78,7 @@ export async function getCustomerDetails(
   const { data: user, error: userErr } = await supabase
     .from("users")
     .select(
-      "id, name, email, phone, role, is_verified, created_at, customer_number, company_name, contact_display_name, location, trn, po_box, customer_notes, opening_balance, opening_balance_date",
+      "id, name, email, phone, avatar_url, role, is_verified, created_at, customer_number, company_name, contact_display_name, location, trn, po_box, customer_notes, opening_balance, opening_balance_date",
     )
     .eq("id", userId)
     .single();
@@ -148,7 +149,7 @@ export async function getAllCustomers(page = 0): Promise<Paginated<AdminUser> & 
     supabase
       .from("users")
       .select(
-        "id,name,email,phone,role,is_verified,created_at,customer_number,company_name,location,opening_balance",
+        "id,name,email,phone,avatar_url,role,is_verified,created_at,customer_number,company_name,location,opening_balance",
       )
       .or(CUSTOMER_ROLE_OR_FILTER)
       .order("created_at", { ascending: false })

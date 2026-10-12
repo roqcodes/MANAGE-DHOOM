@@ -20,6 +20,8 @@ type SalaryPaymentListFilters = {
   limit?: number;
   storeId?: string;
   period?: string;
+  dateFrom?: string;
+  dateTo?: string;
   search?: string;
 };
 
@@ -92,7 +94,9 @@ export async function listSalaryPayments(
   const limit = filters.limit ?? 20;
   const from = page * limit;
   const storeId = await resolveErpStoreId(filters.storeId);
-  const { dateFrom, dateTo } = periodToDateRange(filters.period);
+  const periodRange = periodToDateRange(filters.period);
+  const dateFrom = filters.dateFrom ?? periodRange.dateFrom;
+  const dateTo = filters.dateTo ?? periodRange.dateTo;
 
   let query = supabase
     .from("erp_salary_payments")
@@ -236,7 +240,9 @@ export async function listSalaryBulkPayments(
   const limit = filters.limit ?? 20;
   const from = page * limit;
   const storeId = await resolveErpStoreId(filters.storeId);
-  const { dateFrom, dateTo } = periodToDateRange(filters.period);
+  const periodRange = periodToDateRange(filters.period);
+  const dateFrom = filters.dateFrom ?? periodRange.dateFrom;
+  const dateTo = filters.dateTo ?? periodRange.dateTo;
 
   let query = supabase
     .from("erp_salary_bulk_payments")

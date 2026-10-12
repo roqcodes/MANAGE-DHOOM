@@ -11,6 +11,10 @@ import type {
 } from "@/common/erp/purchasing-types";
 import { matchPoLineToBillLine } from "@/common/erp/match-po-bill-line";
 import { roundMoney } from "@/common/erp/purchasing-types";
+import {
+  calcUnitLoadedCostFromAlloc,
+  canApplyManualLandedAllocations,
+} from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
@@ -34,10 +38,35 @@ function calcPoTotals(lines: ErpPurchaseLineInput[], landedCosts: ErpLandedCostL
   return { subtotal: roundMoney(subtotal), tax: roundMoney(tax), landedTotal, total };
 }
 
+async function applyPoLandedAllocations(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  poId: string,
+  lines: ErpPurchaseLineInput[],
+  landedTotal: number,
+) {
+  if (landedTotal <= 0) {
+    const { error } = await supabase.rpc("refresh_purchase_order_landed_allocations", {
+      p_po_id: poId,
+    });
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  if (canApplyManualLandedAllocations(lines, landedTotal)) {
+    return;
+  }
+
+  const { error: refreshError } = await supabase.rpc("refresh_purchase_order_landed_allocations", {
+    p_po_id: poId,
+  });
+  if (refreshError) throw new Error(refreshError.message);
+}
+
 async function persistPoLandedCosts(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   poId: string,
   landedCosts: ErpLandedCostLineInput[],
+  lines?: ErpPurchaseLineInput[],
 ) {
   await supabase.from("purchase_order_landed_costs").delete().eq("po_id", poId);
 
@@ -58,6 +87,18 @@ async function persistPoLandedCosts(
     });
     const { error } = await supabase.from("purchase_order_landed_costs").insert(rows);
     if (error) throw new Error(error.message);
+  }
+
+  let landedTotal = 0;
+  for (const lc of landedCosts) {
+    const taxable = roundMoney(lc.quantity * lc.rate);
+    const lineTax = roundMoney(taxable * (lc.taxRatePercent / 100));
+    landedTotal = roundMoney(landedTotal + roundMoney(taxable + lineTax));
+  }
+
+  if (lines) {
+    await applyPoLandedAllocations(supabase, poId, lines, landedTotal);
+    return;
   }
 
   const { error: refreshError } = await supabase.rpc("refresh_purchase_order_landed_allocations", {
@@ -137,7 +178,7 @@ export async function getErpPurchaseOrderDetail(poId: string): Promise<ErpPurcha
   const { data, error } = await supabase
     .from("purchase_orders")
     .select(
-      "id, po_number, vendor_id, store_id, status, reference, po_date, expected_delivery_date, subtotal, tax_total, discount, total_amount, notes, created_at, vendors(id, name, contact, phone, email, address, trn), stores(id, name), purchase_order_items(id, product_id, variant_id, quantity, price, tax_rate_percent, tax_amount, line_total, received_qty, accepted_qty, rejected_qty, products(id, name), product_variants(id, name, barcode, product_id, products(id, name)))",
+      "id, po_number, vendor_id, store_id, status, reference, po_date, expected_delivery_date, subtotal, tax_total, discount, landed_cost_total, total_amount, notes, created_at, vendors(id, name, contact, phone, email, address, trn), stores(id, name), purchase_order_items(id, product_id, variant_id, quantity, price, tax_rate_percent, tax_amount, line_total, landed_cost_allocated, unit_loaded_cost, received_qty, accepted_qty, rejected_qty, products(id, name), product_variants(id, name, barcode, product_id, products(id, name)))",
     )
     .eq("id", poId)
     .maybeSingle();
@@ -182,6 +223,9 @@ export async function getErpPurchaseOrderDetail(poId: string): Promise<ErpPurcha
     tax_rate_percent: Number(item.tax_rate_percent ?? 0),
     tax_amount: Number(item.tax_amount ?? 0),
     line_total: Number(item.line_total ?? 0),
+    landed_cost_allocated: Number(item.landed_cost_allocated ?? 0),
+    unit_loaded_cost:
+      item.unit_loaded_cost != null ? Number(item.unit_loaded_cost) : null,
     received_qty: Number(item.received_qty ?? 0),
     accepted_qty: Number(item.accepted_qty ?? 0),
     rejected_qty: Number(item.rejected_qty ?? 0),
@@ -244,6 +288,7 @@ export async function getErpPurchaseOrderDetail(poId: string): Promise<ErpPurcha
     subtotal: Number(data.subtotal ?? 0),
     tax_total: Number(data.tax_total ?? 0),
     discount: Number(data.discount ?? 0),
+    landed_cost_total: Number(data.landed_cost_total ?? 0),
     total_amount: data.total_amount != null ? Number(data.total_amount) : null,
     purchase_order_items: items,
     linked_bill: linkedBill,
@@ -304,7 +349,7 @@ export async function createErpPurchaseOrder(input: {
   if (error) throw new Error(error.message);
 
   const poId = data as string;
-  await persistPoLandedCosts(supabase, poId, input.landedCosts ?? []);
+  await persistPoLandedCosts(supabase, poId, input.landedCosts ?? [], input.lines);
 
   const totals = calcPoTotals(input.lines, input.landedCosts ?? [], input.discount ?? 0);
   await supabase
@@ -389,6 +434,15 @@ export async function updateErpPurchaseOrder(
   const items = input.lines.map((line) => {
     const taxable = roundMoney(line.quantity * line.purchasePrice);
     const lineTax = roundMoney(taxable * (line.taxRatePercent / 100));
+    const alloc =
+      line.landedCostAllocated != null
+        ? roundMoney(line.landedCostAllocated)
+        : 0;
+    const unitLoaded = calcUnitLoadedCostFromAlloc(
+      line.purchasePrice,
+      line.quantity,
+      alloc,
+    );
     return {
       po_id: poId,
       product_id: line.productId ?? null,
@@ -398,13 +452,15 @@ export async function updateErpPurchaseOrder(
       tax_rate_percent: line.taxRatePercent,
       tax_amount: lineTax,
       line_total: roundMoney(taxable + lineTax),
+      landed_cost_allocated: alloc,
+      unit_loaded_cost: unitLoaded,
     };
   });
 
   const { error: insertError } = await supabase.from("purchase_order_items").insert(items);
   if (insertError) throw new Error(insertError.message);
 
-  await persistPoLandedCosts(supabase, poId, landedCosts);
+  await persistPoLandedCosts(supabase, poId, landedCosts, input.lines);
 
   await logAuditEvent({
     action: "update",

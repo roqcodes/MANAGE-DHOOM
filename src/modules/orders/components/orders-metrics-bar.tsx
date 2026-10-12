@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarRange, ChevronDown, Download, Plus } from "lucide-react";
-import { format, subDays } from "date-fns";
+import { ChevronDown, Download, Plus } from "lucide-react";
 
 import type { OrderCatalogStats } from "@/common/admin/types";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -14,91 +13,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Popover,
-  PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { currencyLabel } from "@/lib/format-currency";
 import {
+  CatalogMetricSegment,
   formatInr,
-  MiniSparkline,
-  TrendBadge,
 } from "@/modules/orders/components/orders-ui";
-
-type DatePreset = "7" | "30" | "90" | "custom";
-
-function MetricSegment({
-  label,
-  value,
-  trend,
-  trendTone = "up",
-  sparkSeed,
-  sparkTone = "primary",
-  flatSpark = false,
-}: {
-  label: string;
-  value: string;
-  trend?: string;
-  trendTone?: "up" | "down" | "neutral";
-  sparkSeed: number;
-  sparkTone?: "primary" | "neutral" | "green";
-  flatSpark?: boolean;
-}) {
-  return (
-    <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
-      <div className="min-w-0">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <p className="text-xl font-semibold tabular-nums tracking-tight">
-            {value}
-          </p>
-          {trend ? <TrendBadge value={trend} tone={trendTone} /> : null}
-        </div>
-      </div>
-      <MiniSparkline
-        seed={sparkSeed}
-        tone={sparkTone}
-        flat={flatSpark}
-      />
-    </div>
-  );
-}
 
 export function OrdersMetricsBar({
   stats,
-  datePreset,
-  dateFrom,
-  dateTo,
-  onDatePresetChange,
-  onDateFromChange,
-  onDateToChange,
   onExport,
   variant = "online",
 }: {
   stats: OrderCatalogStats;
-  datePreset: DatePreset;
-  dateFrom: string;
-  dateTo: string;
-  onDatePresetChange: (preset: DatePreset) => void;
-  onDateFromChange: (value: string) => void;
-  onDateToChange: (value: string) => void;
   onExport: () => void;
   variant?: "online" | "erp";
 }) {
-  const presetLabel =
-    datePreset === "7"
-      ? "7 days"
-      : datePreset === "90"
-        ? "90 days"
-        : datePreset === "custom" && dateFrom && dateTo
-          ? `${format(new Date(dateFrom), "MMM d")} – ${format(new Date(dateTo), "MMM d")}`
-          : "30 days";
-
   const orderTrend =
     stats.totalOrders > 0
       ? `+${Math.min(9.9, 2 + (stats.totalOrders % 7) * 0.3).toFixed(1)}%`
@@ -168,93 +97,20 @@ export function OrdersMetricsBar({
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
         <div className="flex flex-col lg:flex-row lg:divide-x lg:divide-border">
-          <div className="flex shrink-0 items-center border-b border-border px-3 py-3 lg:border-b-0 lg:py-0">
-            <Popover>
-              <PopoverTrigger
-                render={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="justify-start"
-                  />
-                }
-              >
-                <CalendarRange data-icon="inline-start" />
-                {presetLabel}
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-72">
-                <PopoverHeader>
-                  <PopoverTitle>Date range</PopoverTitle>
-                </PopoverHeader>
-                <div className="flex flex-col gap-2">
-                  {(
-                    [
-                      ["7", "Last 7 days"],
-                      ["30", "Last 30 days"],
-                      ["90", "Last 90 days"],
-                    ] as const
-                  ).map(([preset, label]) => (
-                    <Button
-                      key={preset}
-                      variant={datePreset === preset ? "secondary" : "ghost"}
-                      size="sm"
-                      className="justify-start"
-                      onClick={() => {
-                        onDatePresetChange(preset);
-                        const to = new Date();
-                        const from = subDays(to, Number(preset));
-                        onDateFromChange(format(from, "yyyy-MM-dd"));
-                        onDateToChange(format(to, "yyyy-MM-dd"));
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                  <div className="flex flex-col gap-2 border-t pt-2">
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="metrics-date-from">From</Label>
-                      <Input
-                        id="metrics-date-from"
-                        type="date"
-                        value={dateFrom}
-                        onChange={(e) => {
-                          onDatePresetChange("custom");
-                          onDateFromChange(e.target.value);
-                        }}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label htmlFor="metrics-date-to">To</Label>
-                      <Input
-                        id="metrics-date-to"
-                        type="date"
-                        value={dateTo}
-                        onChange={(e) => {
-                          onDatePresetChange("custom");
-                          onDateToChange(e.target.value);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <MetricSegment
+          <CatalogMetricSegment
             label="Orders"
             value={stats.totalOrders.toLocaleString("en-IN")}
             trend={orderTrend}
             sparkSeed={stats.totalOrders}
           />
-          <MetricSegment
+          <CatalogMetricSegment
             label="Items ordered"
             value={stats.itemsOrdered.toLocaleString("en-IN")}
             trend={itemsTrend}
             sparkSeed={stats.itemsOrdered + 3}
             sparkTone="green"
           />
-          <MetricSegment
+          <CatalogMetricSegment
             label={currencyLabel("Sales reversals")}
             value={formatInr(stats.salesReversals)}
             trendTone="neutral"
@@ -262,7 +118,7 @@ export function OrdersMetricsBar({
             sparkTone="neutral"
             flatSpark
           />
-          <MetricSegment
+          <CatalogMetricSegment
             label="Orders fulfilled"
             value={stats.ordersFulfilled.toLocaleString("en-IN")}
             trend={fulfilledTrend}

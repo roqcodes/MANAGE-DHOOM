@@ -224,6 +224,14 @@ export async function requestAccess(input: {
   const { data, error } = await supabase.auth.signUp({
     email: input.email,
     password: input.password,
+    options: {
+      data: {
+        portal_access_request: true,
+        name: input.name,
+        phone: input.phone,
+        role: input.role,
+      },
+    },
   });
 
   if (error) {
@@ -250,13 +258,12 @@ export async function requestAccess(input: {
     throw new Error("Unable to create your access request.");
   }
 
-  const { error: profileError } = await supabase.from("users").insert({
-    id: user.id,
-    name: input.name,
-    email: input.email,
-    phone: input.phone,
-    role: input.role,
-    is_verified: false,
+  const { error: profileError } = await supabase.rpc("create_portal_access_profile", {
+    p_user_id: user.id,
+    p_name: input.name,
+    p_email: input.email,
+    p_phone: input.phone,
+    p_role: input.role,
   });
 
   if (profileError) {

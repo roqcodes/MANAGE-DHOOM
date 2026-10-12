@@ -10,6 +10,8 @@ export interface ErpPurchaseLineInput {
   purchasePrice: number;
   taxRatePercent: number;
   unitId?: string | null;
+  /** Document landed cost share for this line (incl. tax on landed charges). */
+  landedCostAllocated?: number | null;
 }
 
 export interface ErpLandedCostLineInput {
@@ -43,6 +45,7 @@ export interface ErpPurchaseBillListRow {
   po_id: string | null;
   status: string;
   total_amount: number;
+  landed_cost_total: number;
   amount_paid: number;
   credits_applied: number;
   balance_due: number;
@@ -81,6 +84,8 @@ export interface ErpPurchaseOrderLineRow {
   tax_rate_percent: number;
   tax_amount: number;
   line_total: number;
+  landed_cost_allocated?: number;
+  unit_loaded_cost?: number | null;
   received_qty?: number;
   accepted_qty?: number;
   rejected_qty?: number;
@@ -143,6 +148,7 @@ export interface ErpPurchaseOrderDetail {
   subtotal: number;
   tax_total: number;
   discount: number;
+  landed_cost_total?: number;
   total_amount: number | null;
   notes: string | null;
   created_at: string | null;
@@ -191,6 +197,8 @@ export interface PurchaseLineFormRow {
   quantity: number;
   purchasePrice: number;
   taxRatePercent: number;
+  /** When set, overrides pro-rata landed allocation for this line (document total unchanged). */
+  landedCostAllocated?: number | null;
 }
 
 export interface LandedCostFormRow {
@@ -221,9 +229,9 @@ export function derivePurchaseBillDisplayStatus(
   return "Unpaid";
 }
 
-export function roundMoney(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+import { roundCalc, roundMoney } from "@/lib/decimal-precision";
+
+export { roundCalc, roundMoney };
 
 export function calcPurchaseLine(
   quantity: number,
@@ -282,6 +290,21 @@ export interface SupplierPaymentModeTotals {
   "Bank Remittance": number;
   "Bank Transfer": number;
   total: number;
+}
+
+/** Filter-scoped totals for the payments-made list (KPIs + mode breakdown). */
+export interface SupplierPaymentListSummary {
+  cash: number;
+  card: number;
+  cheque: number;
+  bankRemittance: number;
+  bankTransfer: number;
+  total: number;
+  settlementDiscount: number;
+  unallocated: number;
+  bankCharges: number;
+  /** Open purchase bill balances (accounts payable). */
+  payable: number;
 }
 
 export interface PayablePurchaseBillRow {

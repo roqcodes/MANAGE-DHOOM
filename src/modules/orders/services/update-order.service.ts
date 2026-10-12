@@ -10,6 +10,7 @@ import {
   debitCustomerWallet,
   restoreOrderInventory,
 } from "@/modules/orders/services/order-wallet-inventory.service";
+import { roundMoney } from "@/lib/decimal-precision";
 
 export interface UpdateOrderLineInput {
   variantId: string;
@@ -26,10 +27,6 @@ export interface UpdateOrderWithItemsInput {
   status?: string;
   paymentStatus?: string;
   merchantNote?: string | null;
-}
-
-function roundMoney(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 export async function updateOrderWithItems(

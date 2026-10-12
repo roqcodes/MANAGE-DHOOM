@@ -6,6 +6,7 @@ import { useCallback, useMemo } from "react";
 import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import { invalidateAdminErpGetQueries } from "@/modules/admin/lib/invalidate-admin-erp-get.client";
 import type { SalesOrderCancelPayload } from "@/modules/orders/types/sales-order-cancel-payload";
 import type { SalesOrderUpdatePayload } from "@/modules/orders/types/sales-order-update-payload";
 import { OperationHandlerRegistry } from "@/lib/sync/operation-handler";
@@ -49,7 +50,7 @@ export function ErpOutboxSyncRuntime() {
             queryKey: adminQueryKeys.orderDetail(orderId),
           });
         }
-        void queryClient.invalidateQueries({ queryKey: ["admin", "erp", "invoices"] });
+        void invalidateAdminErpGetQueries(queryClient, "erp/invoices");
       }
       if (
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.salesInvoice.create ||
@@ -57,7 +58,7 @@ export function ErpOutboxSyncRuntime() {
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.salesInvoice.issue ||
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.salesInvoice.cancel
       ) {
-        void queryClient.invalidateQueries({ queryKey: ["admin", "erp", "invoices"] });
+        void invalidateAdminErpGetQueries(queryClient, "erp/invoices");
       }
       if (
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.purchaseOrder.create ||
@@ -65,18 +66,16 @@ export function ErpOutboxSyncRuntime() {
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.purchaseOrder.deliverFinalize
       ) {
         void queryClient.invalidateQueries({ queryKey: ["admin", "purchase-orders"] });
-        void queryClient.invalidateQueries({ queryKey: ["admin", "erp", "purchase-orders"] });
+        void invalidateAdminErpGetQueries(queryClient, "erp/purchase-orders");
       }
       if (
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.purchaseOrder.deliverFinalize
       ) {
         const poId = (operation.payload as { poId?: string } | undefined)?.poId;
         if (poId) {
-          void queryClient.invalidateQueries({
-            queryKey: ["admin", "erp", "purchase-orders", poId],
-          });
+          void invalidateAdminErpGetQueries(queryClient, `erp/purchase-orders/${poId}`);
         }
-        void queryClient.invalidateQueries({ queryKey: ["admin", "erp", "purchase-bills"] });
+        void invalidateAdminErpGetQueries(queryClient, "erp/purchase-bills");
       }
       if (
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.purchaseBill.create ||
@@ -84,7 +83,7 @@ export function ErpOutboxSyncRuntime() {
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.purchaseBill.finalize ||
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.purchaseBill.cancel
       ) {
-        void queryClient.invalidateQueries({ queryKey: ["admin", "erp", "purchase-bills"] });
+        void invalidateAdminErpGetQueries(queryClient, "erp/purchase-bills");
       }
       if (
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.salesOrder.update ||

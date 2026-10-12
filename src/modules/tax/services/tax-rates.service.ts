@@ -9,6 +9,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { Database } from "@/lib/integrations/supabase/types";
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
+import { roundMoney } from "@/lib/decimal-precision";
 
 export interface TaxRateRow {
   id: string;
@@ -189,8 +190,8 @@ export function calculateTax(
   amount: number,
   ratePercent: number,
 ): TaxCalculationResult {
-  const taxAmount = Math.round((amount * ratePercent) / 100 * 100) / 100;
-  const totalAmount = amount + taxAmount;
+  const taxAmount = roundMoney((amount * ratePercent) / 100);
+  const totalAmount = roundMoney(amount + taxAmount);
 
   return {
     amount,

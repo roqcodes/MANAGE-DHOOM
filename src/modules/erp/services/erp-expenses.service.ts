@@ -21,6 +21,8 @@ type ExpenseListFilters = {
   limit?: number;
   storeId?: string;
   period?: string;
+  dateFrom?: string;
+  dateTo?: string;
   accountId?: string;
   search?: string;
 };
@@ -191,8 +193,8 @@ export async function listExpenses(
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
   if (filters.accountId) query = query.eq("account_id", filters.accountId);
-  const dateFrom = periodRange.dateFrom;
-  const dateTo = periodRange.dateTo;
+  const dateFrom = filters.dateFrom ?? periodRange.dateFrom;
+  const dateTo = filters.dateTo ?? periodRange.dateTo;
   if (dateFrom) query = query.gte("expense_date", dateFrom);
   if (dateTo) query = query.lte("expense_date", dateTo);
 

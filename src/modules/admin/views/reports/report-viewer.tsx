@@ -14,6 +14,7 @@ import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { SortableTableHead, useSortableData } from "@/modules/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAdminDateRange } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -94,9 +95,7 @@ export function ReportViewer({ report }: { report: ReportDefinition }) {
   const [rawData, setRawData] = useState<unknown>(null);
 
   const today = new Date().toISOString().slice(0, 10);
-  const monthStart = `${today.slice(0, 8)}01`;
-  const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(today);
+  const { from: dateFrom, to: dateTo } = useAdminDateRange({ defaultPreset: "this_month" });
   const [asOf, setAsOf] = useState(today);
   const [storeId, setStoreId] = useState("");
   const [channel, setChannel] = useState<ReportChannel>("all");
@@ -208,16 +207,9 @@ export function ReportViewer({ report }: { report: ReportDefinition }) {
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
           {report.filters.dateRange ? (
-            <>
-              <div className="space-y-1">
-                <Label>From</Label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>To</Label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-              </div>
-            </>
+            <p className="text-xs text-muted-foreground self-center">
+              Date range: use the picker in the top header (next to search).
+            </p>
           ) : null}
           {report.filters.asOfDate ? (
             <div className="space-y-1">

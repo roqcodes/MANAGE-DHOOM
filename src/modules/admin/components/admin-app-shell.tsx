@@ -10,6 +10,7 @@ import { AUTH_ROUTES } from "@/modules/auth/services/auth-route.service";
 import type { UserProfile } from "@/common/auth/types";
 import { AdminHeader } from "@/modules/admin/components/admin-header";
 import { AdminGlobalSearchProvider } from "@/modules/admin/components/admin-global-search";
+import { AdminDateRangeProvider } from "@/modules/admin/providers/admin-date-range-provider";
 import { AdminAlertProvider } from "@/modules/admin/components/admin-alert-provider";
 import { AdminSidebar } from "@/modules/admin/components/sidebar";
 import { useIsMdUp } from "@/modules/admin/hooks/use-is-md-up";
@@ -100,6 +101,7 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
       <CurrencySettingsProvider>
       <AdminAlertProvider>
       <AdminGlobalSearchProvider>
+      <AdminDateRangeProvider>
         <div className="relative flex h-full overflow-hidden bg-[#F8FAFC]">
         <button
           type="button"
@@ -136,6 +138,7 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
         </div>
+      </AdminDateRangeProvider>
       </AdminGlobalSearchProvider>
       </AdminAlertProvider>
       </CurrencySettingsProvider>

@@ -9,6 +9,7 @@ import type {
   ErpLandedCostItem,
   ErpPurchaseOrderDetail,
 } from "@/common/erp/purchasing-types";
+import { itemExpiryFromDocumentDate } from "@/lib/format-date";
 import { calcPurchaseLine, roundMoney } from "@/common/erp/purchasing-types";
 import type { PurchaseLineFormRow, LandedCostFormRow } from "@/common/erp/purchasing-types";
 import {
@@ -57,6 +58,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import {
+  commitResolvedLandedAllocationsToLines,
+  isLandedAllocationBalanced,
+} from "@/modules/purchasing/lib/purchase-landed-allocation";
 
 type BillDetail = {
   id: string;
@@ -74,6 +79,7 @@ type BillDetail = {
   reference: string | null;
   notes: string | null;
   discount: number;
+  landed_cost_total?: number;
   status: string;
   physical_receipt_on_bill?: boolean;
   erp_purchase_bill_lines: Array<{
@@ -85,6 +91,7 @@ type BillDetail = {
     quantity: number;
     purchase_price: number;
     tax_rate_percent: number;
+    landed_cost_allocated?: number;
   }>;
   erp_purchase_bill_landed_costs: Array<{
     id: string;
@@ -107,7 +114,11 @@ function poLandedCostsToForm(po: ErpPurchaseOrderDetail): LandedCostFormRow[] {
   }));
 }
 
-function poLinesToForm(po: ErpPurchaseOrderDetail): PurchaseLineFormRow[] {
+function poLinesToForm(
+  po: ErpPurchaseOrderDetail,
+  documentDate: string,
+): PurchaseLineFormRow[] {
+  const defaultExpiry = itemExpiryFromDocumentDate(documentDate);
   return po.purchase_order_items.map((item) => ({
     key: item.id,
     productId:
@@ -120,10 +131,14 @@ function poLinesToForm(po: ErpPurchaseOrderDetail): PurchaseLineFormRow[] {
       item.product_variants?.products?.name ??
       "Item",
     barcode: item.product_variants?.barcode ?? "",
-    expiryDate: "",
+    expiryDate: defaultExpiry,
     quantity: item.quantity,
     purchasePrice: item.price,
     taxRatePercent: item.tax_rate_percent,
+    landedCostAllocated:
+      (po.landed_cost_total ?? 0) > 0
+        ? Number(item.landed_cost_allocated ?? 0)
+        : undefined,
   }));
 }
 
@@ -228,6 +243,10 @@ export function PurchaseBillFormView({
                 quantity: Number(line.quantity),
                 purchasePrice: Number(line.purchase_price),
                 taxRatePercent: Number(line.tax_rate_percent),
+                landedCostAllocated:
+                  Number(bill.landed_cost_total ?? 0) > 0
+                    ? Number(line.landed_cost_allocated ?? 0)
+                    : undefined,
               }))
             : [],
         );
@@ -264,7 +283,9 @@ export function PurchaseBillFormView({
         setReference(po.reference ?? "");
         setNotes(po.notes ?? "");
         setDiscount(po.discount ?? 0);
-        if (po.purchase_order_items.length) setLines(poLinesToForm(po));
+        if (po.purchase_order_items.length) {
+          setLines(poLinesToForm(po, purchaseDate));
+        }
         setLandedCosts(poLandedCostsToForm(po));
       })
       .catch((err: unknown) => {
@@ -318,6 +339,13 @@ export function PurchaseBillFormView({
     };
   }, [lines, landedCosts, discount]);
 
+  const landedAllocationBalanced = useMemo(
+    () => isLandedAllocationBalanced(lines, landedCosts),
+    [lines, landedCosts],
+  );
+
+  const saveDisabled = pending || !landedAllocationBalanced;
+
   function handleCancel() {
     if (isModal) {
       onOpenChange?.(false);
@@ -365,7 +393,14 @@ export function PurchaseBillFormView({
   function submit(finalize: boolean) {
     setError(null);
     const shouldFinalize = finalize && !poId;
-    const apiLines = linesToApiInput(lines);
+    if (!landedAllocationBalanced) {
+      setError(
+        "Landed cost allocation must match the landed cost total before saving this invoice.",
+      );
+      return;
+    }
+    const linesForSave = commitResolvedLandedAllocationsToLines(lines, landedCosts);
+    const apiLines = linesToApiInput(linesForSave, landedCosts);
     if (!vendorId || !effectiveStoreId) {
       setError(
         !effectiveStoreId
@@ -510,17 +545,17 @@ export function PurchaseBillFormView({
       </Button>
       {mode === "create" ? (
         <>
-          <Button variant="outline" disabled={pending} onClick={() => submit(false)}>
+          <Button variant="outline" disabled={saveDisabled} onClick={() => submit(false)}>
             Save draft
           </Button>
           {!poId ? (
-            <Button disabled={pending} onClick={() => submit(true)}>
+            <Button disabled={saveDisabled} onClick={() => submit(true)}>
               Save & next
             </Button>
           ) : null}
         </>
       ) : (
-        <Button disabled={pending} onClick={() => submit(false)}>
+        <Button disabled={saveDisabled} onClick={() => submit(false)}>
           Save changes
         </Button>
       )}
@@ -633,15 +668,27 @@ export function PurchaseBillFormView({
               lines={lines}
               onChange={setLines}
               showExpiry
+              documentDate={purchaseDate}
               storeId={effectiveStoreId}
               vendorId={vendorId}
             />
           </AdminFormSection>
 
           <AdminFormSection title="Landed costs">
-            <LandedCostsEditor rows={landedCosts} onChange={setLandedCosts} masterItems={landedMaster} />
+            <LandedCostsEditor
+              rows={landedCosts}
+              onChange={setLandedCosts}
+              masterItems={landedMaster}
+              purchaseLines={lines}
+              onPurchaseLinesChange={setLines}
+            />
           </AdminFormSection>
 
+          {!landedAllocationBalanced ? (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Allocate landed costs across line items so the total matches before saving.
+            </p>
+          ) : null}
           {error ? <p className="text-sm text-rose-600">{error}</p> : null}
 
           {!isModal ? (
@@ -651,15 +698,15 @@ export function PurchaseBillFormView({
               </Link>
               {mode === "create" ? (
                 <>
-                  <Button variant="outline" disabled={pending} onClick={() => submit(false)}>
+                  <Button variant="outline" disabled={saveDisabled} onClick={() => submit(false)}>
                     Save draft
                   </Button>
-                  <Button disabled={pending} onClick={() => submit(true)}>
+                  <Button disabled={saveDisabled} onClick={() => submit(true)}>
                     Save & next
                   </Button>
                 </>
               ) : (
-                <Button disabled={pending} onClick={() => submit(false)}>
+                <Button disabled={saveDisabled} onClick={() => submit(false)}>
                   Save
                 </Button>
               )}

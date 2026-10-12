@@ -6,6 +6,7 @@ import { AdminRefreshStatusButton } from "@/modules/admin/components/admin-refre
 import { AdminQuickCreateMenu } from "@/modules/admin/components/admin-quick-create-menu";
 import { AdminProfileMenu } from "@/modules/admin/components/admin-profile-menu";
 import { AdminRecentActivityMenu } from "@/modules/admin/components/admin-recent-activity-menu";
+import { AdminHeaderDateRange } from "@/modules/admin/components/admin-header-date-range";
 import { AdminSearchTrigger } from "@/modules/admin/components/admin-global-search";
 import { ErpStoreSwitcher } from "@/modules/admin/components/erp-store-switcher";
 
@@ -69,13 +70,14 @@ export function AdminHeader({
           </div>
         </div>
 
-        <div className="min-w-0 w-full justify-self-stretch px-0 md:max-w-2xl md:justify-self-center md:px-1">
+        <div className="min-w-0 w-full justify-self-stretch px-0 md:max-w-3xl md:justify-self-center md:px-1">
           <div className="flex items-center gap-1.5">
             <AdminRecentActivityMenu />
             <label className="relative block min-w-0 flex-1">
               <span className="sr-only">Quick search</span>
               <AdminSearchTrigger />
             </label>
+            <AdminHeaderDateRange />
           </div>
         </div>
 

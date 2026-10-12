@@ -60,8 +60,8 @@ import {
   PaymentPill,
   paymentStatusLabel,
   shortOrderRef,
-  customerInitials,
 } from "@/modules/orders/components/orders-ui";
+import { CustomerAvatar } from "@/modules/customers/components/customers-ui";
 import { SalesOrderOutboxTableRows } from "@/modules/orders/components/sales-order-outbox-table-rows";
 import type { OutboxOperationRecord } from "@/lib/sync/outbox-types";
 
@@ -130,7 +130,6 @@ function CompactStat({ label, value }: { label: string; value: string }) {
 function CustomerPopover({ order }: { order: Order }) {
   const name = order.users?.name ?? order.users?.email ?? "Guest";
   const userId = order.users?.id;
-  const initials = customerInitials(name);
   const orderTotal = formatInr(Number(order.total_amount ?? 0));
   const orderDate = order.created_at
     ? format(new Date(order.created_at), "MMM d, yyyy · h:mm a")
@@ -143,14 +142,20 @@ function CustomerPopover({ order }: { order: Order }) {
           <button
             type="button"
             className={cn(
-              "inline-flex items-center gap-1 text-[13px] font-medium leading-snug text-foreground hover:text-primary hover:underline",
+              "inline-flex max-w-full items-center gap-1.5 text-[13px] font-medium leading-snug text-foreground hover:text-primary hover:underline",
               ORDERS_ACCENT.focus,
             )}
           />
         }
       >
-        {name}
-        <ChevronDown className="size-3.5 opacity-50" />
+        <CustomerAvatar
+          name={name}
+          avatarUrl={order.users?.avatar_url}
+          size="sm"
+          className="shrink-0"
+        />
+        <span className="truncate">{name}</span>
+        <ChevronDown className="size-3.5 shrink-0 opacity-50" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[17.5rem] gap-0 p-0">
         <CompactPopoverShell
@@ -171,9 +176,11 @@ function CustomerPopover({ order }: { order: Order }) {
           }
         >
           <div className="flex items-center gap-2">
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
-              {initials}
-            </span>
+            <CustomerAvatar
+              name={name}
+              avatarUrl={order.users?.avatar_url}
+              size="md"
+            />
             <div className="flex min-w-0 flex-wrap gap-1">
               <PaymentPill paymentStatus={order.payment_status} />
               <FulfillmentPill status={order.status} />

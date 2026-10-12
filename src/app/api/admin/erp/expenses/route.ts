@@ -40,11 +40,21 @@ export async function GET(request: Request) {
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const storeId = searchParams.get("storeId") ?? undefined;
   const period = searchParams.get("period") ?? undefined;
+  const dateFrom = searchParams.get("dateFrom") ?? undefined;
+  const dateTo = searchParams.get("dateTo") ?? undefined;
   const accountId = searchParams.get("accountId") ?? undefined;
   const search = searchParams.get("search") ?? undefined;
 
   try {
-    const result = await listExpenses({ page, storeId, period, accountId, search });
+    const result = await listExpenses({
+      page,
+      storeId,
+      period,
+      dateFrom,
+      dateTo,
+      accountId,
+      search,
+    });
     return NextResponse.json(result);
   } catch (error) {
     console.error("[GET /api/admin/erp/expenses]", error);

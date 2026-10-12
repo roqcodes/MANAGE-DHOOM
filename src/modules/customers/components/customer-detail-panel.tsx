@@ -11,6 +11,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  HandCoins,
   ShieldCheck,
 } from "lucide-react";
 
@@ -49,10 +50,12 @@ import {
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import type { CustomerDetailsResponse } from "@/modules/customers/services/customers.service";
 import {
+  CustomerAvatar,
   formatCreditLimit,
   formatCustomerId,
 } from "@/modules/customers/components/customers-ui";
 import { cn } from "@/lib/utils";
+import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
 
 type ErpPayload = {
   summary: CustomerErpSummary;
@@ -100,6 +103,7 @@ export function CustomerDetailPanel({
   const [tab, setTab] = useState<"statement" | "sales" | "activity">("statement");
   const [erp, setErp] = useState<ErpPayload | null>(null);
   const [erpLoading, setErpLoading] = useState(true);
+  const [settlementOpen, setSettlementOpen] = useState(false);
   const { summary } = details;
   const verified = summary.is_verified !== false;
 
@@ -135,9 +139,34 @@ export function CustomerDetailPanel({
 
   return (
     <div className="flex flex-col gap-4">
+      {settlementOpen ? (
+        <ErpSettlementFormView
+          side="customer"
+          variant="modal"
+          open={settlementOpen}
+          onOpenChange={setSettlementOpen}
+          initialPartyId={summary.id}
+          initialPartyLabel={displayName}
+          onSuccess={() => {
+            setSettlementOpen(false);
+            setErpLoading(true);
+            adminGet<ErpPayload>(`customers/${summary.id}/erp`)
+              .then(setErp)
+              .finally(() => setErpLoading(false));
+          }}
+        />
+      ) : null}
+
       <Card className="border border-border ring-0">
         <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 gap-4">
+            <CustomerAvatar
+              name={displayName}
+              avatarUrl={summary.avatar_url}
+              size="lg"
+              className="shrink-0"
+            />
+            <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               {verified ? (
                 <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
@@ -177,6 +206,7 @@ export function CustomerDetailPanel({
                 </span>
               ) : null}
               {summary.location ? <span>{summary.location}</span> : null}
+            </div>
             </div>
           </div>
 
@@ -304,8 +334,22 @@ export function CustomerDetailPanel({
           {tab === "statement" ? (
             <Card className="border border-border ring-0">
               <CardHeader className="border-b border-border">
-                <CardTitle>Statement of accounts</CardTitle>
-                <CardDescription>Invoices and payments with running balance.</CardDescription>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <CardTitle>Statement of accounts</CardTitle>
+                    <CardDescription>Invoices and payments with running balance.</CardDescription>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={erpLoading || (financial?.balanceDue ?? 0) <= 0}
+                    onClick={() => setSettlementOpen(true)}
+                  >
+                    <HandCoins data-icon="inline-start" />
+                    Settle account
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 {erpLoading ? (

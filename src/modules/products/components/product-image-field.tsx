@@ -45,10 +45,14 @@ export function ProductImageField({
   value,
   onChange,
   onUploadingChange,
+  label = "Product Image",
+  emptyHint = "No image yet — optional.",
 }: {
   value: string;
   onChange: (url: string) => void;
   onUploadingChange?: (uploading: boolean) => void;
+  label?: string;
+  emptyHint?: string;
 }) {
   const trimmed = value.trim();
   const [mode, setMode] = useState<Mode>(() =>
@@ -106,9 +110,7 @@ export function ProductImageField({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-[13px] font-bold text-slate-700">
-          Product Image
-        </span>
+        <span className="text-[13px] font-bold text-slate-700">{label}</span>
         {showPreview ? (
           <button
             type="button"
@@ -263,7 +265,7 @@ export function ProductImageField({
       ) : (
         <div className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2.5 text-slate-400">
           <Package className="size-5 shrink-0" strokeWidth={1.5} aria-hidden />
-          <p className="text-[11.5px] font-medium">No image yet — optional.</p>
+          <p className="text-[11.5px] font-medium">{emptyHint}</p>
         </div>
       )}
     </div>

@@ -26,6 +26,7 @@ import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { CustomerAvatar } from "@/modules/customers/components/customers-ui";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { useSearchListKeyboard } from "@/modules/admin/ui/use-search-list-keyboard";
 
@@ -39,7 +40,8 @@ function entityOptionDisplayChanged(
     a.label !== b.label ||
     a.sublabel !== b.sublabel ||
     a.meta !== b.meta ||
-    a.amount !== b.amount
+    a.amount !== b.amount ||
+    a.imageUrl !== b.imageUrl
   );
 }
 
@@ -274,6 +276,14 @@ export function EntitySearchSelect({
                 activeIndex === index && "bg-muted ring-1 ring-ring",
               )}
             >
+              {option.imageUrl ? (
+                <CustomerAvatar
+                  name={option.label}
+                  avatarUrl={option.imageUrl}
+                  size="sm"
+                  className="mt-0.5 shrink-0"
+                />
+              ) : null}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{option.label}</p>
                 {option.sublabel ? (
@@ -538,13 +548,15 @@ export function InvoiceSearchSelect({
             created_at: string;
           }>;
         }>(`erp/invoices?${params.toString()}`);
-        return (res.data ?? []).map((inv) => ({
-          id: inv.id,
-          label: inv.invoice_number,
-          sublabel: inv.customer_name ?? undefined,
-          meta: `${inv.status} · ${inv.created_at?.slice(0, 10) ?? ""}`,
-          amount: inv.balance_due > 0 ? inv.balance_due : inv.total_amount,
-        }));
+        return (res.data ?? [])
+          .filter((inv) => Number(inv.balance_due ?? 0) > 0)
+          .map((inv) => ({
+            id: inv.id,
+            label: inv.invoice_number,
+            sublabel: inv.customer_name ?? undefined,
+            meta: `${inv.status} · ${inv.created_at?.slice(0, 10) ?? ""}`,
+            amount: Number(inv.balance_due ?? 0),
+          }));
       }}
     />
   );
@@ -582,7 +594,7 @@ export function PurchaseBillSearchSelect({
       minChars={1}
       loadOnFocus
       fetchOptions={async (q) => {
-        const params = new URLSearchParams({ page: "0", limit: "20" });
+        const params = new URLSearchParams({ page: "0", limit: "20", openOnly: "1" });
         if (q.trim()) params.set("search", q.trim());
         if (vendorId) params.set("vendorId", vendorId);
         if (storeId) params.set("storeId", storeId);
@@ -596,13 +608,15 @@ export function PurchaseBillSearchSelect({
             purchase_date: string;
           }>;
         }>(`erp/purchase-bills?${params.toString()}`);
-        return (res.data ?? []).map((bill) => ({
-          id: bill.id,
-          label: bill.purchase_bill_number,
-          sublabel: bill.vendor_name ?? undefined,
-          meta: bill.purchase_date,
-          amount: bill.balance_due > 0 ? bill.balance_due : bill.total_amount,
-        }));
+        return (res.data ?? [])
+          .filter((bill) => Number(bill.balance_due ?? 0) > 0)
+          .map((bill) => ({
+            id: bill.id,
+            label: bill.purchase_bill_number,
+            sublabel: bill.vendor_name ?? undefined,
+            meta: bill.purchase_date,
+            amount: Number(bill.balance_due ?? 0),
+          }));
       }}
     />
   );

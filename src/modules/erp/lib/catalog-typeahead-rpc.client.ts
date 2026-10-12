@@ -1,7 +1,9 @@
 "use client";
 
 import type { ErpProductSearchRow } from "@/common/erp/purchasing-types";
+import { roundMoney } from "@/common/erp/purchasing-types";
 import type { ErpSalesProductSearchRow } from "@/common/erp/sales-types";
+import { roundSalesMoney } from "@/common/erp/sales-types";
 import { tryCreateSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
 
 const PICKER_LIMIT = 20;
@@ -23,6 +25,7 @@ type CustomerRpcRow = {
   email: string | null;
   phone: string | null;
   customer_number: string | null;
+  avatar_url: string | null;
 };
 
 type VendorRpcRow = {
@@ -39,8 +42,14 @@ function mapCatalogToSalesRow(row: CatalogRpcRow): ErpSalesProductSearchRow {
     id: row.id,
     product_name: row.name ?? "Product",
     barcode: row.barcode,
-    sales_price: row.sales_price ?? (row.price != null ? Number(row.price) : null),
-    purchase_price: row.purchase_price != null ? Number(row.purchase_price) : null,
+    sales_price:
+      row.sales_price != null
+        ? roundSalesMoney(Number(row.sales_price))
+        : row.price != null
+          ? roundSalesMoney(Number(row.price))
+          : null,
+    purchase_price:
+      row.purchase_price != null ? roundMoney(Number(row.purchase_price)) : null,
     tax_rate_percent: row.tax_rate_percent != null ? Number(row.tax_rate_percent) : null,
     available_stock: Number(row.available_stock ?? 0),
   };
@@ -51,7 +60,8 @@ function mapCatalogToPurchaseRow(row: CatalogRpcRow): ErpProductSearchRow {
     id: row.id,
     product_name: row.name ?? "Product",
     barcode: row.barcode,
-    purchase_price: row.purchase_price != null ? Number(row.purchase_price) : null,
+    purchase_price:
+      row.purchase_price != null ? roundMoney(Number(row.purchase_price)) : null,
     tax_rate_percent: row.tax_rate_percent != null ? Number(row.tax_rate_percent) : null,
   };
 }
@@ -86,6 +96,7 @@ export async function rpcSearchSalesCatalog(
 
 export async function rpcSearchPurchaseCatalog(
   query: string,
+  storeId?: string,
 ): Promise<ErpProductSearchRow[] | null> {
   const supabase = tryCreateSupabaseBrowserClient();
   if (!supabase) return null;
@@ -96,7 +107,7 @@ export async function rpcSearchPurchaseCatalog(
     ) => Promise<{ data: unknown; error: { message: string } | null }>;
   }).rpc("erp_search_catalog_products", {
     p_query: query.trim(),
-    p_store_id: null,
+    p_store_id: storeId ?? null,
     p_limit: PICKER_LIMIT,
   });
 

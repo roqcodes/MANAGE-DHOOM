@@ -3,6 +3,13 @@
  * Avoid `parseFloat(x) || 0` on change — that forces "0" when the user clears the field.
  */
 
+import {
+  CALC_DECIMAL_PLACES,
+  DISPLAY_DECIMAL_PLACES,
+  formatDisplayDecimal,
+  roundCalc,
+} from "@/lib/decimal-precision";
+
 /** Parse user input; returns `NaN` when the field is empty or incomplete. */
 export function parseNumberInputValue(raw: string): number {
   const trimmed = raw.trim();
@@ -19,10 +26,26 @@ export function parseNumberInputValue(raw: string): number {
   return Number.isFinite(n) ? n : Number.NaN;
 }
 
+export function roundToDecimalPlaces(n: number, places: number): number {
+  if (!Number.isFinite(n)) return n;
+  const factor = 10 ** places;
+  return Math.round(n * factor) / factor;
+}
+
+/** Default places for money/qty fields on blur (ERP calc precision). */
+export const DEFAULT_MONEY_FRACTION_DIGITS = CALC_DECIMAL_PLACES;
+
 /** Value for a controlled number input (`""` when empty / NaN). */
-export function formatNumberInputValue(value: number | null | undefined): string {
+export function formatNumberInputValue(
+  value: number | null | undefined,
+  fractionDigits?: number,
+): string {
   if (value == null || Number.isNaN(value)) return "";
-  return String(value);
+  if (fractionDigits == null) return String(value);
+  const rounded = roundCalc(roundToDecimalPlaces(value, fractionDigits));
+  if (rounded === 0) return "";
+  const displayPlaces = Math.min(fractionDigits, DISPLAY_DECIMAL_PLACES);
+  return formatDisplayDecimal(rounded, displayPlaces);
 }
 
 /** Use in totals, API payloads, and math when state may hold `NaN` for an empty field. */

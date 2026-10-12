@@ -22,18 +22,13 @@ import {
   AdminTableHeader,
   AdminTableRow,
   SortableTableHead,
+  useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { SalaryBulkPaymentFormView } from "@/modules/admin/views/hr/salary-bulk-payment-form-view";
-
-const PERIOD_OPTIONS = [
-  { value: "all", label: "All dates" },
-  { value: "this_month", label: "This month" },
-  { value: "this_quarter", label: "This quarter" },
-];
 
 function formatDisplayDate(value: string) {
   try {
@@ -52,7 +47,11 @@ export function SalaryBulkPaymentsListView() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [period, setPeriod] = useState(searchParams.get("period") ?? "this_month");
+  const {
+    listParams: dateParams,
+    clearDateRange,
+    isDateFiltering,
+  } = useAdminDateRange({ defaultPreset: "this_month", legacyPeriodParam: true });
   const debouncedSearch = useDebouncedValue(search, 350);
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
@@ -66,7 +65,8 @@ export function SalaryBulkPaymentsListView() {
     const q = new URLSearchParams();
     q.set("page", String(page));
     if (storeId) q.set("storeId", storeId);
-    if (period !== "all") q.set("period", period);
+    if (dateParams.dateFrom) q.set("dateFrom", dateParams.dateFrom);
+    if (dateParams.dateTo) q.set("dateTo", dateParams.dateTo);
     if (debouncedSearch.trim()) q.set("search", debouncedSearch.trim());
 
     adminGet<{ data: ErpSalaryBulkPaymentListRow[]; total: number }>(
@@ -77,11 +77,11 @@ export function SalaryBulkPaymentsListView() {
         setTotal(res.total);
       })
       .finally(() => setLoading(false));
-  }, [page, storeId, period, debouncedSearch, reloadToken]);
+  }, [page, storeId, dateParams.dateFrom, dateParams.dateTo, debouncedSearch, reloadToken]);
 
   const listParams: Record<string, string> = {};
   if (storeId) listParams.storeId = storeId;
-  if (period !== "all") listParams.period = period;
+  Object.assign(listParams, dateParams);
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   if (loading && rows.length === 0) return <AdminPageSkeleton />;
@@ -106,14 +106,11 @@ export function SalaryBulkPaymentsListView() {
         searchPlaceholder="Search batch number…"
         isEmpty={sorted.length === 0}
         emptyMessage="No bulk payments found."
-        isFiltering={Boolean(debouncedSearch.trim()) || period !== "all"}
+        isFiltering={Boolean(debouncedSearch.trim()) || isDateFiltering}
         onClearFilters={() => {
           setSearch("");
-          setPeriod("this_month");
+          clearDateRange();
         }}
-        filters={[
-          { id: "period", label: "Period", value: period, onChange: setPeriod, options: PERIOD_OPTIONS },
-        ]}
         footer={<span>{total} batches</span>}
       >
         <AdminDataTable>

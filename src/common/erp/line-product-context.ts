@@ -15,6 +15,10 @@ export type LineProductContext = {
   storeSalesPrice: number | null;
   /** Product master purchase_price. */
   catalogPurchasePrice: number | null;
+  /** Latest bill line unit rate (purchase_price, excl. allocated landed). */
+  lastBillPurchaseRate: number | null;
+  /** Latest bill line rate from this vendor (purchase_price only). */
+  vendorLastBillPurchaseRate: number | null;
   taxRatePercent: number | null;
 };
 

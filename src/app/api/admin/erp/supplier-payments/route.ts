@@ -7,6 +7,7 @@ import {
   listPaidThroughAccounts,
   listPayableBillsForVendor,
   listSupplierExpenseAccounts,
+  listSupplierSettlementDiscountAccounts,
   listSupplierPayments,
   recordBulkSupplierPaymentBatch,
   recordSupplierPayment,
@@ -75,6 +76,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ data: accounts });
     }
 
+    if (view === "settlement-discount-accounts") {
+      const accounts = await listSupplierSettlementDiscountAccounts(
+        url.searchParams.get("storeId") ?? undefined,
+      );
+      return NextResponse.json({ data: accounts });
+    }
+
     if (view === "fifo") {
       const storeId = url.searchParams.get("storeId");
       const amount = parseFloat(url.searchParams.get("amount") ?? "0");
@@ -82,7 +90,13 @@ export async function GET(request: Request) {
       if (!storeId) {
         return NextResponse.json({ error: "storeId required" }, { status: 400 });
       }
-      const allocations = await buildFifoAllocationsForBills(storeId, amount, exclude);
+      const vendorId = url.searchParams.get("vendorId") ?? undefined;
+      const allocations = await buildFifoAllocationsForBills(
+        storeId,
+        amount,
+        exclude,
+        vendorId,
+      );
       return NextResponse.json({ allocations });
     }
 

@@ -5,6 +5,7 @@ import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.serv
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import type { ErpFinancialDashboard, ErpReconciliationSnapshot } from "@/common/erp/finance-types";
+import { roundMoney } from "@/lib/decimal-precision";
 
 const MONTH_LABELS = [
   "Jan",
@@ -228,9 +229,9 @@ export async function buildStorePlSeries(
   }
 
   for (const bucket of buckets) {
-    bucket.income = Math.round(bucket.income * 100) / 100;
-    bucket.expenses = Math.round(bucket.expenses * 100) / 100;
-    bucket.netProfit = Math.round((bucket.income - bucket.expenses) * 100) / 100;
+    bucket.income = roundMoney(bucket.income);
+    bucket.expenses = roundMoney(bucket.expenses);
+    bucket.netProfit = roundMoney(bucket.income - bucket.expenses);
   }
 
   return buckets;

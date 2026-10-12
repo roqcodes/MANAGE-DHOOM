@@ -11,9 +11,7 @@ import {
 } from "@/modules/products/services/product-variants.service";
 import { addVariantImages } from "@/modules/products/services/variant-images.service";
 
-function roundMoney2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
+import { roundMoney as roundMoney2 } from "@/lib/decimal-precision";
 
 import { insertVariantGroup } from "@/modules/products/services/variant-groups.service";
 import { updateVariantGroupById } from "@/modules/products/services/variant-groups.service";

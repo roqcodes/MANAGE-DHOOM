@@ -289,6 +289,38 @@ export function TrendBadge({
   );
 }
 
+/** Metric cell used in online sales / ERP list KPI bars. */
+export function CatalogMetricSegment({
+  label,
+  value,
+  trend,
+  trendTone = "up",
+  sparkSeed,
+  sparkTone = "primary",
+  flatSpark = false,
+}: {
+  label: string;
+  value: string;
+  trend?: string;
+  trendTone?: "up" | "down" | "neutral";
+  sparkSeed: number;
+  sparkTone?: "primary" | "neutral" | "green";
+  flatSpark?: boolean;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <p className="text-xl font-semibold tabular-nums tracking-tight">{value}</p>
+          {trend ? <TrendBadge value={trend} tone={trendTone} /> : null}
+        </div>
+      </div>
+      <MiniSparkline seed={sparkSeed} tone={sparkTone} flat={flatSpark} />
+    </div>
+  );
+}
+
 export function PaymentPill({
   paymentStatus,
 }: {

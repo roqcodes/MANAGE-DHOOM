@@ -20,32 +20,13 @@ import {
   AdminTableHeader,
   AdminTableRow,
   SortableTableHead,
+  useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { ProfitWithdrawalFormView } from "@/modules/admin/views/banking/profit-withdrawal-form-view";
-
-const PERIOD_OPTIONS = [
-  { value: "all", label: "All dates" },
-  { value: "today", label: "Today" },
-  { value: "this_month", label: "This month" },
-];
-
-function periodToDates(period: string) {
-  const today = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  if (period === "today") {
-    const d = iso(today);
-    return { dateFrom: d, dateTo: d };
-  }
-  if (period === "this_month") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    return { dateFrom: iso(start), dateTo: iso(today) };
-  }
-  return {};
-}
 
 export function ProfitWithdrawalsListView() {
   const { activeStoreId, storeId } = useActiveStoreScope();
@@ -56,7 +37,11 @@ export function ProfitWithdrawalsListView() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [accountId, setAccountId] = useState("");
-  const [period, setPeriod] = useState("today");
+  const {
+    listParams: dateParams,
+    clearDateRange,
+    isDateFiltering,
+  } = useAdminDateRange({ defaultPreset: "today" });
   const debouncedSearch = useDebouncedValue(search, 350);
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
@@ -73,12 +58,11 @@ export function ProfitWithdrawalsListView() {
 
   useEffect(() => {
     setLoading(true);
-    const dates = periodToDates(period);
     const q = new URLSearchParams({ view: "profit-withdrawals" });
     if (storeId) q.set("storeId", storeId);
     if (accountId) q.set("accountId", accountId);
-    if (dates.dateFrom) q.set("dateFrom", dates.dateFrom);
-    if (dates.dateTo) q.set("dateTo", dates.dateTo);
+    if (dateParams.dateFrom) q.set("dateFrom", dateParams.dateFrom);
+    if (dateParams.dateTo) q.set("dateTo", dateParams.dateTo);
     if (debouncedSearch.trim()) q.set("search", debouncedSearch.trim());
 
     adminGet<{ data: ProfitWithdrawalRow[] }>(`erp/banking?${q.toString()}`)
@@ -86,7 +70,7 @@ export function ProfitWithdrawalsListView() {
         setRows(res.data ?? []);
       })
       .finally(() => setLoading(false));
-  }, [storeId, accountId, period, debouncedSearch, reloadToken]);
+  }, [storeId, accountId, dateParams.dateFrom, dateParams.dateTo, debouncedSearch, reloadToken]);
 
   const amountTotal = useMemo(
     () => sorted.reduce((sum, row) => sum + row.amount, 0),
@@ -124,21 +108,14 @@ export function ProfitWithdrawalsListView() {
             ],
             onChange: setAccountId,
           },
-          {
-            id: "period",
-            label: "Period",
-            value: period,
-            options: PERIOD_OPTIONS,
-            onChange: setPeriod,
-          },
         ]}
         isEmpty={sorted.length === 0}
         emptyMessage="No profit withdrawals found."
-        isFiltering={Boolean(debouncedSearch.trim() || accountId || period !== "all")}
+        isFiltering={Boolean(debouncedSearch.trim() || accountId || isDateFiltering)}
         onClearFilters={() => {
           setSearch("");
           setAccountId("");
-          setPeriod("all");
+          clearDateRange();
         }}
         footer={
           <span>

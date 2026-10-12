@@ -41,6 +41,7 @@ export interface CustomerProfileInput {
   openingBalanceDate?: string | null;
   creditLimit?: number | null;
   address?: string | null;
+  avatarUrl?: string | null;
 }
 
 export type CustomerProfileUpdate = CustomerProfileInput;
@@ -101,6 +102,7 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
     customer_notes: input.customerNotes?.trim() || null,
     opening_balance: openingBalance,
     opening_balance_date: input.openingBalanceDate ?? null,
+    avatar_url: input.avatarUrl?.trim() || null,
   });
   if (error) throw new Error(error.message);
 
@@ -138,7 +140,7 @@ export async function getCustomerProfile(userId: string): Promise<CustomerErpPro
   const { data: user, error } = await supabase
     .from("users")
     .select(
-      "id, name, email, phone, customer_number, company_name, trn, contact_display_name, location, po_box, customer_notes, opening_balance, opening_balance_date, is_verified, created_at",
+      "id, name, email, phone, avatar_url, customer_number, company_name, trn, contact_display_name, location, po_box, customer_notes, opening_balance, opening_balance_date, is_verified, created_at",
     )
     .eq("id", userId)
     .single();
@@ -170,6 +172,7 @@ export async function getCustomerProfile(userId: string): Promise<CustomerErpPro
     name: user.name,
     email: user.email,
     phone: user.phone,
+    avatarUrl: user.avatar_url?.trim() || null,
     companyName: user.company_name,
     trn: user.trn,
     contactDisplayName: user.contact_display_name,
@@ -224,6 +227,9 @@ export async function updateCustomerProfile(
       ...(openingBalance !== undefined ? { opening_balance: openingBalance } : {}),
       ...(input.openingBalanceDate !== undefined
         ? { opening_balance_date: input.openingBalanceDate }
+        : {}),
+      ...(input.avatarUrl !== undefined
+        ? { avatar_url: input.avatarUrl?.trim() || null }
         : {}),
     })
     .eq("id", userId);

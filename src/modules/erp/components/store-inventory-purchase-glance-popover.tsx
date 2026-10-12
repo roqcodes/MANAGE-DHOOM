@@ -125,7 +125,7 @@ export function StoreInventoryPurchaseGlancePopover({
                 <ul className="max-h-40 space-y-1.5 overflow-y-auto text-xs">
                   {data.recent.map((row) => (
                     <li
-                      key={`${row.billId}-${row.billDate}`}
+                      key={row.lineId}
                       className="flex flex-col gap-0.5 rounded border border-border/50 px-2 py-1"
                     >
                       <span className="font-medium">
@@ -133,9 +133,13 @@ export function StoreInventoryPurchaseGlancePopover({
                       </span>
                       <span className="text-muted-foreground">
                         {row.vendorName ?? "Vendor"} · {row.quantity} @{" "}
-                        {formatCurrencyAmount(
-                          row.loadedUnitCost ?? row.unitPrice,
-                        )}
+                        {formatCurrencyAmount(row.unitPrice)}
+                        {row.landedCostAllocated != null && row.landedCostAllocated > 0
+                          ? ` + ${formatCurrencyAmount(row.landedCostAllocated)} landed → ${formatCurrencyAmount(row.loadedUnitCost ?? row.unitPrice)} loaded`
+                          : row.loadedUnitCost != null &&
+                              row.loadedUnitCost !== row.unitPrice
+                            ? ` → ${formatCurrencyAmount(row.loadedUnitCost)} loaded`
+                            : ""}
                       </span>
                     </li>
                   ))}

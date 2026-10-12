@@ -2,6 +2,7 @@ import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { ErpProductSearchRow } from "@/common/erp/purchasing-types";
+import { roundMoney } from "@/common/erp/purchasing-types";
 import { searchActiveGoodsProducts } from "@/lib/erp/server/product-catalog-query";
 
 /** ERP purchasing catalog: product-level (no variants). */
@@ -16,7 +17,8 @@ export async function searchPurchaseProducts(
     id: row.id,
     product_name: row.name ?? "Product",
     barcode: row.barcode,
-    purchase_price: row.purchase_price != null ? Number(row.purchase_price) : null,
+    purchase_price:
+      row.purchase_price != null ? roundMoney(Number(row.purchase_price)) : null,
     tax_rate_percent: row.tax_rate_percent != null ? Number(row.tax_rate_percent) : null,
   }));
 }

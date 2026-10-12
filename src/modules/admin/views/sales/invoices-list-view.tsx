@@ -60,10 +60,6 @@ export function InvoicesListView() {
     setStatus,
     storeId,
     setStoreId,
-    dateFrom,
-    setDateFrom,
-    dateTo,
-    setDateTo,
     page,
     listParams,
     isFiltering,
@@ -125,12 +121,6 @@ export function InvoicesListView() {
         emptyMessage="No invoices found."
         isFiltering={isFiltering}
         onClearFilters={clearFilters}
-        dateRange={{
-          from: dateFrom,
-          to: dateTo,
-          onFromChange: setDateFrom,
-          onToChange: setDateTo,
-        }}
         filters={[
           {
             id: "status",

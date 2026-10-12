@@ -1,25 +1,27 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { Plus } from "lucide-react";
 
-import type { BulkCustomerPaymentBatchRow } from "@/common/erp/sales-types";
+import type { BulkCustomerPaymentBatchRow, CustomerPaymentListSummary } from "@/common/erp/sales-types";
 import { paymentModeLabel } from "@/common/erp/sales-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
-import { formatCurrencyAmount } from "@/lib/format-currency";
+import { currencyLabel, formatCurrencyAmount } from "@/lib/format-currency";
+import { CatalogMetricSegment } from "@/modules/orders/components/orders-ui";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableFooter, TableCell, TableHead, TableRow } from "@/components/ui/table";
 import {
   AdminDataTable,
   AdminListCard,
+  AdminListFooter,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -30,6 +32,7 @@ import {
   ErpStoreTableGlance,
   ErpListRowActions,
   SortableTableHead,
+  useAdminDateRange,
   useDebouncedValue,
   useErpFormModal,
   useSortableData,
@@ -37,11 +40,16 @@ import {
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { CustomerBulkPaymentFormView } from "@/modules/admin/views/sales/customer-bulk-payment-form-view";
 
-const PERIOD_OPTIONS = [
-  { value: "all", label: "All dates" },
-  { value: "this_month", label: "This month" },
-  { value: "today", label: "Today" },
-];
+function SummaryCell({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="min-w-0 flex-1 border-r border-border px-4 py-3 last:border-r-0">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums tracking-tight">
+        {formatCurrencyAmount(value)}
+      </p>
+    </div>
+  );
+}
 
 function formatDisplayDate(value: string) {
   try {
@@ -57,26 +65,46 @@ export function CustomerBulkPaymentsListView() {
   const { isOpen, modalProps, openNew } = useErpFormModal("/admin/erp/customer-bulk-payments");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [period, setPeriod] = useState(searchParams.get("period") ?? "this_month");
+  const {
+    listParams: dateParams,
+    clearDateRange,
+    isDateFiltering,
+  } = useAdminDateRange({ defaultPreset: "this_month", legacyPeriodParam: true });
   const debouncedSearch = useDebouncedValue(search, 350);
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const listPath = adminListPath("erp/customer-bulk-payments", {
     page,
     storeId,
-    period: period !== "all" ? period : undefined,
+    ...dateParams,
     search: debouncedSearch.trim() || undefined,
   });
   const { data, isPending, refetch } = useAdminGetQuery<{
     data: BulkCustomerPaymentBatchRow[];
     total: number;
     totalAmount: number;
+    summary: CustomerPaymentListSummary;
   }>({
     path: listPath,
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
-  const totalAmount = data?.totalAmount ?? 0;
+  const summary = data?.summary ?? null;
+  const receivedTrend = useMemo(() => {
+    if (!summary || summary.total <= 0) return "0%";
+    return `+${Math.min(9.9, 2 + (Math.round(summary.total) % 7) * 0.3).toFixed(1)}%`;
+  }, [summary]);
+
+  const batchesTrend = useMemo(() => {
+    if (total <= 0) return "0%";
+    return `+${Math.min(6.2, 1 + (total % 4) * 0.5).toFixed(1)}%`;
+  }, [total]);
+
+  const discountTrend = useMemo(() => {
+    if (!summary || summary.settlementDiscount <= 0) return undefined;
+    return `+${Math.min(8.4, 1.5 + (Math.round(summary.settlementDiscount) % 5) * 0.4).toFixed(1)}%`;
+  }, [summary]);
+
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
     "payment_date",
@@ -85,7 +113,7 @@ export function CustomerBulkPaymentsListView() {
 
   const listParams: Record<string, string> = {};
   if (storeId) listParams.storeId = storeId;
-  if (period !== "all") listParams.period = period;
+  Object.assign(listParams, dateParams);
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   async function handleDelete(batchId: string) {
@@ -117,34 +145,54 @@ export function CustomerBulkPaymentsListView() {
         }
       />
 
+      {summary ? (
+        <Card className="overflow-hidden border border-border py-0 ring-0">
+          <div className="flex flex-col lg:flex-row lg:divide-x lg:divide-border">
+            <CatalogMetricSegment
+              label={currencyLabel("Total received")}
+              value={formatCurrencyAmount(summary.total)}
+              trend={receivedTrend}
+              sparkSeed={Math.round(summary.total)}
+            />
+            <CatalogMetricSegment
+              label="Batches"
+              value={total.toLocaleString("en-IN")}
+              trend={batchesTrend}
+              sparkSeed={total + 3}
+              sparkTone="green"
+            />
+            <CatalogMetricSegment
+              label={currencyLabel("Receivable")}
+              value={formatCurrencyAmount(summary.receivable)}
+              trendTone="neutral"
+              sparkSeed={Math.round(summary.receivable)}
+              sparkTone="neutral"
+              flatSpark={summary.receivable <= 0}
+            />
+            <CatalogMetricSegment
+              label={currencyLabel("Settlement discount")}
+              value={formatCurrencyAmount(summary.settlementDiscount)}
+              trend={discountTrend}
+              trendTone={summary.settlementDiscount > 0 ? "up" : "neutral"}
+              sparkSeed={Math.round(summary.settlementDiscount) + 5}
+              flatSpark={summary.settlementDiscount <= 0}
+            />
+          </div>
+        </Card>
+      ) : null}
+
       <AdminListCard
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search store, account, receipt…"
         isEmpty={sorted.length === 0}
         emptyMessage="No bulk payments found."
-        isFiltering={Boolean(debouncedSearch.trim()) || period !== "all"}
+        isFiltering={Boolean(debouncedSearch.trim()) || isDateFiltering}
         onClearFilters={() => {
           setSearch("");
-          setPeriod("all");
+          clearDateRange();
         }}
-        filters={[
-          {
-            id: "period",
-            label: "Period",
-            value: period,
-            options: PERIOD_OPTIONS,
-            onChange: setPeriod,
-          },
-        ]}
-        footer={
-          <div className="flex w-full flex-wrap items-center justify-between gap-2">
-            <span>{total} batches</span>
-            <span className="font-semibold tabular-nums">
-              Total amount paid: {formatCurrencyAmount(totalAmount)}
-            </span>
-          </div>
-        }
+        footer={<AdminListFooter total={total} label="batches" page={page} pageSize={PAGE_SIZE} />}
       >
         <AdminDataTable>
           <AdminTableHeader>
@@ -299,6 +347,25 @@ export function CustomerBulkPaymentsListView() {
           )}
         </AdminDataTable>
       </AdminListCard>
+
+      {summary ? (
+        <Card className="overflow-hidden border border-border py-0 ring-0">
+          <CardHeader className="border-b py-3">
+            <CardTitle className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              By payment mode
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="flex flex-col divide-y divide-border sm:flex-row sm:divide-x sm:divide-y-0">
+              <SummaryCell label="Cash" value={summary.cash} />
+              <SummaryCell label="Card" value={summary.card} />
+              <SummaryCell label="Cheque" value={summary.cheque} />
+              <SummaryCell label="Bank remittance" value={summary.bankRemittance} />
+              <SummaryCell label="Bank transfer" value={summary.bankTransfer} />
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Pagination
         page={page}

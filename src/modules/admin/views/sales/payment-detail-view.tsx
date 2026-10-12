@@ -43,6 +43,8 @@ type PaymentDetail = {
   payment_date: string;
   payment_mode: string;
   total_amount: number;
+  settlement_discount?: number;
+  settlement_discount_account?: { name: string } | null;
   bank_charges: number;
   reference: string | null;
   notes: string | null;
@@ -201,6 +203,7 @@ export function PaymentDetailView({ paymentId }: { paymentId: string }) {
   const paymentRef = detail.payment_number || formatErpDocRef("PR", detail.id);
   const unallocated = Number(detail.unallocated_amount);
   const bankCharges = Number(detail.bank_charges ?? 0);
+  const settlementDiscount = Number(detail.settlement_discount ?? 0);
   const netDeposit = detail.total_amount - bankCharges;
   const customerLabel = detail.users?.name ?? detail.users?.email ?? "—";
 
@@ -376,6 +379,20 @@ export function PaymentDetailView({ paymentId }: { paymentId: string }) {
                 emphasis
               />
               <TotalsRow label="Allocated" value={formatCurrencyAmount(allocatedTotal)} />
+              {settlementDiscount > 0 ? (
+                <>
+                  <TotalsRow
+                    label="Settlement discount"
+                    value={formatCurrencyAmount(settlementDiscount)}
+                  />
+                  {detail.settlement_discount_account?.name ? (
+                    <TotalsRow
+                      label="Discount account"
+                      value={detail.settlement_discount_account.name}
+                    />
+                  ) : null}
+                </>
+              ) : null}
               {bankCharges > 0 ? (
                 <>
                   <Separator />

@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
 import {
+  buildFifoAllocationsForAmount,
   listErpPayments,
   listExpenseAccounts,
   listPaidThroughAccounts,
+  listReceivableInvoicesForCustomer,
   peekPaymentDocumentNumber,
   recordCustomerPayment,
 } from "@/modules/erp/services/erp-payments.service";
@@ -38,6 +40,36 @@ export async function GET(request: Request) {
     }
   }
 
+  if (view === "settlement-discount-accounts") {
+    try {
+      const storeId = searchParams.get("storeId") ?? undefined;
+      // Customer settlement discount clears AR for less cash — debit expense (e.g. sales discount).
+      const accounts = await listExpenseAccounts(storeId);
+      return NextResponse.json({ data: accounts });
+    } catch (error) {
+      const msg =
+        error instanceof Error ? error.message : "Failed to load discount accounts";
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  if (view === "receivable-invoices") {
+    try {
+      const userId = searchParams.get("userId");
+      if (!userId) {
+        return NextResponse.json({ error: "userId required" }, { status: 400 });
+      }
+      const invoices = await listReceivableInvoicesForCustomer(
+        userId,
+        searchParams.get("storeId") ?? undefined,
+      );
+      return NextResponse.json({ data: invoices });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to load invoices";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+  }
+
   if (view === "preview") {
     try {
       const isBulk = searchParams.get("isBulk") === "1";
@@ -46,6 +78,28 @@ export async function GET(request: Request) {
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to preview payment number";
       return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  if (view === "fifo") {
+    try {
+      const storeId = searchParams.get("storeId");
+      const amount = parseFloat(searchParams.get("amount") ?? "0");
+      const exclude = searchParams.get("exclude")?.split(",").filter(Boolean) ?? [];
+      if (!storeId) {
+        return NextResponse.json({ error: "Store is required" }, { status: 400 });
+      }
+      const userId = searchParams.get("userId") ?? undefined;
+      const allocations = await buildFifoAllocationsForAmount(
+        storeId,
+        amount,
+        exclude,
+        userId,
+      );
+      return NextResponse.json({ allocations });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to build FIFO allocations";
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
   }
 

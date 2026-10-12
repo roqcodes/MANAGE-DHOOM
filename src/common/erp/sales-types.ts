@@ -68,6 +68,13 @@ export interface ErpPaymentSummary {
   total: number;
 }
 
+/** Filter-scoped totals for payments received / bulk list KPIs. */
+export interface CustomerPaymentListSummary extends ErpPaymentSummary {
+  settlementDiscount: number;
+  receivable: number;
+  bankCharges: number;
+}
+
 export function paymentModeLabel(mode: string): string {
   const labels: Record<string, string> = {
     Cash: "Cash",
@@ -112,6 +119,7 @@ export interface CustomerErpProfile {
   name: string | null;
   email: string | null;
   phone: string | null;
+  avatarUrl: string | null;
   companyName: string | null;
   trn: string | null;
   contactDisplayName: string | null;
@@ -170,6 +178,15 @@ export interface PaidThroughAccountOption {
   name: string;
   account_type_name: string;
   store_name: string | null;
+}
+
+export interface ReceivableInvoiceRow {
+  id: string;
+  invoice_number: string;
+  due_date: string | null;
+  total_amount: number;
+  amount_paid: number;
+  balance_due: number;
 }
 
 export interface BulkCustomerPaymentBatchRow {

@@ -139,11 +139,20 @@ export function SalesLinesEditor({
       (resolved) => {
         const current = linesRef.current;
         if (!current.some((l) => l.key === key)) return;
-        const updated = current.map((l) =>
-          l.key === key
-            ? { ...l, unitPrice: resolved.unitPrice, taxRatePercent: resolved.taxRatePercent }
-            : l,
-        );
+        const updated = current.map((l) => {
+          if (l.key !== key) return l;
+          const nextUnitPrice =
+            resolved.unitPrice > 0
+              ? roundSalesMoney(resolved.unitPrice)
+              : l.unitPrice > 0
+                ? l.unitPrice
+                : roundSalesMoney(resolved.unitPrice);
+          return {
+            ...l,
+            unitPrice: nextUnitPrice,
+            taxRatePercent: resolved.taxRatePercent,
+          };
+        });
         linesRef.current = updated;
         onChange(updated);
       },
@@ -224,6 +233,7 @@ export function SalesLinesEditor({
                       <NumericInput
                         min={0}
                         step="0.01"
+                        fractionDigits={4}
                         value={line.unitPrice}
                         onValueChange={(unitPrice) => updateLine(line.key, { unitPrice })}
                       />

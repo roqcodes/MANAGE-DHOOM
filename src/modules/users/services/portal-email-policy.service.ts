@@ -4,8 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/integrations/supabase/types";
 
-const STAFF_ROLES = ["admin", "manager", "vendor", "delivery"] as const;
-
 export const STOREFRONT_EMAIL_IN_USE_MESSAGE =
   "This email is already registered as a storefront customer. Use a separate email for staff portal access.";
 
@@ -18,25 +16,25 @@ export async function assertEmailAvailableForStaffPortal(
   email: string,
 ): Promise<void> {
   const normalized = email.trim().toLowerCase();
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, role")
-    .ilike("email", normalized)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("check_staff_portal_signup_email", {
+    p_email: normalized,
+  });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  if (!data) {
+  const result = data as { allowed?: boolean; reason?: string } | null;
+
+  if (!result || result.allowed !== false) {
     return;
   }
 
-  if (!data.role) {
+  if (result.reason === "storefront_customer") {
     throw new Error(STOREFRONT_EMAIL_IN_USE_MESSAGE);
   }
 
-  if ((STAFF_ROLES as readonly string[]).includes(data.role)) {
+  if (result.reason === "portal_exists") {
     throw new Error(PORTAL_EMAIL_IN_USE_MESSAGE);
   }
 }

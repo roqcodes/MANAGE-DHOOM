@@ -2,13 +2,23 @@
 
 import type { LineProductContextMap } from "@/common/erp/line-product-context";
 import type { ErpProductSearchRow } from "@/common/erp/purchasing-types";
+import { roundMoney } from "@/common/erp/purchasing-types";
 import type { ErpSalesProductSearchRow } from "@/common/erp/sales-types";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { rpcLineProductContext } from "@/modules/erp/lib/line-product-context-rpc.client";
 
 async function fetchProductContext(
   productId: string,
   options: { storeId: string; customerId?: string; vendorId?: string },
 ): Promise<LineProductContextMap[string] | null> {
+  const rpc = await rpcLineProductContext({
+    storeId: options.storeId,
+    productIds: [productId],
+    customerId: options.customerId,
+    vendorId: options.vendorId,
+  });
+  if (rpc?.[productId]) return rpc[productId];
+
   const params = new URLSearchParams({
     storeId: options.storeId,
     productIds: productId,
@@ -21,10 +31,12 @@ async function fetchProductContext(
   return res.data[productId] ?? null;
 }
 
-/** First strictly positive price; zero is treated as unset (common on store inventory rows). */
+/** First strictly positive price after money rounding; skips unset / zero / noise. */
 function firstPositivePrice(...candidates: (number | null | undefined)[]): number | null {
   for (const value of candidates) {
-    if (value != null && value > 0) return value;
+    if (value == null || !Number.isFinite(value) || value <= 0) continue;
+    const rounded = roundMoney(value);
+    if (rounded > 0) return rounded;
   }
   return null;
 }
@@ -32,7 +44,7 @@ function firstPositivePrice(...candidates: (number | null | undefined)[]): numbe
 /** Instant defaults from catalog search (shown in the line table immediately). */
 export function salesLineDefaultsFromSearchRow(row: ErpSalesProductSearchRow) {
   return {
-    unitPrice: row.sales_price ?? 0,
+    unitPrice: roundMoney(row.sales_price ?? 0),
     taxRatePercent: row.tax_rate_percent ?? 0,
   };
 }
@@ -40,7 +52,7 @@ export function salesLineDefaultsFromSearchRow(row: ErpSalesProductSearchRow) {
 /** Instant defaults from purchase catalog search. */
 export function purchaseLineDefaultsFromSearchRow(row: ErpProductSearchRow) {
   return {
-    purchasePrice: row.purchase_price ?? 0,
+    purchasePrice: roundMoney(row.purchase_price ?? 0),
     taxRatePercent: row.tax_rate_percent ?? 0,
   };
 }
@@ -82,7 +94,7 @@ export async function resolveSalesLineDefaultsFromSelection(
     /* keep search fallbacks */
   }
 
-  return { unitPrice, taxRatePercent };
+  return { unitPrice: roundMoney(unitPrice), taxRatePercent };
 }
 
 /** Authoritative catalog defaults for a purchase line (search row is fallback only). */
@@ -96,7 +108,7 @@ export async function resolvePurchaseLineDefaultsFromSelection(
   let taxRatePercent = searchTax;
 
   if (!options.storeId) {
-    return { purchasePrice, taxRatePercent };
+    return { purchasePrice: roundMoney(purchasePrice), taxRatePercent };
   }
 
   try {
@@ -104,16 +116,24 @@ export async function resolvePurchaseLineDefaultsFromSelection(
       storeId: options.storeId,
       vendorId: options.vendorId,
     });
-    if (!ctx) return { purchasePrice, taxRatePercent };
+    if (!ctx) {
+      return { purchasePrice: roundMoney(purchasePrice), taxRatePercent };
+    }
 
-    if (ctx.catalogPurchasePrice != null) {
-      purchasePrice = ctx.catalogPurchasePrice;
-    } else if (ctx.counterpartyLastPrice != null) {
-      purchasePrice = ctx.counterpartyLastPrice;
-    } else if (ctx.lastPurchasePrice != null) {
-      purchasePrice = ctx.lastPurchasePrice;
-    } else if (ctx.avgPurchasePrice != null) {
-      purchasePrice = ctx.avgPurchasePrice;
+    // Prefer latest bill / vendor rates over catalog & WAC (WAC is averaged, often below last load).
+    const resolved = firstPositivePrice(
+      ctx.counterpartyLastPrice,
+      ctx.lastPurchasePrice,
+      ctx.vendorLastBillPurchaseRate,
+      ctx.lastBillPurchaseRate,
+      ctx.catalogPurchasePrice,
+      searchPrice,
+      ctx.avgPurchasePrice,
+    );
+    if (resolved != null) {
+      purchasePrice = resolved;
+    } else if (searchPrice > 0) {
+      purchasePrice = searchPrice;
     }
 
     if (ctx.taxRatePercent != null) {
@@ -123,5 +143,8 @@ export async function resolvePurchaseLineDefaultsFromSelection(
     /* keep search fallbacks */
   }
 
-  return { purchasePrice, taxRatePercent };
+  return {
+    purchasePrice: roundMoney(purchasePrice),
+    taxRatePercent,
+  };
 }

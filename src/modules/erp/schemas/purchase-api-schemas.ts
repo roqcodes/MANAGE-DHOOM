@@ -11,6 +11,7 @@ const purchaseLineSchema = z.object({
   purchasePrice: z.number(),
   taxRatePercent: z.number(),
   unitId: z.string().uuid().nullable().optional(),
+  landedCostAllocated: z.number().nullable().optional(),
 });
 
 const landedCostSchema = z.object({

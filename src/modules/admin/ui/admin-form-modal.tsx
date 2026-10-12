@@ -232,17 +232,23 @@ export function AdminFormModalLayout({
 export function AdminFormColumns({
   children,
   cols = 2,
+  columnRatio = "1:1",
   className,
 }: {
   children: ReactNode;
   cols?: 2 | 3;
+  /** Side-by-side width when `cols={2}` (lg+). */
+  columnRatio?: "1:1" | "2:1";
   className?: string;
 }) {
   return (
     <div
       className={cn(
         "grid gap-4",
-        cols === 2 && "grid-cols-1 lg:grid-cols-2",
+        cols === 2 &&
+          (columnRatio === "2:1"
+            ? "grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+            : "grid-cols-1 lg:grid-cols-2"),
         cols === 3 && "grid-cols-1 md:grid-cols-2 xl:grid-cols-3",
         className,
       )}
@@ -257,6 +263,7 @@ export function AdminFormActions({
   submitLabel,
   cancelLabel = "Cancel",
   pending = false,
+  submitDisabled = false,
   formId,
   loadingLabel = "Saving…",
 }: {
@@ -264,6 +271,7 @@ export function AdminFormActions({
   submitLabel: string;
   cancelLabel?: string;
   pending?: boolean;
+  submitDisabled?: boolean;
   formId?: string;
   loadingLabel?: string;
 }) {
@@ -283,6 +291,7 @@ export function AdminFormActions({
         form={formId}
         data-form-enter-submit
         loading={pending}
+        disabled={submitDisabled}
         loadingLabel={loadingLabel}
       >
         {submitLabel}

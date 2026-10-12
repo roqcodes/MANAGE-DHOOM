@@ -43,6 +43,7 @@ import {
   SecondaryBtn,
 } from "@/modules/admin/components/modal";
 import { VariantImagesField } from "@/modules/products/components/variant-images-field";
+import { DEFAULT_ITEM_TAX_RATE_PERCENT } from "@/modules/tax/default-item-tax-rate";
 import { VariantImagesManager } from "@/modules/products/components/variant-images-manager";
 import { ProductMediaField } from "@/modules/products/components/product-media-field";
 import {
@@ -179,7 +180,7 @@ function emptyProductDraft(product?: ProductWithCategory): ProductDraft {
     productCode: "",
     unitId: null,
     purchasePrice: 0,
-    taxRatePercent: 0,
+    taxRatePercent: DEFAULT_ITEM_TAX_RATE_PERCENT,
     markupPercent: 0,
     defaultPrice: 0,
     defaultMrp: 0,

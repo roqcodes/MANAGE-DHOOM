@@ -1,9 +1,14 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import type { ErpLandedCostItem, LandedCostFormRow } from "@/common/erp/purchasing-types";
+import type {
+  ErpLandedCostItem,
+  LandedCostFormRow,
+  PurchaseLineFormRow,
+} from "@/common/erp/purchasing-types";
+import { PurchaseDocumentLandedBreakdown } from "@/modules/purchasing/components/purchase-document-landed-breakdown";
 import { calcPurchaseLine, roundMoney } from "@/common/erp/purchasing-types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,10 +43,14 @@ export function LandedCostsEditor({
   rows,
   onChange,
   masterItems,
+  purchaseLines,
+  onPurchaseLinesChange,
 }: {
   rows: LandedCostFormRow[];
   onChange: (rows: LandedCostFormRow[]) => void;
   masterItems: ErpLandedCostItem[];
+  purchaseLines?: PurchaseLineFormRow[];
+  onPurchaseLinesChange?: (lines: PurchaseLineFormRow[]) => void;
 }) {
   const total = useMemo(() => {
     let sum = 0;
@@ -51,6 +60,16 @@ export function LandedCostsEditor({
     }
     return roundMoney(sum);
   }, [rows]);
+
+  const prevLandedTotal = useRef(total);
+  useEffect(() => {
+    if (!purchaseLines || !onPurchaseLinesChange) return;
+    if (prevLandedTotal.current === total) return;
+    prevLandedTotal.current = total;
+    onPurchaseLinesChange(
+      purchaseLines.map((l) => ({ ...l, landedCostAllocated: undefined })),
+    );
+  }, [total, purchaseLines, onPurchaseLinesChange]);
 
   function addFromMaster(item: ErpLandedCostItem) {
     onChange([
@@ -158,6 +177,14 @@ export function LandedCostsEditor({
       )}
 
       <p className="text-sm text-slate-600">Landed costs total: {formatCurrencyAmount(total)}</p>
+
+      {purchaseLines && onPurchaseLinesChange ? (
+        <PurchaseDocumentLandedBreakdown
+          lines={purchaseLines}
+          landedCosts={rows}
+          onLinesChange={onPurchaseLinesChange}
+        />
+      ) : null}
     </div>
   );
 }

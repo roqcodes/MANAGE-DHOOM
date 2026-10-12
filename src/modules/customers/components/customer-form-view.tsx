@@ -10,7 +10,6 @@ import {
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
-  AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
   type ErpFormViewBaseProps,
@@ -19,12 +18,37 @@ import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleto
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CustomerPhotoField } from "@/modules/customers/components/customer-photo-field";
+import { cn } from "@/lib/utils";
 
 function splitName(name: string | null | undefined) {
   const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return { firstName: "", lastName: "" };
   if (parts.length === 1) return { firstName: parts[0], lastName: "" };
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
+function FieldGrid({
+  children,
+  cols = 2,
+  className,
+}: {
+  children: React.ReactNode;
+  cols?: 2 | 3;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-x-4 gap-y-4",
+        cols === 2 && "sm:grid-cols-2",
+        cols === 3 && "sm:grid-cols-2 lg:grid-cols-3",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 export type CustomerFormViewProps = ErpFormViewBaseProps & {
@@ -58,11 +82,16 @@ export function CustomerFormView({
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<CustomerErpProfile | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
+  const [avatarUrl, setAvatarUrl] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   useEffect(() => {
     if (mode !== "edit" || !customerId) return;
     adminGet<{ profile: CustomerErpProfile }>(`customers/${customerId}/erp`)
-      .then((res) => setProfile(res.profile))
+      .then((res) => {
+        setProfile(res.profile);
+        setAvatarUrl(res.profile.avatarUrl ?? "");
+      })
       .finally(() => setLoading(false));
   }, [mode, customerId]);
 
@@ -108,6 +137,7 @@ export function CustomerFormView({
       creditLimit: parseFloat((fd.get("creditLimit") as string) || "0") || null,
       openingBalance: parseFloat((fd.get("openingBalance") as string) || "0"),
       openingBalanceDate: (fd.get("openingBalanceDate") as string) || null,
+      avatarUrl: avatarUrl.trim() || null,
     };
 
     startTransition(async () => {
@@ -134,7 +164,7 @@ export function CustomerFormView({
         open={open}
         onOpenChange={onOpenChange}
         title={mode === "create" ? "Add customer" : "Edit customer"}
-        size="xl"
+        size="lg"
         stacked={modalStacked}
         loading
         loadingFallback={<AdminPageSkeleton />}
@@ -152,7 +182,7 @@ export function CustomerFormView({
           open={open}
           onOpenChange={onOpenChange}
           title="Edit customer"
-          size="xl"
+          size="lg"
           stacked={modalStacked}
         >
           <p className="text-sm text-destructive">Customer not found.</p>
@@ -167,78 +197,150 @@ export function CustomerFormView({
   }
 
   const nameParts = splitName(profile?.name);
+  const photoName =
+    profile?.contactDisplayName ||
+    profile?.companyName ||
+    profile?.name ||
+    nameParts.firstName;
   const title = mode === "create" ? "Add customer" : "Edit customer";
+  const saving = pending || avatarUploading;
   const footer = isModal ? (
     <AdminFormActions
       formId={formId}
       onCancel={handleCancel}
       submitLabel="Save"
-      pending={pending}
+      pending={saving}
     />
   ) : undefined;
 
   const sections = (
-    <AdminFormColumns cols={2}>
-      <AdminFormSection title="Contact">
-        <AdminFormGrid cols={2}>
-          <AdminFormField label="First name">
-            <Input name="firstName" placeholder="First name" defaultValue={nameParts.firstName} />
-          </AdminFormField>
-          <AdminFormField label="Last name">
-            <Input name="lastName" placeholder="Last name" defaultValue={nameParts.lastName} />
-          </AdminFormField>
-          <AdminFormField label="Company name" required className="sm:col-span-2">
-            <Input
-              name="companyName"
-              placeholder="Company name"
-              defaultValue={profile?.companyName ?? ""}
-              required
-            />
-          </AdminFormField>
-          <AdminFormField label="Contact display name">
-            <Input
-              name="contactDisplayName"
-              placeholder="Contact display name"
-              defaultValue={profile?.contactDisplayName ?? ""}
-            />
-          </AdminFormField>
-          <AdminFormField label="Location">
-            <Input name="location" placeholder="Location" defaultValue={profile?.location ?? ""} />
-          </AdminFormField>
-          <AdminFormField label="Email">
-            <Input name="email" type="email" placeholder="Email" defaultValue={profile?.email ?? ""} />
-          </AdminFormField>
-          <AdminFormField label="Mobile">
-            <Input name="mobile" placeholder="Mobile" defaultValue={profile?.phone ?? ""} />
-          </AdminFormField>
-          <AdminFormField label="Phone">
-            <Input name="phone" placeholder="Phone" />
-          </AdminFormField>
-          <AdminFormField label="PO box">
-            <Input name="poBox" placeholder="PO box" defaultValue={profile?.poBox ?? ""} />
-          </AdminFormField>
-        </AdminFormGrid>
+    <>
+      <AdminFormSection
+        title="Identity"
+        description="Who this customer is, and how they appear on documents."
+      >
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+          <CustomerPhotoField
+            value={avatarUrl}
+            name={photoName}
+            onChange={setAvatarUrl}
+            onUploadingChange={setAvatarUploading}
+          />
+          <FieldGrid className="min-w-0 flex-1">
+            <AdminFormField label="Company name" required className="sm:col-span-2">
+              <Input
+                name="companyName"
+                placeholder="Trading name"
+                autoComplete="organization"
+                defaultValue={profile?.companyName ?? ""}
+                required
+              />
+            </AdminFormField>
+            <AdminFormField label="First name">
+              <Input
+                name="firstName"
+                placeholder="First name"
+                autoComplete="given-name"
+                defaultValue={nameParts.firstName}
+              />
+            </AdminFormField>
+            <AdminFormField label="Last name">
+              <Input
+                name="lastName"
+                placeholder="Last name"
+                autoComplete="family-name"
+                defaultValue={nameParts.lastName}
+              />
+            </AdminFormField>
+            <AdminFormField label="Contact display name" className="sm:col-span-2">
+              <Input
+                name="contactDisplayName"
+                placeholder="Shown on invoices and statements"
+                autoComplete="name"
+                defaultValue={profile?.contactDisplayName ?? ""}
+              />
+            </AdminFormField>
+          </FieldGrid>
+        </div>
       </AdminFormSection>
 
-      <AdminFormSection title="Billing & notes">
-        <AdminFormGrid cols={2}>
-          <AdminFormField label="Address" className="sm:col-span-2">
-            <Textarea
-              name="address"
-              placeholder="Address"
-              defaultValue={profile?.address ?? ""}
-              rows={3}
-            />
-          </AdminFormField>
-          <AdminFormField label="TRN">
-            <Input name="trn" placeholder="TRN" defaultValue={profile?.trn ?? ""} />
-          </AdminFormField>
+      <AdminFormColumns cols={2}>
+        <AdminFormSection
+          title="Contact"
+          description="How to reach this customer."
+          className="h-full"
+        >
+          <FieldGrid>
+            <AdminFormField label="Email" className="sm:col-span-2">
+              <Input
+                name="email"
+                type="email"
+                placeholder="name@company.com"
+                autoComplete="email"
+                defaultValue={profile?.email ?? ""}
+              />
+            </AdminFormField>
+            <AdminFormField label="Mobile">
+              <Input
+                name="mobile"
+                type="tel"
+                placeholder="Mobile"
+                autoComplete="tel"
+                defaultValue={profile?.phone ?? ""}
+              />
+            </AdminFormField>
+            <AdminFormField label="Phone">
+              <Input name="phone" type="tel" placeholder="Landline" autoComplete="tel-national" />
+            </AdminFormField>
+            <AdminFormField label="Location">
+              <Input
+                name="location"
+                placeholder="City / area"
+                autoComplete="address-level2"
+                defaultValue={profile?.location ?? ""}
+              />
+            </AdminFormField>
+            <AdminFormField label="PO box">
+              <Input name="poBox" placeholder="PO box" defaultValue={profile?.poBox ?? ""} />
+            </AdminFormField>
+          </FieldGrid>
+        </AdminFormSection>
+
+        <AdminFormSection
+          title="Address & tax"
+          description="Billing address and tax registration."
+          className="h-full"
+        >
+          <FieldGrid>
+            <AdminFormField label="Address" className="sm:col-span-2">
+              <Textarea
+                name="address"
+                placeholder="Street, building, area"
+                autoComplete="street-address"
+                defaultValue={profile?.address ?? ""}
+                rows={4}
+                className="min-h-[6.5rem] resize-y"
+              />
+            </AdminFormField>
+            <AdminFormField label="TRN" className="sm:col-span-2">
+              <Input name="trn" placeholder="Tax registration number" defaultValue={profile?.trn ?? ""} />
+            </AdminFormField>
+          </FieldGrid>
+        </AdminFormSection>
+      </AdminFormColumns>
+
+      <AdminFormSection
+        title="Receivables"
+        description="Credit and opening balance used on statements."
+      >
+        <FieldGrid cols={3}>
           <AdminFormField label="Credit limit">
             <Input
               name="creditLimit"
               type="number"
               step="0.01"
               min={0}
+              inputMode="decimal"
               defaultValue={profile?.creditLimit ?? 0}
             />
           </AdminFormField>
@@ -247,6 +349,7 @@ export function CustomerFormView({
               name="openingBalance"
               type="number"
               step="0.01"
+              inputMode="decimal"
               defaultValue={profile?.openingBalance ?? 0}
             />
           </AdminFormField>
@@ -257,17 +360,21 @@ export function CustomerFormView({
               defaultValue={profile?.openingBalanceDate ?? new Date().toISOString().slice(0, 10)}
             />
           </AdminFormField>
-          <AdminFormField label="Notes" className="sm:col-span-2">
-            <Textarea
-              name="notes"
-              placeholder="Notes"
-              defaultValue={profile?.customerNotes ?? ""}
-              rows={3}
-            />
-          </AdminFormField>
-        </AdminFormGrid>
+        </FieldGrid>
       </AdminFormSection>
-    </AdminFormColumns>
+
+      <AdminFormSection title="Notes" description="Internal only — not printed on invoices.">
+        <AdminFormField label="Customer notes">
+          <Textarea
+            name="notes"
+            placeholder="Payment terms, delivery notes, or other staff remarks"
+            defaultValue={profile?.customerNotes ?? ""}
+            rows={3}
+            className="resize-y"
+          />
+        </AdminFormField>
+      </AdminFormSection>
+    </>
   );
 
   return (
@@ -282,20 +389,20 @@ export function CustomerFormView({
         { label: "Customers", href: "/admin/customers" },
         { label: title },
       ]}
-      size="xl"
+      size="lg"
       stacked={modalStacked}
       formId={formId}
       footer={footer}
     >
-      <form id={formId} key={profile?.id ?? "new"} onSubmit={handleSubmit} className="space-y-4">
+      <form id={formId} key={profile?.id ?? "new"} onSubmit={handleSubmit} className="space-y-5">
         {sections}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {!isModal ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             <Link href="/admin/customers" className={buttonVariants({ variant: "outline" })}>
               Cancel
             </Link>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={saving}>
               {pending ? "Saving…" : "Save"}
             </Button>
           </div>

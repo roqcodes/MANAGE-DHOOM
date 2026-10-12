@@ -8,11 +8,20 @@ import type {
   ErpPurchaseLineInput,
 } from "@/common/erp/purchasing-types";
 import { derivePurchaseBillDisplayStatus, roundMoney } from "@/common/erp/purchasing-types";
+import {
+  calcUnitLoadedCostFromAlloc,
+  canApplyManualLandedAllocations,
+} from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
 
-function linesToJson(lines: ErpPurchaseLineInput[]): Json {
+function linesToJson(lines: ErpPurchaseLineInput[], landedCostTotal = 0): Json {
+  const includeLanded =
+    landedCostTotal > 0 ||
+    lines.some(
+      (l) => l.landedCostAllocated != null && Number.isFinite(l.landedCostAllocated),
+    );
   return lines.map((l) => ({
     product_id: l.productId ?? null,
     variant_id: null,
@@ -23,7 +32,34 @@ function linesToJson(lines: ErpPurchaseLineInput[]): Json {
     purchase_price: l.purchasePrice,
     tax_rate_percent: l.taxRatePercent,
     unit_id: l.unitId ?? "",
+    ...(includeLanded
+      ? { landed_cost_allocated: roundMoney(l.landedCostAllocated ?? 0) }
+      : {}),
   })) as Json;
+}
+
+async function applyBillLandedAllocations(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  billId: string,
+  lines: ErpPurchaseLineInput[],
+  landedTotal: number,
+) {
+  if (landedTotal <= 0) {
+    const { error } = await supabase.rpc("refresh_purchase_bill_landed_allocations", {
+      p_bill_id: billId,
+    });
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  if (canApplyManualLandedAllocations(lines, landedTotal)) {
+    return;
+  }
+
+  const { error: refreshBillErr } = await supabase.rpc("refresh_purchase_bill_landed_allocations", {
+    p_bill_id: billId,
+  });
+  if (refreshBillErr) throw new Error(refreshBillErr.message);
 }
 
 function landedCostsToJson(costs: ErpLandedCostLineInput[]): Json {
@@ -60,7 +96,7 @@ export async function listPurchaseBills(options: {
   let query = supabase
     .from("erp_purchase_bills")
     .select(
-      "id, purchase_bill_number, vendor_bill_number, vendor_id, store_id, po_id, status, total_amount, amount_paid, credits_applied, balance_due, purchase_date, due_date, vendors(name), stores(name), purchase_orders(po_number)",
+      "id, purchase_bill_number, vendor_bill_number, vendor_id, store_id, po_id, status, total_amount, landed_cost_total, amount_paid, credits_applied, balance_due, purchase_date, due_date, vendors(name), stores(name), purchase_orders(po_number)",
       { count: "exact" },
     )
     .order("purchase_date", { ascending: false })
@@ -121,6 +157,7 @@ export async function listPurchaseBills(options: {
         po_id: row.po_id,
         status,
         total_amount: Number(row.total_amount ?? 0),
+        landed_cost_total: Number(row.landed_cost_total ?? 0),
         amount_paid: Number(row.amount_paid ?? 0),
         credits_applied: Number(row.credits_applied ?? 0),
         balance_due: balanceDue,
@@ -160,14 +197,16 @@ export async function createPurchaseBill(input: {
   const storeId = await requireErpStoreId(input.storeId);
 
   const finalize = input.finalize ?? false;
+  const landedCosts = input.landedCosts ?? [];
+  const billTotals = calcBillTotals(input.lines, landedCosts, input.discount ?? 0);
 
   const { data, error } = await supabase.rpc("create_erp_purchase_bill", {
     p_vendor_id: input.vendorId,
     p_store_id: storeId,
     p_purchase_date: input.purchaseDate,
     p_due_date: input.dueDate ?? undefined,
-    p_lines: linesToJson(input.lines),
-    p_landed_costs: landedCostsToJson(input.landedCosts ?? []),
+    p_lines: linesToJson(input.lines, billTotals.landedTotal),
+    p_landed_costs: landedCostsToJson(landedCosts),
     p_discount: input.discount ?? 0,
     p_po_id: input.poId ?? undefined,
     p_vendor_bill_number: input.vendorBillNumber ?? undefined,
@@ -358,6 +397,15 @@ export async function updateDraftPurchaseBill(
   const lineRows = input.lines.map((line) => {
     const taxable = roundMoney(line.quantity * line.purchasePrice);
     const lineTax = roundMoney(taxable * (line.taxRatePercent / 100));
+    const alloc =
+      line.landedCostAllocated != null
+        ? roundMoney(line.landedCostAllocated)
+        : 0;
+    const unitLoaded = calcUnitLoadedCostFromAlloc(
+      line.purchasePrice,
+      line.quantity,
+      alloc,
+    );
     return {
       purchase_bill_id: billId,
       product_id: line.productId ?? null,
@@ -371,6 +419,8 @@ export async function updateDraftPurchaseBill(
       tax_amount: lineTax,
       line_total: roundMoney(taxable + lineTax),
       unit_id: line.unitId ?? null,
+      landed_cost_allocated: alloc,
+      unit_loaded_cost: unitLoaded,
     };
   });
 
@@ -396,10 +446,7 @@ export async function updateDraftPurchaseBill(
     if (lcError) throw new Error(lcError.message);
   }
 
-  const { error: refreshBillErr } = await supabase.rpc("refresh_purchase_bill_landed_allocations", {
-    p_bill_id: billId,
-  });
-  if (refreshBillErr) throw new Error(refreshBillErr.message);
+  await applyBillLandedAllocations(supabase, billId, input.lines, totals.landedTotal);
 
   await logAuditEvent({
     action: "update",

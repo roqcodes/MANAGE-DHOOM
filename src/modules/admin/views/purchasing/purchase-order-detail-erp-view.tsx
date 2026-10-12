@@ -29,6 +29,10 @@ import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { coalesceNumber } from "@/lib/numeric-input";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import {
+  landedAllocFromStoredLine,
+  loadedUnitCostFromStoredLine,
+} from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { PoStatusPill } from "@/modules/purchase-orders/components/purchase-orders-ui";
 import { cn } from "@/lib/utils";
@@ -518,6 +522,9 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
             <p>Subtotal: {formatCurrencyAmount(po.subtotal)}</p>
             <p>Tax: {formatCurrencyAmount(po.tax_total)}</p>
             <p>Discount: {formatCurrencyAmount(po.discount)}</p>
+            {(po.landed_cost_total ?? 0) > 0 ? (
+              <p>Landed costs: {formatCurrencyAmount(po.landed_cost_total ?? 0)}</p>
+            ) : null}
             <p className="font-semibold">PO total: {formatCurrencyAmount(po.total_amount ?? 0)}</p>
             {activeBill ? (
               <p className="pt-2 text-slate-600">
@@ -540,19 +547,44 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
                 <th className="pb-2">Ordered</th>
                 <th className="pb-2">Delivered</th>
                 <th className="pb-2">Rate</th>
+                {(po.landed_cost_total ?? 0) > 0 ? (
+                  <th className="pb-2">Loaded unit</th>
+                ) : null}
+                {(po.landed_cost_total ?? 0) > 0 ? (
+                  <th className="pb-2 text-right">Landed</th>
+                ) : null}
                 <th className="pb-2">Line total</th>
               </tr>
             </thead>
             <tbody>
-              {po.purchase_order_items.map((line) => (
+              {po.purchase_order_items.map((line) => {
+                const landedAlloc = landedAllocFromStoredLine(line);
+                const loadedUnit = loadedUnitCostFromStoredLine({
+                  quantity: line.quantity,
+                  purchasePrice: line.price,
+                  landed_cost_allocated: line.landed_cost_allocated,
+                  unit_loaded_cost: line.unit_loaded_cost,
+                });
+                return (
                 <tr key={line.id} className="border-t border-slate-100">
                   <td className="py-2">{lineProductName(line)}</td>
                   <td className="py-2 tabular-nums">{line.quantity}</td>
                   <td className="py-2 tabular-nums">{line.accepted_qty ?? 0}</td>
                   <td className="py-2">{formatCurrencyAmount(line.price)}</td>
+                  {(po.landed_cost_total ?? 0) > 0 ? (
+                    <td className="py-2 tabular-nums text-slate-600">
+                      {formatCurrencyAmount(loadedUnit)}
+                    </td>
+                  ) : null}
+                  {(po.landed_cost_total ?? 0) > 0 ? (
+                    <td className="py-2 text-right tabular-nums">
+                      {landedAlloc > 0 ? formatCurrencyAmount(landedAlloc) : "—"}
+                    </td>
+                  ) : null}
                   <td className="py-2">{formatCurrencyAmount(line.line_total)}</td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </CardContent>

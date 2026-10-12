@@ -6,6 +6,7 @@ import { AdminPanelSkeleton } from "@/modules/admin/components/admin-page-skelet
 
 import type { LineProductContext } from "@/common/erp/line-product-context";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { rpcLineProductContext } from "@/modules/erp/lib/line-product-context-rpc.client";
 import { ERP_PRODUCT_SEARCH_STALE_MS } from "@/modules/erp/lib/erp-product-live-search.client";
 import { Button } from "@/components/ui/button";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -100,8 +101,17 @@ export function LineProductDetailsPanel({
       vendorId ?? "",
     ],
     queryFn: async () => {
+      if (!storeId || !productId) return null;
+      const rpc = await rpcLineProductContext({
+        storeId,
+        productIds: [productId],
+        customerId,
+        vendorId,
+      });
+      if (rpc?.[productId]) return rpc[productId];
+
       const params = new URLSearchParams({
-        storeId: storeId ?? "",
+        storeId,
         productIds: productId,
       });
       if (customerId) params.set("customerId", customerId);

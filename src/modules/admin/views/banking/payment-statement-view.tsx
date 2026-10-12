@@ -20,30 +20,10 @@ import {
   SalesPageHeader,
   SalesPageLayout,
 } from "@/modules/erp/components/sales-module-ui";
-import { SortableTableHead, useSortableData } from "@/modules/admin/ui";
+import { SortableTableHead, useAdminDateRange, useSortableData } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { formatBankingType } from "@/modules/admin/views/banking/banking-ui";
-
-const PERIOD_OPTIONS = [
-  { value: "all", label: "All dates" },
-  { value: "today", label: "Today" },
-  { value: "this_month", label: "This month" },
-];
-
-function periodToDates(period: string) {
-  const today = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  if (period === "today") {
-    const d = iso(today);
-    return { dateFrom: d, dateTo: d };
-  }
-  if (period === "this_month") {
-    const start = new Date(today.getFullYear(), today.getMonth(), 1);
-    return { dateFrom: iso(start), dateTo: iso(today) };
-  }
-  return {};
-}
 
 export function PaymentStatementView() {
   const { stores } = useErpStores();
@@ -55,7 +35,11 @@ export function PaymentStatementView() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [accountId, setAccountId] = useState("");
-  const [period, setPeriod] = useState("this_month");
+  const {
+    listParams: dateParams,
+    clearDateRange,
+    isDateFiltering,
+  } = useAdminDateRange({ defaultPreset: "this_month" });
 
   useEffect(() => {
     const q = storeId ? `?storeId=${encodeURIComponent(storeId)}` : "";
@@ -66,12 +50,11 @@ export function PaymentStatementView() {
 
   useEffect(() => {
     setLoading(true);
-    const dates = periodToDates(period);
     const q = new URLSearchParams({ view: "payment-statement" });
     if (storeId) q.set("storeId", storeId);
     if (accountId) q.set("accountId", accountId);
-    if (dates.dateFrom) q.set("dateFrom", dates.dateFrom);
-    if (dates.dateTo) q.set("dateTo", dates.dateTo);
+    if (dateParams.dateFrom) q.set("dateFrom", dateParams.dateFrom);
+    if (dateParams.dateTo) q.set("dateTo", dateParams.dateTo);
     if (search.trim()) q.set("search", search.trim());
 
     adminGet<{
@@ -85,7 +68,7 @@ export function PaymentStatementView() {
         setTotals(res.totals ?? { debit: 0, credit: 0, balance: 0 });
       })
       .finally(() => setLoading(false));
-  }, [storeId, accountId, period, search]);
+  }, [storeId, accountId, dateParams.dateFrom, dateParams.dateTo, search]);
 
   const selectedStoreLabel = useMemo(
     () => stores.find((s) => s.id === storeId)?.name ?? "Selected store",
@@ -139,20 +122,14 @@ export function PaymentStatementView() {
             ],
             onChange: setAccountId,
           },
-          {
-            label: "Period",
-            value: period,
-            options: PERIOD_OPTIONS,
-            onChange: setPeriod,
-          },
         ]}
         isEmpty={rows.length === 0}
         emptyMessage="No transactions found for this filter."
-        isFiltering={Boolean(search.trim() || accountId || period !== "all")}
+        isFiltering={Boolean(search.trim() || accountId || isDateFiltering)}
         onClearFilters={() => {
           setSearch("");
           setAccountId("");
-          setPeriod("all");
+          clearDateRange();
         }}
         footer={<span>{rows.length} transactions</span>}
       >

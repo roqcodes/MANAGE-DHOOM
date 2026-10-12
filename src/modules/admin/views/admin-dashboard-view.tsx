@@ -52,8 +52,7 @@ import { CurrencyAmount } from "@/components/currency-amount";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { useAdminDateRange } from "@/modules/admin/ui";
 import {
   formatCurrencyAmount,
   formatCurrencyCompactAmount,
@@ -86,106 +85,6 @@ function defaultDashboardDates() {
     dateFrom: `${today.slice(0, 4)}-01-01`,
     dateTo: today,
   };
-}
-
-function DashboardDateFilters({
-  dateFrom,
-  dateTo,
-  granularity,
-  onDateFromChange,
-  onDateToChange,
-  onGranularityChange,
-}: {
-  dateFrom: string;
-  dateTo: string;
-  granularity: DashboardChartGranularity;
-  onDateFromChange: (value: string) => void;
-  onDateToChange: (value: string) => void;
-  onGranularityChange: (value: DashboardChartGranularity) => void;
-}) {
-  const today = new Date().toISOString().slice(0, 10);
-
-  function applyPreset(preset: "ytd" | "month" | "last30") {
-    if (preset === "ytd") {
-      const defaults = defaultDashboardDates();
-      onDateFromChange(defaults.dateFrom);
-      onDateToChange(defaults.dateTo);
-      onGranularityChange("month");
-      return;
-    }
-    if (preset === "month") {
-      onDateFromChange(`${today.slice(0, 8)}01`);
-      onDateToChange(today);
-      onGranularityChange("day");
-      return;
-    }
-    const start = new Date();
-    start.setDate(start.getDate() - 29);
-    onDateFromChange(start.toISOString().slice(0, 10));
-    onDateToChange(today);
-    onGranularityChange("day");
-  }
-
-  return (
-    <Card>
-      <CardContent className="flex flex-wrap items-end gap-3 px-4 py-3">
-        <div className="space-y-1">
-          <Label htmlFor="dashboard-date-from">From</Label>
-          <Input
-            id="dashboard-date-from"
-            type="date"
-            value={dateFrom}
-            onChange={(e) => onDateFromChange(e.target.value)}
-            className="h-9 w-[150px]"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor="dashboard-date-to">To</Label>
-          <Input
-            id="dashboard-date-to"
-            type="date"
-            value={dateTo}
-            onChange={(e) => onDateToChange(e.target.value)}
-            className="h-9 w-[150px]"
-          />
-        </div>
-        <div className="space-y-1">
-          <Label>Group by</Label>
-          <div className="flex h-9 rounded-md border border-input p-0.5">
-            <Button
-              type="button"
-              variant={granularity === "day" ? "secondary" : "ghost"}
-              size="sm"
-              className="h-full px-3"
-              onClick={() => onGranularityChange("day")}
-            >
-              Days
-            </Button>
-            <Button
-              type="button"
-              variant={granularity === "month" ? "secondary" : "ghost"}
-              size="sm"
-              className="h-full px-3"
-              onClick={() => onGranularityChange("month")}
-            >
-              Months
-            </Button>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-1.5 pb-0.5">
-          <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("ytd")}>
-            YTD
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("month")}>
-            This month
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => applyPreset("last30")}>
-            Last 30 days
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
 }
 
 function chartXAxisProps(pointCount: number) {
@@ -883,10 +782,16 @@ export function AdminDashboardView() {
   const { settings } = useCurrencySettings();
   const queryClient = useQueryClient();
   const { activeStoreId, storeId, erpContextLoading } = useActiveStoreScope();
-  const defaults = defaultDashboardDates();
-  const [dateFrom, setDateFrom] = useState(defaults.dateFrom);
-  const [dateTo, setDateTo] = useState(defaults.dateTo);
+  const { from: dateFrom, to: dateTo, datePreset } = useAdminDateRange({
+    defaultPreset: "ytd",
+  });
   const [granularity, setGranularity] = useState<DashboardChartGranularity>("month");
+
+  useEffect(() => {
+    if (datePreset === "ytd") setGranularity("month");
+    else if (datePreset === "this_month") setGranularity("day");
+    else if (datePreset !== "custom" && datePreset !== "all") setGranularity("day");
+  }, [datePreset]);
 
   const dashboardEnabled =
     !erpContextLoading && Boolean(storeId || activeStoreId) && Boolean(dateFrom && dateTo);
@@ -1001,6 +906,26 @@ export function AdminDashboardView() {
         description={`Overview for ${storeName}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <div className="flex h-9 items-center rounded-md border border-input p-0.5">
+              <Button
+                type="button"
+                variant={granularity === "day" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-full px-3"
+                onClick={() => setGranularity("day")}
+              >
+                Days
+              </Button>
+              <Button
+                type="button"
+                variant={granularity === "month" ? "secondary" : "ghost"}
+                size="sm"
+                className="h-full px-3"
+                onClick={() => setGranularity("month")}
+              >
+                Months
+              </Button>
+            </div>
             <Badge variant="outline" className="gap-1.5 font-normal">
               <Store className="size-3.5" />
               {storeName}
@@ -1068,14 +993,6 @@ export function AdminDashboardView() {
               </Link>
             </div>
           }
-        />
-        <DashboardDateFilters
-          dateFrom={dateFrom}
-          dateTo={dateTo}
-          granularity={granularity}
-          onDateFromChange={setDateFrom}
-          onDateToChange={setDateTo}
-          onGranularityChange={setGranularity}
         />
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2">

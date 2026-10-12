@@ -23,17 +23,12 @@ import {
   AdminTableHeader,
   AdminTableRow,
   SortableTableHead,
+  useAdminDateRange,
   useDebouncedValue,
   useSortableData,
 } from "@/modules/admin/ui";
+import { applyAdminDatePreset } from "@/modules/admin/lib/admin-date-range";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
-
-const PERIOD_OPTIONS = [
-  { value: "previous_month", label: "Previous month" },
-  { value: "this_month", label: "This month" },
-  { value: "this_quarter", label: "This quarter" },
-  { value: "all", label: "All periods" },
-];
 
 function formatDisplayDate(value: string) {
   try {
@@ -53,7 +48,12 @@ export function PaySlipsListView() {
   const [generating, startGenerate] = useTransition();
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
-  const [period, setPeriod] = useState(searchParams.get("period") ?? "this_quarter");
+  const {
+    setDateRange,
+    listParams: dateParams,
+    clearDateRange,
+    isDateFiltering,
+  } = useAdminDateRange({ defaultPreset: "this_quarter", legacyPeriodParam: true });
   const [employeeId, setEmployeeId] = useState(searchParams.get("employeeId") ?? "");
   const debouncedSearch = useDebouncedValue(search, 350);
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
@@ -71,7 +71,8 @@ export function PaySlipsListView() {
     const q = new URLSearchParams();
     q.set("page", String(page));
     if (storeId) q.set("storeId", storeId);
-    if (period !== "all") q.set("period", period);
+    if (dateParams.dateFrom) q.set("dateFrom", dateParams.dateFrom);
+    if (dateParams.dateTo) q.set("dateTo", dateParams.dateTo);
     if (employeeId) q.set("employeeId", employeeId);
     if (debouncedSearch.trim()) q.set("search", debouncedSearch.trim());
 
@@ -81,11 +82,11 @@ export function PaySlipsListView() {
         setTotal(res.total);
       })
       .finally(() => setLoading(false));
-  }, [page, storeId, period, employeeId, debouncedSearch]);
+  }, [page, storeId, dateParams.dateFrom, dateParams.dateTo, employeeId, debouncedSearch]);
 
   const listParams: Record<string, string> = {};
   if (storeId) listParams.storeId = storeId;
-  if (period !== "all") listParams.period = period;
+  Object.assign(listParams, dateParams);
   if (employeeId) listParams.employeeId = employeeId;
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
@@ -107,7 +108,7 @@ export function PaySlipsListView() {
         if (res.createdCount === 0) {
           setGenerateError("No new pay slips generated — they may already exist for this period.");
         }
-        setPeriod("previous_month");
+        setDateRange(applyAdminDatePreset("last_month"));
       } catch (err) {
         setGenerateError(err instanceof Error ? err.message : "Generation failed");
       }
@@ -138,15 +139,14 @@ export function PaySlipsListView() {
         searchPlaceholder="Search employee…"
         isEmpty={sorted.length === 0}
         emptyMessage="No pay slips found."
-        isFiltering={Boolean(debouncedSearch.trim()) || period !== "this_quarter" || Boolean(employeeId)}
+        isFiltering={Boolean(debouncedSearch.trim()) || isDateFiltering || Boolean(employeeId)}
         onClearFilters={() => {
           setSearch("");
-          setPeriod("this_quarter");
+          clearDateRange();
           setEmployeeId("");
         }}
         footer={<span>{total} pay slips</span>}
         filters={[
-          { id: "period", label: "Period", value: period, onChange: setPeriod, options: PERIOD_OPTIONS },
           {
             id: "employee",
             label: "Employee",

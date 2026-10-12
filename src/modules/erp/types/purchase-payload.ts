@@ -7,6 +7,7 @@ export type PurchaseLinePayload = {
   purchasePrice: number;
   taxRatePercent: number;
   unitId?: string | null;
+  landedCostAllocated?: number | null;
 };
 
 export type LandedCostPayload = {

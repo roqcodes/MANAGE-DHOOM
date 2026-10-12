@@ -13,7 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { AdminTableLink } from "@/modules/admin/ui/admin-table-link";
-import { formatCustomerId, isCustomerBlocked } from "@/modules/customers/components/customers-ui";
+import { CustomerAvatar } from "@/modules/customers/components/customers-ui";
 import { formatProductPrice } from "@/modules/products/components/products-ui";
 
 export function initialsFromName(name: string): string {
@@ -102,6 +102,8 @@ function AdminTableGlancePopover({
   stats,
   meta,
   avatarInitials,
+  avatarUrl,
+  avatarName,
   mutedTrigger,
 }: {
   triggerLabel: string;
@@ -112,6 +114,8 @@ function AdminTableGlancePopover({
   stats?: { label: string; value: string }[];
   meta?: { icon: LucideIcon; content: ReactNode }[];
   avatarInitials?: string;
+  avatarUrl?: string | null;
+  avatarName?: string | null;
   mutedTrigger?: boolean;
 }) {
   const trimmedTitle = title.trim();
@@ -121,6 +125,7 @@ function AdminTableGlancePopover({
 
   const hasBody =
     Boolean(avatarInitials) ||
+    Boolean(avatarUrl?.trim()) ||
     Boolean(meta?.length) ||
     Boolean(stats?.length) ||
     Boolean(subtitle?.trim());
@@ -146,23 +151,33 @@ function AdminTableGlancePopover({
           <button
             type="button"
             className={cn(
-              "inline-flex max-w-full items-center gap-1 text-left text-[13px] leading-snug hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              "inline-flex max-w-full items-center gap-1.5 text-left text-[13px] leading-snug hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
               mutedTrigger ? "font-normal text-muted-foreground" : "font-medium text-foreground",
               triggerClassName,
             )}
           />
         }
       >
+        {avatarUrl?.trim() || avatarInitials ? (
+          <CustomerAvatar
+            name={avatarName ?? triggerLabel}
+            avatarUrl={avatarUrl}
+            size="sm"
+            className="shrink-0"
+          />
+        ) : null}
         <span className="min-w-0 truncate">{triggerLabel}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-50" aria-hidden />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[17.5rem] gap-0 p-0">
         <AdminTableGlanceShell label={shellLabel} title={trimmedTitle} subtitle={subtitle}>
-          {avatarInitials ? (
+          {avatarUrl?.trim() || avatarInitials ? (
             <div className="flex items-center gap-2">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
-                {avatarInitials}
-              </span>
+              <CustomerAvatar
+                name={avatarName ?? trimmedTitle}
+                avatarUrl={avatarUrl}
+                size="md"
+              />
             </div>
           ) : null}
           {meta?.map((row, i) => (
@@ -214,6 +229,7 @@ export function ErpCustomerTableGlance({
   email,
   phone,
   company,
+  avatarUrl,
 }: {
   userId?: string | null;
   name?: string | null;
@@ -222,6 +238,7 @@ export function ErpCustomerTableGlance({
   email?: string | null;
   phone?: string | null;
   company?: string | null;
+  avatarUrl?: string | null;
 }) {
   const display = name?.trim() || company?.trim() || "—";
   const meta: { icon: LucideIcon; content: ReactNode }[] = [];
@@ -252,6 +269,8 @@ export function ErpCustomerTableGlance({
       title={display}
       subtitle={subtitle}
       avatarInitials={display !== "—" ? initialsFromName(display) : undefined}
+      avatarUrl={avatarUrl}
+      avatarName={display}
       meta={meta.length > 0 ? meta : undefined}
       stats={stats}
     />
@@ -342,29 +361,15 @@ export function ErpDocumentTableGlance({
 
 export function CatalogCustomerTableGlance({ user }: { user: AdminUser }) {
   const name = user.name ?? user.company_name ?? "Unnamed customer";
-  const orderStat =
-    user.order_count != null && user.order_count > 0
-      ? [{ label: "Lifetime orders", value: user.order_count.toLocaleString("en-IN") }]
-      : undefined;
+  const avatarUrl = user.avatar_url?.trim() || null;
 
-  if (!orderStat) {
-    return (
-      <AdminTableLink href={`/admin/customers/${user.id}`} className="text-[13px]">
-        {name}
-      </AdminTableLink>
-    );
-  }
-
-  const blocked = isCustomerBlocked(user);
   return (
-    <AdminTableGlancePopover
-      triggerLabel={name}
-      shellLabel="Customer"
-      title={name}
-      subtitle={`${formatCustomerId(user)}${blocked ? " · Blocked" : ""}`}
-      avatarInitials={initialsFromName(name)}
-      stats={orderStat}
-    />
+    <AdminTableLink href={`/admin/customers/${user.id}`} className="text-[13px]">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-2">
+        <CustomerAvatar name={name} avatarUrl={avatarUrl} size="sm" className="shrink-0" />
+        <span className="truncate">{name}</span>
+      </span>
+    </AdminTableLink>
   );
 }
 

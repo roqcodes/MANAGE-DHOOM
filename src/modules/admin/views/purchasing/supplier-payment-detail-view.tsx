@@ -43,6 +43,8 @@ type PaymentDetail = {
   payment_date: string;
   payment_mode: string;
   total_amount: number;
+  settlement_discount?: number;
+  settlement_discount_account?: { name: string } | null;
   bank_charges: number;
   reference: string | null;
   notes: string | null;
@@ -194,6 +196,7 @@ export function SupplierPaymentDetailView() {
   const paymentRef = formatErpDocRef("PM", data.id);
   const unallocated = Number(data.unallocated_amount);
   const bankCharges = Number(data.bank_charges ?? 0);
+  const settlementDiscount = Number(data.settlement_discount ?? 0);
 
   return (
     <AdminPageLayout>
@@ -359,6 +362,20 @@ export function SupplierPaymentDetailView() {
                 label="Allocated"
                 value={formatCurrencyAmount(allocatedTotal)}
               />
+              {settlementDiscount > 0 ? (
+                <>
+                  <TotalsRow
+                    label="Settlement discount"
+                    value={formatCurrencyAmount(settlementDiscount)}
+                  />
+                  {data.settlement_discount_account?.name ? (
+                    <TotalsRow
+                      label="Discount account"
+                      value={data.settlement_discount_account.name}
+                    />
+                  ) : null}
+                </>
+              ) : null}
               {bankCharges > 0 ? (
                 <>
                   <Separator />

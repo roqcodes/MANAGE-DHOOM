@@ -8,10 +8,12 @@ import type {
   BulkCustomerPaymentAllocationRow,
   BulkCustomerPaymentBatchRow,
   BulkCustomerPaymentLine,
+  CustomerPaymentListSummary,
   ErpPaymentListRow,
   ErpPaymentSummary,
   PaidThroughAccountOption,
   PaymentAllocationInput,
+  ReceivableInvoiceRow,
 } from "@/common/erp/sales-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import {
@@ -20,8 +22,6 @@ import {
   withAccountStoreScope,
 } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
-import { invokeRpc } from "@/lib/integrations/supabase/rpc";
-
 const CUSTOMER_BULK_REF_PREFIX = "CBPB:";
 
 type PaymentListFilters = {
@@ -84,6 +84,44 @@ function applyPaymentListFilters(
   return next;
 }
 
+type CustomerPaymentSummaryRow = {
+  payment_mode: string;
+  total_amount: number | string | null;
+  settlement_discount?: number | string | null;
+  bank_charges?: number | string | null;
+};
+
+function aggregateCustomerListSummary(
+  rows: CustomerPaymentSummaryRow[],
+  receivable: number,
+): CustomerPaymentListSummary {
+  const summary = emptyPaymentSummary();
+  let settlementDiscount = 0;
+  let bankCharges = 0;
+  for (const row of rows) {
+    addToSummary(summary, row.payment_mode, Number(row.total_amount ?? 0));
+    settlementDiscount += Number(row.settlement_discount ?? 0);
+    bankCharges += Number(row.bank_charges ?? 0);
+  }
+  return { ...summary, settlementDiscount, receivable, bankCharges };
+}
+
+async function sumOutstandingReceivables(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  storeId?: string,
+): Promise<number> {
+  const activeStoreId = await resolveErpStoreId(storeId);
+  let query = supabase
+    .from("invoices")
+    .select("balance_due")
+    .gt("balance_due", 0)
+    .neq("status", "cancelled");
+  if (activeStoreId) query = query.eq("store_id", activeStoreId);
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return (data ?? []).reduce((sum, row) => sum + Number(row.balance_due ?? 0), 0);
+}
+
 function invoiceNumbersFromAllocations(
   allocations: AllocationRow[] | null | undefined,
 ): string | null {
@@ -97,7 +135,7 @@ function invoiceNumbersFromAllocations(
 export async function listErpPayments(filters: PaymentListFilters = {}): Promise<{
   data: ErpPaymentListRow[];
   total: number;
-  summary: ErpPaymentSummary;
+  summary: CustomerPaymentListSummary;
 }> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
@@ -118,7 +156,7 @@ export async function listErpPayments(filters: PaymentListFilters = {}): Promise
       .order("payment_date", { ascending: false })
       .range(from, from + limit - 1),
     scopedFilters,
-  );
+  ).eq("is_bulk", false);
 
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
@@ -159,34 +197,19 @@ export async function listErpPayments(filters: PaymentListFilters = {}): Promise
     });
   }
 
-  const summary = emptyPaymentSummary();
-  const { data: summaryRows, error: summaryError } = await invokeRpc(
-    supabase,
-    "summarize_erp_customer_payments",
-    {
-      p_store_id: activeStoreId ?? undefined,
-      p_date_from: filters.dateFrom ?? undefined,
-      p_date_to: filters.dateTo ?? undefined,
-    },
+  const summaryQuery = applyPaymentListFilters(
+    supabase
+      .from("erp_customer_payments")
+      .select("payment_mode, total_amount, settlement_discount, bank_charges"),
+    scopedFilters,
+  ).eq("is_bulk", false);
+  const { data: summaryRows, error: summaryErr } = await summaryQuery;
+  if (summaryErr) throw new Error(summaryErr.message);
+  const receivable = await sumOutstandingReceivables(supabase, activeStoreId ?? undefined);
+  const summary = aggregateCustomerListSummary(
+    (summaryRows ?? []) as CustomerPaymentSummaryRow[],
+    receivable,
   );
-  if (summaryError) {
-    let summaryQuery = applyPaymentListFilters(
-      supabase.from("erp_customer_payments").select("payment_mode, total_amount"),
-      scopedFilters,
-    );
-    const { data: fallbackRows, error: fallbackErr } = await summaryQuery;
-    if (fallbackErr) throw new Error(fallbackErr.message);
-    for (const row of fallbackRows ?? []) {
-      addToSummary(summary, row.payment_mode, Number(row.total_amount ?? 0));
-    }
-  } else {
-    for (const row of (summaryRows ?? []) as {
-      payment_mode: string;
-      total_amount: number;
-    }[]) {
-      addToSummary(summary, row.payment_mode, Number(row.total_amount ?? 0));
-    }
-  }
 
   return {
     data: rows,
@@ -208,23 +231,52 @@ export async function recordCustomerPayment(input: {
   notes?: string;
   isBulk?: boolean;
   allocations: PaymentAllocationInput[];
+  autoAllocate?: boolean;
+  settlementDiscount?: number;
+  settlementDiscountAccountId?: string | null;
 }): Promise<string> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(input.storeId);
   if (!input.accountId) throw new Error("Deposit account is required");
 
+  let allocations = input.allocations;
+  if (allocations.length === 0 && input.autoAllocate) {
+    allocations = await buildAutoAllocationsForCustomer(
+      input.userId,
+      input.totalAmount,
+      storeId,
+    );
+    if (allocations.length === 0) {
+      throw new Error("No open invoices available for FIFO allocation.");
+    }
+  }
+
   const bankCharges = input.bankCharges ?? 0;
   if (bankCharges > 0 && !input.bankChargesAccountId) {
     throw new Error("Expense account is required when bank charges are recorded");
   }
 
-  const allocJson: Json = input.allocations.map((a) => ({
+  const settlementDiscount = input.settlementDiscount ?? 0;
+  if (settlementDiscount > 0 && !input.settlementDiscountAccountId) {
+    throw new Error("Discount account is required when settlement discount is recorded");
+  }
+
+  const allocTotal = allocations.reduce((s, a) => s + a.amount, 0);
+  if (settlementDiscount > 0) {
+    if (Math.abs(allocTotal - (input.totalAmount + settlementDiscount)) > 0.02) {
+      throw new Error("Allocation total must equal payment amount plus settlement discount");
+    }
+  } else if (allocTotal > input.totalAmount) {
+    throw new Error("Allocation total exceeds payment amount");
+  }
+
+  const allocJson: Json = allocations.map((a) => ({
     invoice_id: a.invoiceId,
     amount: a.amount,
   })) as Json;
 
-  const { data, error } = await supabase.rpc("record_erp_customer_payment", {
+  const rpcArgs: Record<string, unknown> = {
     p_user_id: input.userId,
     p_store_id: storeId,
     p_payment_date: input.paymentDate,
@@ -237,7 +289,13 @@ export async function recordCustomerPayment(input: {
     p_allocations: allocJson,
     p_bank_charges: bankCharges,
     p_bank_charges_account_id: input.bankChargesAccountId ?? undefined,
-  });
+  };
+  if (settlementDiscount > 0) {
+    rpcArgs.p_settlement_discount = settlementDiscount;
+    rpcArgs.p_settlement_discount_account_id = input.settlementDiscountAccountId ?? undefined;
+  }
+
+  const { data, error } = await supabase.rpc("record_erp_customer_payment", rpcArgs as never);
 
   if (error) throw new Error(error.message);
 
@@ -258,7 +316,7 @@ export async function getPaymentDetail(paymentId: string) {
   const { data, error } = await supabase
     .from("erp_customer_payments")
     .select(
-      "*, users:users!erp_customer_payments_user_id_fkey(name, email), stores(name), accounts!erp_customer_payments_account_id_fkey(name), bank_charges_account:accounts!erp_customer_payments_bank_charges_account_id_fkey(name), erp_payment_allocations(*, invoices(id, invoice_number, total_amount, balance_due))",
+      "*, users:users!erp_customer_payments_user_id_fkey(name, email), stores(name), accounts!erp_customer_payments_account_id_fkey(name), bank_charges_account:accounts!erp_customer_payments_bank_charges_account_id_fkey(name), settlement_discount_account:accounts!erp_customer_payments_settlement_discount_account_id_fkey(name), erp_payment_allocations(*, invoices(id, invoice_number, total_amount, balance_due))",
     )
     .eq("id", paymentId)
     .single();
@@ -352,7 +410,7 @@ export async function listExpenseAccounts(
   const { data, error } = await withAccountStoreScope(
     supabase
       .from("accounts")
-      .select("id, code, name, store_id, account_types(name), stores(name)")
+      .select("id, code, name, store_id, account_types(name, account_category), stores(name)")
       .eq("is_active", true)
       .order("name"),
     activeStoreId,
@@ -362,9 +420,10 @@ export async function listExpenseAccounts(
 
   return (data ?? [])
     .filter((row) => {
-      const type = row.account_types as { name: string } | null;
+      const type = row.account_types as { name: string; account_category?: string } | null;
       const typeName = type?.name ?? "";
-      return /expense/i.test(typeName);
+      const category = type?.account_category ?? "";
+      return category === "Expense" || /expense|cost of goods/i.test(typeName);
     })
     .map((row) => {
       const type = row.account_types as { name: string } | null;
@@ -379,17 +438,107 @@ export async function listExpenseAccounts(
     });
 }
 
+/** Income accounts (supplier settlement discounts — credited on payment). */
+export async function listIncomeAccounts(
+  storeId?: string,
+): Promise<PaidThroughAccountOption[]> {
+  await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+  const activeStoreId = await resolveErpStoreId(storeId);
+
+  const { data, error } = await withAccountStoreScope(
+    supabase
+      .from("accounts")
+      .select("id, code, name, store_id, account_types(name, account_category), stores(name)")
+      .eq("is_active", true)
+      .order("name"),
+    activeStoreId,
+  );
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .filter((row) => {
+      const type = row.account_types as { name: string; account_category?: string } | null;
+      const category = type?.account_category ?? "";
+      const typeName = type?.name ?? "";
+      return category === "Income" || /income/i.test(typeName);
+    })
+    .map((row) => {
+      const type = row.account_types as { name: string } | null;
+      const store = row.stores as { name: string } | null;
+      return {
+        id: row.id,
+        code: row.code,
+        name: row.name,
+        account_type_name: type?.name ?? "—",
+        store_name: store?.name ?? null,
+      };
+    });
+}
+
+export async function listReceivableInvoicesForCustomer(
+  userId: string,
+  storeId?: string,
+): Promise<ReceivableInvoiceRow[]> {
+  await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+  const activeStoreId = await resolveErpStoreId(storeId);
+
+  let query = supabase
+    .from("invoices")
+    .select("id, invoice_number, due_date, total_amount, amount_paid, balance_due")
+    .eq("user_id", userId)
+    .gt("balance_due", 0)
+    .neq("status", "cancelled")
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (activeStoreId) query = query.eq("store_id", activeStoreId);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    invoice_number: row.invoice_number,
+    due_date: row.due_date,
+    total_amount: Number(row.total_amount ?? 0),
+    amount_paid: Number(row.amount_paid ?? 0),
+    balance_due: Number(row.balance_due ?? 0),
+  }));
+}
+
+async function buildAutoAllocationsForCustomer(
+  userId: string,
+  amount: number,
+  storeId?: string,
+): Promise<PaymentAllocationInput[]> {
+  const invoices = await listReceivableInvoicesForCustomer(userId, storeId);
+  let remaining = amount;
+  const allocations: PaymentAllocationInput[] = [];
+  for (const invoice of invoices) {
+    if (remaining <= 0) break;
+    const alloc = Math.min(remaining, invoice.balance_due);
+    if (alloc <= 0) continue;
+    allocations.push({ invoiceId: invoice.id, amount: alloc });
+    remaining -= alloc;
+  }
+  return allocations;
+}
+
 export async function buildFifoAllocationsForAmount(
   storeId: string,
   amount: number,
   excludeInvoiceIds: string[] = [],
+  userId?: string,
 ): Promise<PaymentAllocationInput[]> {
   if (amount <= 0) return [];
 
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("invoices")
     .select("id, balance_due, due_date")
     .eq("store_id", storeId)
@@ -397,6 +546,12 @@ export async function buildFifoAllocationsForAmount(
     .neq("status", "cancelled")
     .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
+
+  if (userId) {
+    query = query.eq("user_id", userId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw new Error(error.message);
 
@@ -439,6 +594,44 @@ function periodToDateRange(period?: string): { dateFrom?: string; dateTo?: strin
   return {};
 }
 
+async function summarizeBulkCustomerPayments(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  options: {
+    storeId?: string;
+    period?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    search?: string;
+  },
+): Promise<CustomerPaymentListSummary> {
+  const periodRange = periodToDateRange(options.period);
+  const dateFrom = options.dateFrom ?? periodRange.dateFrom;
+  const dateTo = options.dateTo ?? periodRange.dateTo;
+
+  let summaryQuery = supabase
+    .from("erp_customer_payments")
+    .select("payment_mode, total_amount, settlement_discount, bank_charges")
+    .eq("is_bulk", true)
+    .like("reference", `${CUSTOMER_BULK_REF_PREFIX}%`);
+
+  if (options.storeId) summaryQuery = summaryQuery.eq("store_id", options.storeId);
+  if (dateFrom) summaryQuery = summaryQuery.gte("payment_date", dateFrom);
+  if (dateTo) summaryQuery = summaryQuery.lte("payment_date", dateTo);
+  if (options.search?.trim()) {
+    const s = options.search.trim();
+    summaryQuery = summaryQuery.or(`reference.ilike.%${s}%,notes.ilike.%${s}%`);
+  }
+
+  const { data: summaryRows, error: summaryErr } = await summaryQuery;
+  if (summaryErr) throw new Error(summaryErr.message);
+
+  const receivable = await sumOutstandingReceivables(supabase, options.storeId);
+  return aggregateCustomerListSummary(
+    (summaryRows ?? []) as CustomerPaymentSummaryRow[],
+    receivable,
+  );
+}
+
 export async function listBulkCustomerPaymentBatches(
   options: {
     page?: number;
@@ -449,7 +642,12 @@ export async function listBulkCustomerPaymentBatches(
     dateTo?: string;
     search?: string;
   } = {},
-): Promise<{ data: BulkCustomerPaymentBatchRow[]; total: number; totalAmount: number }> {
+): Promise<{
+  data: BulkCustomerPaymentBatchRow[];
+  total: number;
+  totalAmount: number;
+  summary: CustomerPaymentListSummary;
+}> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const periodRange = periodToDateRange(options.period);
@@ -556,10 +754,13 @@ export async function listBulkCustomerPaymentBatches(
   const limit = options.limit ?? 20;
   const from = page * limit;
 
+  const summary = await summarizeBulkCustomerPayments(supabase, options);
+
   return {
     data: batches.slice(from, from + limit),
     total: batches.length,
     totalAmount,
+    summary,
   };
 }
 

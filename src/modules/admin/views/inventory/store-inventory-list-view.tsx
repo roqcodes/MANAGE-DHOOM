@@ -1,9 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import type { StockDetailRow } from "@/common/erp/inventory-types";
+import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
+import type { StoreInventoryProductDetail } from "@/common/erp/store-inventory-types";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +41,7 @@ function StockBadge({ value }: { value: number }) {
 }
 
 export function StoreInventoryListView() {
+  const queryClient = useQueryClient();
   const { stores } = useErpStores();
   const { storeId, erpContextLoading } = useActiveStoreScope();
   const [search, setSearch] = useState("");
@@ -57,6 +62,19 @@ export function StoreInventoryListView() {
 
   const activeStoreName =
     stores.find((s) => s.id === storeId)?.name ?? stores[0]?.name ?? "—";
+
+  function prefetchProductDetail(pid: string) {
+    if (!storeId) return;
+    const path = adminListPath(`erp/store-inventory/${pid}`, { storeId });
+    void queryClient.prefetchQuery({
+      queryKey: adminQueryKeys.erpGet(path),
+      queryFn: async () => {
+        const res = await adminGet<{ data: StoreInventoryProductDetail }>(path);
+        return res.data;
+      },
+      staleTime: 2 * 60 * 1000,
+    });
+  }
 
   const filtered = useMemo(() => {
     if (!debouncedSearch.trim()) return sorted;
@@ -148,6 +166,7 @@ export function StoreInventoryListView() {
             {filtered.map((r) => (
               <AdminTableRow
                 key={r.product_id}
+                onMouseEnter={() => prefetchProductDetail(r.product_id)}
                 onClick={() => setDetailProductId(r.product_id)}
               >
                 <AdminTableCell className="font-medium">{r.product_name}</AdminTableCell>

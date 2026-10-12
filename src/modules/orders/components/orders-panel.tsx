@@ -3,14 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { format, isAfter, isBefore, startOfDay, endOfDay, subDays } from "date-fns";
+import { isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import { Ban, ChevronDown, Columns3, Search } from "lucide-react";
 
 import type { Order, OrderCatalogStats } from "@/common/admin/types";
 import type { OutboxOperationRecord } from "@/lib/sync/outbox-types";
 import type { OrderFilterUserRow } from "@/modules/orders/services/orders.service";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { CustomerSearchSelect } from "@/modules/admin/ui";
+import { CustomerSearchSelect, useAdminDateRange } from "@/modules/admin/ui";
 import { resolveCustomerPickerOption } from "@/modules/erp/lib/entity-live-search.client";
 import {
   exportOrdersCsv,
@@ -90,11 +90,8 @@ export function OrdersPanel({
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [viewFilter, setViewFilter] = useState<OrdersViewFilter>("all");
-  const [datePreset, setDatePreset] = useState<"7" | "30" | "90" | "custom">("30");
-  const [dateFrom, setDateFrom] = useState(
-    format(subDays(new Date(), 30), "yyyy-MM-dd"),
-  );
-  const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  const { from: dateFrom, to: dateTo, isDateFiltering, clearDateRange } =
+    useAdminDateRange({ defaultPreset: "last_30" });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [customerFilterLabel, setCustomerFilterLabel] = useState("");
 
@@ -144,7 +141,7 @@ export function OrdersPanel({
     search.trim().length > 0 ||
     viewFilter !== "all" ||
     selectedUserId !== null ||
-    datePreset === "custom";
+    isDateFiltering;
 
   const activeFilterLabel =
     ORDERS_VIEW_FILTERS.find((f) => f.id === viewFilter)?.label ?? "All";
@@ -153,12 +150,6 @@ export function OrdersPanel({
     <div className="flex flex-col gap-4">
       <OrdersMetricsBar
         stats={stats}
-        datePreset={datePreset}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onDatePresetChange={setDatePreset}
-        onDateFromChange={setDateFrom}
-        onDateToChange={setDateTo}
         onExport={() => exportOrdersCsv(filtered)}
         variant={channel}
       />
@@ -272,10 +263,7 @@ export function OrdersPanel({
                   onClick={() => {
                     setSearch("");
                     setViewFilter("all");
-                    setDatePreset("30");
-                    const to = new Date();
-                    setDateFrom(format(subDays(to, 30), "yyyy-MM-dd"));
-                    setDateTo(format(to, "yyyy-MM-dd"));
+                    clearDateRange();
                   }}
                 >
                   Clear filters

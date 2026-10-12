@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useMemo, useTransition } from "react";
 import { Plus } from "lucide-react";
 
 import type { ErpPurchaseBillListRow } from "@/common/erp/purchasing-types";
@@ -35,6 +35,19 @@ import {
 } from "@/modules/admin/ui";
 import { PurchaseBillFormView } from "@/modules/admin/views/purchasing/purchase-bill-form-view";
 import { useErpListState } from "@/modules/admin/ui/use-erp-list-state";
+import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
+import { usePendingErpOutboxOperations } from "@/lib/sync/hooks/use-pending-erp-outbox-operations";
+import {
+  filterPurchaseBillOutboxForList,
+  PurchaseBillOutboxTableRows,
+} from "@/modules/admin/components/purchase-bill-outbox-table-rows";
+
+const PURCHASE_BILL_OUTBOX_TYPES = new Set<string>([
+  ERP_CLIENT_OPERATION_TYPES.purchaseBill.create,
+  ERP_CLIENT_OPERATION_TYPES.purchaseBill.update,
+  ERP_CLIENT_OPERATION_TYPES.purchaseBill.finalize,
+  ERP_CLIENT_OPERATION_TYPES.purchaseBill.cancel,
+]);
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
@@ -54,10 +67,6 @@ export function PurchaseBillsListView() {
     debouncedSearch,
     status,
     setStatus,
-    dateFrom,
-    setDateFrom,
-    dateTo,
-    setDateTo,
     page,
     listParams,
     isFiltering,
@@ -75,6 +84,18 @@ export function PurchaseBillsListView() {
   });
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
+  const { active: outboxActive, needsAttention: outboxAttention } =
+    usePendingErpOutboxOperations(PURCHASE_BILL_OUTBOX_TYPES);
+  const serverBillIds = useMemo(() => new Set(rows.map((r) => r.id)), [rows]);
+  const queuedBillOps = useMemo(
+    () =>
+      filterPurchaseBillOutboxForList([...outboxActive, ...outboxAttention], {
+        storeId: activeStoreId,
+        serverBillIds,
+      }),
+    [outboxActive, outboxAttention, activeStoreId, serverBillIds],
+  );
+  const hasQueuedBills = queuedBillOps.length > 0;
   const loadError = isError
     ? error instanceof Error
       ? error.message
@@ -120,16 +141,10 @@ export function PurchaseBillsListView() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search bill, vendor bill, batch…"
-        isEmpty={sorted.length === 0}
+        isEmpty={sorted.length === 0 && !hasQueuedBills}
         emptyMessage="No purchase bills found."
         isFiltering={isFiltering}
         onClearFilters={clearFilters}
-        dateRange={{
-          from: dateFrom,
-          to: dateTo,
-          onFromChange: setDateFrom,
-          onToChange: setDateTo,
-        }}
         filters={[
           {
             id: "status",
@@ -186,6 +201,14 @@ export function PurchaseBillsListView() {
               onSort={toggleSort}
             />
             <SortableTableHead
+              label="Landed"
+              sortKey="landed_cost_total"
+              activeKey={sortKey}
+              direction={sortDirection}
+              onSort={toggleSort}
+              align="right"
+            />
+            <SortableTableHead
               label="Total"
               sortKey="total_amount"
               activeKey={sortKey}
@@ -204,6 +227,7 @@ export function PurchaseBillsListView() {
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
           <AdminTableBody>
+            <PurchaseBillOutboxTableRows operations={queuedBillOps} />
             {sorted.map((r) => {
               const canCancel =
                 r.status !== "cancelled" &&
@@ -227,6 +251,14 @@ export function PurchaseBillsListView() {
                       viewLabel="View purchase bill →"
                       stats={[
                         { label: "Total", value: formatCurrencyAmount(r.total_amount) },
+                        ...(r.landed_cost_total > 0
+                          ? [
+                              {
+                                label: "Landed",
+                                value: formatCurrencyAmount(r.landed_cost_total),
+                              },
+                            ]
+                          : []),
                         { label: "Balance", value: formatCurrencyAmount(r.balance_due) },
                       ]}
                     />
@@ -248,6 +280,11 @@ export function PurchaseBillsListView() {
                   </AdminTableCell>
                   <AdminTableCell>
                     <StatusBadge status={r.display_status} />
+                  </AdminTableCell>
+                  <AdminTableCell align="right" className="tabular-nums text-muted-foreground">
+                    {r.landed_cost_total > 0
+                      ? formatCurrencyAmount(r.landed_cost_total)
+                      : "—"}
                   </AdminTableCell>
                   <AdminTableCell align="right" className="tabular-nums">
                     {formatCurrencyAmount(r.total_amount)}

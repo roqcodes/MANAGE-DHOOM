@@ -21,6 +21,7 @@ import {
   selectCls,
 } from "@/modules/admin/components/modal";
 import { invalidateAdminProductCatalogQueries } from "@/modules/erp/lib/erp-product-live-search.client";
+import { DEFAULT_ITEM_TAX_RATE_PERCENT } from "@/modules/tax/default-item-tax-rate";
 
 export type QuickProductCreateModalProps = {
   /** Prefill product name from search query. */
@@ -70,7 +71,9 @@ export function QuickProductCreateModal({
     }
 
     const purchasePrice = purchasePriceRaw ? parseFloat(purchasePriceRaw) : 0;
-    const taxRatePercent = taxRateRaw ? parseFloat(taxRateRaw) : 0;
+    const taxRatePercent = taxRateRaw
+      ? parseFloat(taxRateRaw)
+      : DEFAULT_ITEM_TAX_RATE_PERCENT;
 
     if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
       setError("Enter a valid purchase price.");
@@ -164,7 +167,7 @@ export function QuickProductCreateModal({
                 type="number"
                 min={0}
                 step="any"
-                placeholder="0"
+                defaultValue={DEFAULT_ITEM_TAX_RATE_PERCENT}
               />
             </FieldLabel>
           </div>

@@ -1,15 +1,19 @@
 export type PurchaseHistoryRow = {
+  lineId: string;
   billId: string;
   billNumber: string;
   billDate: string;
   vendorName: string | null;
   quantity: number;
   unitPrice: number;
+  /** Landed cost allocated to this bill line (document share). */
+  landedCostAllocated: number | null;
   loadedUnitCost: number | null;
   lineTotal: number;
 };
 
 export type SalesHistoryRow = {
+  lineId: string;
   invoiceId: string;
   invoiceNumber: string;
   invoiceDate: string;
@@ -38,6 +42,48 @@ export type StoreProductSalesGlance = {
   recent: SalesHistoryRow[];
 };
 
+/** Customer sales return (credit note line). */
+export type SalesReturnHistoryRow = {
+  lineId: string;
+  creditNoteId: string;
+  creditNoteNumber: string;
+  creditNoteDate: string;
+  customerName: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+export type StoreProductSalesReturnGlance = {
+  minUnitPrice: number | null;
+  maxUnitPrice: number | null;
+  avgUnitPrice: number | null;
+  returnCount: number;
+  totalQtyReturned: number;
+  recent: SalesReturnHistoryRow[];
+};
+
+/** Vendor return (vendor credit line). */
+export type VendorReturnHistoryRow = {
+  lineId: string;
+  vendorCreditId: string;
+  creditNumber: string;
+  creditDate: string;
+  vendorName: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+export type StoreProductVendorReturnGlance = {
+  minUnitPrice: number | null;
+  maxUnitPrice: number | null;
+  avgUnitPrice: number | null;
+  returnCount: number;
+  totalQtyReturned: number;
+  recent: VendorReturnHistoryRow[];
+};
+
 export type StoreInventoryMovementRow = {
   id: string;
   createdAt: string;
@@ -63,5 +109,7 @@ export type StoreInventoryProductDetail = {
   storeWac: number | null;
   purchase: StoreProductPurchaseGlance;
   sales: StoreProductSalesGlance;
+  salesReturns: StoreProductSalesReturnGlance;
+  vendorReturns: StoreProductVendorReturnGlance;
   movements: StoreInventoryMovementRow[];
 };

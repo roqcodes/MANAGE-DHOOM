@@ -12,7 +12,7 @@ import {
 
 export type CustomerTypeaheadRow = Pick<
   AdminUser,
-  "id" | "name" | "email" | "phone" | "customer_number"
+  "id" | "name" | "email" | "phone" | "customer_number" | "avatar_url"
 >;
 
 type CustomerRpcRow = {
@@ -21,6 +21,7 @@ type CustomerRpcRow = {
   email: string | null;
   phone: string | null;
   customer_number: string | null;
+  avatar_url: string | null;
 };
 
 /** One-round-trip customer search (exact → prefix → substring). Falls back to PostgREST if RPC missing. */
@@ -33,7 +34,7 @@ export async function searchCustomersTypeahead(
   if (!trimmed) {
     const { data, error } = await supabase
       .from("users")
-      .select("id, name, email, phone, customer_number")
+      .select("id, name, email, phone, customer_number, avatar_url")
       .or(CUSTOMER_ROLE_OR_FILTER)
       .order("name")
       .limit(limit);
@@ -64,7 +65,7 @@ async function searchCustomersViaPostgrest(
   const base = () =>
     supabase
       .from("users")
-      .select("id, name, email, phone, customer_number")
+      .select("id, name, email, phone, customer_number, avatar_url")
       .or(CUSTOMER_ROLE_OR_FILTER);
 
   const prefix = buildPrefixIlikePattern(trimmed);
