@@ -1,9 +1,6 @@
 import "server-only";
 
-import { unstable_cache } from "next/cache";
-
 import {
-  PUBLIC_TAX_RATES_CACHE_TAG,
   revalidatePublicTaxRates,
 } from "@/lib/cache/public-catalog-cache";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
@@ -30,25 +27,17 @@ export interface TaxCalculationResult {
 
 export type PublicTaxRatesSnapshot = {
   rates: TaxRateRow[];
-  defaultRate: number;
+  defaultRate: TaxRateRow | null;
 };
 
-/** Cached reference rates for storefront/tax API (not POS transactional tax). */
+/**
+ * Reference rates for storefront/tax API (not POS transactional tax).
+ * Not wrapped in `unstable_cache` — that API cannot call `cookies()` via the SSR client.
+ */
 export async function getPublicTaxRatesSnapshot(): Promise<PublicTaxRatesSnapshot> {
-  return unstable_cache(
-    async () => {
-      const [rates, defaultRate] = await Promise.all([
-        getAllTaxRates(),
-        getDefaultTaxRate(),
-      ]);
-      return { rates, defaultRate };
-    },
-    ["public-tax-rates-snapshot"],
-    {
-      tags: [PUBLIC_TAX_RATES_CACHE_TAG],
-      revalidate: 300,
-    },
-  )();
+  const rates = await getAllTaxRates();
+  const defaultRate = rates.find((r) => r.is_default) ?? rates[0] ?? null;
+  return { rates, defaultRate };
 }
 
 export async function getAllTaxRates(): Promise<TaxRateRow[]> {

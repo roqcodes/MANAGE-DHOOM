@@ -11,6 +11,8 @@ import {
 
 import {
   applyAdminDatePreset,
+  readStoredAdminDateRange,
+  writeStoredAdminDateRange,
   type AdminDatePreset,
   type AdminDateRangeValue,
 } from "@/modules/admin/lib/admin-date-range";
@@ -25,13 +27,22 @@ type AdminDateRangeContextValue = {
 
 const AdminDateRangeContext = createContext<AdminDateRangeContextValue | null>(null);
 
+function initialDateRange(): AdminDateRangeValue {
+  return readStoredAdminDateRange() ?? applyAdminDatePreset("today");
+}
+
 export function AdminDateRangeProvider({ children }: { children: ReactNode }) {
-  const [value, setValue] = useState<AdminDateRangeValue>(() => applyAdminDatePreset("today"));
+  const [value, setValueState] = useState<AdminDateRangeValue>(initialDateRange);
   const [pageDefaultPreset, setPageDefaultPreset] = useState<AdminDatePreset>("today");
+
+  const setValue = useCallback((next: AdminDateRangeValue) => {
+    setValueState(next);
+    writeStoredAdminDateRange(next);
+  }, []);
 
   const clearDateRange = useCallback(() => {
     setValue(applyAdminDatePreset(pageDefaultPreset));
-  }, [pageDefaultPreset]);
+  }, [pageDefaultPreset, setValue]);
 
   const ctx = useMemo(
     () => ({
@@ -41,7 +52,7 @@ export function AdminDateRangeProvider({ children }: { children: ReactNode }) {
       setPageDefaultPreset,
       clearDateRange,
     }),
-    [value, pageDefaultPreset, clearDateRange],
+    [value, pageDefaultPreset, clearDateRange, setValue],
   );
 
   return (

@@ -16,9 +16,11 @@ import {
 import { FieldError } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import type { CurrencySettings } from "@/lib/format-currency";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
-import { updateAppSettingsAction } from "@/modules/settings/actions/app-settings.actions";
+import {
+  adminAppSettingsQueryOptions,
+  patchAdminAppSettings,
+} from "@/modules/settings/lib/app-settings-query";
 
 export function InventorySettingsCard() {
   const queryClient = useQueryClient();
@@ -28,10 +30,7 @@ export function InventorySettingsCard() {
   const [allowNegative, setAllowNegative] = useState(false);
 
   const { data, isLoading, isError, error: loadError, refetch } = useQuery({
-    queryKey: adminQueryKeys.appSettings(),
-    queryFn: () =>
-      adminGet<{ settings: CurrencySettings }>("settings").then((r) => r.settings),
-    staleTime: 60_000,
+    ...adminAppSettingsQueryOptions(),
     retry: 1,
   });
 
@@ -71,7 +70,7 @@ export function InventorySettingsCard() {
     setSavedMsg(null);
     startTransition(async () => {
       try {
-        const saved = await updateAppSettingsAction({
+        const saved = await patchAdminAppSettings({
           ...data,
           allow_negative_store_stock: allowNegative,
         });

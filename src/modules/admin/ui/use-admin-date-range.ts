@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import {
   applyAdminDatePreset,
@@ -15,10 +15,9 @@ import { useAdminDateRangeContext } from "@/modules/admin/providers/admin-date-r
 
 export function useAdminDateRange(options?: {
   defaultPreset?: AdminDatePreset;
-  /** Read initial range from `period` search param (legacy lists). */
+  /** Read range from `period` search param when present (legacy lists). */
   legacyPeriodParam?: boolean;
 }) {
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const defaultPreset = options?.defaultPreset ?? "today";
   const { value, setValue, setPageDefaultPreset, clearDateRange: clearGlobal } =
@@ -26,8 +25,9 @@ export function useAdminDateRange(options?: {
 
   useEffect(() => {
     setPageDefaultPreset(defaultPreset);
-  }, [defaultPreset, pathname, setPageDefaultPreset]);
+  }, [defaultPreset, setPageDefaultPreset]);
 
+  /** Apply URL date params only when explicitly present (shared links / pagination). */
   useEffect(() => {
     if (options?.legacyPeriodParam) {
       const period = searchParams.get("period");
@@ -36,22 +36,16 @@ export function useAdminDateRange(options?: {
         return;
       }
     }
-    const from = searchParams.get("dateFrom") ?? "";
-    const to = searchParams.get("dateTo") ?? "";
-    if (from || to) {
-      setValue({ preset: detectAdminDatePreset(from, to), from, to });
-      return;
+    const from = searchParams.get("dateFrom");
+    const to = searchParams.get("dateTo");
+    if (from != null || to != null) {
+      const fromStr = from ?? "";
+      const toStr = to ?? "";
+      if (fromStr || toStr) {
+        setValue({ preset: detectAdminDatePreset(fromStr, toStr), from: fromStr, to: toStr });
+      }
     }
-    if (
-      defaultPreset !== "all" &&
-      value.preset === "all" &&
-      !value.from &&
-      !value.to
-    ) {
-      setValue(applyAdminDatePreset(defaultPreset));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync URL/defaults when route or params change
-  }, [pathname, searchParams]);
+  }, [searchParams, options?.legacyPeriodParam, setValue]);
 
   const setPreset = useCallback(
     (preset: AdminDatePreset) => {

@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import { adminAppSettingsQueryOptions } from "@/modules/settings/lib/app-settings-query";
 import { adminListPath } from "@/modules/admin/lib/use-admin-get-query";
 import { getAdminPrimaryGetInFlight } from "@/modules/admin/lib/admin-primary-get";
 import type { ErpContextQueryData } from "@/modules/erp/components/use-erp-stores";
@@ -203,9 +204,7 @@ export function prefetchAdminRoute(
 
   if (p === "/admin/business") {
     return qc.prefetchQuery({
-      queryKey: adminQueryKeys.appSettings(),
-      queryFn: () => adminGet("settings"),
-      staleTime: STALE,
+      ...adminAppSettingsQueryOptions(STALE),
     });
   }
 

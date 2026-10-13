@@ -21,8 +21,7 @@ import type { SalesOrderUpdatePayload } from "@/modules/orders/types/sales-order
 import { salesOrderResourceScope } from "@/modules/orders/types/sales-order-update-payload";
 import type { SalesOrderDetail } from "@/modules/orders/services/sales-order-detail.service";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
-import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
-import type { CurrencySettings } from "@/lib/format-currency";
+import { adminAppSettingsQueryOptions } from "@/modules/settings/lib/app-settings-query";
 import type { LineProductContextMap } from "@/common/erp/line-product-context";
 import { getSalesLinesStockFeedback } from "@/modules/erp/lib/sales-line-stock-validation";
 import {
@@ -79,12 +78,7 @@ export function SalesOrderFormView({
   const [loadingOrder, setLoadingOrder] = useState(isEdit);
   const isModal = variant === "modal";
 
-  const { data: appSettings } = useQuery({
-    queryKey: adminQueryKeys.appSettings(),
-    queryFn: () =>
-      adminGet<{ settings: CurrencySettings }>("settings").then((r) => r.settings),
-    staleTime: 60_000,
-  });
+  const { data: appSettings } = useQuery(adminAppSettingsQueryOptions());
   const allowNegativeStoreStock = appSettings?.allow_negative_store_stock ?? false;
 
   const [customerId, setCustomerId] = useState("");

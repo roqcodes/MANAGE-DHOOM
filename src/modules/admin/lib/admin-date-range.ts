@@ -161,3 +161,46 @@ export function legacyPeriodToAdminDateRange(period: string): AdminDateRangeValu
   if (period === "previous_month") return applyAdminDatePreset("last_month");
   return { preset: "custom", from: "", to: "" };
 }
+
+export const ADMIN_DATE_RANGE_STORAGE_KEY = "buyhub.admin.dateRange.v1";
+
+const VALID_PRESETS = new Set<AdminDatePreset>(
+  ADMIN_DATE_PRESET_OPTIONS.map((o) => o.id),
+);
+
+export function parseStoredAdminDateRange(raw: string | null): AdminDateRangeValue | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<AdminDateRangeValue>;
+    if (
+      !parsed ||
+      typeof parsed.preset !== "string" ||
+      !VALID_PRESETS.has(parsed.preset as AdminDatePreset) ||
+      typeof parsed.from !== "string" ||
+      typeof parsed.to !== "string"
+    ) {
+      return null;
+    }
+    return {
+      preset: parsed.preset as AdminDatePreset,
+      from: parsed.from,
+      to: parsed.to,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function readStoredAdminDateRange(): AdminDateRangeValue | null {
+  if (typeof window === "undefined") return null;
+  return parseStoredAdminDateRange(sessionStorage.getItem(ADMIN_DATE_RANGE_STORAGE_KEY));
+}
+
+export function writeStoredAdminDateRange(value: AdminDateRangeValue): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(ADMIN_DATE_RANGE_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // ignore quota / private mode
+  }
+}

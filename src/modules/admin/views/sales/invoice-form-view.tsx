@@ -42,8 +42,7 @@ import {
   salesLinesToApiInput,
 } from "@/modules/erp/components/sales-lines-editor";
 import { getSalesLinesStockFeedback } from "@/modules/erp/lib/sales-line-stock-validation";
-import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
-import type { CurrencySettings } from "@/lib/format-currency";
+import { adminAppSettingsQueryOptions } from "@/modules/settings/lib/app-settings-query";
 import type { LineProductContextMap } from "@/common/erp/line-product-context";
 import {
   ActiveStoreFormField,
@@ -93,12 +92,7 @@ export function InvoiceFormView({
   const [stockWarning, setStockWarning] = useState<string | null>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(mode === "edit");
 
-  const { data: appSettings } = useQuery({
-    queryKey: adminQueryKeys.appSettings(),
-    queryFn: () =>
-      adminGet<{ settings: CurrencySettings }>("settings").then((r) => r.settings),
-    staleTime: 60_000,
-  });
+  const { data: appSettings } = useQuery(adminAppSettingsQueryOptions());
   const allowNegativeStoreStock = appSettings?.allow_negative_store_stock ?? false;
   const isModal = variant === "modal";
 

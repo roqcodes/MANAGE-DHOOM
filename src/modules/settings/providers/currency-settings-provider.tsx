@@ -13,8 +13,7 @@ import {
   setCurrencySettings,
   type CurrencySettings,
 } from "@/lib/format-currency";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
-import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import { adminAppSettingsQueryOptions } from "@/modules/settings/lib/app-settings-query";
 
 type CurrencyContextValue = {
   settings: CurrencySettings;
@@ -43,10 +42,7 @@ export function CurrencySettingsProvider({
 }) {
   const { secondaryQueriesEnabled } = useAdminBootstrap();
   const { data, isLoading } = useQuery({
-    queryKey: adminQueryKeys.appSettings(),
-    queryFn: () =>
-      adminGet<{ settings: CurrencySettings }>("settings").then((r) => r.settings),
-    staleTime: 5 * 60_000,
+    ...adminAppSettingsQueryOptions(5 * 60_000),
     enabled: secondaryQueriesEnabled,
     placeholderData: DEFAULT_CURRENCY_SETTINGS,
   });

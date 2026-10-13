@@ -36,9 +36,12 @@ import {
   findCurrency,
 } from "@/common/currency/catalog";
 import { formatCurrency, type CurrencySettings } from "@/lib/format-currency";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
-import { updateAppSettingsAction } from "@/modules/settings/actions/app-settings.actions";
+import {
+  adminAppSettingsQueryOptions,
+  normalizeAppSettings,
+  patchAdminAppSettings,
+} from "@/modules/settings/lib/app-settings-query";
 
 function SearchableSelect({
   label,
@@ -118,15 +121,12 @@ export function RegionCurrencySettingsCard() {
     error: loadError,
     refetch,
   } = useQuery({
-    queryKey: adminQueryKeys.appSettings(),
-    queryFn: () =>
-      adminGet<{ settings: CurrencySettings }>("settings").then((r) => r.settings),
-    staleTime: 60_000,
+    ...adminAppSettingsQueryOptions(),
     retry: 1,
   });
 
   useEffect(() => {
-    if (data) setForm(data);
+    if (data) setForm(normalizeAppSettings(data));
   }, [data]);
 
   const countryItems = useMemo(
@@ -232,7 +232,7 @@ export function RegionCurrencySettingsCard() {
     setSavedMsg(null);
     startTransition(async () => {
       try {
-        const saved = await updateAppSettingsAction(form);
+        const saved = await patchAdminAppSettings(form);
         setForm(saved);
         await queryClient.invalidateQueries({ queryKey: adminQueryKeys.appSettings() });
         setSavedMsg("Saved. Prices across admin and the storefront app will use the new currency.");
