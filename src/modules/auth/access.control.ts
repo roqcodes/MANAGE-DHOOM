@@ -11,8 +11,14 @@ export const AUTH_PUBLIC_PATHS = [
 ] as const;
 
 const ROLE_ROOTS: Record<UserRole, string> = {
+  [UserRole.SuperAdmin]: AUTH_ROUTES.admin,
   [UserRole.Admin]: AUTH_ROUTES.admin,
   [UserRole.Manager]: AUTH_ROUTES.admin,
+  [UserRole.SalesManager]: AUTH_ROUTES.admin,
+  [UserRole.Salesman]: AUTH_ROUTES.admin,
+  [UserRole.Accountant]: AUTH_ROUTES.admin,
+  [UserRole.StoreKeeper]: AUTH_ROUTES.admin,
+  [UserRole.Staff]: AUTH_ROUTES.admin,
   [UserRole.Vendor]: AUTH_ROUTES.vendor,
   [UserRole.Delivery]: AUTH_ROUTES.delivery,
 };

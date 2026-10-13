@@ -5,23 +5,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 
 import type { DBUser } from "@/common/admin/types";
-import { UserRole } from "@/common/auth/types";
-import { updateUserRoleAction } from "@/modules/admin/actions/admin-users.actions";
+import { assignErpStaffRoleAction } from "@/modules/admin/actions/admin-users.actions";
 import {
   Modal,
   SecondaryBtn,
 } from "@/modules/admin/components/modal";
+import {
+  ASSIGNABLE_ERP_STAFF_ROLES,
+  erpStaffRoleLabel,
+} from "@/modules/users/lib/portal-staff-roles";
 import { UserRoleBadge } from "@/modules/users/components/users-ui";
-
-const ROLE_OPTIONS: readonly string[] = [
-  UserRole.Admin,
-  UserRole.Vendor,
-  UserRole.Delivery,
-];
 
 export function UsersRoleModal({
   user,
-  title = "Change role",
+  title = "Assign role",
   description,
   onClose,
   onUpdated,
@@ -36,16 +33,16 @@ export function UsersRoleModal({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  function handleSelect(newRole: string) {
+  function handleSelect(rbacSlug: string) {
     startTransition(async () => {
       setError(null);
       try {
-        await updateUserRoleAction(user.id, newRole);
+        await assignErpStaffRoleAction(user.id, rbacSlug);
         void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
         onUpdated?.();
         onClose();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not update role.");
+        setError(err instanceof Error ? err.message : "Could not assign role.");
       }
     });
   }
@@ -69,16 +66,18 @@ export function UsersRoleModal({
           </div>
         </div>
         <div className="flex flex-col gap-2">
-          {ROLE_OPTIONS.map((role) => (
+          {ASSIGNABLE_ERP_STAFF_ROLES.map((role) => (
             <button
-              key={role}
+              key={role.rbacSlug}
               type="button"
               disabled={isPending}
-              onClick={() => handleSelect(role)}
+              onClick={() => handleSelect(role.rbacSlug)}
               className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5 text-left text-sm font-medium transition hover:bg-muted/60 disabled:opacity-50"
             >
-              <span className="capitalize">{role}</span>
-              {user.role === role ? <Check className="size-4 text-primary" /> : null}
+              <span>{role.label}</span>
+              {erpStaffRoleLabel(user.role) === role.label ? (
+                <Check className="size-4 text-primary" />
+              ) : null}
             </button>
           ))}
         </div>

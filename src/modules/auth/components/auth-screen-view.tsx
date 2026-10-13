@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  REQUEST_ACCESS_ROLES,
-  type AuthScreenViewProps,
-} from "@/common/auth/types";
+import type { AuthScreenViewProps } from "@/common/auth/types";
 
 import { RequiredFieldMark } from "@/lib/required-field-label";
 import { BuyHubLogo } from "@/modules/brand/components/buyhub-logo";
@@ -68,16 +65,11 @@ function EyeIcon({ hidden }: { hidden: boolean }) {
 }
 
 export function AuthScreenView({
-  mode,
-  isRequestMode,
-  role,
   form,
   showPassword,
   isPending,
   actionState,
   formAction,
-  onModeToggle,
-  onRoleChange,
   onFieldChange,
   onPasswordVisibilityToggle,
 }: AuthScreenViewProps) {
@@ -119,151 +111,72 @@ export function AuthScreenView({
         </section>
 
         <section
-          className={[
-            "rounded-[32px] border border-slate-100 bg-white p-8 shadow-[0_10px_20px_rgba(26,26,46,0.05)]",
-            "lg:p-10",
-            isRequestMode ? "lg:w-[600px]" : "lg:w-[450px]",
-          ].join(" ")}
+          className="rounded-[32px] border border-slate-100 bg-white p-8 shadow-[0_10px_20px_rgba(26,26,46,0.05)] lg:w-[450px] lg:p-10"
         >
           <div className="mb-6 space-y-1">
-            <h2 className="text-2xl font-extrabold text-slate-900">
-              {isRequestMode ? "Request Access" : "Sign In"}
-            </h2>
+            <h2 className="text-2xl font-extrabold text-slate-900">Sign In</h2>
             <p className="text-sm font-medium text-slate-500">
-              {isRequestMode
-                ? "Join our network of electronics retailers"
-                : "Enter your credentials to continue"}
+              Enter your credentials to continue. New staff accounts are created by a
+              super admin in Team → Users.
             </p>
           </div>
 
           <form action={formAction} className="space-y-4">
-            {isRequestMode ? (
-              <>
-                <input name="role" type="hidden" value={role} />
-                <div className="space-y-2.5">
-                  <label className="text-[13px] font-bold text-slate-900">
-                    Choose your Role
-                  </label>
-                  <div className="flex rounded-[14px] bg-slate-100 p-1">
-                    {REQUEST_ACCESS_ROLES.map((item) => {
-                      const active = role === item;
+            <label className="space-y-2">
+              <span className="text-[13px] font-bold text-slate-900">
+                Email Address
+                <RequiredFieldMark />
+              </span>
+              <input
+                autoCapitalize="none"
+                autoComplete="email"
+                className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
+                name="email"
+                onChange={(event) => onFieldChange("email", event.target.value)}
+                placeholder="manager@buyhub.com"
+                type="email"
+                value={form.email}
+                required
+              />
+            </label>
 
-                      return (
-                        <button
-                          key={item}
-                          className={[
-                            "flex-1 rounded-[10px] px-3 py-2.5 text-center text-[13px] font-bold transition",
-                            active
-                              ? "bg-white text-[#EB205F] shadow-[0_2px_10px_rgba(0,0,0,0.1)]"
-                              : "text-slate-500",
-                          ].join(" ")}
-                          onClick={() => onRoleChange(item)}
-                          type="button"
-                        >
-                          {item.charAt(0).toUpperCase() + item.slice(1)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <label className="space-y-2">
-                    <span className="text-[13px] font-bold text-slate-900">
-                      Full Name
-                      <RequiredFieldMark />
-                    </span>
-                    <input
-                      autoComplete="name"
-                      className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
-                      name="name"
-                      onChange={(event) => onFieldChange("name", event.target.value)}
-                      placeholder="Your Name"
-                      type="text"
-                      value={form.name}
-                      required
-                    />
-                  </label>
-
-                  <label className="space-y-2">
-                    <span className="text-[13px] font-bold text-slate-900">
-                      Phone Number
-                      <RequiredFieldMark />
-                    </span>
-                    <input
-                      autoComplete="tel"
-                      className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
-                      name="phone"
-                      onChange={(event) => onFieldChange("phone", event.target.value)}
-                      placeholder="+91"
-                      type="tel"
-                      value={form.phone}
-                      required
-                    />
-                  </label>
-                </div>
-              </>
-            ) : null}
-
-            <div className={isRequestMode ? "grid gap-4 lg:grid-cols-2" : "space-y-4"}>
-              <label className="space-y-2">
-                <span className="text-[13px] font-bold text-slate-900">
-                  Email Address
-                  <RequiredFieldMark />
-                </span>
+            <label className="space-y-2">
+              <span className="text-[13px] font-bold text-slate-900">
+                Password
+                <RequiredFieldMark />
+              </span>
+              <div className="relative">
                 <input
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
-                  name="email"
-                  onChange={(event) => onFieldChange("email", event.target.value)}
-                  placeholder="manager@buyhub.com"
-                  type="email"
-                  value={form.email}
+                  autoComplete="current-password"
+                  className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
+                  name="password"
                   required
+                  onChange={(event) =>
+                    onFieldChange("password", event.target.value)
+                  }
+                  placeholder="••••••••"
+                  type={showPassword ? "text" : "password"}
+                  value={form.password}
                 />
-              </label>
-
-              <label className="space-y-2">
-                <span className="text-[13px] font-bold text-slate-900">
-                  Password
-                  <RequiredFieldMark />
-                </span>
-                <div className="relative">
-                  <input
-                    autoComplete={isRequestMode ? "new-password" : "current-password"}
-                    className="min-h-14 w-full rounded-[18px] border border-[#D7DDEA] px-4 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#EB205F] focus:ring-4 focus:ring-[#EB205F]/10"
-                    name="password"
-                    required
-                    onChange={(event) =>
-                      onFieldChange("password", event.target.value)
-                    }
-                    placeholder={isRequestMode ? "Min. 8 characters" : "••••••••"}
-                    type={showPassword ? "text" : "password"}
-                    value={form.password}
-                  />
-                  <button
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-slate-700"
-                    onClick={onPasswordVisibilityToggle}
-                    type="button"
-                  >
-                    <EyeIcon hidden={showPassword} />
-                  </button>
-                </div>
-              </label>
-            </div>
-
-            {!isRequestMode ? (
-              <div className="flex justify-end">
-                <a
-                  className="text-[13px] font-bold text-[#EB205F] transition hover:text-[#D01A54]"
-                  href="/forgot-password"
+                <button
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-slate-700"
+                  onClick={onPasswordVisibilityToggle}
+                  type="button"
                 >
-                  Forgot password?
-                </a>
+                  <EyeIcon hidden={showPassword} />
+                </button>
               </div>
-            ) : null}
+            </label>
+
+            <div className="flex justify-end">
+              <a
+                className="text-[13px] font-bold text-[#EB205F] transition hover:text-[#D01A54]"
+                href="/forgot-password"
+              >
+                Forgot password?
+              </a>
+            </div>
 
             {actionState.errorMessage ? (
               <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -282,31 +195,12 @@ export function AuthScreenView({
               disabled={isPending}
               type="submit"
             >
-              <span>
-                {isPending
-                  ? "Please wait..."
-                  : mode === "request"
-                    ? "Create Account"
-                    : "Access Dashboard"}
-              </span>
+              <span>{isPending ? "Please wait..." : "Access Dashboard"}</span>
               <span className="ml-2">
                 <ArrowRightIcon />
               </span>
             </button>
           </form>
-
-          <div className="mt-7 flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 text-center">
-            <span className="text-[13px] text-slate-500">
-              {mode === "request" ? "Already have an account?" : "New to the team?"}
-            </span>
-            <button
-              className="text-sm font-bold text-slate-900 transition hover:text-[#EB205F]"
-              onClick={onModeToggle}
-              type="button"
-            >
-              {mode === "request" ? "Sign In instead" : "Request Access"}
-            </button>
-          </div>
         </section>
       </div>
     </main>

@@ -4,16 +4,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import { ADMIN_AREA_ROLES } from "@/common/auth/types";
 import type { Database } from "@/lib/integrations/supabase/types";
 import type { AdminUser, DBUser, Paginated } from "@/common/admin/types";
 import { PAGE_SIZE } from "@/common/admin/types";
 
 type UserRole = Database["public"]["Enums"]["user_role"];
 
-const STAFF_ROLES: UserRole[] = ["admin", "manager", "vendor", "delivery"];
+const ERP_STAFF_ROLES = ADMIN_AREA_ROLES.map((r) => r as UserRole);
 
-/** Portal staff lists (verified users by role). */
-export type PortalStaffSegment = "vendor" | "delivery" | "admin";
+/** Roles that may appear in portal access requests (pending verification). */
+const PENDING_PORTAL_ROLES: UserRole[] = [
+  ...ERP_STAFF_ROLES,
+  "vendor",
+  "staff",
+] as UserRole[];
+
+/** Verified portal team directory (ERP + vendors; delivery removed from management UI). */
+const VERIFIED_TEAM_ROLES: UserRole[] = [
+  ...ERP_STAFF_ROLES,
+  "vendor",
+] as UserRole[];
 
 export async function getStoreUsers(
   page = 0,
@@ -63,33 +74,26 @@ export async function getStoreUsers(
   };
 }
 
-/** Verified portal staff: vendor, delivery, or admin (single role per segment). */
-export async function getPortalStaffUsers(
-  segment: PortalStaffSegment,
+/** Verified ERP staff and vendor portal accounts (single directory). */
+export async function getVerifiedPortalTeamUsers(
   page = 0,
 ): Promise<Paginated<DBUser>> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const from = page * PAGE_SIZE;
-  const roles: UserRole[] =
-    segment === "delivery"
-      ? ["delivery"]
-      : segment === "vendor"
-        ? ["vendor"]
-        : ["admin"];
 
   const [dataResult, countResult] = await Promise.all([
     supabase
       .from("users")
       .select("id,name,email,phone,role,is_verified,created_at")
-      .in("role", roles)
+      .in("role", VERIFIED_TEAM_ROLES)
       .eq("is_verified", true)
       .order("created_at", { ascending: false })
       .range(from, from + PAGE_SIZE - 1),
     supabase
       .from("users")
       .select("id", { count: "exact", head: true })
-      .in("role", roles)
+      .in("role", VERIFIED_TEAM_ROLES)
       .eq("is_verified", true),
   ]);
 
@@ -106,7 +110,7 @@ export async function getPendingPortalRequests(): Promise<DBUser[]> {
   const { data } = await supabase
     .from("users")
     .select("id,name,email,phone,role,is_verified,created_at")
-    .in("role", STAFF_ROLES)
+    .in("role", PENDING_PORTAL_ROLES)
     .eq("is_verified", false)
     .order("created_at", { ascending: false });
 
@@ -119,7 +123,7 @@ export async function getPendingPortalRequestCount(): Promise<number> {
   const { count } = await supabase
     .from("users")
     .select("id", { count: "exact", head: true })
-    .in("role", STAFF_ROLES)
+    .in("role", PENDING_PORTAL_ROLES)
     .eq("is_verified", false);
   return count ?? 0;
 }
@@ -129,6 +133,7 @@ export interface TeamCatalogStats {
   delivery: number;
   admin: number;
   manager: number;
+  erpStaff: number;
   pendingRequests: number;
 }
 
@@ -137,7 +142,7 @@ export async function getTeamCatalogStats(): Promise<TeamCatalogStats> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
 
-  const [vendorRes, deliveryRes, adminRes, managerRes, pendingRes] =
+  const [vendorRes, deliveryRes, erpStaffRes, adminRes, managerRes, pendingRes] =
     await Promise.all([
       supabase
         .from("users")
@@ -152,6 +157,11 @@ export async function getTeamCatalogStats(): Promise<TeamCatalogStats> {
       supabase
         .from("users")
         .select("id", { count: "exact", head: true })
+        .in("role", ERP_STAFF_ROLES)
+        .eq("is_verified", true),
+      supabase
+        .from("users")
+        .select("id", { count: "exact", head: true })
         .eq("role", "admin")
         .eq("is_verified", true),
       supabase
@@ -162,13 +172,14 @@ export async function getTeamCatalogStats(): Promise<TeamCatalogStats> {
       supabase
         .from("users")
         .select("id", { count: "exact", head: true })
-        .in("role", STAFF_ROLES)
+        .in("role", PENDING_PORTAL_ROLES)
         .eq("is_verified", false),
     ]);
 
   return {
     vendor: vendorRes.count ?? 0,
     delivery: deliveryRes.count ?? 0,
+    erpStaff: erpStaffRes.count ?? 0,
     admin: adminRes.count ?? 0,
     manager: managerRes.count ?? 0,
     pendingRequests: pendingRes.count ?? 0,

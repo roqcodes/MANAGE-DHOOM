@@ -12,6 +12,7 @@ import {
   Pencil,
   ShieldCheck,
   ShieldOff,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -410,9 +411,13 @@ export function StoresUsersDataTable({
 export function PortalStaffDataTable({
   users,
   onEditRole,
+  onPurgeUser,
+  currentUserId,
 }: {
   users: DBUser[];
-  onEditRole: (user: DBUser) => void;
+  onEditRole?: (user: DBUser) => void;
+  onPurgeUser?: (user: DBUser) => void;
+  currentUserId?: string | null;
 }) {
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     users,
@@ -492,10 +497,34 @@ export function PortalStaffDataTable({
                 : "—"}
             </TableCell>
             <TableCell className="text-right">
-              <Button size="sm" variant="ghost" onClick={() => onEditRole(user)}>
-                <Pencil data-icon="inline-start" />
-                Change role
-              </Button>
+              <div className="flex items-center justify-end gap-1">
+                {onEditRole ? (
+                  <Button size="sm" variant="ghost" onClick={() => onEditRole(user)}>
+                    <Pencil data-icon="inline-start" />
+                    Assign role
+                  </Button>
+                ) : null}
+                {onPurgeUser && user.id !== currentUserId ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button size="icon-sm" variant="ghost" aria-label="More actions" />
+                      }
+                    >
+                      <MoreHorizontal />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        variant="destructive"
+                        onClick={() => onPurgeUser(user)}
+                      >
+                        <Trash2 data-icon="inline-start" />
+                        Delete permanently
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
+              </div>
             </TableCell>
           </TableRow>
         ))}
@@ -509,7 +538,7 @@ export function AccessRequestsDataTable({
   onEditRole,
 }: {
   users: DBUser[];
-  onEditRole: (user: DBUser) => void;
+  onEditRole?: (user: DBUser) => void;
 }) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
@@ -615,15 +644,17 @@ export function AccessRequestsDataTable({
                   <Check data-icon="inline-start" />
                   Approve
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={isPending}
-                  onClick={() => onEditRole(user)}
-                >
-                  <Pencil data-icon="inline-start" />
-                  Role
-                </Button>
+                {onEditRole ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={isPending}
+                    onClick={() => onEditRole(user)}
+                  >
+                    <Pencil data-icon="inline-start" />
+                    Assign role
+                  </Button>
+                ) : null}
                 <Button
                   size="sm"
                   variant="destructive"

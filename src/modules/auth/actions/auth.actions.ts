@@ -6,7 +6,6 @@ import {
   INITIAL_AUTH_ACTION_STATE,
   UserRole,
   type AuthActionState,
-  type RequestAccessRole,
 } from "@/common/auth/types";
 import {
   getAccessRedirectPath,
@@ -27,18 +26,6 @@ import {
 
 function readTrimmedField(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
-}
-
-function getValidatedRole(value: string): RequestAccessRole | null {
-  if (
-    value === UserRole.Admin ||
-    value === UserRole.Vendor ||
-    value === UserRole.Delivery
-  ) {
-    return value;
-  }
-
-  return null;
 }
 
 function resolvePasswordResetRedirect(formData: FormData) {
@@ -104,9 +91,8 @@ export async function requestAccessAction(
   const email = readTrimmedField(formData, "email");
   const phone = readTrimmedField(formData, "phone");
   const password = String(formData.get("password") ?? "");
-  const role = getValidatedRole(readTrimmedField(formData, "role"));
 
-  if (!name || !email || !phone || !password || !role) {
+  if (!name || !email || !phone || !password) {
     return {
       ...INITIAL_AUTH_ACTION_STATE,
       errorMessage: "Fill in all fields to request access.",
@@ -126,7 +112,6 @@ export async function requestAccessAction(
       email,
       phone,
       password,
-      role,
     });
 
     return {

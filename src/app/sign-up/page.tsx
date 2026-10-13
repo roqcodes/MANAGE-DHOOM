@@ -1,10 +1,7 @@
-import { AuthScreen } from "@/modules/auth/components/auth-screen";
-import { redirectAuthenticatedUsersFromAuth } from "@/modules/auth/services/auth-guard.service";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
+import { AUTH_ROUTES } from "@/modules/auth/services/auth-route.service";
 
-export default async function SignUpPage() {
-  await redirectAuthenticatedUsersFromAuth();
-
-  return <AuthScreen initialMode="request" />;
+export default function SignUpPage() {
+  redirect(AUTH_ROUTES.signIn);
 }

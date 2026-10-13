@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "db:push": "supabase db push",
     "pwa:validate": "node scripts/validate-pwa-phase1.mjs",
     "outbox:validate": "tsx scripts/validate-outbox-phase2.ts",
     "outbox:validate:sync": "tsx scripts/validate-outbox-phase3.ts",

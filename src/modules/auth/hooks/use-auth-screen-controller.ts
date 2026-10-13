@@ -1,26 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import type {
   AuthFormState,
   AuthScreenProps,
   AuthScreenViewProps,
-  RequestAccessRole,
 } from "@/common/auth/types";
-import {
-  INITIAL_AUTH_ACTION_STATE,
-  UserRole,
-} from "@/common/auth/types";
-import {
-  requestAccessAction,
-  signInAction,
-} from "@/modules/auth/actions/auth.actions";
-import {
-  getAlternateAuthMode,
-  getAuthRouteForMode,
-} from "@/modules/auth/services/auth-route.service";
+import { INITIAL_AUTH_ACTION_STATE } from "@/common/auth/types";
+import { signInAction } from "@/modules/auth/actions/auth.actions";
 
 const initialFormState: AuthFormState = {
   name: "",
@@ -29,26 +17,15 @@ const initialFormState: AuthFormState = {
   password: "",
 };
 
-export function useAuthScreenController({
-  initialMode = "sign-in",
-}: AuthScreenProps): AuthScreenViewProps {
-  const router = useRouter();
-  const [role, setRole] = useState<RequestAccessRole>(UserRole.Admin);
+export function useAuthScreenController(
+  _props: AuthScreenProps = {},
+): AuthScreenViewProps {
   const [form, setForm] = useState<AuthFormState>(initialFormState);
   const [showPassword, setShowPassword] = useState(false);
   const [actionState, formAction, isPending] = useActionState(
-    initialMode === "sign-in" ? signInAction : requestAccessAction,
+    signInAction,
     INITIAL_AUTH_ACTION_STATE,
   );
-
-  function onModeToggle() {
-    const nextMode = getAlternateAuthMode(initialMode);
-    router.push(getAuthRouteForMode(nextMode));
-  }
-
-  function onRoleChange(nextRole: RequestAccessRole) {
-    setRole(nextRole);
-  }
 
   function onFieldChange<K extends keyof AuthFormState>(
     field: K,
@@ -65,16 +42,11 @@ export function useAuthScreenController({
   }
 
   return {
-    mode: initialMode,
-    isRequestMode: initialMode === "request",
-    role,
     form,
     showPassword,
     isPending,
     actionState,
     formAction,
-    onModeToggle,
-    onRoleChange,
     onFieldChange,
     onPasswordVisibilityToggle,
   };

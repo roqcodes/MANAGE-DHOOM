@@ -1,6 +1,7 @@
 "use client";
 
 import type { AdminUser, DBUser } from "@/common/admin/types";
+import { erpStaffRoleLabel } from "@/modules/users/lib/portal-staff-roles";
 import { cn } from "@/lib/utils";
 
 export type UserStatusFilter = "all" | "active" | "blocked";
@@ -62,10 +63,17 @@ export function UserRoleBadge({ role }: { role: string | null }) {
     vendor: "bg-blue-100 text-blue-800",
     delivery: "bg-orange-100 text-orange-800",
     admin: "bg-purple-100 text-purple-800",
+    super_admin: "bg-violet-100 text-violet-900",
+    manager: "bg-indigo-100 text-indigo-800",
+    sales_manager: "bg-sky-100 text-sky-800",
+    salesman: "bg-cyan-100 text-cyan-800",
+    accountant: "bg-amber-100 text-amber-900",
+    store_keeper: "bg-emerald-100 text-emerald-800",
+    staff: "bg-amber-50 text-amber-900",
     retail: "bg-muted text-muted-foreground",
   };
 
-  const label = role ? role.charAt(0).toUpperCase() + role.slice(1) : "Retail";
+  const label = erpStaffRoleLabel(role);
 
   return (
     <span

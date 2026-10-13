@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { recordAuthAudit } from "@/modules/auth/services/auth-audit.service";
 import { getCurrentSessionProfile } from "@/modules/auth/services/auth.service";
 import {
+  assignErpStaffRoleByRbacSlug,
   rejectUserById,
   updateUserRoleById,
   verifyUserById,
@@ -58,4 +59,12 @@ export async function updateUserRoleAction(
   await updateUserRoleById(userId, newRole);
   revalidatePath("/admin/users");
   revalidatePath("/admin/vendors");
+}
+
+export async function assignErpStaffRoleAction(
+  userId: string,
+  rbacSlug: string,
+): Promise<void> {
+  await assignErpStaffRoleByRbacSlug(userId, rbacSlug);
+  revalidatePath("/admin/users");
 }

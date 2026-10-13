@@ -49,8 +49,8 @@ export const adminQueryKeys = {
     page: number,
   ) =>
     ["admin", "purchase-orders", status, delivery ?? "", vendorId ?? "", page] as const,
-  users: (tab: string, segment: string, page: number) =>
-    ["admin", "users", tab, segment, page] as const,
+  users: (tab: string, page: number) => ["admin", "users", tab, page] as const,
+  rbac: (roleId?: string | null) => ["admin", "rbac", roleId ?? "list"] as const,
   delivery: () => ["admin", "delivery"] as const,
   productDetail: (id: string) => ["admin", "product", id] as const,
   productPricingSuggestions: (id: string) => ["admin", "product", id, "pricing-suggestions"] as const,

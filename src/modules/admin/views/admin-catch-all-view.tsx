@@ -23,6 +23,7 @@ import { AdminCategoriesView } from "@/modules/admin/views/admin-categories-view
 import { AdminCustomerDetailView } from "@/modules/admin/views/admin-customer-detail-view";
 import { ErpFormRouteRedirect } from "@/modules/admin/components/erp-form-route-redirect";
 import { AdminCustomersView } from "@/modules/admin/views/admin-customers-view";
+import { AdminRolesView } from "@/modules/admin/views/admin-roles-view";
 
 function AdminNotFound() {
   return (
@@ -59,7 +60,8 @@ export function AdminCatchAllView() {
     const [a, b] = slug;
     if (!b || b.length === 0) {
       inner = <AdminNotFound />;
-    } else if (a === "products") inner = <AdminProductDetailView />;
+    } else if (a === "settings" && b === "roles") inner = <AdminRolesView />;
+    else if (a === "products") inner = <AdminProductDetailView />;
     else if (a === "orders") inner = <AdminOrderDetailView />;
     else if (a === "vendors") inner = <AdminVendorDetailView />;
     else if (a === "purchase-orders") inner = <AdminPurchaseOrderRouteView />;

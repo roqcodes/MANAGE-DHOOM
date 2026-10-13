@@ -19,7 +19,11 @@ import { AdminSessionProvider } from "@/modules/admin/providers/admin-session-pr
 import { CurrencySettingsProvider } from "@/modules/settings/providers/currency-settings-provider";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
-import { erpContextQueryOptions } from "@/modules/erp/components/use-erp-stores";
+import { erpContextQueryOptions, useErpStores } from "@/modules/erp/components/use-erp-stores";
+import {
+  canReadAdminPath,
+  firstAllowedAdminHref,
+} from "@/modules/rbac/lib/permission-catalog";
 
 function AdminRootSkeleton() {
   return (
@@ -39,6 +43,7 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const invoicePrintLayout = isAdminInvoicePrintPath(pathname);
+  const { activeStoreId } = useErpStores();
 
   useEffect(() => {
     if (isMd) setMobileNavOpen(false);
@@ -62,6 +67,17 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
       router.replace(AUTH_ROUTES.signIn);
     }
   }, [isError, router]);
+
+  useEffect(() => {
+    const profile = data?.profile;
+    if (!profile?.rbac || invoicePrintLayout) return;
+    const href = pathname.split("?")[0] ?? pathname;
+    if (!href.startsWith("/admin")) return;
+    if (href === "/admin" || href === "/admin/") return;
+    if (!canReadAdminPath(profile.rbac, href, activeStoreId)) {
+      router.replace(firstAllowedAdminHref(profile.rbac, activeStoreId));
+    }
+  }, [data?.profile, pathname, router, invoicePrintLayout, activeStoreId]);
 
   useEffect(() => {
     function onStoreChanged(event: Event) {

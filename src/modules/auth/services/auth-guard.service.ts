@@ -3,10 +3,6 @@ import "server-only";
 import { redirect } from "next/navigation";
 
 import { UserRole } from "@/common/auth/types";
-
-function isAdminAreaRole(role: UserRole | null): boolean {
-  return role === UserRole.Admin || role === UserRole.Manager;
-}
 import {
   canAccessRolePath,
   getAccessRedirectPath,
@@ -16,6 +12,11 @@ import {
   getDashboardRouteForRole,
 } from "@/modules/auth/services/auth-route.service";
 import { getCurrentSessionProfile } from "@/modules/auth/services/auth.service";
+import { isAdminAreaRole } from "@/modules/rbac/lib/admin-area";
+import {
+  canReadAdminPath,
+  firstAllowedAdminHref,
+} from "@/modules/rbac/lib/permission-catalog";
 
 export async function redirectFromRoot() {
   const { user, profile } = await getCurrentSessionProfile();
@@ -63,8 +64,8 @@ export async function requireRoleAccess(role: UserRole, path: string) {
   return profile;
 }
 
-/** Admin + Manager: full `/admin` app shell. */
-export async function requireAdminAreaAccess() {
+/** ERP staff: `/admin` app shell with per-page RBAC. */
+export async function requireAdminAreaAccess(pathname?: string) {
   const { user, profile } = await getCurrentSessionProfile();
 
   if (!user || !profile) {
@@ -81,6 +82,16 @@ export async function requireAdminAreaAccess() {
 
   if (!canAccessRolePath(AUTH_ROUTES.admin, profile.role)) {
     redirect(getDashboardRouteForRole(profile.role));
+  }
+
+  const path = pathname ?? AUTH_ROUTES.admin;
+  const href = path.split("?")[0] ?? path;
+  if (
+    href.startsWith(AUTH_ROUTES.admin) &&
+    href.length > AUTH_ROUTES.admin.length &&
+    !canReadAdminPath(profile.rbac, href)
+  ) {
+    redirect(firstAllowedAdminHref(profile.rbac));
   }
 
   return profile;

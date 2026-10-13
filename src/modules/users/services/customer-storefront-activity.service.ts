@@ -1,11 +1,10 @@
 import "server-only";
 
-import { UserRole } from "@/common/auth/types";
+import { ADMIN_AREA_ROLES, UserRole } from "@/common/auth/types";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 
 const STAFF_ROLES = new Set<string>([
-  UserRole.Admin,
-  UserRole.Manager,
+  ...ADMIN_AREA_ROLES,
   UserRole.Vendor,
   UserRole.Delivery,
 ]);

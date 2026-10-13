@@ -6,9 +6,9 @@ import type { User } from "@supabase/supabase-js";
 import {
   ALLOWED_PORTAL_ROLES,
   UserRole,
-  type RequestAccessRole,
   type UserProfile,
 } from "@/common/auth/types";
+import { PORTAL_ACCESS_REQUEST_ROLE } from "@/modules/users/lib/portal-staff-roles";
 import { createSupabaseAdminClient } from "@/lib/integrations/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import {
@@ -23,6 +23,9 @@ import {
   PORTAL_PENDING_VERIFICATION_MESSAGE,
 } from "@/modules/auth/lib/format-auth-error";
 import { assertEmailAvailableForStaffPortal } from "@/modules/users/services/portal-email-policy.service";
+import { isAdminAreaRole } from "@/modules/rbac/lib/admin-area";
+import { legacyRbacFallback } from "@/modules/rbac/lib/permission-catalog";
+import { loadRbacSessionForUser } from "@/modules/rbac/services/rbac-session.service";
 
 const allowedAdminRoles = new Set<UserRole>(ALLOWED_PORTAL_ROLES);
 
@@ -45,6 +48,7 @@ function normalizeUserProfile(profile: {
   return {
     ...profile,
     role,
+    rbac: null,
   };
 }
 
@@ -100,9 +104,18 @@ export const getCurrentSessionProfile = cache(async () => {
       throw new Error(error.message);
     }
 
+    const profile = normalizeUserProfile(data);
+    let rbacSession =
+      profile && isAdminAreaRole(profile.role)
+        ? await loadRbacSessionForUser(user.id).catch(() => null)
+        : null;
+    if (profile && isAdminAreaRole(profile.role) && !rbacSession) {
+      rbacSession = legacyRbacFallback(profile.role);
+    }
+
     return {
       user,
-      profile: normalizeUserProfile(data),
+      profile: profile ? { ...profile, rbac: rbacSession } : null,
     };
   } catch (error) {
     if (error instanceof SupabaseConnectivityError) {
@@ -223,7 +236,6 @@ async function createPortalAccessProfileRow(input: {
   name: string;
   email: string;
   phone: string;
-  role: RequestAccessRole;
 }) {
   const admin = createSupabaseAdminClient();
   const supabase = await createSupabaseServerClient();
@@ -234,7 +246,7 @@ async function createPortalAccessProfileRow(input: {
     p_name: input.name,
     p_email: input.email,
     p_phone: input.phone,
-    p_role: input.role,
+    p_role: PORTAL_ACCESS_REQUEST_ROLE,
   });
 
   if (error) {
@@ -247,8 +259,8 @@ export async function requestAccess(input: {
   email: string;
   phone: string;
   password: string;
-  role: RequestAccessRole;
 }) {
+  const role = PORTAL_ACCESS_REQUEST_ROLE;
   const email = input.email.trim().toLowerCase();
   const name = input.name.trim();
   const phone = input.phone.trim();
@@ -266,7 +278,7 @@ export async function requestAccess(input: {
         portal_access_request: "true",
         name,
         phone,
-        role: input.role,
+        role,
       },
     },
   });
@@ -282,7 +294,7 @@ export async function requestAccess(input: {
       await recordAuthAudit({
         action: "request_access",
         email,
-        role: input.role,
+        role,
         outcome: "failure",
         reason: signInError.message,
       });
@@ -302,7 +314,7 @@ export async function requestAccess(input: {
     await recordAuthAudit({
       action: "request_access",
       email,
-      role: input.role,
+      role,
       outcome: "failure",
       reason: signUpError.message,
     });
@@ -318,7 +330,7 @@ export async function requestAccess(input: {
     await recordAuthAudit({
       action: "request_access",
       email,
-      role: input.role,
+      role,
       outcome: "failure",
       reason: "Missing user after sign up.",
     });
@@ -331,7 +343,6 @@ export async function requestAccess(input: {
       name,
       email,
       phone,
-      role: input.role,
     });
   } catch (profileError) {
     await supabase.auth.signOut();
@@ -339,7 +350,7 @@ export async function requestAccess(input: {
       action: "request_access",
       email,
       userId: user.id,
-      role: input.role,
+      role,
       outcome: "failure",
       reason: profileError instanceof Error ? profileError.message : String(profileError),
     });
@@ -351,7 +362,7 @@ export async function requestAccess(input: {
     action: "request_access",
     email,
     userId: user.id,
-    role: input.role,
+    role,
     outcome: "success",
   });
 

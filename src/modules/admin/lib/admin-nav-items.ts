@@ -211,11 +211,29 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
       },
     ],
   },
+
+  {
+    label: "Team",
+    icon: Users,
+    items: [
+      {
+        name: "Users",
+        href: "/admin/users",
+        icon: Users,
+        keywords: ["staff", "admin", "delivery", "team", "roles"],
+      },
+      {
+        name: "Roles & access",
+        href: "/admin/settings/roles",
+        icon: KeyRound,
+        keywords: ["rbac", "permissions", "roles", "super admin"],
+      },
+    ],
+  },
 ];
 
 /** Search / command palette only — not shown in the primary sidebar. */
 export const ADMIN_EXTRA_NAV_ITEMS: AdminNavItem[] = [
-  { name: "Team & Users", href: "/admin/users", icon: Users, keywords: ["staff", "admin", "delivery", "team"] },
   { name: "Account settings", href: "/admin/config", icon: KeyRound, keywords: ["account", "password", "profile", "session"] },
 ];
 

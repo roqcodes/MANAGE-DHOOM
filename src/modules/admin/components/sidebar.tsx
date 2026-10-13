@@ -10,7 +10,6 @@ import type { AdminNavBadge } from "@/common/admin/types";
 import { cn } from "@/lib/utils";
 import {
   ADMIN_DASHBOARD_ITEM,
-  ADMIN_NAV_SECTIONS,
   type AdminNavItem,
   type AdminNavSection,
 } from "@/modules/admin/lib/admin-nav-items";
@@ -22,10 +21,12 @@ import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { cancelScheduledAdminPrefetch, schedulePrefetchAdminRoute } from "@/modules/admin/lib/admin-prefetch-nav";
 import { isAdminRouteHidden } from "@/modules/admin/lib/hidden-admin-routes";
 import { useAdminBootstrap } from "@/modules/admin/providers/admin-bootstrap-provider";
+import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
 import { BuyHubLogo } from "@/modules/brand/components/buyhub-logo";
+import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { useRbacNavSections, useDashboardNavItem } from "@/modules/rbac/hooks/use-rbac-nav";
 
 const DASHBOARD_ITEM = ADMIN_DASHBOARD_ITEM;
-const NAV_SECTIONS = ADMIN_NAV_SECTIONS;
 /** Expanded sidebar width (was 260px). */
 const SIDEBAR_WIDTH_EXPANDED_CLASS = "w-[232px]";
 const SIDEBAR_WIDTH_COLLAPSED_CLASS = "md:w-[72px]";
@@ -375,18 +376,23 @@ export function AdminSidebar({
 }) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
+  const profile = useAdminSession();
+  const { activeStoreId } = useErpStores();
+  const rbac = profile?.rbac;
+  const navSections = useRbacNavSections(rbac, activeStoreId);
+  const dashboardItem = useDashboardNavItem(rbac, activeStoreId);
   const [openSection, setOpenSection] = useState<string | null>(null);
   const [openFlyoutSection, setOpenFlyoutSection] = useState<string | null>(null);
 
   const activeSectionLabel = useMemo(() => {
-    for (const section of NAV_SECTIONS) {
+    for (const section of navSections) {
       const visibleItems = section.items.filter((item) => !isAdminRouteHidden(item.href));
       if (visibleItems.length > 0 && sectionHasActiveChild(pathname, visibleItems)) {
         return section.label;
       }
     }
     return null;
-  }, [pathname]);
+  }, [pathname, navSections]);
 
   useEffect(() => {
     if (activeSectionLabel) {
@@ -403,7 +409,9 @@ export function AdminSidebar({
   });
 
   const navAlerts = navBadgesData?.badges ?? {};
-  const dashboardActive = isNavActive(pathname, DASHBOARD_ITEM.href);
+  const dashboardActive = dashboardItem
+    ? isNavActive(pathname, dashboardItem.href)
+    : false;
 
   const prefetch = useMemo(
     () => (href: string) =>
@@ -455,16 +463,18 @@ export function AdminSidebar({
           collapsed ? "px-2" : "px-3",
         )}
       >
-        <NavLink
-          item={DASHBOARD_ITEM}
-          active={dashboardActive}
-          collapsed={collapsed}
-          alert={navAlerts[DASHBOARD_ITEM.href]}
-          onNavigate={handleNavigate}
-          onPrefetch={() => prefetch(DASHBOARD_ITEM.href)}
-        />
+        {dashboardItem ? (
+          <NavLink
+            item={dashboardItem}
+            active={dashboardActive}
+            collapsed={collapsed}
+            alert={navAlerts[dashboardItem.href]}
+            onNavigate={handleNavigate}
+            onPrefetch={() => prefetch(dashboardItem.href)}
+          />
+        ) : null}
 
-        {NAV_SECTIONS.map((section) => (
+        {navSections.map((section) => (
           <NavSectionGroup
             key={section.label}
             section={section}

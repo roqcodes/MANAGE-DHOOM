@@ -2,17 +2,18 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence } from "framer-motion";
-import { Ban, Columns3, Search } from "lucide-react";
+import { Ban, Columns3, Plus, Search } from "lucide-react";
 
 import type { DBUser } from "@/common/admin/types";
 import { Pagination } from "@/modules/admin/components/pagination";
 import {
-  AccessRequestsDataTable,
-  exportPendingUsersCsv,
   exportPortalUsersCsv,
   PortalStaffDataTable,
 } from "@/modules/users/components/users-data-table";
-import { UsersRoleModal } from "@/modules/users/components/users-role-modal";
+import { UsersCreateStaffModal } from "@/modules/users/components/users-create-staff-modal";
+import { UsersPurgeModal } from "@/modules/users/components/users-purge-modal";
+import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
+import { UsersStaffAccessModal } from "@/modules/users/components/users-staff-access-modal";
 import { matchesUserSearch } from "@/modules/users/components/users-ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,96 +24,79 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 
-type UsersContent =
-  | { kind: "requests"; pending: DBUser[] }
-  | { kind: "vendor"; data: DBUser[]; total: number }
-  | { kind: "delivery"; data: DBUser[]; total: number }
-  | { kind: "admin"; data: DBUser[]; total: number };
-
-const SEGMENT_LABELS: Record<string, string> = {
-  vendor: "Vendor",
-  delivery: "Delivery",
-  admin: "Admin",
-};
+type UsersContent = { kind: "team"; data: DBUser[]; total: number };
 
 export function UsersListPanel({
   content,
-  segment,
   page,
 }: {
   content: UsersContent;
-  segment: string;
   page: number;
 }) {
+  const profile = useAdminSession();
+  const canManageRoles = Boolean(profile?.rbac?.canManageRoles);
   const [search, setSearch] = useState("");
   const [roleUser, setRoleUser] = useState<DBUser | null>(null);
+  const [purgeUser, setPurgeUser] = useState<DBUser | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
 
-  const isRequests = content.kind === "requests";
-
-  const filtered = useMemo(() => {
-    if (isRequests) {
-      return content.pending.filter((user) => matchesUserSearch(user, search));
-    }
-
-    return content.data.filter((user) => matchesUserSearch(user, search));
-  }, [content, isRequests, search]);
+  const filtered = useMemo(
+    () => content.data.filter((user) => matchesUserSearch(user, search)),
+    [content.data, search],
+  );
 
   const isFiltering = search.trim().length > 0;
-
-  const total =
-    content.kind === "requests" ? content.pending.length : content.total;
-  const pageCount =
-    content.kind === "requests" ? content.pending.length : content.data.length;
+  const total = content.total;
+  const pageCount = content.data.length;
 
   function handleExport() {
-    if (content.kind === "requests") {
-      exportPendingUsersCsv(filtered as DBUser[]);
-      return;
-    }
-    exportPortalUsersCsv(filtered as DBUser[], content.kind);
+    exportPortalUsersCsv(filtered as DBUser[], "team");
   }
-
-  const listParams: Record<string, string> = {
-    tab: isRequests ? "requests" : "users",
-  };
-  if (!isRequests) listParams.segment = segment;
-
-  const sectionTitle = isRequests
-    ? "Access requests"
-    : `${SEGMENT_LABELS[segment] ?? "Users"} directory`;
-
-  const sectionDescription = isRequests
-    ? "Staff accounts waiting for verification before they can sign in to the portal."
-    : segment === "delivery"
-      ? "Verified delivery operators."
-      : segment === "vendor"
-        ? "Verified vendor portal accounts."
-        : "Verified admin accounts.";
 
   return (
     <>
       <AnimatePresence>
-        {roleUser ? (
-          <UsersRoleModal
+        {roleUser && canManageRoles ? (
+          <UsersStaffAccessModal
             key={roleUser.id}
             user={roleUser}
-            title={isRequests ? "Change requested role" : "Change role"}
-            description={
-              isRequests
-                ? "Update the role before approving this request."
-                : undefined
-            }
             onClose={() => setRoleUser(null)}
             onUpdated={() => setRoleUser(null)}
+          />
+        ) : null}
+        {createOpen && canManageRoles ? (
+          <UsersCreateStaffModal
+            key="create-staff"
+            onClose={() => setCreateOpen(false)}
+            onCreated={() => setCreateOpen(false)}
+          />
+        ) : null}
+        {purgeUser && canManageRoles ? (
+          <UsersPurgeModal
+            key={purgeUser.id}
+            user={purgeUser}
+            onClose={() => setPurgeUser(null)}
+            onPurged={() => setPurgeUser(null)}
           />
         ) : null}
       </AnimatePresence>
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
         <CardContent className="flex flex-col gap-0 p-0">
-          <div className="border-b px-3 py-3">
-            <h2 className="text-sm font-medium">{sectionTitle}</h2>
-            <p className="text-xs text-muted-foreground">{sectionDescription}</p>
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b px-3 py-3">
+            <div>
+              <h2 className="text-sm font-medium">Team directory</h2>
+              <p className="text-xs text-muted-foreground">
+                ERP staff and vendor portal accounts. Super admins can create users with
+                email, password, and role.
+              </p>
+            </div>
+            {canManageRoles ? (
+              <Button size="sm" onClick={() => setCreateOpen(true)}>
+                <Plus className="size-4" />
+                Create user
+              </Button>
+            ) : null}
           </div>
 
           <div className="border-b p-2">
@@ -148,24 +132,22 @@ export function UsersListPanel({
                   : "No users in this view."}
               </p>
               {isFiltering ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSearch("")}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSearch("")}>
                   Clear filters
+                </Button>
+              ) : canManageRoles ? (
+                <Button size="sm" onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" />
+                  Create user
                 </Button>
               ) : null}
             </div>
-          ) : isRequests ? (
-            <AccessRequestsDataTable
-              users={filtered as DBUser[]}
-              onEditRole={setRoleUser}
-            />
           ) : (
             <PortalStaffDataTable
               users={filtered as DBUser[]}
-              onEditRole={setRoleUser}
+              currentUserId={profile?.id}
+              onEditRole={canManageRoles ? setRoleUser : undefined}
+              onPurgeUser={canManageRoles ? setPurgeUser : undefined}
             />
           )}
 
@@ -177,13 +159,8 @@ export function UsersListPanel({
             </span>
           </div>
 
-          {!isRequests && !isFiltering && total > pageCount ? (
-            <Pagination
-              total={total}
-              page={page}
-              basePath="/admin/users"
-              extraParams={listParams}
-            />
+          {!isFiltering && total > pageCount ? (
+            <Pagination total={total} page={page} basePath="/admin/users" />
           ) : null}
         </CardContent>
       </Card>

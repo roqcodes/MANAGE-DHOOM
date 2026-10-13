@@ -49,7 +49,7 @@ export function UsersMetricsBar({
   onExport: () => void;
 }) {
   const portalStaff =
-    stats.vendor + stats.delivery + stats.admin + stats.manager;
+    stats.vendor + stats.delivery + (stats.erpStaff ?? stats.admin + stats.manager);
 
   return (
     <div className="flex flex-col gap-3">
@@ -73,7 +73,7 @@ export function UsersMetricsBar({
           <MetricSegment
             label="Portal staff"
             value={portalStaff.toLocaleString("en-IN")}
-            trend={`${stats.vendor} vendors · ${stats.delivery} delivery`}
+            trend={`${stats.erpStaff ?? 0} ERP · ${stats.vendor} vendors · ${stats.delivery} delivery`}
             trendTone="neutral"
             sparkSeed={portalStaff + 3}
             sparkTone="green"

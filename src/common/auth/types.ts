@@ -1,16 +1,19 @@
+import type { RbacSession } from "@/modules/rbac/lib/permission-catalog";
+
 export enum UserRole {
+  SuperAdmin = "super_admin",
   Admin = "admin",
   Manager = "manager",
+  SalesManager = "sales_manager",
+  Salesman = "salesman",
+  Accountant = "accountant",
+  StoreKeeper = "store_keeper",
+  Staff = "staff",
   Delivery = "delivery",
   Vendor = "vendor",
 }
 
 export type AuthMode = "sign-in" | "request";
-
-export type RequestAccessRole =
-  | UserRole.Admin
-  | UserRole.Delivery
-  | UserRole.Vendor;
 
 export interface AuthScreenProps {
   initialMode?: AuthMode;
@@ -29,16 +32,11 @@ export interface AuthFormState {
 }
 
 export interface AuthScreenViewProps {
-  mode: AuthMode;
-  isRequestMode: boolean;
-  role: RequestAccessRole;
   form: AuthFormState;
   showPassword: boolean;
   isPending: boolean;
   actionState: AuthActionState;
   formAction: (payload: FormData) => void;
-  onModeToggle: () => void;
-  onRoleChange: (role: RequestAccessRole) => void;
   onFieldChange: <K extends keyof AuthFormState>(
     field: K,
     value: AuthFormState[K],
@@ -55,11 +53,22 @@ export interface UserProfile {
   is_verified: boolean | null;
   /** From Supabase Auth metadata when signed in via OAuth (e.g. Google). */
   avatar_url?: string | null;
+  rbac?: RbacSession | null;
 }
 
-export const ALLOWED_PORTAL_ROLES: readonly UserRole[] = [
+export const ADMIN_AREA_ROLES: readonly UserRole[] = [
+  UserRole.SuperAdmin,
   UserRole.Admin,
   UserRole.Manager,
+  UserRole.SalesManager,
+  UserRole.Salesman,
+  UserRole.Accountant,
+  UserRole.StoreKeeper,
+  UserRole.Staff,
+];
+
+export const ALLOWED_PORTAL_ROLES: readonly UserRole[] = [
+  ...ADMIN_AREA_ROLES,
   UserRole.Vendor,
   UserRole.Delivery,
 ];
@@ -68,9 +77,3 @@ export const INITIAL_AUTH_ACTION_STATE: AuthActionState = {
   errorMessage: null,
   successMessage: null,
 };
-
-export const REQUEST_ACCESS_ROLES: readonly RequestAccessRole[] = [
-  UserRole.Admin,
-  UserRole.Delivery,
-  UserRole.Vendor,
-];
