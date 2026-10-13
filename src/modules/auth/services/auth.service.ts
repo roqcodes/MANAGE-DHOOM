@@ -9,6 +9,7 @@ import {
   type RequestAccessRole,
   type UserProfile,
 } from "@/common/auth/types";
+import { createSupabaseAdminClient } from "@/lib/integrations/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import {
   isSupabaseConnectivityError,
@@ -211,6 +212,36 @@ export async function signInWithPassword(input: {
   };
 }
 
+function isAuthUserAlreadyRegisteredMessage(message: string) {
+  return /user already registered|already been registered|already exists/i.test(
+    message,
+  );
+}
+
+async function createPortalAccessProfileRow(input: {
+  userId: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: RequestAccessRole;
+}) {
+  const admin = createSupabaseAdminClient();
+  const supabase = await createSupabaseServerClient();
+  const profileClient = admin ?? supabase;
+
+  const { error } = await profileClient.rpc("create_portal_access_profile", {
+    p_user_id: input.userId,
+    p_name: input.name,
+    p_email: input.email,
+    p_phone: input.phone,
+    p_role: input.role,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
 export async function requestAccess(input: {
   name: string;
   email: string;
@@ -218,44 +249,75 @@ export async function requestAccess(input: {
   password: string;
   role: RequestAccessRole;
 }) {
-  const supabase = await createSupabaseServerClient();
-  await assertEmailAvailableForStaffPortal(supabase, input.email);
+  const email = input.email.trim().toLowerCase();
+  const name = input.name.trim();
+  const phone = input.phone.trim();
 
-  const { data, error } = await supabase.auth.signUp({
-    email: input.email,
+  const supabase = await createSupabaseServerClient();
+  await assertEmailAvailableForStaffPortal(supabase, email);
+
+  let user: User | null = null;
+
+  const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    email,
     password: input.password,
     options: {
       data: {
-        // Strings: Postgres `->>` compares text; a JSON boolean `true` used to fail the RPC.
         portal_access_request: "true",
-        name: input.name,
-        phone: input.phone,
+        name,
+        phone,
         role: input.role,
       },
     },
   });
 
-  if (data.session) {
-    await supabase.auth.setSession(data.session);
-  }
+  if (signUpError && isAuthUserAlreadyRegisteredMessage(signUpError.message)) {
+    const { data: signInData, error: signInError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password: input.password,
+      });
 
-  if (error) {
+    if (signInError) {
+      await recordAuthAudit({
+        action: "request_access",
+        email,
+        role: input.role,
+        outcome: "failure",
+        reason: signInError.message,
+      });
+      throw new Error(
+        formatPortalAuthError(
+          "This email already has an account. Sign in, or reset your password if you forgot it.",
+          "request-access",
+        ),
+      );
+    }
+
+    user = signInData.user;
+    if (signInData.session) {
+      await supabase.auth.setSession(signInData.session);
+    }
+  } else if (signUpError) {
     await recordAuthAudit({
       action: "request_access",
-      email: input.email,
+      email,
       role: input.role,
       outcome: "failure",
-      reason: error.message,
+      reason: signUpError.message,
     });
-    throw new Error(formatPortalAuthError(error, "request-access"));
+    throw new Error(formatPortalAuthError(signUpError, "request-access"));
+  } else {
+    user = signUpData.user;
+    if (signUpData.session) {
+      await supabase.auth.setSession(signUpData.session);
+    }
   }
-
-  const user = data.user;
 
   if (!user) {
     await recordAuthAudit({
       action: "request_access",
-      email: input.email,
+      email,
       role: input.role,
       outcome: "failure",
       reason: "Missing user after sign up.",
@@ -263,31 +325,31 @@ export async function requestAccess(input: {
     throw new Error("Unable to create your access request.");
   }
 
-  const { error: profileError } = await supabase.rpc("create_portal_access_profile", {
-    p_user_id: user.id,
-    p_name: input.name,
-    p_email: input.email,
-    p_phone: input.phone,
-    p_role: input.role,
-  });
-
-  if (profileError) {
+  try {
+    await createPortalAccessProfileRow({
+      userId: user.id,
+      name,
+      email,
+      phone,
+      role: input.role,
+    });
+  } catch (profileError) {
     await supabase.auth.signOut();
     await recordAuthAudit({
       action: "request_access",
-      email: input.email,
+      email,
       userId: user.id,
       role: input.role,
       outcome: "failure",
-      reason: profileError.message,
+      reason: profileError instanceof Error ? profileError.message : String(profileError),
     });
-    throw new Error(profileError.message);
+    throw profileError;
   }
 
   await supabase.auth.signOut();
   await recordAuthAudit({
     action: "request_access",
-    email: input.email,
+    email,
     userId: user.id,
     role: input.role,
     outcome: "success",
