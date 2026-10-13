@@ -34,6 +34,7 @@ export {
 export { useAdminDateRange } from "./use-admin-date-range";
 export {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminTableHeader,
   AdminTableBody,
   AdminTableRow,

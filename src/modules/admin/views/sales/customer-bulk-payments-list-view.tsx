@@ -11,7 +11,6 @@ import { PAGE_SIZE } from "@/common/admin/types";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { currencyLabel, formatCurrencyAmount } from "@/lib/format-currency";
 import { CatalogMetricSegment } from "@/modules/orders/components/orders-ui";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
@@ -20,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableFooter, TableCell, TableHead, TableRow } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -89,6 +89,7 @@ export function CustomerBulkPaymentsListView() {
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const summary = data?.summary ?? null;
   const receivedTrend = useMemo(() => {
@@ -129,9 +130,6 @@ export function CustomerBulkPaymentsListView() {
       setDeletingId(null);
     }
   }
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -182,11 +180,11 @@ export function CustomerBulkPaymentsListView() {
         </Card>
       ) : null}
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search store, account, receipt…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No bulk payments found."
         isFiltering={Boolean(debouncedSearch.trim()) || isDateFiltering}
         onClearFilters={() => {
@@ -275,6 +273,9 @@ export function CustomerBulkPaymentsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.batch_id}>
@@ -333,6 +334,7 @@ export function CustomerBulkPaymentsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
           {sorted.length > 0 && (
             <TableFooter>
               <TableRow className="hover:bg-transparent">

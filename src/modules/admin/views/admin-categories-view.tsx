@@ -13,7 +13,7 @@ import {
 
 import type { Category } from "@/common/admin/types";
 import { getCategoryThumbnail } from "@/modules/products/lib/categories.utils";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminDataTableRowsSkeleton } from "@/modules/admin/ui";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import {
   FormError,
@@ -276,7 +276,7 @@ export function AdminCategoriesView() {
     },
   );
 
-  if (isPending && !data) return <AdminPageSkeleton />;
+  const initialLoading = isPending && !data;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -341,7 +341,21 @@ export function AdminCategoriesView() {
 
         <Card className="overflow-hidden border border-border py-0 ring-0">
           <CardContent className="p-0">
-            {categories.length === 0 ? (
+            {initialLoading ? (
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-14" />
+                    <TableHead>Name</TableHead>
+                    <TableHead>Parent</TableHead>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-24" />
+                  </TableRow>
+                </TableHeader>
+                <AdminDataTableRowsSkeleton rows={8} columns={6} />
+              </Table>
+            ) : categories.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
                 <FolderTree className="size-10 text-muted-foreground/40" aria-hidden />
                 <p className="text-sm text-muted-foreground">No categories yet.</p>

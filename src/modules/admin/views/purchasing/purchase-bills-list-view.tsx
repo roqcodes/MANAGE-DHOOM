@@ -7,7 +7,6 @@ import type { ErpPurchaseBillListRow } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { displayErpDocumentNumber } from "@/lib/erp-document-ref";
@@ -16,6 +15,7 @@ import { TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -84,6 +84,7 @@ export function PurchaseBillsListView() {
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const { active: outboxActive, needsAttention: outboxAttention } =
     usePendingErpOutboxOperations(PURCHASE_BILL_OUTBOX_TYPES);
@@ -115,9 +116,6 @@ export function PurchaseBillsListView() {
       await refetch();
     });
   }
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -138,11 +136,11 @@ export function PurchaseBillsListView() {
         </p>
       ) : null}
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search bill, vendor bill, batch…"
-        isEmpty={sorted.length === 0 && !hasQueuedBills}
+        isEmpty={!initialLoading && (sorted.length === 0 && !hasQueuedBills)}
         emptyMessage="No purchase bills found."
         isFiltering={isFiltering}
         onClearFilters={clearFilters}
@@ -227,6 +225,9 @@ export function PurchaseBillsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             <PurchaseBillOutboxTableRows operations={queuedBillOps} />
             {sorted.map((r) => {
@@ -320,6 +321,7 @@ export function PurchaseBillsListView() {
               );
             })}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

@@ -42,6 +42,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 
 function FilterDropdown({
   label,
@@ -92,6 +93,7 @@ export function AdminPurchaseOrdersPanel({
   deliveryFilter,
   selectedVendorId,
   stats,
+  initialLoading = false,
 }: {
   orders: AdminPurchaseOrderListRow[];
   total: number;
@@ -100,6 +102,7 @@ export function AdminPurchaseOrdersPanel({
   deliveryFilter: PurchaseOrderDeliveryFilter | null;
   selectedVendorId: string | null;
   stats: PurchaseOrderCatalogStats;
+  initialLoading?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -267,7 +270,9 @@ export function AdminPurchaseOrdersPanel({
             />
           </div>
 
-          {filtered.length === 0 ? (
+          {initialLoading ? (
+            <AdminTableBodySkeleton rows={8} />
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <Ban className="size-12 text-muted-foreground/30" aria-hidden />
               <p className="text-sm text-muted-foreground">

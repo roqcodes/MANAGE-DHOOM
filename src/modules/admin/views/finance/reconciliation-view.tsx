@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminKpiGridSkeleton, AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { SortableTableHead, useSortableData } from "@/modules/admin/ui";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -98,8 +98,26 @@ export function AdminReconciliationView() {
     toggleSort: togglePaymentSort,
   } = useSortableData(paymentRows, "payment_number", "asc");
 
-  if (loading) return <AdminPageSkeleton />;
-  if (!data) return <p className="p-4 text-sm text-destructive">Failed to load reconciliation data.</p>;
+  if (!data && !loading) {
+    return <p className="p-4 text-sm text-destructive">Failed to load reconciliation data.</p>;
+  }
+
+  if (loading && !data) {
+    return (
+      <div className="space-y-6 p-4">
+        <div>
+          <h1 className="text-lg font-semibold">Reconciliation</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cross-checks journal entries, inventory totals, invoice balances, and payment allocations.
+          </p>
+        </div>
+        <AdminKpiGridSkeleton count={4} />
+        <AdminTableBodySkeleton rows={6} />
+      </div>
+    );
+  }
+
+  if (!data) return null;
 
   const issueCount =
     (data.journal_balanced ? 0 : 1) +

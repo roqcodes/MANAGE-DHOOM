@@ -4,10 +4,10 @@ import { useState } from "react";
 
 import type { ItemTransactionRow } from "@/common/erp/inventory-types";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -56,15 +56,13 @@ export function ItemTransactionsListView() {
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
     "created_at",
     "desc",
   );
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -73,11 +71,11 @@ export function ItemTransactionsListView() {
         description="Read-only ledger of stock movements across stores."
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search item, barcode, invoice…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No item transactions found."
         isFiltering={
           type !== "all" || isDateFiltering || Boolean(debouncedSearch.trim())
@@ -163,6 +161,9 @@ export function ItemTransactionsListView() {
               align="right"
             />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((r) => (
               <AdminTableRow key={r.id}>
@@ -190,6 +191,7 @@ export function ItemTransactionsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
     </AdminPageLayout>

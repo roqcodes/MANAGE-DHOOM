@@ -8,7 +8,6 @@ import { Trash2 } from "lucide-react";
 import type { VatPaymentListRow } from "@/common/erp/finance-types";
 import { adminDelete, adminGet } from "@/modules/admin/lib/admin-api-client";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -91,8 +91,7 @@ export function VatPaymentsListView() {
       setDeletingId(null);
     }
   }
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
+  const initialLoading = loading && rows.length === 0;
 
   return (
     <AdminPageLayout>
@@ -107,12 +106,12 @@ export function VatPaymentsListView() {
         <MetricCard label="Amount (page)" value={formatCurrencyAmount(totalPaid)} />
       </div>
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search payment number, reference…"
         emptyMessage="No VAT payments found."
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => {
           setSearch("");
@@ -173,6 +172,9 @@ export function VatPaymentsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
@@ -214,6 +216,7 @@ export function VatPaymentsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

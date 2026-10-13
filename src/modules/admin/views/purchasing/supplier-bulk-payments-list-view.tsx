@@ -10,7 +10,6 @@ import type {
 } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { currencyLabel, formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
@@ -20,6 +19,7 @@ import { TableHead } from "@/components/ui/table";
 import { CatalogMetricSegment } from "@/modules/orders/components/orders-ui";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -76,6 +76,7 @@ export function SupplierBulkPaymentsListView() {
     path: listPath,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const summary = data?.summary ?? null;
   const paidTrend = useMemo(() => {
@@ -102,9 +103,6 @@ export function SupplierBulkPaymentsListView() {
   const listParams: Record<string, string> = {};
   Object.assign(listParams, dateParams);
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -155,11 +153,11 @@ export function SupplierBulkPaymentsListView() {
         </Card>
       ) : null}
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search store, reference…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No bulk supplier payments found."
         isFiltering={Boolean(debouncedSearch.trim()) || isDateFiltering}
         onClearFilters={() => {
@@ -216,6 +214,9 @@ export function SupplierBulkPaymentsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((r) => (
               <AdminTableRow key={r.batch_id}>
@@ -252,6 +253,7 @@ export function SupplierBulkPaymentsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

@@ -8,13 +8,13 @@ import type { ErpStoreTransferListRow } from "@/common/erp/inventory-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -56,6 +56,7 @@ export function StoreTransfersListView() {
     enabled: !erpContextLoading && Boolean(activeStoreId),
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
@@ -65,9 +66,6 @@ export function StoreTransfersListView() {
 
   const listParams: Record<string, string> = {};
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -82,11 +80,11 @@ export function StoreTransfersListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search transfer number…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No store transfers yet."
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => {
@@ -133,6 +131,9 @@ export function StoreTransfersListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((r) => (
               <AdminTableRow key={r.id}>
@@ -162,6 +163,7 @@ export function StoreTransfersListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

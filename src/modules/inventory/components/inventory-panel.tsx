@@ -19,6 +19,7 @@ import {
   matchesInventoryViewFilter,
   type InventoryViewFilter,
 } from "@/modules/inventory/components/inventory-ui";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -42,12 +43,14 @@ export function InventoryPanel({
   page,
   stats,
   hideMetrics = false,
+  initialLoading = false,
 }: {
   inventory: InventoryWithVariant[];
   total: number;
   page: number;
   stats: InventoryCatalogStats;
   hideMetrics?: boolean;
+  initialLoading?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [viewFilter, setViewFilter] = useState<InventoryViewFilter>("all");
@@ -157,7 +160,9 @@ export function InventoryPanel({
             />
           </div>
 
-          {filtered.length === 0 ? (
+          {initialLoading ? (
+            <AdminTableBodySkeleton rows={8} />
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <Ban className="size-12 text-muted-foreground/30" aria-hidden />
               <p className="text-sm text-muted-foreground">

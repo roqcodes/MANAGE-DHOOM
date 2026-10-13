@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminKpiGridSkeleton, AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import {
   FormError,
@@ -360,7 +360,7 @@ export function AdminPushNotificationsView() {
     return rows.filter((row) => row.status === statusFilter);
   }, [data?.campaigns, statusFilter]);
 
-  if (isLoading || !data) return <AdminPageSkeleton />;
+  const initialLoading = isLoading && !data;
 
   function toggleAutomation(item: PushTemplateRow, enabled: boolean) {
     startTransition(async () => {
@@ -408,6 +408,13 @@ export function AdminPushNotificationsView() {
         </Button>
       </div>
 
+      {initialLoading ? (
+        <>
+          <AdminKpiGridSkeleton count={4} labels={["Active devices", "Customers opted in", "Delivered today", "Scheduled"]} />
+          <AdminTableBodySkeleton rows={6} />
+        </>
+      ) : data ? (
+      <>
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
           { label: "Active devices", value: data.activeTokens },
@@ -605,8 +612,10 @@ export function AdminPushNotificationsView() {
           </Card>
         </TabsContent>
       </Tabs>
+      </>
+      ) : null}
 
-      {composerOpen ? (
+      {composerOpen && data ? (
         <CampaignComposer
           templates={data.templates}
           initial={editingCampaign}

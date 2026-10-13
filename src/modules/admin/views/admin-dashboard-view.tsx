@@ -46,7 +46,10 @@ import type {
 import type { AuditLogEntry } from "@/common/erp/types";
 import { formatAuditLogUserDetail } from "@/modules/erp/lib/audit-log-display";
 import type { ErpFinancialDashboard } from "@/common/erp/finance-types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import {
+  AdminKpiGridSkeleton,
+} from "@/modules/admin/components/admin-page-skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { CurrencyAmount } from "@/components/currency-amount";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -856,9 +859,7 @@ export function AdminDashboardView() {
     return () => window.removeEventListener("buyhub:erp-store-changed", onStoreChanged);
   }, [queryClient]);
 
-  if (isPending && !data) {
-    return <AdminPageSkeleton />;
-  }
+  const initialLoading = isPending && !data;
 
   if (isError) {
     return (
@@ -876,7 +877,27 @@ export function AdminDashboardView() {
     );
   }
 
-  if (!data) return <AdminPageSkeleton />;
+  if (initialLoading) {
+    return (
+      <AdminPageLayout>
+        <AdminPageHeader
+          title="Dashboard"
+          description="Loading overview…"
+        />
+        <AdminKpiGridSkeleton
+          count={4}
+          labels={["Sales today", "Net profit (YTD)", "Open orders", "Low stock SKUs"]}
+        />
+        <Skeleton className="h-72 w-full rounded-xl" />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Skeleton className="h-56 rounded-xl" />
+          <Skeleton className="h-56 rounded-xl" />
+        </div>
+      </AdminPageLayout>
+    );
+  }
+
+  if (!data) return null;
 
   const {
     alerts,

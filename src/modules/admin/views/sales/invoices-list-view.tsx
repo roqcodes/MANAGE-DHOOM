@@ -14,6 +14,7 @@ import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -37,7 +38,6 @@ import { useErpInvoicePrintModal } from "@/modules/erp/components/use-erp-invoic
 import { InvoiceChannelBadge } from "@/modules/erp/components/invoice-channel-badge";
 import { TableHead } from "@/components/ui/table";
 import { useErpListState } from "@/modules/admin/ui/use-erp-list-state";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { PAGE_SIZE } from "@/common/admin/types";
 
 const STATUS_OPTIONS = [
@@ -77,6 +77,7 @@ export function InvoicesListView() {
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const [cancellingId, startCancel] = useTransition();
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
@@ -91,9 +92,6 @@ export function InvoicesListView() {
       await refetch();
     });
   }
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -114,11 +112,11 @@ export function InvoicesListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Invoice number or customer…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No invoices found."
         isFiltering={isFiltering}
         onClearFilters={clearFilters}
@@ -205,6 +203,9 @@ export function InvoicesListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
@@ -282,6 +283,7 @@ export function InvoicesListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { formatActionError } from "@/modules/admin/lib/format-action-error";
 import {
@@ -233,7 +233,7 @@ export function AdminTaxConfigView() {
     }
   }
 
-  if (isPending && !data) return <AdminPageSkeleton />;
+  const initialLoading = isPending && !data;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -247,8 +247,6 @@ export function AdminTaxConfigView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
   return (
     <>
       {showAddModal ? (
@@ -281,13 +279,13 @@ export function AdminTaxConfigView() {
         </div>
 
         <div className="flex flex-col gap-4">
-          {data.defaultRate ? (
+          {data?.defaultRate ? (
             <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
               <Check className="text-emerald-600" />
               <AlertTitle className="text-emerald-900">Default tax rate</AlertTitle>
               <AlertDescription className="text-emerald-800">
-                {data.defaultRate.name} — {data.defaultRate.rate_percent}%
-                {data.defaultRate.description
+                {data?.defaultRate.name} — {data?.defaultRate.rate_percent}%
+                {data?.defaultRate.description
                   ? ` · ${data.defaultRate.description}`
                   : null}
               </AlertDescription>
@@ -296,7 +294,9 @@ export function AdminTaxConfigView() {
 
           <Card className="overflow-hidden border border-border py-0 ring-0">
             <CardContent className="p-0">
-              {data.rates.length === 0 ? (
+              {initialLoading ? (
+                <AdminTableBodySkeleton rows={6} />
+              ) : (data?.rates ?? []).length === 0 ? (
                 <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
                   <Percent
                     className="size-10 text-muted-foreground/40"

@@ -16,6 +16,7 @@ function MetricSegment({
   sparkSeed,
   sparkTone = "primary",
   flatSpark = false,
+  valuesLoading = false,
 }: {
   label: string;
   value: string;
@@ -24,19 +25,30 @@ function MetricSegment({
   sparkSeed: number;
   sparkTone?: "primary" | "neutral" | "green";
   flatSpark?: boolean;
+  valuesLoading?: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          <p className="text-xl font-semibold tabular-nums tracking-tight">
-            {value}
-          </p>
-          {trend ? <TrendBadge value={trend} tone={trendTone} /> : null}
+          {valuesLoading ? (
+            <span className="inline-block h-7 w-20 animate-pulse rounded-md bg-muted" />
+          ) : (
+            <p className="text-xl font-semibold tabular-nums tracking-tight">
+              {value}
+            </p>
+          )}
+          {!valuesLoading && trend ? (
+            <TrendBadge value={trend} tone={trendTone} />
+          ) : null}
         </div>
       </div>
-      <MiniSparkline seed={sparkSeed} tone={sparkTone} flat={flatSpark} />
+      {valuesLoading ? (
+        <span className="inline-block h-8 w-16 shrink-0 animate-pulse rounded-md bg-muted/80" />
+      ) : (
+        <MiniSparkline seed={sparkSeed} tone={sparkTone} flat={flatSpark} />
+      )}
     </div>
   );
 }
@@ -44,9 +56,11 @@ function MetricSegment({
 export function UsersMetricsBar({
   stats,
   onExport,
+  valuesLoading = false,
 }: {
   stats: TeamCatalogStats;
   onExport: () => void;
+  valuesLoading?: boolean;
 }) {
   const portalStaff =
     stats.vendor + stats.delivery + (stats.erpStaff ?? stats.admin + stats.manager);
@@ -77,6 +91,7 @@ export function UsersMetricsBar({
             trendTone="neutral"
             sparkSeed={portalStaff + 3}
             sparkTone="green"
+            valuesLoading={valuesLoading}
           />
           <MetricSegment
             label="Admins & managers"
@@ -85,6 +100,7 @@ export function UsersMetricsBar({
             trendTone="neutral"
             sparkSeed={stats.admin + stats.manager + 1}
             sparkTone="primary"
+            valuesLoading={valuesLoading}
           />
           <MetricSegment
             label="Pending requests"
@@ -93,6 +109,7 @@ export function UsersMetricsBar({
             sparkSeed={stats.pendingRequests}
             sparkTone="neutral"
             flatSpark
+            valuesLoading={valuesLoading}
           />
         </div>
       </Card>

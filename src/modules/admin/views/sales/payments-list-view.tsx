@@ -9,7 +9,6 @@ import { paymentModeLabel } from "@/common/erp/sales-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { currencyLabel, formatCurrencyAmount } from "@/lib/format-currency";
 import { CatalogMetricSegment } from "@/modules/orders/components/orders-ui";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
@@ -18,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -80,6 +80,7 @@ export function PaymentsListView() {
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const summary = data?.summary ?? null;
   const receivedTrend = useMemo(() => {
@@ -109,9 +110,6 @@ export function PaymentsListView() {
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   const isFiltering = Boolean(debouncedSearch.trim()) || isDateFiltering;
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -171,11 +169,11 @@ export function PaymentsListView() {
         </Card>
       ) : null}
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search payment, customer, invoice…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No payments found."
         isFiltering={isFiltering}
         onClearFilters={() => {
@@ -241,6 +239,9 @@ export function PaymentsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
@@ -301,6 +302,7 @@ export function PaymentsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

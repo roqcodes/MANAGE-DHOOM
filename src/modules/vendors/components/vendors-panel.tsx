@@ -34,6 +34,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 
 type ManageModalState =
   | { mode: "create" }
@@ -45,11 +46,13 @@ export function VendorsPanel({
   total,
   page,
   stats,
+  initialLoading = false,
 }: {
   vendors: Vendor[];
   total: number;
   page: number;
   stats: VendorCatalogStats;
+  initialLoading?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<ManageModalState>(null);
@@ -96,6 +99,7 @@ export function VendorsPanel({
       <div className="flex flex-col gap-4">
         <VendorsMetricsBar
           stats={stats}
+          valuesLoading={initialLoading}
           onExport={() => exportVendorsCsv(filtered)}
           onImport={() => exportVendorsCsv(vendors)}
           onCreate={() => setModal({ mode: "create" })}
@@ -164,7 +168,9 @@ export function VendorsPanel({
               />
             </div>
 
-            {filtered.length === 0 ? (
+            {initialLoading ? (
+              <AdminTableBodySkeleton rows={8} />
+            ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
                 <Ban className="size-12 text-muted-foreground/30" aria-hidden />
                 <p className="text-sm text-muted-foreground">

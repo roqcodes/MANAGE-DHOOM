@@ -12,7 +12,7 @@ import {
   type OrderStatusFilter,
 } from "@/common/admin/types";
 import type { OrderFilterUserRow } from "@/modules/orders/services/orders.service";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { EMPTY_ORDER_CATALOG_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import { OrdersPanel } from "@/modules/orders/components/orders-panel";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -65,8 +65,8 @@ export function SalesOrdersListView() {
     placeholderData: keepPreviousData,
     enabled: !erpContextLoading && Boolean(activeStoreId),
   });
+  const initialLoading = isPending && !data;
 
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <AdminPageLayout>
@@ -82,8 +82,6 @@ export function SalesOrdersListView() {
       </AdminPageLayout>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -92,13 +90,14 @@ export function SalesOrdersListView() {
       />
       <SalesOrderOutboxBanner />
       <OrdersPanel
-        orders={data.data}
-        total={data.total}
-        page={data.page}
-        statusFilter={data.status}
-        filterUsers={data.filterUsers}
-        selectedUserId={data.userId}
-        stats={data.stats}
+        initialLoading={initialLoading}
+        orders={data?.data ?? []}
+        total={data?.total ?? 0}
+        page={data?.page ?? page}
+        statusFilter={data?.status ?? status}
+        filterUsers={data?.filterUsers ?? []}
+        selectedUserId={data?.userId ?? userId}
+        stats={data?.stats ?? EMPTY_ORDER_CATALOG_STATS}
         channel="erp"
         basePath="/admin/erp/sales-orders"
         outboxOperations={outboxOperations}

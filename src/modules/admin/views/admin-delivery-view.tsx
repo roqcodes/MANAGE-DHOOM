@@ -4,7 +4,7 @@ import { Truck } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import type { DBUser } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 
@@ -14,7 +14,7 @@ export function AdminDeliveryView() {
     queryFn: () => adminGet<{ riders: DBUser[] }>("delivery"),
   });
 
-  if (isPending && !data) return <AdminPageSkeleton />;
+  const initialLoading = isPending && !data;
   if (isError) {
     return (
       <div className="px-3 py-6 text-sm font-semibold text-red-600 sm:px-4">
@@ -22,9 +22,7 @@ export function AdminDeliveryView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
-  const { riders } = data;
+  const riders = data?.riders ?? [];
 
   return (
     <div className="mx-auto w-full max-w-5xl px-3 py-4 sm:px-5 sm:py-4">
@@ -33,13 +31,18 @@ export function AdminDeliveryView() {
           Delivery Manager
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          {riders.length} verified delivery rider
-          {riders.length !== 1 ? "s" : ""} active.
+          {initialLoading
+            ? "Loading riders…"
+            : `${riders.length} verified delivery rider${riders.length !== 1 ? "s" : ""} active.`}
         </p>
       </header>
 
       <div className="overflow-hidden rounded-[24px] border border-slate-100 bg-white shadow-[0_4px_16px_rgba(26,26,46,0.04)]">
-        {riders.length === 0 ? (
+        {initialLoading ? (
+          <div className="p-4">
+            <AdminTableBodySkeleton rows={6} />
+          </div>
+        ) : riders.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-20 text-center">
             <Truck size={48} className="text-slate-200" />
             <p className="text-sm font-semibold text-slate-400">

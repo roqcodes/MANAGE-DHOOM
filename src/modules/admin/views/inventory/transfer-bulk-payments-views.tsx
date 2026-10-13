@@ -9,7 +9,7 @@ import type {
   ErpTransferPaymentListRow,
   PendingTransferPaymentRow,
 } from "@/common/erp/inventory-types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -46,8 +46,7 @@ export function TransferBulkPaymentsListView() {
   });
   const rows = data?.data ?? [];
   const total = data?.total ?? 0;
-
-  if (isPending && !data) return <AdminPageSkeleton />;
+  const initialLoading = isPending && !data;
 
   return (
     <AdminPageLayout>
@@ -70,7 +69,9 @@ export function TransferBulkPaymentsListView() {
         className="max-w-xs"
       />
 
-      {rows.length === 0 ? (
+      {initialLoading ? (
+        <AdminTableBodySkeleton rows={8} />
+      ) : rows.length === 0 ? (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-slate-500">
           No transfer payments recorded yet.
         </p>

@@ -22,6 +22,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -213,6 +214,7 @@ export function AccountsListView() {
     () => rows.filter((r) => !r.is_system && !r.is_locked).length,
     [rows],
   );
+  const initialLoading = loading && rows.length === 0;
 
   async function handleDelete(row: AccountListRow) {
     if (row.is_system || row.is_locked) return;
@@ -227,9 +229,6 @@ export function AccountsListView() {
       setDeletingId(null);
     }
   }
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
-
   return (
     <>
       {modal ? (
@@ -275,11 +274,11 @@ export function AccountsListView() {
           </CardContent>
         </Card>
 
-        <AdminListCard
+        <AdminListCard isLoading={initialLoading}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="Search name, code, or description…"
-          isEmpty={sorted.length === 0}
+          isEmpty={!initialLoading && (sorted.length === 0)}
           emptyMessage={
             debouncedSearch.trim() ? "No accounts match your search." : "No accounts yet."
           }
@@ -325,7 +324,10 @@ export function AccountsListView() {
               />
               <TableHead className="w-28 text-right" />
             </AdminTableHeader>
-            <AdminTableBody>
+            {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
+          <AdminTableBody>
               {sorted.map((row) => {
                 const locked = row.is_system || row.is_locked;
                 return (
@@ -370,6 +372,7 @@ export function AccountsListView() {
                 );
               })}
             </AdminTableBody>
+          )}
           </AdminDataTable>
         </AdminListCard>
 

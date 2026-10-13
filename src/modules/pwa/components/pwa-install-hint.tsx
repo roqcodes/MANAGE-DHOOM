@@ -3,12 +3,26 @@
 import { Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
+import {
+  cacheInstallPrompt,
+  clearCachedInstallPrompt,
+  getCachedInstallPrompt,
+  markInstallPromptAskedThisSession,
+  markInstallPromptDismissedThisSession,
+  shouldSuppressInstallPrompt,
+  type BeforeInstallPromptEvent,
+} from "@/modules/pwa/lib/pwa-install-session";
 
-const DISMISS_KEY = "buyhub-pwa-install-dismissed";
+function showPromptFromCache(
+  setDeferred: (e: BeforeInstallPromptEvent | null) => void,
+  setVisible: (v: boolean) => void,
+) {
+  const cached = getCachedInstallPrompt();
+  if (!cached || shouldSuppressInstallPrompt()) return;
+  setDeferred(cached);
+  setVisible(true);
+  markInstallPromptAskedThisSession();
+}
 
 export function PwaInstallHint() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
@@ -21,14 +35,24 @@ export function PwaInstallHint() {
       return;
     }
 
-    if (window.localStorage.getItem(DISMISS_KEY) === "1") {
+    if (shouldSuppressInstallPrompt()) {
       return;
     }
 
+    showPromptFromCache(setDeferred, setVisible);
+
     const onBeforeInstall = (event: Event) => {
       event.preventDefault();
-      setDeferred(event as BeforeInstallPromptEvent);
+      const installEvent = event as BeforeInstallPromptEvent;
+      cacheInstallPrompt(installEvent);
+
+      if (shouldSuppressInstallPrompt()) {
+        return;
+      }
+
+      setDeferred(installEvent);
       setVisible(true);
+      markInstallPromptAskedThisSession();
     };
 
     window.addEventListener("beforeinstallprompt", onBeforeInstall);
@@ -42,7 +66,8 @@ export function PwaInstallHint() {
   }
 
   const dismiss = () => {
-    window.localStorage.setItem(DISMISS_KEY, "1");
+    markInstallPromptDismissedThisSession();
+    clearCachedInstallPrompt();
     setVisible(false);
     setDeferred(null);
   };

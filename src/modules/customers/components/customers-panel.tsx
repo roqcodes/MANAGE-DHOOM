@@ -33,6 +33,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 
 export function CustomersPanel({
   users,
@@ -40,12 +41,14 @@ export function CustomersPanel({
   page,
   stats,
   onAddCustomer,
+  initialLoading = false,
 }: {
   users: AdminUser[];
   total: number;
   page: number;
   stats: CustomerStats;
   onAddCustomer?: () => void;
+  initialLoading?: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<CustomerStatusFilter>("all");
@@ -89,6 +92,7 @@ export function CustomersPanel({
         stats={stats}
         onExport={() => exportCustomersCsv(filtered)}
         onAddCustomer={onAddCustomer}
+        valuesLoading={initialLoading}
       />
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
@@ -154,7 +158,9 @@ export function CustomersPanel({
             />
           </div>
 
-          {filtered.length === 0 ? (
+          {initialLoading ? (
+            <AdminTableBodySkeleton rows={8} />
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <Ban className="size-12 text-muted-foreground/30" aria-hidden />
               <p className="text-sm text-muted-foreground">

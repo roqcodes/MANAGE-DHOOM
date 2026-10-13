@@ -6,11 +6,11 @@ import type { ErpTransferRequestListRow } from "@/common/erp/inventory-types";
 import { adminPost } from "@/modules/admin/lib/admin-api-client";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Button } from "@/components/ui/button";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -43,6 +43,7 @@ export function TransferApprovalsListView() {
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
     "request_date",
@@ -85,9 +86,6 @@ export function TransferApprovalsListView() {
       }
     });
   }
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -98,10 +96,10 @@ export function TransferApprovalsListView() {
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search=""
         onSearchChange={() => {}}
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No pending transfer requests for approval."
         isFiltering={Boolean(fromStoreId)}
         onClearFilters={() => setFromStoreId("")}
@@ -155,6 +153,9 @@ export function TransferApprovalsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((r) => (
               <AdminTableRow key={r.id}>
@@ -188,6 +189,7 @@ export function TransferApprovalsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
     </AdminPageLayout>

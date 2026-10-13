@@ -9,11 +9,11 @@ import type { ErpSalaryBulkPaymentListRow } from "@/common/erp/hr-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button } from "@/components/ui/button";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -84,8 +84,7 @@ export function SalaryBulkPaymentsListView() {
   if (storeId) listParams.storeId = storeId;
   Object.assign(listParams, dateParams);
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
+  const initialLoading = loading && rows.length === 0;
 
   return (
     <AdminPageLayout>
@@ -101,11 +100,11 @@ export function SalaryBulkPaymentsListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search batch number…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No bulk payments found."
         isFiltering={Boolean(debouncedSearch.trim()) || isDateFiltering}
         onClearFilters={() => {
@@ -161,6 +160,9 @@ export function SalaryBulkPaymentsListView() {
               align="right"
             />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
@@ -183,6 +185,7 @@ export function SalaryBulkPaymentsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

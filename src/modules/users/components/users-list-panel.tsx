@@ -23,15 +23,18 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 
 type UsersContent = { kind: "team"; data: DBUser[]; total: number };
 
 export function UsersListPanel({
   content,
   page,
+  initialLoading = false,
 }: {
   content: UsersContent;
   page: number;
+  initialLoading?: boolean;
 }) {
   const profile = useAdminSession();
   const canManageRoles = Boolean(profile?.rbac?.canManageRoles);
@@ -123,7 +126,9 @@ export function UsersListPanel({
             </InputGroup>
           </div>
 
-          {filtered.length === 0 ? (
+          {initialLoading ? (
+            <AdminTableBodySkeleton rows={8} />
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <Ban className="size-12 text-muted-foreground/30" aria-hidden />
               <p className="text-sm text-muted-foreground">

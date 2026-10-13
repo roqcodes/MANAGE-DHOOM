@@ -9,7 +9,6 @@ import type { ErpEmployeeOpeningBalanceListRow, ErpEmployeeOption } from "@/comm
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button } from "@/components/ui/button";
 import { TableHead } from "@/components/ui/table";
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminFormActions,
   AdminFormField,
   AdminFormSection,
@@ -85,13 +85,11 @@ export function EmployeeOpeningBalancesListView() {
       })
       .finally(() => setLoading(false));
   }, [page, storeId, debouncedSearch, activeStoreId, reloadToken]);
+  const initialLoading = loading && rows.length === 0;
 
   const listParams: Record<string, string> = {};
   if (storeId) listParams.storeId = storeId;
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -106,11 +104,11 @@ export function EmployeeOpeningBalancesListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search batch number…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No opening balance batches found."
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => setSearch("")}
@@ -148,6 +146,9 @@ export function EmployeeOpeningBalancesListView() {
               align="right"
             />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
@@ -166,6 +167,7 @@ export function EmployeeOpeningBalancesListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

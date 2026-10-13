@@ -5,13 +5,13 @@ import { Plus } from "lucide-react";
 
 import type { JournalEntryListRow } from "@/common/erp/finance-types";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -53,6 +53,8 @@ export function JournalEntriesListView() {
       .then((res) => setRows(res.data))
       .finally(() => setLoading(false));
   }, [activeStoreId, reloadToken]);
+  const initialLoading = loading && rows.length === 0;
+
 
   const filtered = useMemo(() => {
     if (!debouncedSearch.trim()) return sorted;
@@ -66,9 +68,6 @@ export function JournalEntriesListView() {
         (r.source_entity_type?.toLowerCase().includes(q) ?? false),
     );
   }, [sorted, debouncedSearch]);
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -83,11 +82,11 @@ export function JournalEntriesListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search journal number, description…"
-        isEmpty={filtered.length === 0}
+        isEmpty={!initialLoading && (filtered.length === 0)}
         emptyMessage="No journal entries yet."
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => setSearch("")}
@@ -148,6 +147,9 @@ export function JournalEntriesListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {filtered.map((row) => (
               <AdminTableRow key={row.id}>
@@ -179,6 +181,7 @@ export function JournalEntriesListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

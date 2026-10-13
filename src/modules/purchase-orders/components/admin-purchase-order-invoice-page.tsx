@@ -6,7 +6,8 @@ import { AlertTriangle } from "lucide-react";
 
 import type { AdminPurchaseOrderDetail } from "@/common/admin/types";
 import { InvoicePrintToolbar } from "@/modules/admin/components/invoice-print-toolbar";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminDetailBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminPageLayout } from "@/modules/admin/ui";
 import { PurchaseOrderInvoiceDocument } from "@/modules/purchase-orders/components/purchase-order-invoice-document";
 import { adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -38,7 +39,13 @@ export function AdminPurchaseOrderInvoicePage() {
     );
   }
 
-  if (isPending && data === undefined) return <AdminPageSkeleton />;
+  if (isPending && data === undefined) {
+    return (
+      <AdminPageLayout>
+        <AdminDetailBodySkeleton />
+      </AdminPageLayout>
+    );
+  }
   if (isError) {
     return (
       <div className="px-3 py-6 sm:px-4">

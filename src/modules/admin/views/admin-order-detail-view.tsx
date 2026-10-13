@@ -1,5 +1,7 @@
 "use client";
 
+import { AdminPageLayout } from "@/modules/admin/ui";
+
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -7,7 +9,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import type { OrderWithItems } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminDetailBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { OrderDetailPanel } from "@/modules/orders/components/order-detail-panel";
 import { ORDERS_ACCENT } from "@/modules/orders/components/orders-ui";
 import { adminGetNullable } from "@/modules/admin/lib/admin-api-client";
@@ -45,7 +47,13 @@ export function AdminOrderDetailView() {
     );
   }
 
-  if (isPending && data === undefined) return <AdminPageSkeleton />;
+  if (isPending && data === undefined) {
+    return (
+      <AdminPageLayout>
+        <AdminDetailBodySkeleton />
+      </AdminPageLayout>
+    );
+  }
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -86,7 +94,11 @@ export function AdminOrderDetailView() {
   }
 
   if (data.order.source === "sales_order") {
-    return <AdminPageSkeleton />;
+    return (
+      <AdminPageLayout>
+        <AdminDetailBodySkeleton />
+      </AdminPageLayout>
+    );
   }
 
   return (

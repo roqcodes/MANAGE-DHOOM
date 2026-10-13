@@ -9,12 +9,12 @@ import type { ErpSalaryPaymentListRow } from "@/common/erp/hr-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminDelete, adminGet } from "@/modules/admin/lib/admin-api-client";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableFooter, TableHead, TableRow } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -108,8 +108,7 @@ export function SalaryPaymentsListView() {
       setDeletingId(null);
     }
   }
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
+  const initialLoading = loading && rows.length === 0;
 
   return (
     <AdminPageLayout>
@@ -125,11 +124,11 @@ export function SalaryPaymentsListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search employee or payment number…"
-        isEmpty={rows.length === 0}
+        isEmpty={!initialLoading && (rows.length === 0)}
         emptyMessage="No salary payments found."
         isFiltering={Boolean(debouncedSearch.trim()) || isDateFiltering}
         onClearFilters={() => {
@@ -205,6 +204,9 @@ export function SalaryPaymentsListView() {
             />
             <TableHead className="w-20 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
@@ -246,6 +248,7 @@ export function SalaryPaymentsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
           {rows.length > 0 ? (
             <TableFooter>
               <TableRow className="hover:bg-transparent">

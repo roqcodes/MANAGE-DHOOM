@@ -5,13 +5,13 @@ import { Plus } from "lucide-react";
 
 import type { BankingAccountRow, ProfitWithdrawalRow } from "@/common/erp/finance-types";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
 import { TableFooter, TableCell, TableRow } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -77,8 +77,7 @@ export function ProfitWithdrawalsListView() {
     () => sorted.reduce((sum, row) => sum + row.amount, 0),
     [sorted],
   );
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
+  const initialLoading = loading && rows.length === 0;
 
   return (
     <AdminPageLayout>
@@ -94,7 +93,7 @@ export function ProfitWithdrawalsListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search number, account, reference…"
@@ -110,7 +109,7 @@ export function ProfitWithdrawalsListView() {
             onChange: setAccountId,
           },
         ]}
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No profit withdrawals found."
         isFiltering={Boolean(debouncedSearch.trim() || accountId || isDateFiltering)}
         onClearFilters={() => {
@@ -186,6 +185,9 @@ export function ProfitWithdrawalsListView() {
               align="right"
             />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
@@ -208,6 +210,7 @@ export function ProfitWithdrawalsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
           {sorted.length > 0 ? (
             <TableFooter>
               <TableRow className="bg-muted/30 font-semibold">

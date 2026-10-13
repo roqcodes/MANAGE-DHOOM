@@ -1,6 +1,56 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
-/** Lightweight placeholder while TanStack Query loads admin list/dashboard data. */
+/** True on first fetch before any cached/placeholder payload exists. */
+export function isInitialAdminLoad(loading: boolean, hasPayload: boolean): boolean {
+  return loading && !hasPayload;
+}
+
+/** Inline metric value placeholder (catalog KPI bars). */
+export function AdminMetricValueSkeleton({ className }: { className?: string }) {
+  return <Skeleton className={className ?? "h-7 w-20"} />;
+}
+
+/** KPI / stat cards grid — labels are static; values skeleton only. */
+export function AdminKpiGridSkeleton({
+  count = 4,
+  labels,
+}: {
+  count?: number;
+  labels?: string[];
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {Array.from({ length: count }, (_, i) => (
+        <Card key={i}>
+          <CardHeader className="pb-2">
+            <p className="text-sm text-muted-foreground">
+              {labels?.[i] ?? <Skeleton className="h-4 w-24" />}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-7 w-28" />
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+/** Detail page body only (pair with AdminPageHeader for instant chrome). */
+export function AdminDetailBodySkeleton() {
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Skeleton className="h-36 rounded-xl" />
+        <Skeleton className="h-36 rounded-xl" />
+      </div>
+      <AdminTableBodySkeleton rows={6} />
+    </div>
+  );
+}
+
+/** @deprecated Prefer page chrome + AdminDataTableRowsSkeleton / AdminKpiGridSkeleton. */
 export function AdminPageSkeleton() {
   return (
     <div className="space-y-3 px-3 py-4 sm:px-4 sm:py-5">

@@ -15,7 +15,7 @@ import {
   X,
 } from "lucide-react";
 
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
@@ -349,7 +349,14 @@ export function AdminRolesView() {
     });
   }
 
-  if (!profile) return <AdminPageSkeleton />;
+  if (!profile) {
+    return (
+      <AdminPageLayout>
+        <AdminPageHeader title="Roles & access" description="Loading…" />
+        <AdminTableBodySkeleton rows={6} />
+      </AdminPageLayout>
+    );
+  }
   if (!canManage) {
     return (
       <AdminPageLayout>
@@ -363,7 +370,21 @@ export function AdminRolesView() {
       </AdminPageLayout>
     );
   }
-  if (loading && !data) return <AdminPageSkeleton />;
+  if (loading && !data) {
+    return (
+      <AdminPageLayout>
+        <AdminPageHeader
+          title="Roles & access"
+          description="Configure who can view and edit each ERP page."
+          breadcrumb={[
+            { label: "Team", href: "/admin/users" },
+            { label: "Roles & access" },
+          ]}
+        />
+        <AdminTableBodySkeleton rows={8} />
+      </AdminPageLayout>
+    );
+  }
   if (isError) {
     return (
       <AdminPageLayout>

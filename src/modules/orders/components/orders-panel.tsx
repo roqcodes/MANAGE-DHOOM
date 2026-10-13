@@ -41,6 +41,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 
 function orderMatchesDateRange(
   order: Order,
@@ -74,6 +75,7 @@ export function OrdersPanel({
   channel = "online",
   basePath = "/admin/orders",
   outboxOperations,
+  initialLoading = false,
 }: {
   orders: Order[];
   total: number;
@@ -85,6 +87,7 @@ export function OrdersPanel({
   channel?: "online" | "erp";
   basePath?: string;
   outboxOperations?: OutboxOperationRecord[];
+  initialLoading?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -152,6 +155,7 @@ export function OrdersPanel({
         stats={stats}
         onExport={() => exportOrdersCsv(filtered)}
         variant={channel}
+        valuesLoading={initialLoading}
       />
 
       {channel === "online" ? (
@@ -247,8 +251,10 @@ export function OrdersPanel({
             />
           </div>
 
-          {filtered.length === 0 &&
-          !(channel === "erp" && outboxOperations && outboxOperations.length > 0) ? (
+          {initialLoading ? (
+            <AdminTableBodySkeleton rows={8} />
+          ) : filtered.length === 0 &&
+            !(channel === "erp" && outboxOperations && outboxOperations.length > 0) ? (
             <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
               <Ban className="size-12 text-muted-foreground/30" aria-hidden />
               <p className="text-sm text-muted-foreground">

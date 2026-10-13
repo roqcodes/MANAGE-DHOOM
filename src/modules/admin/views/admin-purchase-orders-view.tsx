@@ -11,12 +11,12 @@ import type {
   PurchaseOrderDeliveryFilter,
   PurchaseOrderStatusFilter,
 } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { AdminPurchaseOrdersPanel } from "@/modules/purchase-orders/components/admin-purchase-orders-panel";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { useErpFormModal } from "@/modules/admin/ui";
 import { PurchaseOrderFormView } from "@/modules/admin/views/purchasing/purchase-order-form-view";
+import { EMPTY_PURCHASE_ORDER_CATALOG_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import {
   buildPurchaseOrdersListParams,
   parsePurchaseOrderDeliveryFilter,
@@ -57,8 +57,8 @@ export function AdminPurchaseOrdersView() {
     },
     placeholderData: keepPreviousData,
   });
+  const initialLoading = isPending && !data;
 
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-[1200px] px-3 py-6 sm:px-4">
@@ -76,18 +76,17 @@ export function AdminPurchaseOrdersView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
       <AdminPurchaseOrdersPanel
-        orders={data.data}
-        total={data.total}
-        page={data.page}
+        initialLoading={initialLoading}
+        orders={data?.data ?? []}
+        total={data?.total ?? 0}
+        page={data?.page ?? page}
         statusFilter={status}
         deliveryFilter={delivery}
-        selectedVendorId={data.vendorId}
-        stats={data.stats}
+        selectedVendorId={data?.vendorId ?? vendorId}
+        stats={data?.stats ?? EMPTY_PURCHASE_ORDER_CATALOG_STATS}
       />
 
       {isOpen ? (

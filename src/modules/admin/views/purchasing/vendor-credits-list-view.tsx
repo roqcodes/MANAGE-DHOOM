@@ -6,7 +6,6 @@ import { Plus } from "lucide-react";
 import type { ErpVendorCreditListRow } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
@@ -15,6 +14,7 @@ import { TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -56,6 +56,7 @@ export function VendorCreditsListView() {
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
@@ -74,9 +75,6 @@ export function VendorCreditsListView() {
         (r.store_name?.toLowerCase().includes(q) ?? false),
     );
   }, [sorted, debouncedSearch]);
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -91,11 +89,11 @@ export function VendorCreditsListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search credit number, vendor…"
-        isEmpty={filteredRows.length === 0}
+        isEmpty={!initialLoading && (filteredRows.length === 0)}
         emptyMessage="No vendor credits found."
         isFiltering={isFiltering}
         onClearFilters={clearFilters}
@@ -156,6 +154,9 @@ export function VendorCreditsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {filteredRows.map((r) => (
               <AdminTableRow key={r.id}>
@@ -204,6 +205,7 @@ export function VendorCreditsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 import type { ItemUnit } from "@/common/erp/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import {
   FormError,
@@ -218,7 +218,7 @@ export function AdminItemUnitsView() {
     },
   );
 
-  if (isPending && !data) return <AdminPageSkeleton />;
+  const initialLoading = isPending && !data;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -313,7 +313,9 @@ export function AdminItemUnitsView() {
               </InputGroup>
             </div>
 
-            {filtered.length === 0 ? (
+            {initialLoading ? (
+              <AdminTableBodySkeleton rows={8} />
+            ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
                 <Layers className="size-10 text-muted-foreground/40" aria-hidden />
                 <p className="text-sm text-muted-foreground">

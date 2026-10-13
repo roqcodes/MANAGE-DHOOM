@@ -8,12 +8,12 @@ import type { VendorErpListRow } from "@/common/erp/purchasing-types";
 import { VENDOR_TYPE_OPTIONS } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { Button } from "@/components/ui/button";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -70,8 +70,7 @@ export function VendorsErpListView() {
   const listParams: Record<string, string> = {};
   if (vendorType !== "all") listParams.vendorType = vendorType;
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
+  const initialLoading = loading && rows.length === 0;
 
   return (
     <AdminPageLayout>
@@ -87,11 +86,11 @@ export function VendorsErpListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search name, TRN, email…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No vendors found."
         isFiltering={Boolean(debouncedSearch.trim()) || vendorType !== "all"}
         onClearFilters={() => {
@@ -165,6 +164,9 @@ export function VendorsErpListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((r) => (
               <AdminTableRow key={r.id}>
@@ -190,6 +192,7 @@ export function VendorsErpListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

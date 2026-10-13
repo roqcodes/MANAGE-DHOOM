@@ -10,7 +10,7 @@ import type {
   ProductCatalogStats,
   ProductWithCategoryListItem,
 } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { EMPTY_PRODUCT_CATALOG_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import { ProductsPanel } from "@/modules/products/components/products-panel";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -41,8 +41,8 @@ export function AdminProductsView() {
     },
     placeholderData: keepPreviousData,
   });
+  const initialLoading = isPending && !data;
 
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -60,16 +60,15 @@ export function AdminProductsView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
   return (
     <ProductsPanel
-      products={data.data}
-      categories={data.categories}
-      brands={data.brands ?? []}
-      total={data.total}
-      page={data.page}
-      stats={data.stats}
+      initialLoading={initialLoading}
+      products={data?.data ?? []}
+      categories={data?.categories ?? []}
+      brands={data?.brands ?? []}
+      total={data?.total ?? 0}
+      page={data?.page ?? page}
+      stats={data?.stats ?? EMPTY_PRODUCT_CATALOG_STATS}
       storeId={storeId}
     />
   );

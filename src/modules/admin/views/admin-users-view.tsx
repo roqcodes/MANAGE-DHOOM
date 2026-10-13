@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { AlertTriangle, KeyRound } from "lucide-react";
 
 import type { DBUser } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { EMPTY_TEAM_CATALOG_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import { UsersListPanel } from "@/modules/users/components/users-list-panel";
 import { UsersMetricsBar } from "@/modules/users/components/users-metrics-bar";
 import { exportPortalUsersCsv } from "@/modules/users/components/users-data-table";
@@ -40,8 +40,8 @@ export function AdminUsersView() {
     },
     placeholderData: keepPreviousData,
   });
+  const initialLoading = isPending && !data;
 
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -59,9 +59,8 @@ export function AdminUsersView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
-  const { stats, content } = data;
+  const stats = data?.stats ?? EMPTY_TEAM_CATALOG_STATS;
+  const content = data?.content ?? { kind: "team" as const, data: [], total: 0 };
 
   function handleExport() {
     if (content.kind === "team") {
@@ -85,8 +84,8 @@ export function AdminUsersView() {
         ) : null}
       </div>
 
-      <UsersMetricsBar stats={stats} onExport={handleExport} />
-      <UsersListPanel content={content} page={page} />
+      <UsersMetricsBar stats={stats} onExport={handleExport} valuesLoading={initialLoading} />
+      <UsersListPanel content={content} page={page} initialLoading={initialLoading} />
     </div>
   );
 }

@@ -8,7 +8,6 @@ import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type { VatReturnListRow } from "@/common/erp/finance-types";
 import { adminDelete, adminGet, adminPatch } from "@/modules/admin/lib/admin-api-client";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +16,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -101,6 +101,7 @@ export function VatReturnsListView() {
       })
       .finally(() => setLoading(false));
   }, [page, storeId, debouncedSearch, reloadToken]);
+  const initialLoading = loading && rows.length === 0;
 
   const listParams: Record<string, string> = {};
   if (storeId) listParams.storeId = storeId;
@@ -155,9 +156,6 @@ export function VatReturnsListView() {
       setActingId(null);
     }
   }
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -178,12 +176,12 @@ export function VatReturnsListView() {
         <MetricCard label="Balance due (page)" value={formatCurrencyAmount(outstanding)} />
       </div>
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search return number…"
         emptyMessage="No VAT returns found."
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => {
           setSearch("");
@@ -231,6 +229,9 @@ export function VatReturnsListView() {
             />
             <TableHead className="min-w-[168px] text-right">Actions</TableHead>
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => {
               const canPay = row.status === "filed" && Math.abs(row.balance_due) > 0.0001;
@@ -317,6 +318,7 @@ export function VatReturnsListView() {
               );
             })}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

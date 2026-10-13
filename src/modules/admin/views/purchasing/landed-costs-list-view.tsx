@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 
 import type { ErpLandedCostItem } from "@/common/erp/purchasing-types";
 import { adminGet, adminPost, adminPut } from "@/modules/admin/lib/admin-api-client";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -47,6 +47,8 @@ export function LandedCostsListView() {
   useEffect(() => {
     reload().finally(() => setLoading(false));
   }, []);
+  const initialLoading = loading && rows.length === 0;
+
 
   const filtered = useMemo(() => {
     if (!debouncedSearch.trim()) return sorted;
@@ -80,9 +82,6 @@ export function LandedCostsListView() {
       await reload();
     });
   }
-
-  if (loading) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -139,11 +138,11 @@ export function LandedCostsListView() {
         </CardContent>
       </Card>
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search item name…"
-        isEmpty={filtered.length === 0}
+        isEmpty={!initialLoading && (filtered.length === 0)}
         emptyMessage="No landed cost items yet."
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => setSearch("")}
@@ -183,6 +182,9 @@ export function LandedCostsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {filtered.map((r) => (
               <AdminTableRow key={r.id}>
@@ -217,6 +219,7 @@ export function LandedCostsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
     </AdminPageLayout>

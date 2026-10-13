@@ -9,7 +9,7 @@ import type { InventoryCatalogStats, InventoryWithVariant } from "@/common/admin
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { EMPTY_INVENTORY_CATALOG_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { CreateOnlineTransferDialog } from "@/modules/inventory/components/create-online-transfer-dialog";
@@ -45,6 +45,7 @@ export function AdminInventoryView() {
     placeholderData: keepPreviousData,
     enabled: Boolean(effectiveStoreId),
   });
+  const initialLoading = isPending && !data;
 
   if (!effectiveStoreId) {
     return (
@@ -60,7 +61,6 @@ export function AdminInventoryView() {
     );
   }
 
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -74,8 +74,6 @@ export function AdminInventoryView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
       <div className="mb-4 flex flex-col gap-4">
@@ -100,7 +98,10 @@ export function AdminInventoryView() {
           </div>
         </div>
 
-        <InventoryMetricsBar stats={data.stats} storeLabel={storeLabel} />
+        <InventoryMetricsBar
+          stats={data?.stats ?? EMPTY_INVENTORY_CATALOG_STATS}
+          storeLabel={storeLabel}
+        />
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
@@ -112,10 +113,11 @@ export function AdminInventoryView() {
 
         <TabsContent value="products">
           <InventoryPanel
-            inventory={data.data}
-            total={data.total}
-            page={data.page}
-            stats={data.stats}
+            initialLoading={initialLoading}
+            inventory={data?.data ?? []}
+            total={data?.total ?? 0}
+            page={data?.page ?? page}
+            stats={data?.stats ?? EMPTY_INVENTORY_CATALOG_STATS}
             hideMetrics
           />
         </TabsContent>

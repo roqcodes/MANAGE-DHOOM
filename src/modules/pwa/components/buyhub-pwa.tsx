@@ -31,15 +31,17 @@ export function BuyHubPwa({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SerwistProvider
-      swUrl="/sw.js"
-      register
-      reloadOnOnline={false}
-      cacheOnNavigation={false}
-    >
-      {children}
+    <>
+      <SerwistProvider
+        swUrl="/sw.js"
+        register
+        reloadOnOnline={false}
+        cacheOnNavigation={false}
+      >
+        {children}
+        <PwaUpdateReady />
+      </SerwistProvider>
       <PwaInstallHint />
-      <PwaUpdateReady />
-    </SerwistProvider>
+    </>
   );
 }

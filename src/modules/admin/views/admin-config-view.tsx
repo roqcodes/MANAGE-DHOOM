@@ -6,14 +6,23 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SignOutForm } from "@/modules/auth/components/sign-out-form";
 import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SecuritySettingsCard } from "@/modules/settings/components/security-settings-card";
 
 export function AdminConfigView() {
   const profile = useAdminSession();
 
   if (!profile) {
-    return <AdminPageSkeleton />;
+    return (
+      <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
+        <div className="mb-4">
+          <h1 className="text-xl font-semibold tracking-tight">Account settings</h1>
+          <p className="text-sm text-muted-foreground">Loading your profile…</p>
+        </div>
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="mt-4 h-56 w-full rounded-xl" />
+      </div>
+    );
   }
 
   const initial = profile.name?.[0]?.toUpperCase() ?? "A";

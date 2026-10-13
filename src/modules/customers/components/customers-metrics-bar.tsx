@@ -19,6 +19,7 @@ function MetricSegment({
   sparkSeed,
   sparkTone = "primary",
   flatSpark = false,
+  valuesLoading = false,
 }: {
   label: string;
   value: string;
@@ -27,19 +28,30 @@ function MetricSegment({
   sparkSeed: number;
   sparkTone?: "primary" | "neutral" | "green";
   flatSpark?: boolean;
+  valuesLoading?: boolean;
 }) {
   return (
     <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
         <p className="text-xs font-medium text-muted-foreground">{label}</p>
         <div className="mt-1 flex flex-wrap items-center gap-2">
-          <p className="text-xl font-semibold tabular-nums tracking-tight">
-            {value}
-          </p>
-          {trend ? <TrendBadge value={trend} tone={trendTone} /> : null}
+          {valuesLoading ? (
+            <span className="inline-block h-7 w-20 animate-pulse rounded-md bg-muted" />
+          ) : (
+            <p className="text-xl font-semibold tabular-nums tracking-tight">
+              {value}
+            </p>
+          )}
+          {!valuesLoading && trend ? (
+            <TrendBadge value={trend} tone={trendTone} />
+          ) : null}
         </div>
       </div>
-      <MiniSparkline seed={sparkSeed} tone={sparkTone} flat={flatSpark} />
+      {valuesLoading ? (
+        <span className="inline-block h-8 w-16 shrink-0 animate-pulse rounded-md bg-muted/80" />
+      ) : (
+        <MiniSparkline seed={sparkSeed} tone={sparkTone} flat={flatSpark} />
+      )}
     </div>
   );
 }
@@ -48,10 +60,12 @@ export function CustomersMetricsBar({
   stats,
   onExport,
   onAddCustomer,
+  valuesLoading = false,
 }: {
   stats: CustomerStats;
   onExport: () => void;
   onAddCustomer?: () => void;
+  valuesLoading?: boolean;
 }) {
   const activePct =
     stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0;
@@ -92,6 +106,7 @@ export function CustomersMetricsBar({
             trend={`${stats.retail.toLocaleString("en-IN")} retail`}
             trendTone="neutral"
             sparkSeed={stats.total}
+            valuesLoading={valuesLoading}
           />
           <MetricSegment
             label="Active"
@@ -99,6 +114,7 @@ export function CustomersMetricsBar({
             trend={`${activePct}% verified`}
             sparkSeed={stats.active + 2}
             sparkTone="green"
+            valuesLoading={valuesLoading}
           />
           <MetricSegment
             label="Blocked"
@@ -107,6 +123,7 @@ export function CustomersMetricsBar({
             sparkSeed={blocked}
             sparkTone="neutral"
             flatSpark
+            valuesLoading={valuesLoading}
           />
           <MetricSegment
             label="Staff / other"
@@ -115,6 +132,7 @@ export function CustomersMetricsBar({
             trendTone="neutral"
             sparkSeed={stats.staff + 5}
             sparkTone="primary"
+            valuesLoading={valuesLoading}
           />
         </div>
       </Card>

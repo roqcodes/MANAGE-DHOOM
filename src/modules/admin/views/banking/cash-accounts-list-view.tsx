@@ -5,7 +5,6 @@ import { Plus } from "lucide-react";
 
 import type { BankingAccountRow } from "@/common/erp/finance-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -61,9 +61,11 @@ export function CashAccountsListView() {
     setLoading(true);
     reload().finally(() => setLoading(false));
   }, [activeStoreId]);
+  const initialLoading = loading && accounts.length === 0;
+
 
   const filtered = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
+      const q = debouncedSearch.trim().toLowerCase();
     if (!q) return sorted;
     return sorted.filter(
       (a) =>
@@ -103,9 +105,6 @@ export function CashAccountsListView() {
       }
     });
   }
-
-  if (loading) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -120,11 +119,11 @@ export function CashAccountsListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search account name, code, type…"
-        isEmpty={filtered.length === 0}
+        isEmpty={!initialLoading && (filtered.length === 0)}
         emptyMessage="No cash accounts found."
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => setSearch("")}
@@ -174,6 +173,9 @@ export function CashAccountsListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {filtered.map((account, index) => (
               <AdminTableRow key={account.id}>
@@ -204,6 +206,7 @@ export function CashAccountsListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

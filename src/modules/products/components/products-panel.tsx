@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/input-group";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { CsvImportDialog } from "@/modules/erp/components/csv-import-dialog";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 
 type ManageModalState =
   | { mode: "create" }
@@ -59,6 +60,7 @@ export function ProductsPanel({
   page,
   stats,
   storeId: storeIdProp,
+  initialLoading = false,
 }: {
   products: ProductWithCategoryListItem[];
   categories: Category[];
@@ -67,6 +69,7 @@ export function ProductsPanel({
   page: number;
   stats: ProductCatalogStats;
   storeId?: string | null;
+  initialLoading?: boolean;
 }) {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -202,6 +205,7 @@ export function ProductsPanel({
           onExport={() => exportProductsCsv(filtered)}
           onImport={() => setImportOpen(true)}
           onCreate={() => setModal({ mode: "create" })}
+          valuesLoading={initialLoading}
         />
         <CsvImportDialog
           entity="products"
@@ -353,7 +357,9 @@ export function ProductsPanel({
               />
             </div>
 
-            {filtered.length === 0 ? (
+            {initialLoading ? (
+              <AdminTableBodySkeleton rows={8} />
+            ) : filtered.length === 0 ? (
               <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
                 <Ban className="size-12 text-muted-foreground/30" aria-hidden />
                 <p className="text-sm text-muted-foreground">

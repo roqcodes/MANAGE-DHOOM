@@ -23,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { TableHead } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -169,6 +170,7 @@ export function AccountTypesListView() {
   useEffect(() => {
     loadRows();
   }, [debouncedSearch]);
+  const initialLoading = loading && rows.length === 0;
 
   const filtered = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
@@ -201,11 +203,7 @@ export function AccountTypesListView() {
     } finally {
       setDeletingId(null);
     }
-  }
-
-  if (loading && rows.length === 0) return <AdminPageSkeleton />;
-
-  return (
+  }  return (
     <>
       {modal ? (
         <AccountTypeFormModal
@@ -248,11 +246,11 @@ export function AccountTypesListView() {
           </CardContent>
         </Card>
 
-        <AdminListCard
+        <AdminListCard isLoading={initialLoading}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder="Search category, name, or description…"
-          isEmpty={filtered.length === 0}
+          isEmpty={!initialLoading && (filtered.length === 0)}
           emptyMessage={
             debouncedSearch.trim() ? "No account types match your search." : "No account types yet."
           }
@@ -291,7 +289,10 @@ export function AccountTypesListView() {
               />
               <TableHead className="w-28 text-right" />
             </AdminTableHeader>
-            <AdminTableBody>
+            {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
+          <AdminTableBody>
               {filtered.map((row) => {
                 const locked = row.is_system;
                 return (
@@ -329,6 +330,7 @@ export function AccountTypesListView() {
                 );
               })}
             </AdminTableBody>
+          )}
           </AdminDataTable>
         </AdminListCard>
       </AdminPageLayout>

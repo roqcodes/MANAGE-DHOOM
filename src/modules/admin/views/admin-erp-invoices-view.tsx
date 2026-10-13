@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import type { ErpInvoiceListRow } from "@/common/erp/sales-types";
@@ -22,14 +22,17 @@ export function AdminErpInvoicesView() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <AdminPageSkeleton />;
-
   return (
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-slate-900">ERP Invoices</h1>
-        <span className="text-sm text-slate-500">{total} total</span>
+        <span className="text-sm text-slate-500">
+          {loading ? "Loading…" : `${total} total`}
+        </span>
       </div>
+      {loading ? (
+        <AdminTableBodySkeleton rows={8} />
+      ) : (
       <div className="overflow-x-auto rounded-lg border border-slate-200">
         <table className="min-w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
@@ -58,6 +61,7 @@ export function AdminErpInvoicesView() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

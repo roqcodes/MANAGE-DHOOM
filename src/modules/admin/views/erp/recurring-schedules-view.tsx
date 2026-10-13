@@ -8,11 +8,11 @@ import { AlertTriangle, Pause, Pencil, Play, Trash2, Zap } from "lucide-react";
 import type { RecurringScheduleRow } from "@/common/erp/types";
 import { adminDelete, adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { downloadCsvFile, rowsToCsv } from "@/lib/csv/csv-utils";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageLayout,
   AdminTableBody,
@@ -296,9 +296,7 @@ export function RecurringSchedulesView({
     });
   }
 
-  if (loading && scopedRows.length === 0 && !migrationRequired) {
-    return <AdminPageSkeleton />;
-  }
+  const initialLoading = loading && scopedRows.length === 0 && !migrationRequired;
 
   return (
     <AdminPageLayout>
@@ -344,10 +342,11 @@ export function RecurringSchedulesView({
         ) : null}
 
         <AdminListCard
+          isLoading={initialLoading}
           search={search}
           onSearchChange={setSearch}
           searchPlaceholder={`Search ${variant === "invoice" ? "invoices" : "bills"}, customers, line items…`}
-          isEmpty={sorted.length === 0}
+          isEmpty={!initialLoading && sorted.length === 0}
           emptyMessage={
             migrationRequired
               ? "Apply the migration to start using recurring schedules."
@@ -459,6 +458,9 @@ export function RecurringSchedulesView({
               />
               <TableHead className="w-[140px] md:w-[156px]" />
             </AdminTableHeader>
+            {initialLoading ? (
+              <AdminDataTableRowsSkeleton rows={8} columns={7} />
+            ) : (
             <AdminTableBody>
               {sorted.map((row) => (
                 <AdminTableRow key={row.id}>
@@ -524,6 +526,7 @@ export function RecurringSchedulesView({
                 </AdminTableRow>
               ))}
             </AdminTableBody>
+            )}
           </AdminDataTable>
         </AdminListCard>
       </div>

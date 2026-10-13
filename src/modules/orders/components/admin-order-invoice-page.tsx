@@ -7,7 +7,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { OrderWithItems } from "@/common/admin/types";
 import { InvoicePrintToolbar } from "@/modules/admin/components/invoice-print-toolbar";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminDetailBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminPageLayout } from "@/modules/admin/ui";
 import { OrderInvoiceDocument } from "@/modules/orders/components/order-invoice-document";
 import { buildOrderInvoiceFilename } from "@/modules/orders/lib/invoice-filename";
 import { adminGetNullable } from "@/modules/admin/lib/admin-api-client";
@@ -82,7 +83,13 @@ export function AdminOrderInvoicePage() {
     );
   }
 
-  if (isPending && data === undefined) return <AdminPageSkeleton />;
+  if (isPending && data === undefined) {
+    return (
+      <AdminPageLayout>
+        <AdminDetailBodySkeleton />
+      </AdminPageLayout>
+    );
+  }
   if (isError) {
     return (
       <div className="px-3 py-6 sm:px-4">

@@ -5,7 +5,8 @@ import { AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 import type { OrderWithItems } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminDetailBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminPageLayout } from "@/modules/admin/ui";
 import { OrderDetailPanel } from "@/modules/orders/components/order-detail-panel";
 import { adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -28,7 +29,13 @@ export function SalesOrderDetailView({ orderId }: { orderId: string }) {
     );
   }
 
-  if (isPending && data === undefined) return <AdminPageSkeleton />;
+  if (isPending && data === undefined) {
+    return (
+      <AdminPageLayout>
+        <AdminDetailBodySkeleton />
+      </AdminPageLayout>
+    );
+  }
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">

@@ -11,7 +11,7 @@ import {
   type OrderStatusFilter,
 } from "@/common/admin/types";
 import type { OrderFilterUserRow } from "@/modules/orders/services/orders.service";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { EMPTY_ORDER_CATALOG_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import { OrdersPanel } from "@/modules/orders/components/orders-panel";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -55,8 +55,8 @@ export function AdminOrdersView() {
     placeholderData: keepPreviousData,
     enabled: !erpContextLoading,
   });
+  const initialLoading = isPending && !data;
 
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-[1200px] px-3 py-6 sm:px-4">
@@ -74,18 +74,17 @@ export function AdminOrdersView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
       <OrdersPanel
-        orders={data.data}
-        total={data.total}
-        page={data.page}
-        statusFilter={data.status}
-        filterUsers={data.filterUsers}
-        selectedUserId={data.userId}
-        stats={data.stats}
+        initialLoading={initialLoading}
+        orders={data?.data ?? []}
+        total={data?.total ?? 0}
+        page={data?.page ?? page}
+        statusFilter={data?.status ?? status}
+        filterUsers={data?.filterUsers ?? []}
+        selectedUserId={data?.userId ?? userId}
+        stats={data?.stats ?? EMPTY_ORDER_CATALOG_STATS}
         channel="online"
         basePath="/admin/orders"
       />

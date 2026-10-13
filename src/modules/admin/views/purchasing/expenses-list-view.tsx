@@ -11,13 +11,13 @@ import { PAGE_SIZE } from "@/common/admin/types";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
 import { TableFooter, TableCell, TableHead, TableRow } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -84,6 +84,7 @@ export function ExpensesListView() {
     enabled: !erpContextLoading,
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const totalAmount = data?.totalAmount ?? 0;
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
@@ -118,9 +119,6 @@ export function ExpensesListView() {
       setDeletingId(null);
     }
   }
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -135,11 +133,11 @@ export function ExpensesListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search reference, notes…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No expenses found."
         isFiltering={
           Boolean(debouncedSearch.trim()) || Boolean(accountId) || isDateFiltering
@@ -231,6 +229,9 @@ export function ExpensesListView() {
             />
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
@@ -281,6 +282,7 @@ export function ExpensesListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
           {sorted.length > 0 && (
             <TableFooter>
               <TableRow className="hover:bg-transparent">

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import {
   Table,
@@ -81,5 +82,35 @@ export function AdminTableCell({
     >
       {children}
     </TableCell>
+  );
+}
+
+const ROW_WIDTHS = ["w-full", "w-4/5", "w-3/5", "w-11/12", "w-2/3"] as const;
+
+/** Skeleton rows inside AdminDataTable while keeping real column headers visible. */
+export function AdminDataTableRowsSkeleton({
+  rows = 8,
+  columns = 6,
+}: {
+  rows?: number;
+  columns?: number;
+}) {
+  return (
+    <TableBody>
+      {Array.from({ length: rows }, (_, rowIndex) => (
+        <TableRow key={rowIndex} className="hover:bg-transparent">
+          {Array.from({ length: columns }, (_, colIndex) => (
+            <TableCell key={colIndex}>
+              <Skeleton
+                className={cn(
+                  "h-4",
+                  ROW_WIDTHS[(rowIndex + colIndex) % ROW_WIDTHS.length],
+                )}
+              />
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </TableBody>
   );
 }

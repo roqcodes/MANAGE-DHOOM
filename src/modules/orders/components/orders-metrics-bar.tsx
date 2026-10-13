@@ -23,10 +23,12 @@ export function OrdersMetricsBar({
   stats,
   onExport,
   variant = "online",
+  valuesLoading = false,
 }: {
   stats: OrderCatalogStats;
   onExport: () => void;
   variant?: "online" | "erp";
+  valuesLoading?: boolean;
 }) {
   const orderTrend =
     stats.totalOrders > 0
@@ -102,6 +104,7 @@ export function OrdersMetricsBar({
             value={stats.totalOrders.toLocaleString("en-IN")}
             trend={orderTrend}
             sparkSeed={stats.totalOrders}
+            valuesLoading={valuesLoading}
           />
           <CatalogMetricSegment
             label="Items ordered"
@@ -109,6 +112,7 @@ export function OrdersMetricsBar({
             trend={itemsTrend}
             sparkSeed={stats.itemsOrdered + 3}
             sparkTone="green"
+            valuesLoading={valuesLoading}
           />
           <CatalogMetricSegment
             label={currencyLabel("Sales reversals")}
@@ -117,6 +121,7 @@ export function OrdersMetricsBar({
             sparkSeed={stats.cancelledCount}
             sparkTone="neutral"
             flatSpark
+            valuesLoading={valuesLoading}
           />
           <CatalogMetricSegment
             label="Orders fulfilled"
@@ -124,6 +129,7 @@ export function OrdersMetricsBar({
             trend={fulfilledTrend}
             sparkSeed={stats.ordersFulfilled + 11}
             sparkTone="primary"
+            valuesLoading={valuesLoading}
           />
         </div>
       </Card>

@@ -54,6 +54,7 @@ export function AdminListCard({
   toolbarExtra,
   emptyMessage,
   isEmpty,
+  isLoading,
   isFiltering,
   onClearFilters,
   footer,
@@ -71,6 +72,8 @@ export function AdminListCard({
   toolbarExtra?: ReactNode;
   emptyMessage: string;
   isEmpty: boolean;
+  /** Initial fetch: show table shell + row skeletons instead of the empty state. */
+  isLoading?: boolean;
   isFiltering?: boolean;
   onClearFilters?: () => void;
   footer?: ReactNode;
@@ -162,7 +165,9 @@ export function AdminListCard({
           ) : null}
         </div>
 
-        {isEmpty ? (
+        {isLoading ? (
+          <div className="overflow-x-auto">{children}</div>
+        ) : isEmpty ? (
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
             <Ban className="size-10 text-muted-foreground/25" aria-hidden />
             <p className="text-sm text-muted-foreground">{emptyMessage}</p>

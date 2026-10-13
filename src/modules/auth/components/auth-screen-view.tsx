@@ -116,8 +116,7 @@ export function AuthScreenView({
           <div className="mb-6 space-y-1">
             <h2 className="text-2xl font-extrabold text-slate-900">Sign In</h2>
             <p className="text-sm font-medium text-slate-500">
-              Enter your credentials to continue. New staff accounts are created by a
-              super admin in Team → Users.
+              Enter your credentials to continue.
             </p>
           </div>
 

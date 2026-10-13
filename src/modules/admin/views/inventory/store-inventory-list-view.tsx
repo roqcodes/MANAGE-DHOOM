@@ -13,6 +13,7 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Badge } from "@/components/ui/badge";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
   AdminPageLayout,
@@ -53,6 +54,7 @@ export function StoreInventoryListView() {
     enabled: !erpContextLoading && Boolean(storeId),
   });
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
@@ -84,11 +86,7 @@ export function StoreInventoryListView() {
         r.product_name.toLowerCase().includes(q) ||
         (r.barcode?.toLowerCase().includes(q) ?? false),
     );
-  }, [sorted, debouncedSearch]);
-
-  if (isPending && !data) return <AdminPageSkeleton />;
-
-  return (
+  }, [sorted, debouncedSearch]);  return (
     <AdminPageLayout>
       <AdminPageHeader
         title="Store inventory"
@@ -101,11 +99,11 @@ export function StoreInventoryListView() {
         <Badge variant="outline">{activeStoreName}</Badge>
       </div>
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search product or barcode…"
-        isEmpty={filtered.length === 0}
+        isEmpty={!initialLoading && (filtered.length === 0)}
         emptyMessage="No inventory records found."
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => {
@@ -162,6 +160,9 @@ export function StoreInventoryListView() {
               align="right"
             />
           </AdminTableHeader>
+          {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
           <AdminTableBody>
             {filtered.map((r) => (
               <AdminTableRow
@@ -194,6 +195,7 @@ export function StoreInventoryListView() {
               </AdminTableRow>
             ))}
           </AdminTableBody>
+          )}
         </AdminDataTable>
       </AdminListCard>
 

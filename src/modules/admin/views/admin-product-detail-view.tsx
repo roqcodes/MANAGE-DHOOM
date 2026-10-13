@@ -15,7 +15,8 @@ import type {
 import type { PricingRuleRow } from "@/modules/pricing/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminDetailBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminPageLayout } from "@/modules/admin/ui";
 import { ProductDetailPanel } from "@/modules/products/components/product-detail-panel";
 import { adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -63,7 +64,13 @@ export function AdminProductDetailView() {
     );
   }
 
-  if (isPending && data === undefined) return <AdminPageSkeleton />;
+  if (isPending && data === undefined) {
+    return (
+      <AdminPageLayout>
+        <AdminDetailBodySkeleton />
+      </AdminPageLayout>
+    );
+  }
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-[1200px] px-3 py-2.5 sm:px-4">

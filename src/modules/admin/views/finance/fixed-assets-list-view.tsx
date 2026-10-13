@@ -12,7 +12,6 @@ import {
 
 import type { FixedAssetListRow } from "@/common/erp/finance-types";
 import { PAGE_SIZE } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
@@ -26,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { TableFooter, TableCell, TableHead, TableRow } from "@/components/ui/table";
 import {
   AdminDataTable,
+  AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
@@ -83,6 +83,7 @@ export function FixedAssetsListView() {
   });
 
   const rows = data?.data ?? [];
+  const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
@@ -107,8 +108,6 @@ export function FixedAssetsListView() {
       setDeletingId(null);
     }
   }
-
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <AdminPageLayout>
@@ -143,11 +142,11 @@ export function FixedAssetsListView() {
         }
       />
 
-      <AdminListCard
+      <AdminListCard isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder="Search asset name, number, brand…"
-        isEmpty={sorted.length === 0}
+        isEmpty={!initialLoading && (sorted.length === 0)}
         emptyMessage="No fixed assets found."
         isFiltering={Boolean(debouncedSearch.trim())}
         onClearFilters={() => {
@@ -220,7 +219,10 @@ export function FixedAssetsListView() {
               />
               <TableHead className="w-28 text-right" />
             </AdminTableHeader>
-            <AdminTableBody>
+            {initialLoading ? (
+            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+          ) : (
+          <AdminTableBody>
               {sorted.map((row) => (
                 <AdminTableRow key={row.id}>
                   <AdminTableCell className="font-mono text-[12px] text-muted-foreground">
@@ -270,6 +272,7 @@ export function FixedAssetsListView() {
                 </AdminTableRow>
               ))}
             </AdminTableBody>
+          )}
             <TableFooter>
               <TableRow>
                 <TableCell colSpan={6} className="text-right font-medium">

@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
 import type { Vendor, VendorCatalogStats } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { EMPTY_VENDOR_CATALOG_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import { VendorsPanel } from "@/modules/vendors/components/vendors-panel";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -26,8 +26,8 @@ export function AdminVendorsView() {
     queryFn: () => adminGet<VendorsPayload>(`vendors?page=${page}`),
     placeholderData: keepPreviousData,
   });
+  const initialLoading = isPending && !data;
 
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -45,15 +45,14 @@ export function AdminVendorsView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
       <VendorsPanel
-        vendors={data.data}
-        total={data.total}
-        page={data.page}
-        stats={data.stats}
+        initialLoading={initialLoading}
+        vendors={data?.data ?? []}
+        total={data?.total ?? 0}
+        page={data?.page ?? page}
+        stats={data?.stats ?? EMPTY_VENDOR_CATALOG_STATS}
       />
     </div>
   );

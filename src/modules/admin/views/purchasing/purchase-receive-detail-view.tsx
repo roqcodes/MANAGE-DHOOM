@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import type { PurchaseReceiveAdjustments } from "@/common/erp/purchasing-types";
 import { adminDelete, adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminDetailBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { displayErpDocumentNumber } from "@/lib/erp-document-ref";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -131,7 +131,14 @@ export function PurchaseReceiveDetailView({ receiveId }: { receiveId: string }) 
     router.push(`/admin/erp/vendor-credits/new?${params.toString()}`);
   }
 
-  if (loading && !receive) return <AdminPageSkeleton />;
+  if (loading && !receive) {
+    return (
+      <AdminPageLayout>
+        <AdminPageHeader title="Purchase receive" breadcrumb={[{ label: "Purchase receives", href: "/admin/erp/purchase-receives" }]} />
+        <AdminDetailBodySkeleton />
+      </AdminPageLayout>
+    );
+  }
   if (!receive) {
     return (
       <AdminPageLayout>

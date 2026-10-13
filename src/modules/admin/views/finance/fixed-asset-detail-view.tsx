@@ -11,7 +11,7 @@ import {
 } from "@/common/erp/finance-types";
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AdminDetailBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { fixedAssetDetailQueryKey } from "@/modules/admin/lib/admin-query-keys";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -75,7 +75,14 @@ export function FixedAssetDetailView({ assetId }: { assetId: string }) {
     queryFn: () => adminGet<{ asset: FixedAssetDetail }>(`erp/fixed-assets/${assetId}`),
   });
 
-  if (isPending && !data) return <AdminPageSkeleton />;
+  if (isPending && !data) {
+    return (
+      <AdminPageLayout>
+        <AdminPageHeader title="Fixed asset" breadcrumb={[{ label: "Fixed assets", href: "/admin/erp/fixed-assets" }]} />
+        <AdminDetailBodySkeleton />
+      </AdminPageLayout>
+    );
+  }
   if (isError || !data?.asset) {
     return (
       <AdminPageLayout>

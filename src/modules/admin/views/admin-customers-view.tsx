@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
 import type { AdminUser } from "@/common/admin/types";
-import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { EMPTY_CUSTOMER_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import { CustomersPanel } from "@/modules/customers/components/customers-panel";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -30,12 +30,12 @@ export function AdminCustomersView() {
     queryFn: () => adminGet<CustomersPayload>(`customers?page=${page}`),
     placeholderData: keepPreviousData,
   });
+  const initialLoading = isPending && !data;
 
   function handleFormSuccess() {
     void queryClient.invalidateQueries({ queryKey: adminQueryKeys.customersList(page) });
   }
 
-  if (isPending && !data) return <AdminPageSkeleton />;
   if (isError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
@@ -51,15 +51,14 @@ export function AdminCustomersView() {
       </div>
     );
   }
-  if (!data) return <AdminPageSkeleton />;
-
   return (
     <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
       <CustomersPanel
-        users={data.data}
-        total={data.total}
+        initialLoading={initialLoading}
+        users={data?.data ?? []}
+        total={data?.total ?? 0}
         page={page}
-        stats={data.stats}
+        stats={data?.stats ?? EMPTY_CUSTOMER_STATS}
         onAddCustomer={() => openNew()}
       />
 
