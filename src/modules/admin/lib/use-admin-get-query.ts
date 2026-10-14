@@ -30,5 +30,6 @@ export function useAdminGetQuery<T>(options: {
     queryFn: () => adminGet<T>(options.path),
     enabled,
     placeholderData: keepPreviousData,
+    staleTime: 60_000,
   });
 }

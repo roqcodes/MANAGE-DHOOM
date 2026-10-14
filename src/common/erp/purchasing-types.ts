@@ -1,5 +1,8 @@
 /** Phase 3 purchasing document types (ERP extension). */
 
+/** How document landed cost is split across purchase lines. */
+export type LandedAllocationMethod = "quantity" | "value" | "custom";
+
 export interface ErpPurchaseLineInput {
   productId?: string | null;
   variantId?: string | null;

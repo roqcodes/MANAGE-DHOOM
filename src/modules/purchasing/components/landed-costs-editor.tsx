@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 
 import type {
   ErpLandedCostItem,
+  LandedAllocationMethod,
   LandedCostFormRow,
   PurchaseLineFormRow,
 } from "@/common/erp/purchasing-types";
@@ -45,20 +46,27 @@ export function LandedCostsEditor({
   masterItems,
   purchaseLines,
   onPurchaseLinesChange,
+  allocationMethod,
+  onAllocationMethodChange,
 }: {
   rows: LandedCostFormRow[];
   onChange: (rows: LandedCostFormRow[]) => void;
   masterItems: ErpLandedCostItem[];
   purchaseLines?: PurchaseLineFormRow[];
   onPurchaseLinesChange?: (lines: PurchaseLineFormRow[]) => void;
+  allocationMethod: LandedAllocationMethod;
+  onAllocationMethodChange: (method: LandedAllocationMethod) => void;
 }) {
   const total = useMemo(() => {
     let sum = 0;
+    let qtySum = 0;
     for (const row of rows) {
-      const { lineTotal } = calcPurchaseLine(row.quantity, row.rate, row.taxRatePercent);
+      const q = coalesceNumber(row.quantity);
+      const { lineTotal } = calcPurchaseLine(q, row.rate, row.taxRatePercent);
       sum += lineTotal;
+      qtySum += q;
     }
-    return roundMoney(sum);
+    return { amount: roundMoney(sum), qty: qtySum };
   }, [rows]);
 
   const linesRef = useRef(purchaseLines);
@@ -68,16 +76,16 @@ export function LandedCostsEditor({
   const prevLandedTotal = useRef<number | null>(null);
   useEffect(() => {
     if (prevLandedTotal.current == null) {
-      prevLandedTotal.current = total;
+      prevLandedTotal.current = total.amount;
       return;
     }
-    if (prevLandedTotal.current === total) return;
-    prevLandedTotal.current = total;
+    if (prevLandedTotal.current === total.amount) return;
+    prevLandedTotal.current = total.amount;
     const currentLines = linesRef.current;
     const setLines = onLinesChangeRef.current;
     if (!currentLines || !setLines) return;
     setLines(currentLines.map((l) => ({ ...l, landedCostAllocated: undefined })));
-  }, [total]);
+  }, [total.amount]);
 
   function addFromMaster(item: ErpLandedCostItem) {
     onChange([
@@ -100,7 +108,7 @@ export function LandedCostsEditor({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
         {masterItems.filter((m) => m.is_active).map((item) => (
           <Button key={item.id} type="button" variant="outline" size="sm" onClick={() => addFromMaster(item)}>
@@ -119,12 +127,13 @@ export function LandedCostsEditor({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Qty</TableHead>
-                <TableHead>Rate</TableHead>
+                <TableHead className="w-10">Sl#</TableHead>
+                <TableHead>Landed item</TableHead>
+                <TableHead className="w-20">Qty</TableHead>
+                <TableHead className="w-24">Rate</TableHead>
                 <TableHead>Tax %</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead />
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -136,6 +145,7 @@ export function LandedCostsEditor({
                 );
                 return (
                   <TableRow key={row.key}>
+                    <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
                     <TableCell>
                       <Input
                         value={row.name}
@@ -165,7 +175,9 @@ export function LandedCostsEditor({
                         }
                       />
                     </TableCell>
-                    <TableCell className="tabular-nums">{formatCurrencyAmount(lineTotal)}</TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {formatCurrencyAmount(lineTotal)}
+                    </TableCell>
                     <TableCell>
                       <Button
                         type="button"
@@ -179,17 +191,26 @@ export function LandedCostsEditor({
                   </TableRow>
                 );
               })}
+              <TableRow className="bg-muted/30 font-medium">
+                <TableCell colSpan={2} className="text-right text-xs">Total</TableCell>
+                <TableCell className="tabular-nums text-sm">{total.qty}</TableCell>
+                <TableCell colSpan={2} />
+                <TableCell className="text-right tabular-nums text-sm">
+                  {formatCurrencyAmount(total.amount)}
+                </TableCell>
+                <TableCell />
+              </TableRow>
             </TableBody>
           </Table>
         </div>
       )}
 
-      <p className="text-sm text-slate-600">Landed costs total: {formatCurrencyAmount(total)}</p>
-
       {purchaseLines && onPurchaseLinesChange ? (
         <PurchaseDocumentLandedBreakdown
           lines={purchaseLines}
           landedCosts={rows}
+          allocationMethod={allocationMethod}
+          onAllocationMethodChange={onAllocationMethodChange}
           onLinesChange={onPurchaseLinesChange}
         />
       ) : null}

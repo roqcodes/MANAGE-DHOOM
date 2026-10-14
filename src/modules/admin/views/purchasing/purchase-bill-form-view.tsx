@@ -11,7 +11,11 @@ import type {
 } from "@/common/erp/purchasing-types";
 import { itemExpiryFromDocumentDate } from "@/lib/format-date";
 import { calcPurchaseLine, roundMoney } from "@/common/erp/purchasing-types";
-import type { PurchaseLineFormRow, LandedCostFormRow } from "@/common/erp/purchasing-types";
+import type {
+  LandedAllocationMethod,
+  PurchaseLineFormRow,
+  LandedCostFormRow,
+} from "@/common/erp/purchasing-types";
 import {
   linesToApiInput,
   PurchaseLinesEditor,
@@ -60,6 +64,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
   commitResolvedLandedAllocationsToLines,
+  inferLandedAllocationMethod,
   isLandedAllocationBalanced,
 } from "@/modules/purchasing/lib/purchase-landed-allocation";
 
@@ -195,6 +200,8 @@ export function PurchaseBillFormView({
   const [discount, setDiscount] = useState(0);
   const [lines, setLines] = useState<PurchaseLineFormRow[]>([]);
   const [landedCosts, setLandedCosts] = useState<LandedCostFormRow[]>([]);
+  const [landedAllocationMethod, setLandedAllocationMethod] =
+    useState<LandedAllocationMethod>("value");
   const [billNumber, setBillNumber] = useState<string | null>(null);
   const [physicalReceiptOnBill, setPhysicalReceiptOnBill] = useState(true);
   const [poPrefillToken, setPoPrefillToken] = useState(0);
@@ -231,35 +238,34 @@ export function PurchaseBillFormView({
         setDiscount(Number(bill.discount ?? 0));
         setPhysicalReceiptOnBill(bill.physical_receipt_on_bill ?? true);
         setBillNumber(bill.purchase_bill_number);
-        setLines(
-          bill.erp_purchase_bill_lines.length
-            ? bill.erp_purchase_bill_lines.map((line) => ({
-                key: line.id,
-                productId: (line as { product_id?: string | null }).product_id ?? null,
-                variantId: line.variant_id,
-                productName: line.product_name,
-                barcode: line.barcode ?? "",
-                expiryDate: line.expiry_date ?? "",
-                quantity: Number(line.quantity),
-                purchasePrice: Number(line.purchase_price),
-                taxRatePercent: Number(line.tax_rate_percent),
-                landedCostAllocated:
-                  Number(bill.landed_cost_total ?? 0) > 0
-                    ? Number(line.landed_cost_allocated ?? 0)
-                    : undefined,
-              }))
-            : [],
-        );
-        setLandedCosts(
-          bill.erp_purchase_bill_landed_costs.map((lc) => ({
-            key: lc.id,
-            landedCostItemId: lc.landed_cost_item_id,
-            name: lc.name,
-            quantity: Number(lc.quantity),
-            rate: Number(lc.rate),
-            taxRatePercent: Number(lc.tax_rate_percent),
-          })),
-        );
+        const formLines = bill.erp_purchase_bill_lines.length
+          ? bill.erp_purchase_bill_lines.map((line) => ({
+              key: line.id,
+              productId: (line as { product_id?: string | null }).product_id ?? null,
+              variantId: line.variant_id,
+              productName: line.product_name,
+              barcode: line.barcode ?? "",
+              expiryDate: line.expiry_date ?? "",
+              quantity: Number(line.quantity),
+              purchasePrice: Number(line.purchase_price),
+              taxRatePercent: Number(line.tax_rate_percent),
+              landedCostAllocated:
+                Number(bill.landed_cost_total ?? 0) > 0
+                  ? Number(line.landed_cost_allocated ?? 0)
+                  : undefined,
+            }))
+          : [];
+        const formLanded = bill.erp_purchase_bill_landed_costs.map((lc) => ({
+          key: lc.id,
+          landedCostItemId: lc.landed_cost_item_id,
+          name: lc.name,
+          quantity: Number(lc.quantity),
+          rate: Number(lc.rate),
+          taxRatePercent: Number(lc.tax_rate_percent),
+        }));
+        setLines(formLines);
+        setLandedCosts(formLanded);
+        setLandedAllocationMethod(inferLandedAllocationMethod(formLines, formLanded));
       })
       .finally(() => setLoading(false));
   }, [billId, mode]);
@@ -283,10 +289,13 @@ export function PurchaseBillFormView({
         setReference(po.reference ?? "");
         setNotes(po.notes ?? "");
         setDiscount(po.discount ?? 0);
-        if (po.purchase_order_items.length) {
-          setLines(poLinesToForm(po, purchaseDate));
-        }
-        setLandedCosts(poLandedCostsToForm(po));
+        const formLines = po.purchase_order_items.length
+          ? poLinesToForm(po, purchaseDate)
+          : [];
+        const formLanded = poLandedCostsToForm(po);
+        if (formLines.length) setLines(formLines);
+        setLandedCosts(formLanded);
+        setLandedAllocationMethod(inferLandedAllocationMethod(formLines, formLanded));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -340,8 +349,8 @@ export function PurchaseBillFormView({
   }, [lines, landedCosts, discount]);
 
   const landedAllocationBalanced = useMemo(
-    () => isLandedAllocationBalanced(lines, landedCosts),
-    [lines, landedCosts],
+    () => isLandedAllocationBalanced(lines, landedCosts, landedAllocationMethod),
+    [lines, landedCosts, landedAllocationMethod],
   );
 
   const saveDisabled = pending || !landedAllocationBalanced;
@@ -370,6 +379,7 @@ export function PurchaseBillFormView({
     setDiscount(0);
     setLines([]);
     setLandedCosts([]);
+    setLandedAllocationMethod("value");
     setBillNumber(null);
     setPhysicalReceiptOnBill(true);
     setError(null);
@@ -399,8 +409,12 @@ export function PurchaseBillFormView({
       );
       return;
     }
-    const linesForSave = commitResolvedLandedAllocationsToLines(lines, landedCosts);
-    const apiLines = linesToApiInput(linesForSave, landedCosts);
+    const linesForSave = commitResolvedLandedAllocationsToLines(
+      lines,
+      landedCosts,
+      landedAllocationMethod,
+    );
+    const apiLines = linesToApiInput(linesForSave, landedCosts, landedAllocationMethod);
     if (!vendorId || !effectiveStoreId) {
       setError(
         !effectiveStoreId
@@ -683,6 +697,8 @@ export function PurchaseBillFormView({
               masterItems={landedMaster}
               purchaseLines={lines}
               onPurchaseLinesChange={setLines}
+              allocationMethod={landedAllocationMethod}
+              onAllocationMethodChange={setLandedAllocationMethod}
             />
           </AdminFormSection>
 

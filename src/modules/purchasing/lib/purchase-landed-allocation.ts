@@ -1,4 +1,5 @@
 import type {
+  LandedAllocationMethod,
   LandedCostFormRow,
   PurchaseLineFormRow,
 } from "@/common/erp/purchasing-types";
@@ -6,6 +7,8 @@ import { calcPurchaseLine, roundMoney } from "@/common/erp/purchasing-types";
 import { CALC_BALANCE_TOLERANCE } from "@/lib/decimal-precision";
 
 export const LANDED_BALANCE_TOLERANCE = CALC_BALANCE_TOLERANCE;
+
+export type { LandedAllocationMethod };
 
 export type StoredPurchaseLineCost = {
   quantity: number;
@@ -167,6 +170,62 @@ export function computePurchaseLineLandedAllocations(
   return result;
 }
 
+/** Pro-rata landed allocation by line quantity (equal landed charge per unit). */
+export function computePurchaseLineLandedAllocationsByQuantity(
+  lines: PurchaseLineAllocationRow[],
+  landedTotal: number,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  const eligible = lines.filter((l) => coalesceQty(l.quantity) > 0);
+  const landed = roundMoney(landedTotal);
+  let qtyTotal = 0;
+  for (const line of eligible) {
+    qtyTotal = roundMoney(qtyTotal + coalesceQty(line.quantity));
+  }
+  let allocatedSoFar = 0;
+  const n = eligible.length;
+  eligible.forEach((line, index) => {
+    const qty = coalesceQty(line.quantity);
+    let landedAllocated = 0;
+    if (landed > 0 && qtyTotal > 0 && n > 0) {
+      if (index < n - 1) {
+        landedAllocated = roundMoney(landed * (qty / qtyTotal));
+        allocatedSoFar = roundMoney(allocatedSoFar + landedAllocated);
+      } else {
+        landedAllocated = roundMoney(landed - allocatedSoFar);
+      }
+    }
+    out.set(line.key, Math.max(0, landedAllocated));
+  });
+  for (const line of lines) {
+    if (!out.has(line.key)) {
+      out.set(line.key, 0);
+    }
+  }
+  return out;
+}
+
+function autoLandedAllocationsByMethod(
+  allocRows: PurchaseLineAllocationRow[],
+  landedTotal: number,
+  taxRatePercentByKey: Record<string, number>,
+  method: Exclude<LandedAllocationMethod, "custom">,
+): Map<string, number> {
+  if (method === "quantity") {
+    return computePurchaseLineLandedAllocationsByQuantity(allocRows, landedTotal);
+  }
+  const auto = computePurchaseLineLandedAllocations(
+    allocRows,
+    landedTotal,
+    taxRatePercentByKey,
+  );
+  const out = new Map<string, number>();
+  for (const [key, b] of auto) {
+    out.set(key, b.landedAllocated);
+  }
+  return out;
+}
+
 function coalesceNumber(n: number): number {
   return Number.isFinite(n) ? n : 0;
 }
@@ -266,12 +325,19 @@ function manualByKeyFromLines(
 export function resolveDocumentLandedAllocations(
   lines: PurchaseLineFormRow[],
   landedCosts: LandedCostFormRow[],
+  method: LandedAllocationMethod = "value",
 ): Map<string, number> {
   const landedTotal = sumDocumentLandedCostTotal(landedCosts);
   if (landedTotal <= 0) {
     return new Map();
   }
   const allocRows = allocationRowsFromFormLines(lines);
+  const taxByKey = taxRateByKeyFromLines(lines);
+
+  if (method === "quantity" || method === "value") {
+    return autoLandedAllocationsByMethod(allocRows, landedTotal, taxByKey, method);
+  }
+
   const manualByKey = manualByKeyFromLines(lines);
   const allExplicit = allocRows.every((row) =>
     isExplicitLandedAlloc(manualByKey[row.key]),
@@ -283,7 +349,6 @@ export function resolveDocumentLandedAllocations(
         0,
       ),
     );
-    // All zeros is not a split — fall through to value-based auto allocation.
     if (manualSum > 0) {
       const out = new Map<string, number>();
       for (const row of allocRows) {
@@ -295,29 +360,83 @@ export function resolveDocumentLandedAllocations(
   return getEffectiveLandedAllocations(
     allocRows,
     landedTotal,
-    taxRateByKeyFromLines(lines),
+    taxByKey,
     manualByKey,
   );
+}
+
+/** Pick allocation method when reloading a document with stored per-line landed amounts. */
+export function inferLandedAllocationMethod(
+  lines: PurchaseLineFormRow[],
+  landedCosts: LandedCostFormRow[],
+): LandedAllocationMethod {
+  const landedTotal = sumDocumentLandedCostTotal(landedCosts);
+  if (landedTotal <= 0) return "value";
+  const allocRows = allocationRowsFromFormLines(lines);
+  if (!allocRows.length) return "value";
+
+  const stored = new Map<string, number>();
+  for (const row of allocRows) {
+    const line = lines.find((l) => l.key === row.key);
+    if (!line) continue;
+    stored.set(row.key, landedAllocFromStoredLine(line));
+  }
+  const sumStored = roundMoney([...stored.values()].reduce((s, v) => s + v, 0));
+  if (sumStored <= 0) return "value";
+
+  const taxByKey = taxRateByKeyFromLines(lines);
+  const byQty = computePurchaseLineLandedAllocationsByQuantity(allocRows, landedTotal);
+  const byValue = autoLandedAllocationsByMethod(allocRows, landedTotal, taxByKey, "value");
+
+  const matches = (m: Map<string, number>) =>
+    allocRows.every((row) => {
+      const a = m.get(row.key) ?? 0;
+      const b = stored.get(row.key) ?? 0;
+      return Math.abs(a - b) < LANDED_BALANCE_TOLERANCE;
+    });
+
+  if (matches(byQty)) return "quantity";
+  if (matches(byValue)) return "value";
+  return "custom";
+}
+
+export function applyLandedAllocationMethodChange(
+  lines: PurchaseLineFormRow[],
+  landedCosts: LandedCostFormRow[],
+  nextMethod: LandedAllocationMethod,
+  currentMethod: LandedAllocationMethod,
+): PurchaseLineFormRow[] {
+  if (nextMethod === currentMethod) return lines;
+  if (nextMethod === "custom") {
+    const amounts = resolveDocumentLandedAllocations(lines, landedCosts, currentMethod);
+    return lines.map((l) => ({
+      ...l,
+      landedCostAllocated: amounts.get(l.key) ?? 0,
+    }));
+  }
+  return lines.map((l) => ({ ...l, landedCostAllocated: undefined }));
 }
 
 /** @deprecated Use resolveDocumentLandedAllocations */
 export function resolveLineLandedAllocationsForSave(
   lines: PurchaseLineFormRow[],
   landedCosts: LandedCostFormRow[],
+  method: LandedAllocationMethod = "value",
 ): Map<string, number> {
-  return resolveDocumentLandedAllocations(lines, landedCosts);
+  return resolveDocumentLandedAllocations(lines, landedCosts, method);
 }
 
 /** Write resolved landed amounts onto line rows so the outbox payload always includes them. */
 export function commitResolvedLandedAllocationsToLines(
   lines: PurchaseLineFormRow[],
   landedCosts: LandedCostFormRow[],
+  method: LandedAllocationMethod = "value",
 ): PurchaseLineFormRow[] {
   const landedTotal = sumDocumentLandedCostTotal(landedCosts);
   if (landedTotal <= 0) {
     return lines.map((l) => ({ ...l, landedCostAllocated: undefined }));
   }
-  const amounts = resolveDocumentLandedAllocations(lines, landedCosts);
+  const amounts = resolveDocumentLandedAllocations(lines, landedCosts, method);
   return lines.map((l) => {
     const alloc = amounts.get(l.key);
     if (alloc == null) {
@@ -336,9 +455,10 @@ export function applyManualLineLandedAllocation(
   landedCosts: LandedCostFormRow[],
   lineKey: string,
   amount: number,
+  method: LandedAllocationMethod = "custom",
 ): PurchaseLineFormRow[] {
   const clamped = roundMoney(Math.max(0, amount));
-  const snapshot = resolveDocumentLandedAllocations(lines, landedCosts);
+  const snapshot = resolveDocumentLandedAllocations(lines, landedCosts, method);
   return lines.map((l) => {
     if (l.key === lineKey) {
       return { ...l, landedCostAllocated: clamped };
@@ -357,10 +477,11 @@ export function applyManualLineLandedAllocation(
 export function getLandedAllocationRemainder(
   lines: PurchaseLineFormRow[],
   landedCosts: LandedCostFormRow[],
+  method: LandedAllocationMethod = "value",
 ): number {
   const landedTotal = sumDocumentLandedCostTotal(landedCosts);
   if (landedTotal <= 0) return 0;
-  const amounts = resolveLineLandedAllocationsForSave(lines, landedCosts);
+  const amounts = resolveLineLandedAllocationsForSave(lines, landedCosts, method);
   const allocatedSum = roundMoney(
     [...amounts.values()].reduce((s, v) => s + v, 0),
   );
@@ -370,10 +491,16 @@ export function getLandedAllocationRemainder(
 export function isLandedAllocationBalanced(
   lines: PurchaseLineFormRow[],
   landedCosts: LandedCostFormRow[],
+  method: LandedAllocationMethod = "value",
 ): boolean {
   const landedTotal = sumDocumentLandedCostTotal(landedCosts);
   if (landedTotal <= 0) return true;
-  return Math.abs(getLandedAllocationRemainder(lines, landedCosts)) < LANDED_BALANCE_TOLERANCE;
+  const allocRows = allocationRowsFromFormLines(lines);
+  if (!allocRows.length) return false;
+  return (
+    Math.abs(getLandedAllocationRemainder(lines, landedCosts, method)) <
+    LANDED_BALANCE_TOLERANCE
+  );
 }
 
 export function canApplyManualLandedAllocations(
@@ -399,11 +526,12 @@ export function getPurchaseLineCostBreakdown(
   line: PurchaseLineFormRow,
   allLines: PurchaseLineFormRow[],
   landedCosts: LandedCostFormRow[],
+  method: LandedAllocationMethod = "value",
 ): PurchaseLineCostBreakdown | null {
   const landedTotal = sumDocumentLandedCostTotal(landedCosts);
   const allocRows = allocationRowsFromFormLines(allLines);
   if (!allocRows.some((r) => r.key === line.key)) return null;
-  const amounts = resolveDocumentLandedAllocations(allLines, landedCosts);
+  const amounts = resolveDocumentLandedAllocations(allLines, landedCosts, method);
   const landedAllocated = amounts.get(line.key) ?? 0;
   const qty = coalesceQty(line.quantity);
   const unitPrice = coalesceNumber(line.purchasePrice);

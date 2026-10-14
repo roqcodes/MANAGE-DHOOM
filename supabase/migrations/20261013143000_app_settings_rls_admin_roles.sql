@@ -12,11 +12,11 @@ CREATE POLICY "app_settings_update_admin"
       SELECT 1
       FROM public.users u
       WHERE u.id = auth.uid()
-        AND u.role::text = 'manager'
+        AND u.role::text = 'manager'  
     )
   );
 
-CREATE POLICY "app_settings_insert_admin"
+CREATE POLICY "app_settings_insert_admin" 
   ON public.app_settings
   FOR INSERT
   WITH CHECK (

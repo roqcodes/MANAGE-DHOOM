@@ -249,6 +249,18 @@ export async function updateErpInvoice(
   });
 }
 
+export function computeErpInvoiceEditable(invoice: {
+  status: string;
+  amount_paid?: number | null;
+  credits_applied?: number | null;
+}): boolean {
+  if (invoice.status === "cancelled") return false;
+  return (
+    Number(invoice.amount_paid ?? 0) === 0 && Number(invoice.credits_applied ?? 0) === 0
+  );
+}
+
+/** @deprecated Prefer `computeErpInvoiceEditable` on a loaded invoice row. */
 export async function getErpInvoiceEditable(invoiceId: string): Promise<boolean> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
@@ -259,37 +271,78 @@ export async function getErpInvoiceEditable(invoiceId: string): Promise<boolean>
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Invoice not found");
-  if (data.status === "cancelled") return false;
-  return Number(data.amount_paid ?? 0) === 0 && Number(data.credits_applied ?? 0) === 0;
+  return computeErpInvoiceEditable(data);
 }
 
-export async function getErpInvoiceDetail(invoiceId: string) {
-  await requireAdminOrManagerProfile();
+const ERP_INVOICE_DETAIL_SELECT = `
+  id,
+  invoice_number,
+  status,
+  subtotal,
+  total_amount,
+  amount_paid,
+  credits_applied,
+  balance_due,
+  discount,
+  gst_amount,
+  due_date,
+  created_at,
+  notes,
+  tax_inclusive,
+  source,
+  order_id,
+  user_id,
+  store_id,
+  gst_number,
+  reference,
+  stores(name, logo_url, address_line1, city, country, phone, trn),
+  users!invoices_user_id_fkey(name, email, phone, company_name, trn),
+  invoice_items(
+    id,
+    product_name,
+    quantity,
+    unit_price,
+    gst_rate,
+    gst_amount,
+    total_amount,
+    description
+  ),
+  erp_payment_allocations(
+    amount,
+    erp_customer_payments(id, payment_number, payment_date, payment_mode, total_amount)
+  ),
+  erp_credit_note_applications(
+    amount,
+    erp_credit_notes(id, credit_note_number, credit_note_date)
+  )
+`;
+
+/** Single round-trip invoice load (customer embedded). Caller must enforce admin auth. */
+export async function fetchErpInvoiceDetail(invoiceId: string) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("invoices")
-    .select(
-      `*, stores(name, logo_url, address_line1, city, country, phone, trn), invoice_items(*),
-      erp_payment_allocations(
-        amount,
-        erp_customer_payments(id, payment_number, payment_date, payment_mode, total_amount)
-      ),
-      erp_credit_note_applications(
-        amount,
-        erp_credit_notes(id, credit_note_number, credit_note_date)
-      )`,
-    )
+    .select(ERP_INVOICE_DETAIL_SELECT)
     .eq("id", invoiceId)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) throw new Error("Invoice not found");
 
-  const { data: user, error: userError } = await supabase
-    .from("users")
-    .select("name, email, phone, company_name, trn")
-    .eq("id", data.user_id)
-    .maybeSingle();
-  if (userError) throw new Error(userError.message);
+  const usersRaw = data.users as
+    | { name: string | null; email: string | null; phone: string | null; company_name: string | null; trn: string | null }
+    | { name: string | null; email: string | null; phone: string | null; company_name: string | null; trn: string | null }[]
+    | null;
+  const users = Array.isArray(usersRaw) ? usersRaw[0] ?? null : usersRaw;
 
-  return { ...data, users: user };
+  const { users: _usersEmbed, ...invoice } = data;
+  return {
+    ...invoice,
+    users,
+    editable: computeErpInvoiceEditable(invoice),
+  };
+}
+
+export async function getErpInvoiceDetail(invoiceId: string) {
+  await requireAdminOrManagerProfile();
+  return fetchErpInvoiceDetail(invoiceId);
 }

@@ -29,6 +29,12 @@ function prefetchErpGet(qc: QueryClient, path: string) {
   });
 }
 
+/** Warm invoice detail cache before navigation (list hover, dashboard links). */
+export function prefetchErpInvoiceDetail(qc: QueryClient, invoiceId: string) {
+  if (!invoiceId) return Promise.resolve();
+  return prefetchErpGet(qc, `erp/invoices/${invoiceId}`);
+}
+
 /** Default first-page GET matching the destination list’s adminListPath. */
 function erpListPrefetchPath(hrefPath: string, storeId: string | undefined): string | null {
   const today = localYmd();

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -18,8 +19,14 @@ import {
 } from "lucide-react";
 
 import { paymentModeLabel } from "@/common/erp/sales-types";
-import { adminDelete, adminGet } from "@/modules/admin/lib/admin-api-client";
-import { AdminDetailBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { adminDelete } from "@/modules/admin/lib/admin-api-client";
+import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import {
+  AdminDetailBodySkeleton,
+  AdminMetricValueSkeleton,
+  isInitialAdminLoad,
+} from "@/modules/admin/components/admin-page-skeleton";
+import { useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
@@ -197,22 +204,51 @@ function TotalsRow({
 
 export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const detailPath = `erp/invoices/${invoiceId}`;
   const { openInvoicePrint, invoicePrintModalProps } = useErpInvoicePrintModal();
-  const [detail, setDetail] = useState<InvoiceDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { data: detail, isPending } = useAdminGetQuery<InvoiceDetail>({ path: detailPath });
+  const initialLoading = isInitialAdminLoad(isPending, Boolean(detail));
 
-  function reload() {
-    return adminGet<InvoiceDetail>(`erp/invoices/${invoiceId}`).then(setDetail);
-  }
-
-  useEffect(() => {
-    reload().finally(() => setLoading(false));
-  }, [invoiceId]);
-
-  if (loading) {
+  if (initialLoading) {
     return (
       <AdminPageLayout>
-        <AdminPageHeader title="Invoice" breadcrumb={[{ label: "Invoices", href: "/admin/erp/invoices" }]} />
+        <AdminPageHeader
+          title={formatErpDocRef("INV", invoiceId)}
+          description="Loading invoice…"
+          backHref="/admin/erp/invoices"
+          breadcrumb={[
+            { label: "Invoices", href: "/admin/erp/invoices" },
+            { label: formatErpDocRef("INV", invoiceId) },
+          ]}
+        />
+        <Card className="overflow-hidden border border-border py-0 ring-0">
+          <div className="grid divide-y divide-border sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
+            {(
+              [
+                { label: "Invoice total", icon: Receipt },
+                { label: "Payments received", icon: Banknote },
+                { label: "Credits applied", icon: FileText },
+                { label: "Balance due", icon: CreditCard },
+              ] as const
+            ).map((metric) => (
+              <div
+                key={metric.label}
+                className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3.5 sm:px-5"
+              >
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                  <metric.icon className="size-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {metric.label}
+                  </p>
+                  <AdminMetricValueSkeleton className="mt-1.5 h-6 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
         <AdminDetailBodySkeleton />
       </AdminPageLayout>
     );
@@ -302,6 +338,9 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
               deleteDescription="Cancels the invoice and restores stock. Only allowed before payments or credit notes."
               onDelete={async () => {
                 await adminDelete(`erp/invoices/${detail.id}`);
+                await queryClient.invalidateQueries({
+                  queryKey: adminQueryKeys.erpGet(detailPath),
+                });
                 router.push("/admin/erp/invoices");
               }}
             />

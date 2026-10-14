@@ -5,6 +5,7 @@ import { PackagePlus, Plus, Trash2 } from "lucide-react";
 
 import type {
   ErpProductSearchRow,
+  LandedAllocationMethod,
   LandedCostFormRow,
   PurchaseLineFormRow,
 } from "@/common/erp/purchasing-types";
@@ -350,10 +351,11 @@ export function PurchaseLinesEditor({
 export function linesToApiInput(
   lines: PurchaseLineFormRow[],
   landedCosts?: LandedCostFormRow[],
+  allocationMethod: LandedAllocationMethod = "value",
 ) {
   const landedAllocations =
     landedCosts != null
-      ? resolveDocumentLandedAllocations(lines, landedCosts)
+      ? resolveDocumentLandedAllocations(lines, landedCosts, allocationMethod)
       : null;
 
   return lines

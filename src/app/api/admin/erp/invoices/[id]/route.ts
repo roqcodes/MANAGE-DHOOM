@@ -13,8 +13,7 @@ import {
 } from "@/modules/erp/schemas/sales-invoice-api-schemas";
 import {
   cancelErpInvoice,
-  getErpInvoiceDetail,
-  getErpInvoiceEditable,
+  fetchErpInvoiceDetail,
   updateErpInvoice,
 } from "@/modules/erp/services/erp-invoices.service";
 
@@ -26,11 +25,8 @@ export async function GET(
   if (!auth.ok) return auth.response;
   const { id } = await params;
   try {
-    const [invoice, editable] = await Promise.all([
-      getErpInvoiceDetail(id),
-      getErpInvoiceEditable(id),
-    ]);
-    return NextResponse.json({ ...invoice, editable });
+    const invoice = await fetchErpInvoiceDetail(id);
+    return NextResponse.json(invoice);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to load invoice";
     const status = msg === "Invoice not found" ? 404 : 400;

@@ -6,7 +6,11 @@ import { useRouter } from "next/navigation";
 
 import type { ErpPurchaseOrderDetail } from "@/common/erp/purchasing-types";
 import { roundMoney } from "@/common/erp/purchasing-types";
-import type { PurchaseLineFormRow, LandedCostFormRow } from "@/common/erp/purchasing-types";
+import type {
+  LandedAllocationMethod,
+  PurchaseLineFormRow,
+  LandedCostFormRow,
+} from "@/common/erp/purchasing-types";
 import {
   emptyPurchaseLine,
   linesToApiInput,
@@ -30,6 +34,7 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { calcPurchaseLine } from "@/common/erp/purchasing-types";
 import {
   commitResolvedLandedAllocationsToLines,
+  inferLandedAllocationMethod,
   isLandedAllocationBalanced,
 } from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
@@ -92,6 +97,8 @@ export function PurchaseOrderFormView({
   const [discount, setDiscount] = useState(0);
   const [lines, setLines] = useState<PurchaseLineFormRow[]>([]);
   const [landedCosts, setLandedCosts] = useState<LandedCostFormRow[]>([]);
+  const [landedAllocationMethod, setLandedAllocationMethod] =
+    useState<LandedAllocationMethod>("value");
   const [landedMaster, setLandedMaster] = useState<ErpLandedCostItem[]>([]);
   const [poNumber, setPoNumber] = useState<string | null>(null);
   const [shortagesLoading, setShortagesLoading] = useState(false);
@@ -146,41 +153,40 @@ export function PurchaseOrderFormView({
         setNotes(po.notes ?? "");
         setDiscount(po.discount ?? 0);
         setPoNumber(po.po_number);
-        setLines(
-          po.purchase_order_items.length
-            ? po.purchase_order_items.map((item) => ({
-                key: item.id,
-                productId:
-                  (item as { product_id?: string | null }).product_id ??
-                  item.product_variants?.product_id ??
-                  null,
-                variantId: item.variant_id,
-                productName:
-                  (item as { products?: { name?: string | null } | null }).products?.name ??
-                  item.product_variants?.products?.name ??
-                  "Item",
-                barcode: item.product_variants?.barcode ?? "",
-                expiryDate: "",
-                quantity: item.quantity,
-                purchasePrice: item.price,
-                taxRatePercent: item.tax_rate_percent,
-                landedCostAllocated:
-                  (po.landed_cost_total ?? 0) > 0
-                    ? Number(item.landed_cost_allocated ?? 0)
-                    : undefined,
-              }))
-            : [],
-        );
-        setLandedCosts(
-          (po.purchase_order_landed_costs ?? []).map((lc) => ({
-            key: lc.id,
-            landedCostItemId: lc.landed_cost_item_id,
-            name: lc.name,
-            quantity: lc.quantity,
-            rate: lc.rate,
-            taxRatePercent: lc.tax_rate_percent,
-          })),
-        );
+        const formLines = po.purchase_order_items.length
+          ? po.purchase_order_items.map((item) => ({
+              key: item.id,
+              productId:
+                (item as { product_id?: string | null }).product_id ??
+                item.product_variants?.product_id ??
+                null,
+              variantId: item.variant_id,
+              productName:
+                (item as { products?: { name?: string | null } | null }).products?.name ??
+                item.product_variants?.products?.name ??
+                "Item",
+              barcode: item.product_variants?.barcode ?? "",
+              expiryDate: "",
+              quantity: item.quantity,
+              purchasePrice: item.price,
+              taxRatePercent: item.tax_rate_percent,
+              landedCostAllocated:
+                (po.landed_cost_total ?? 0) > 0
+                  ? Number(item.landed_cost_allocated ?? 0)
+                  : undefined,
+            }))
+          : [];
+        const formLanded = (po.purchase_order_landed_costs ?? []).map((lc) => ({
+          key: lc.id,
+          landedCostItemId: lc.landed_cost_item_id,
+          name: lc.name,
+          quantity: lc.quantity,
+          rate: lc.rate,
+          taxRatePercent: lc.tax_rate_percent,
+        }));
+        setLines(formLines);
+        setLandedCosts(formLanded);
+        setLandedAllocationMethod(inferLandedAllocationMethod(formLines, formLanded));
       })
       .finally(() => setLoading(false));
   }, [poId, mode]);
@@ -215,8 +221,8 @@ export function PurchaseOrderFormView({
   }, [lines, landedCosts, discount]);
 
   const landedAllocationBalanced = useMemo(
-    () => isLandedAllocationBalanced(lines, landedCosts),
-    [lines, landedCosts],
+    () => isLandedAllocationBalanced(lines, landedCosts, landedAllocationMethod),
+    [lines, landedCosts, landedAllocationMethod],
   );
 
   const saveDisabled = pending || !landedAllocationBalanced;
@@ -239,6 +245,7 @@ export function PurchaseOrderFormView({
     setDiscount(0);
     setLines([]);
     setLandedCosts([]);
+    setLandedAllocationMethod("value");
     setPoNumber(null);
     setError(null);
   }
@@ -265,8 +272,12 @@ export function PurchaseOrderFormView({
       );
       return;
     }
-    const linesForSave = commitResolvedLandedAllocationsToLines(lines, landedCosts);
-    const apiLines = linesToApiInput(linesForSave, landedCosts);
+    const linesForSave = commitResolvedLandedAllocationsToLines(
+      lines,
+      landedCosts,
+      landedAllocationMethod,
+    );
+    const apiLines = linesToApiInput(linesForSave, landedCosts, landedAllocationMethod);
     if (!vendorId) {
       setError("Vendor is required");
       return;
@@ -493,6 +504,8 @@ export function PurchaseOrderFormView({
               masterItems={landedMaster}
               purchaseLines={lines}
               onPurchaseLinesChange={setLines}
+              allocationMethod={landedAllocationMethod}
+              onAllocationMethodChange={setLandedAllocationMethod}
             />
           </AdminFormSection>
 

@@ -1,10 +1,12 @@
 "use client";
 
 import { useTransition } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Download, Plus } from "lucide-react";
 
 import type { ErpInvoiceListRow } from "@/common/erp/sales-types";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
+import { prefetchErpInvoiceDetail } from "@/modules/admin/lib/admin-prefetch-nav";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { Pagination } from "@/modules/admin/components/pagination";
@@ -51,6 +53,7 @@ const STATUS_OPTIONS = [
 ];
 
 export function InvoicesListView() {
+  const queryClient = useQueryClient();
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/invoices");
   const { openInvoicePrint, invoicePrintModalProps } = useErpInvoicePrintModal();
   const {
@@ -208,7 +211,10 @@ export function InvoicesListView() {
           ) : (
           <AdminTableBody>
             {sorted.map((row) => (
-              <AdminTableRow key={row.id}>
+              <AdminTableRow
+                key={row.id}
+                onMouseEnter={() => void prefetchErpInvoiceDetail(queryClient, row.id)}
+              >
                 <AdminTableCell className="text-muted-foreground">
                   <AdminTableDateTime at={row.created_at} activity={row} />
                 </AdminTableCell>

@@ -25,7 +25,11 @@ import {
 } from "@/modules/erp/components/use-active-store-form-field";
 import {
   resolveVatPeriodPreset,
-  VAT_PERIOD_PRESETS,
+  VAT_FROM_LAST_FILED_PRESET,
+  VAT_QUARTER_MONTH_LABELS,
+  vatPresetYears,
+  vatQuarterPresetId,
+  type VatCalendarQuarter,
   type VatPeriodPresetId,
 } from "@/modules/admin/views/finance/vat-return-period-presets";
 import { cn } from "@/lib/utils";
@@ -165,6 +169,11 @@ export function VatReturnFormView({
       ? "Checking last filed return…"
       : "No filed return yet for this store.";
 
+  const presetYears = vatPresetYears();
+  const fromLastFiledDisabled =
+    !effectiveStoreId ||
+    !resolveVatPeriodPreset("from_last_filed", lastFiled?.period_end ?? null);
+
   return (
     <AdminFormShell
       variant={variant}
@@ -213,25 +222,46 @@ export function VatReturnFormView({
             </AdminFormField>
             <div className="sm:col-span-2 lg:col-span-3">
               <p className="mb-2 text-xs font-medium text-muted-foreground">Period presets</p>
-              <div className="flex flex-wrap gap-1.5">
-                {VAT_PERIOD_PRESETS.map((preset) => {
-                  const disabled =
-                    !effectiveStoreId ||
-                    (preset.requiresLastFiled &&
-                      !resolveVatPeriodPreset("from_last_filed", lastFiled?.period_end ?? null));
-                  return (
-                    <Button
-                      key={preset.id}
-                      type="button"
-                      size="xs"
-                      variant={activePreset === preset.id ? "secondary" : "outline"}
-                      disabled={disabled}
-                      onClick={() => applyPreset(preset.id)}
-                    >
-                      {preset.label}
-                    </Button>
-                  );
-                })}
+              <div className="space-y-4">
+                {presetYears.map((year) => (
+                  <div key={year} className="space-y-2">
+                    <p className="text-xs font-semibold text-foreground">{year}</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {([1, 2, 3, 4] as VatCalendarQuarter[]).map((quarter) => {
+                        const presetId = vatQuarterPresetId(year, quarter);
+                        const months = VAT_QUARTER_MONTH_LABELS[quarter].join(" · ");
+                        return (
+                          <Button
+                            key={presetId}
+                            type="button"
+                            variant={activePreset === presetId ? "secondary" : "outline"}
+                            disabled={!effectiveStoreId}
+                            className="h-auto min-h-9 flex-col items-start gap-0.5 px-3 py-2 text-left sm:flex-row sm:items-center sm:gap-2"
+                            onClick={() => applyPreset(presetId)}
+                          >
+                            <span className="text-xs font-semibold">Q{quarter}</span>
+                            <span className="text-[11px] font-normal text-muted-foreground">
+                              {months}
+                            </span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                <div>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant={
+                      activePreset === VAT_FROM_LAST_FILED_PRESET.id ? "secondary" : "outline"
+                    }
+                    disabled={fromLastFiledDisabled}
+                    onClick={() => applyPreset(VAT_FROM_LAST_FILED_PRESET.id)}
+                  >
+                    {VAT_FROM_LAST_FILED_PRESET.label}
+                  </Button>
+                </div>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">{lastFiledHint}</p>
             </div>
