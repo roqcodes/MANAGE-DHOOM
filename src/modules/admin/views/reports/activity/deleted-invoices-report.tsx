@@ -85,7 +85,7 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
       ) : (
         <AdminDataTable>
           <AdminTableHeader>
-            <AdminTableCell className="w-8" />
+            <AdminTableCell className="w-8">{" "}</AdminTableCell>
             {report.columns.map((col) => (
               <AdminTableCell
                 key={col.key}
@@ -174,7 +174,7 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
                             )}
                           </div>
                           <div className="rounded-lg border bg-background p-3 text-sm">
-                            <p className="font-medium">{row.store_name ?? "Store"}</p>
+                            <p className="font-medium">{String(row.store_name ?? "Store")}</p>
                             <dl className="mt-2 space-y-1 text-muted-foreground">
                               <div className="flex justify-between gap-2">
                                 <dt>Tax</dt>
