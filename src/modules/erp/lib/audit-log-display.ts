@@ -59,6 +59,7 @@ export function formatAuditActionLabel(action: string): string {
     .join(" ");
 }
 
+/** Prefer friendly labels in tables; fall back to raw entity_type only when unknown. */
 export function formatAuditEntityLabel(entityType: string): string {
   if (ENTITY_LABELS[entityType]) return ENTITY_LABELS[entityType];
   return entityType
@@ -121,3 +122,19 @@ export function formatAuditActivityTitle(log: AuditLogEntry): string {
   const entity = formatAuditEntityLabel(log.entity_type);
   return `${action} ${entity.toLowerCase()}`;
 }
+
+export const AUDIT_ENTITY_FILTER_OPTIONS = Object.entries(ENTITY_LABELS).map(([value, label]) => ({
+  value,
+  label,
+}));
+
+export const AUDIT_ACTION_FILTER_OPTIONS = [
+  { value: "create", label: "Create" },
+  { value: "update", label: "Edit" },
+  { value: "delete", label: "Delete" },
+  { value: "cancel", label: "Cancel" },
+  { value: "finalize", label: "Finalize" },
+  { value: "finalize_purchase_bill", label: "Finalize bill" },
+  { value: "convert", label: "Convert" },
+  { value: "email_sent", label: "Email sent" },
+];

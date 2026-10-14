@@ -23,6 +23,22 @@ export async function GET(request: Request) {
       storeId: url.searchParams.get("storeId") ?? undefined,
       channel: (url.searchParams.get("channel") as ReportChannel) ?? "all",
       accountId: url.searchParams.get("accountId") ?? undefined,
+      brandId: url.searchParams.get("brandId") ?? undefined,
+      categoryId: url.searchParams.get("categoryId") ?? undefined,
+      stockLevel: (url.searchParams.get("stockLevel") as
+        | "all"
+        | "in_stock"
+        | "out_of_stock"
+        | "low_stock"
+        | null) ?? undefined,
+      fromStoreId: url.searchParams.get("fromStoreId") ?? undefined,
+      toStoreId: url.searchParams.get("toStoreId") ?? undefined,
+      status: url.searchParams.get("status") ?? undefined,
+      search: url.searchParams.get("search") ?? undefined,
+      entityType: url.searchParams.get("entityType") ?? undefined,
+      action: url.searchParams.get("action") ?? undefined,
+      userId: url.searchParams.get("userId") ?? undefined,
+      accountTypeId: url.searchParams.get("accountTypeId") ?? undefined,
     });
     return NextResponse.json({ data });
   } catch (error) {

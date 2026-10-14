@@ -6,6 +6,15 @@ import { Download } from "lucide-react";
 
 import type { ReportChannel, ReportDefinition } from "@/common/erp/report-types";
 import { extractReportRows } from "@/common/erp/report-types";
+import { BusinessOverviewReport } from "@/modules/admin/views/reports/business-overview-report";
+import { SalesReport } from "@/modules/admin/views/reports/sales-report";
+import { InventoryReport } from "@/modules/admin/views/reports/inventory-report";
+import { PaymentsPayablesReport } from "@/modules/admin/views/reports/payments-payables-report";
+import { PurchasesReport } from "@/modules/admin/views/reports/purchases-report";
+import { AccountantReport } from "@/modules/admin/views/reports/accountant-report";
+import { ReceivablesReport } from "@/modules/admin/views/reports/receivables-report";
+import { ActivityReport } from "@/modules/admin/views/reports/activity-report";
+import { TaxesReport } from "@/modules/admin/views/reports/taxes-report";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -88,6 +97,46 @@ function ProfitLossSummary({ data }: { data: Record<string, unknown> }) {
 }
 
 export function ReportViewer({ report }: { report: ReportDefinition }) {
+  if (report.category === "Business Overview") {
+    return <BusinessOverviewReport report={report} />;
+  }
+
+  if (report.category === "Sales") {
+    return <SalesReport report={report} />;
+  }
+
+  if (report.category === "Inventory") {
+    return <InventoryReport report={report} />;
+  }
+
+  if (report.category === "Purchases and Expenses") {
+    return <PurchasesReport report={report} />;
+  }
+
+  if (report.category === "Receivables") {
+    return <ReceivablesReport report={report} />;
+  }
+
+  if (report.category === "Payments Received" || report.category === "Payables") {
+    return <PaymentsPayablesReport report={report} />;
+  }
+
+  if (report.category === "Taxes") {
+    return <TaxesReport report={report} />;
+  }
+
+  if (report.category === "Accountant") {
+    return <AccountantReport report={report} />;
+  }
+
+  if (report.category === "Activity") {
+    return <ActivityReport report={report} />;
+  }
+
+  return <GenericReportViewer report={report} />;
+}
+
+function GenericReportViewer({ report }: { report: ReportDefinition }) {
   const { stores, activeStoreId } = useErpStores();
   const [accounts, setAccounts] = useState<{ id: string; code: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,6 +149,8 @@ export function ReportViewer({ report }: { report: ReportDefinition }) {
   const [storeId, setStoreId] = useState("");
   const [channel, setChannel] = useState<ReportChannel>("all");
   const [accountId, setAccountId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [vendorSearch, setVendorSearch] = useState("");
 
   useEffect(() => {
     if (activeStoreId) setStoreId(activeStoreId);
@@ -128,6 +179,12 @@ export function ReportViewer({ report }: { report: ReportDefinition }) {
     else if (report.filters.store && activeStoreId) q.set("storeId", activeStoreId);
     if (report.filters.channel) q.set("channel", channel);
     if (report.filters.account && accountId) q.set("accountId", accountId);
+    const searchTerm = report.filters.vendorSearch
+      ? vendorSearch.trim()
+      : customerSearch.trim();
+    if ((report.filters.customerSearch || report.filters.vendorSearch) && searchTerm) {
+      q.set("search", searchTerm);
+    }
 
     adminGet<{ data: unknown }>(`erp/reports?${q.toString()}`)
       .then((res) => setRawData(res.data))
@@ -138,7 +195,7 @@ export function ReportViewer({ report }: { report: ReportDefinition }) {
   useEffect(() => {
     loadReport();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report.slug, storeId, dateFrom, dateTo, asOf, channel, accountId]);
+  }, [report.slug, storeId, dateFrom, dateTo, asOf, channel, accountId, customerSearch, vendorSearch]);
 
   const rows = useMemo(
     () => extractReportRows(rawData, report.rowsKey),
@@ -263,6 +320,28 @@ export function ReportViewer({ report }: { report: ReportDefinition }) {
                   </option>
                 ))}
               </select>
+            </div>
+          ) : null}
+          {report.filters.customerSearch ? (
+            <div className="space-y-1">
+              <Label>Search customer</Label>
+              <Input
+                className="min-w-[200px]"
+                placeholder="Name, phone, or invoice #"
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+              />
+            </div>
+          ) : null}
+          {report.filters.vendorSearch ? (
+            <div className="space-y-1">
+              <Label>Search vendor</Label>
+              <Input
+                className="min-w-[200px]"
+                placeholder="Vendor name"
+                value={vendorSearch}
+                onChange={(e) => setVendorSearch(e.target.value)}
+              />
             </div>
           ) : null}
           <Button size="sm" onClick={loadReport}>

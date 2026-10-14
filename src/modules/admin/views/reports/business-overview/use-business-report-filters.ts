@@ -1,0 +1,101 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+import type { ReportChannel, ReportDefinition } from "@/common/erp/report-types";
+import { useAdminDateRange, useDebouncedValue, type AdminListFilter } from "@/modules/admin/ui";
+import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { formatReportAsOf, formatReportPeriodRange } from "./report-format";
+
+export function useBusinessReportFilters(report: ReportDefinition) {
+  const { stores, activeStoreId } = useErpStores();
+  const today = new Date().toISOString().slice(0, 10);
+  const defaultPreset =
+    report.filters.asOfDate && !report.filters.dateRange
+      ? "this_month"
+      : report.category === "Sales" ||
+          report.category === "Inventory" ||
+          report.category === "Purchases and Expenses" ||
+          report.category === "Receivables" ||
+          report.category === "Payments Received" ||
+          report.category === "Payables" ||
+          report.category === "Taxes" ||
+          report.category === "Accountant" ||
+          report.category === "Activity"
+        ? "this_month"
+        : "ytd";
+  const dateRange = useAdminDateRange({ defaultPreset });
+  const [asOf, setAsOf] = useState(today);
+  const [storeId, setStoreId] = useState("");
+  const [channel, setChannel] = useState<ReportChannel>("all");
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 200);
+
+  useEffect(() => {
+    if (activeStoreId) setStoreId(activeStoreId);
+  }, [activeStoreId]);
+
+  useEffect(() => {
+    if (dateRange.to) setAsOf(dateRange.to);
+  }, [dateRange.to]);
+
+  const storeLabel =
+    storeId ? stores.find((s) => s.id === storeId)?.name ?? "Selected store" : "All stores";
+
+  const periodLabel =
+    report.filters.asOfDate && !report.filters.dateRange
+      ? `As of ${formatReportAsOf(asOf)}`
+      : formatReportPeriodRange(dateRange.from, dateRange.to);
+
+  const storeFilter: AdminListFilter = {
+    id: "store",
+    label: "Store",
+    value: storeId || "all",
+    options: [
+      { value: "all", label: "All stores" },
+      ...stores.map((s) => ({ value: s.id, label: s.name })),
+    ],
+    onChange: (v) => setStoreId(v === "all" ? "" : v),
+  };
+
+  const channelFilter: AdminListFilter = {
+    id: "channel",
+    label: "Channel",
+    value: channel,
+    options: [
+      { value: "all", label: "All channels" },
+      { value: "erp", label: "ERP / Store" },
+      { value: "online", label: "Online" },
+    ],
+    onChange: (v) => setChannel(v as ReportChannel),
+  };
+
+  const listFilters: AdminListFilter[] = [];
+  if (report.filters.store) listFilters.push(storeFilter);
+  if (report.filters.channel) listFilters.push(channelFilter);
+
+  return {
+    stores,
+    storeId,
+    setStoreId,
+    storeLabel,
+    asOf,
+    setAsOf,
+    search,
+    setSearch,
+    debouncedSearch,
+    periodLabel,
+    dateFrom: dateRange.from,
+    dateTo: dateRange.to,
+    dateRangeValue: {
+      preset: dateRange.preset,
+      from: dateRange.from,
+      to: dateRange.to,
+    },
+    setDateRange: dateRange.setDateRange,
+    storeFilter,
+    channel,
+    channelFilter,
+    listFilters,
+  };
+}

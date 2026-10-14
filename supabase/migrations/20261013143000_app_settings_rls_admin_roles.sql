@@ -14,7 +14,7 @@ CREATE POLICY "app_settings_update_admin"
       WHERE u.id = auth.uid()
         AND u.role::text = 'manager'  
     )
-  );
+  );  
 
 CREATE POLICY "app_settings_insert_admin" 
   ON public.app_settings
