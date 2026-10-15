@@ -19,7 +19,7 @@ export function LegalDocumentLayout({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="min-h-svh bg-slate-50">
+    <div className="h-dvh min-h-dvh overflow-x-hidden overflow-y-auto overscroll-y-contain bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-4 px-6 py-5">
           <Link href="/" className="flex items-center gap-3">
