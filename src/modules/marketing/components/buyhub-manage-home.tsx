@@ -27,6 +27,19 @@ export function BuyHubManageHome() {
             Sign in
           </Link>
         </div>
+        <p className="mt-10 text-center text-xs text-slate-500">
+          <Link href="/legal/privacy" className="hover:text-slate-700">
+            Privacy
+          </Link>
+          {" · "}
+          <Link href="/legal/terms" className="hover:text-slate-700">
+            Terms
+          </Link>
+          {" · "}
+          <Link href="/legal/delete-account" className="hover:text-slate-700">
+            Delete account
+          </Link>
+        </p>
       </div>
     </div>
   );
