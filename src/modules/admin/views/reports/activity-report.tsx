@@ -31,7 +31,14 @@ import {
 } from "@/modules/erp/lib/audit-log-display";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { BusinessReportLayout } from "./business-overview/business-report-layout";
-import { exportReportCsv, formatReportCell } from "./business-overview/report-format";
+import { ReportKpiStrip } from "./business-overview/report-kpi-strip";
+import { buildReportKpis, computeColumnAggregates } from "./business-overview/report-summaries";
+import { describeErpListFilters } from "@/lib/export/tabular-export";
+import {
+  buildReportExportSource,
+  formatReportCell,
+  reportFiltersSubtitle,
+} from "./business-overview/report-format";
 import { useBusinessReportFilters } from "./business-overview/use-business-report-filters";
 import { useErpReportFetch } from "./business-overview/use-erp-report-fetch";
 import { DeletedInvoicesReport } from "./activity/deleted-invoices-report";
@@ -86,11 +93,35 @@ function ActivityLogReport({ report }: { report: ReportDefinition }) {
     (row, key) => row[key],
   );
 
+  const aggregates = useMemo(
+    () => computeColumnAggregates(report.columns, sorted),
+    [report.columns, sorted],
+  );
+  const kpis = useMemo(
+    () => buildReportKpis(report.columns, sorted, aggregates),
+    [report.columns, sorted, aggregates],
+  );
+
   const isEmpty = !loading && sorted.length === 0;
 
-  function exportCsv() {
-    exportReportCsv(report.slug, report.columns, sorted);
-  }
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: report.columns,
+    getRows: () => sorted,
+    getSubtitle: () =>
+      describeErpListFilters({
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        search: filters.debouncedSearch,
+        extra: [
+          reportFiltersSubtitle(filters, "range"),
+          entityType !== "all" ? `Entity: ${entityType}` : "",
+          action !== "all" ? `Activity: ${action}` : "",
+          userId !== "all" ? `User filter applied` : "",
+        ].filter(Boolean),
+      }),
+  });
 
   const filterToolbar = (
     <>
@@ -155,10 +186,13 @@ function ActivityLogReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange
       searchPlaceholder="Search description, user, store, or reference…"
       toolbarExtra={filterToolbar}
+      metrics={
+        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+      }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {loading ? (

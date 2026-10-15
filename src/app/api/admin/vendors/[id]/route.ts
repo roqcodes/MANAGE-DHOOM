@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
+import { deleteVendorIfUnused } from "@/modules/vendors/services/vendor-erp.service";
 import {
   getAvailableVariants,
   getVendorById,
@@ -27,4 +28,21 @@ export async function GET(
   }
 
   return NextResponse.json({ vendor, vendorProducts, availableVariants });
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await requireAdminApiProfile();
+  if (!auth.ok) return auth.response;
+
+  const { id } = await params;
+  try {
+    await deleteVendorIfUnused(id);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to delete vendor";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
 }

@@ -8,6 +8,7 @@ import {
   upgradeProductToGroupedLayoutAction,
 } from "@/modules/products/actions/products.actions";
 import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +34,7 @@ export function ProductSkuCatalogCard({
   onUpgraded?: () => void;
 }) {
   const { runAction, isPending } = useAdminAction();
+  const { confirm } = useAdminAlert();
   const mode = getProductCatalogMode(product, variants, variantGroups);
   const isGrouped = mode === "grouped";
 
@@ -44,10 +46,13 @@ export function ProductSkuCatalogCard({
     }, { errorTitle: "Could not switch to variant groups" });
   }
 
-  function downgradeToFlat() {
-    const ok = confirm(
-      "Switch to flat variants? All SKUs and stock are kept. Group names are removed and each SKU gets its own storefront row (with images).",
-    );
+  async function downgradeToFlat() {
+    const ok = await confirm({
+      title: "Switch to flat variants?",
+      message:
+        "Switch to flat variants? All SKUs and stock are kept. Group names are removed and each SKU gets its own storefront row (with images).",
+      confirmLabel: "Switch layout",
+    });
     if (!ok) return;
     runAction(async () => {
       await downgradeProductToFlatLayoutAction(product.id);

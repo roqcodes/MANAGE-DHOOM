@@ -566,7 +566,13 @@ export const SmartOrb = () => {
                 <div className="pointer-events-none absolute right-full top-1/2 mr-3 -translate-y-1/2 opacity-0 transition-all duration-200 group-hover:opacity-100 group-hover:-translate-x-1">
                   <div className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/15 bg-background/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-xl backdrop-blur-xl dark:bg-slate-900/90">
                     <span className="size-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                    <span>DHOOM AI</span>
+                    <span>
+                      {assistantState === "querying"
+                        ? "Crunching numbers"
+                        : assistantState === "insight"
+                          ? "Got it"
+                          : "DHOOM AI"}
+                    </span>
                   </div>
                 </div>
               )}

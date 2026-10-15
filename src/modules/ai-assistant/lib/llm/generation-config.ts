@@ -10,5 +10,5 @@ export function resolveGenerationConfig(purpose: LlmPurpose): LlmGenerationConfi
   if (purpose === "guide") {
     return { temperature: 0.15, maxOutputTokens: 384 };
   }
-  return { temperature: 0.35, maxOutputTokens: 1200 };
+  return { temperature: 0.25, maxOutputTokens: 1800 };
 }

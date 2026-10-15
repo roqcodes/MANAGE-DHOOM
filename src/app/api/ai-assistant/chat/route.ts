@@ -6,10 +6,8 @@ import {
   userAllowsHeaderQuickCreate,
 } from "@/modules/ai-assistant/lib/goal-intent";
 import {
-  isGeneralKnowledgeQuestion,
   looksLikePromptInjection,
   refusalForAbuse,
-  wantsOnScreenGuide,
 } from "@/modules/ai-assistant/lib/message-intent";
 import {
   type ChatApiScreenInput,
@@ -17,6 +15,8 @@ import {
   useFullUiContextForRequest,
 } from "@/modules/ai-assistant/lib/chat-request-context";
 import { completeChatWithProviderFallback } from "@/modules/ai-assistant/lib/llm/complete-chat";
+import { completeChatWithTools } from "@/modules/ai-assistant/lib/llm/run-tool-chat";
+import { formatGuideFinishContext } from "@/modules/ai-assistant/lib/assistant-protocol";
 import { screenContextBlock } from "@/modules/ai-assistant/lib/screen-context-block";
 import { writeAiProcessorLog } from "@/modules/ai-assistant/lib/ai-processor-log";
 import {
@@ -27,7 +27,7 @@ import { buildSitemapContextBlock } from "@/modules/ai-assistant/lib/sitemap-con
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-const DEFAULT_CHAT_TIMEOUT_MS = 45_000;
+const DEFAULT_CHAT_TIMEOUT_MS = 70_000;
 
 function resolveChatTimeoutMs(mode: "chat" | "guide"): number {
   const raw = process.env.AI_CHAT_TIMEOUT_MS?.trim();
@@ -71,8 +71,6 @@ export async function POST(request: Request) {
   }
 
   const chatHistory = Array.isArray(body.chatHistory) ? body.chatHistory : [];
-  const onScreenAsk = wantsOnScreenGuide(goal || userText || "");
-  const generalAsk = isGeneralKnowledgeQuestion(goal || userText || "");
   const messageForIntent = goal || userText || "";
   const includeScreen = chatIncludesScreenPayload(
     isGuide ? "guide" : "chat",
@@ -99,26 +97,24 @@ export async function POST(request: Request) {
     hasLiveScreenInventory: includeScreen,
   });
 
+  const turnNote = fullUi
+    ? [
+        goal ? `Goal: ${goal}` : "",
+        `Intent: ${intent.kind}`,
+        formatGuideFinishContext(intent.finishLine),
+        quickCreateGoal
+          ? "Header Quick create is allowed for this goal."
+          : "Prefer sidebar + page actions over header Quick create.",
+        lastEvent ? `Last event: ${lastEvent}` : "",
+        isGuide ? "Guide turn." : "UI-aware chat turn.",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
+
   const contextNote = screenContextBlock(
     screenPayload,
-    fullUi
-      ? [
-          goal ? `User goal: ${goal}` : "",
-          `Goal type: ${intent.kind}`,
-          `Finish line: ${intent.finishLine}`,
-          quickCreateGoal
-            ? "User asked about header Quick create — you may point at CREATE / that menu."
-            : "Do NOT use header Quick create (blue CREATE). Use sidebar + page actions (e.g. Products → New item).",
-          lastEvent ? `Latest user action: ${lastEvent}` : "",
-          isGuide
-            ? "Live guide turn. Obey Live UI state / CONFLICT rules first. If the finish line is already met (create UI open for this goal), reply with a short done message and [POINT:none]. If another form/dialog is open, ask to close it before navigation. Otherwise point at the single next control. Never fill the form unless the goal is about fields."
-            : "Chat turn for a UI how-to. Short spoken answer plus one [POINT:eN:label] for the first control on THIS screen if one exists; otherwise [POINT:none]. User may start live guide separately.",
-        ]
-          .filter(Boolean)
-          .join("\n")
-      : generalAsk
-        ? "FAQ turn. Short formatted answer + [SUGGEST:2-3 follow-ups] + [POINT:none]."
-        : "Chat turn. Short answer + [SUGGEST:2-3 follow-ups] + [POINT:none]. You do not see the live UI on this turn.",
+    turnNote,
     {
       includeScreen,
       goal: includeScreen ? goalForContext : undefined,
@@ -126,17 +122,13 @@ export async function POST(request: Request) {
     },
   );
 
-  const systemContent = [
-    systemPrompt,
-    sitemapBlock,
-    contextNote,
-  ]
+  const systemContent = [systemPrompt, sitemapBlock, contextNote]
     .filter(Boolean)
     .join("\n\n");
 
   const messages = [
     { role: "system", content: systemContent },
-    ...chatHistory.slice(-12).map((m) => ({ role: m.role, content: m.content })),
+    ...chatHistory.slice(-8).map((m) => ({ role: m.role, content: m.content })),
     {
       role: "user",
       content: isGuide
@@ -146,11 +138,18 @@ export async function POST(request: Request) {
   ];
 
   const timeoutMs = resolveChatTimeoutMs(isGuide ? "guide" : "chat");
-  const result = await completeChatWithProviderFallback(messages, {
-    timeoutMs,
-    maxModelsPerProvider: isGuide ? 2 : 4,
-    purpose: isGuide ? "guide" : "chat",
-  });
+  /** Live guide + on-screen how-to: DOM inventory is ground truth — no tool loop. */
+  const useLiveUiChat = isGuide || fullUi;
+  const result = useLiveUiChat
+    ? await completeChatWithProviderFallback(messages, {
+        timeoutMs,
+        maxModelsPerProvider: isGuide ? 2 : 3,
+        purpose: isGuide ? "guide" : "chat",
+      })
+    : await completeChatWithTools(messages, {
+        timeoutMs,
+        maxModelsPerProvider: 4,
+      });
 
   if (!result.ok) {
     writeAiProcessorLog({

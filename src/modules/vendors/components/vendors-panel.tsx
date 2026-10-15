@@ -10,9 +10,11 @@ import { Pagination } from "@/modules/admin/components/pagination";
 import { VendorManageModal } from "@/modules/vendors/components/vendor-manage-modal";
 import {
   exportVendorsCsv,
+  getVendorsExportTabular,
   VendorsBulkActionBar,
   VendorsDataTable,
 } from "@/modules/vendors/components/vendors-data-table";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { VendorsMetricsBar } from "@/modules/vendors/components/vendors-metrics-bar";
 import {
   matchesVendorStatusFilter,
@@ -80,6 +82,25 @@ export function VendorsPanel({
     VENDOR_STATUS_FILTERS.find((f) => f.id === statusFilter)?.label ??
     "All Statuses";
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "vendors-export",
+        title: "Vendors",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search,
+            status: statusFilter,
+            extra: statusFilter !== "all" ? [`Status: ${activeStatusLabel}`] : [],
+          }),
+        getTabular: () => {
+          const tabular = getVendorsExportTabular(filtered);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [filtered, search, statusFilter, activeStatusLabel],
+  );
+
   return (
     <>
       <AnimatePresence>
@@ -100,7 +121,7 @@ export function VendorsPanel({
         <VendorsMetricsBar
           stats={stats}
           valuesLoading={initialLoading}
-          onExport={() => exportVendorsCsv(filtered)}
+          exportSource={exportSource}
           onImport={() => exportVendorsCsv(vendors)}
           onCreate={() => setModal({ mode: "create" })}
         />

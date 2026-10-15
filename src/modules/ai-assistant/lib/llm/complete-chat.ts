@@ -5,7 +5,9 @@ import {
   completeOpenAiCompatibleChat,
   type LlmChatMessage,
   type OpenAiCompatResult,
+  type OpenAiToolSpec,
 } from "./openai-compatible";
+import { toGeminiTools, toOpenAiTools } from "../tools/tool-defs";
 import {
   getModelCooldownRemainingMs,
   isModelOnCooldown,
@@ -23,6 +25,7 @@ import {
 export type CompleteChatSuccess = {
   ok: true;
   reply: string;
+  toolCalls?: import("./openai-compatible").LlmToolCall[];
   /** e.g. `google:gemini-2.5-flash` */
   model: string;
   latencyMs: number;
@@ -44,8 +47,13 @@ async function completeProviderModel(
   attempt: ModelAttemptSpec,
   messages: LlmChatMessage[],
   generation: ReturnType<typeof resolveGenerationConfig>,
+  withTools: boolean,
+  toolChoice: "auto" | "none" = "auto",
 ): Promise<OpenAiCompatResult> {
   const { provider, model, timeoutMs } = attempt;
+  const openAiTools: OpenAiToolSpec[] | undefined = withTools
+    ? toOpenAiTools()
+    : undefined;
   if (provider.id === "google") {
     return completeGoogleGeminiChat(
       provider.apiKey,
@@ -53,6 +61,8 @@ async function completeProviderModel(
       messages,
       timeoutMs,
       generation,
+      withTools ? toGeminiTools() : undefined,
+      toolChoice,
     );
   }
   const url = provider.id === "groq" ? GROQ_URL : MISTRAL_URL;
@@ -64,6 +74,8 @@ async function completeProviderModel(
     timeoutMs,
     undefined,
     generation,
+    openAiTools,
+    toolChoice,
   );
 }
 
@@ -96,6 +108,8 @@ async function runSingleAttempt(
   attempt: ModelAttemptSpec,
   messages: LlmChatMessage[],
   generation: ReturnType<typeof resolveGenerationConfig>,
+  withTools = false,
+  toolChoice: "auto" | "none" = "auto",
 ): Promise<AttemptOutcome> {
   const { label } = attempt;
   if (isModelOnCooldown(label)) {
@@ -104,13 +118,20 @@ async function runSingleAttempt(
     return { kind: "skip" };
   }
   try {
-    const result = await completeProviderModel(attempt, messages, generation);
+    const result = await completeProviderModel(
+      attempt,
+      messages,
+      generation,
+      withTools,
+      toolChoice,
+    );
     if (result.ok) {
       return {
         kind: "success",
         value: {
           ok: true,
           reply: result.reply,
+          toolCalls: result.toolCalls,
           model: label,
           latencyMs: result.latencyMs,
           completionTokens: result.completionTokens,
@@ -146,7 +167,7 @@ async function tryGuideHedge(
     let pending = hedge.length;
     let settled = false;
     for (const attempt of hedge) {
-      void runSingleAttempt(attempt, messages, generation).then((outcome) => {
+      void runSingleAttempt(attempt, messages, generation, false).then((outcome) => {
         if (settled) return;
         if (outcome.kind === "success") {
           settled = true;
@@ -167,6 +188,9 @@ export async function completeChatWithProviderFallback(
     timeoutMs?: number;
     maxModelsPerProvider?: number;
     purpose?: LlmPurpose;
+    tools?: boolean;
+    toolChoice?: "auto" | "none";
+    preferModel?: string;
   },
 ): Promise<CompleteChatResult> {
   const purpose = options?.purpose ?? "chat";
@@ -213,11 +237,25 @@ export async function completeChatWithProviderFallback(
       : [],
   );
 
-  for (const attempt of eligible) {
+  const prefer = options?.preferModel;
+  const ordered = prefer
+    ? [
+        ...eligible.filter((a) => a.label === prefer),
+        ...eligible.filter((a) => a.label !== prefer),
+      ]
+    : eligible;
+
+  for (const attempt of ordered) {
     if (hedgeLabels.has(attempt.label)) {
       continue;
     }
-    const outcome = await runSingleAttempt(attempt, messages, generation);
+    const outcome = await runSingleAttempt(
+      attempt,
+      messages,
+      generation,
+      options?.tools === true,
+      options?.toolChoice ?? "auto",
+    );
     if (outcome.kind === "success") {
       return outcome.value;
     }

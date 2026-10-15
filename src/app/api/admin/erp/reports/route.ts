@@ -15,7 +15,8 @@ export async function GET(request: Request) {
   }
 
   try {
-    const data = await runErpReport({
+    const data = await runErpReport(
+      {
       slug,
       dateFrom: url.searchParams.get("dateFrom") ?? undefined,
       dateTo: url.searchParams.get("dateTo") ?? undefined,
@@ -39,7 +40,11 @@ export async function GET(request: Request) {
       action: url.searchParams.get("action") ?? undefined,
       userId: url.searchParams.get("userId") ?? undefined,
       accountTypeId: url.searchParams.get("accountTypeId") ?? undefined,
-    });
+      customerId: url.searchParams.get("customerId") ?? undefined,
+      vendorId: url.searchParams.get("vendorId") ?? undefined,
+      },
+      { authenticated: true },
+    );
     return NextResponse.json({ data });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to run report";

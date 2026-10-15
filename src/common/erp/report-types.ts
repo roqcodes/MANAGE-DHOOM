@@ -294,6 +294,25 @@ export const ERP_REPORTS: ReportDefinition[] = [
     ],
   },
   {
+    slug: "minus-stock",
+    title: "Minus Stock Report",
+    description: "Products with negative on-hand quantity by store (oversold or adjustment).",
+    category: "Inventory",
+    filters: { store: true, brand: true, category: true },
+    rpc: "get_erp_minus_stock_report",
+    columns: [
+      { key: "product_code", label: "Code" },
+      { key: "product_name", label: "Name" },
+      { key: "category_name", label: "Category" },
+      { key: "brand_name", label: "Brand" },
+      { key: "store_name", label: "Store" },
+      { key: "stock", label: "Stock", align: "right", format: "number" },
+      { key: "shortage_qty", label: "Shortage", align: "right", format: "number" },
+      { key: "stock_purchase_value", label: "Purchase value", align: "right", format: "currency" },
+      { key: "stock_sales_value", label: "Sales value", align: "right", format: "currency" },
+    ],
+  },
+  {
     slug: "item-stock",
     title: "Stock Report",
     description: "On-hand stock, valuation, and inbound qty by product and store.",
@@ -390,7 +409,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "customer-balance",
     title: "Customer Balance",
-    description: "Outstanding balance per customer (opening + open invoices).",
+    description: "Every customer with balance (opening + invoices). Zero and negative amounts are shown.",
     category: "Receivables",
     filters: { store: true, customerSearch: true },
     rpc: "get_erp_customer_balance_report",
@@ -403,7 +422,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "customer-aging-summary",
     title: "Aging Summary",
-    description: "Open invoice counts by aging bucket (by due date).",
+    description: "Every customer; open invoice counts per aging bucket. Click a customer for invoice details.",
     category: "Receivables",
     filters: { asOfDate: true, store: true, customerSearch: true },
     rpc: "get_erp_customer_aging_summary_counts",
@@ -420,7 +439,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "customer-aging-details",
     title: "Aging Details",
-    description: "Open invoices with age, credits applied, and balance due.",
+    description: "Open invoices only (balance due greater than zero).",
     category: "Receivables",
     filters: { asOfDate: true, store: true, customerSearch: true },
     rpc: "get_erp_customer_aging_details",
@@ -440,7 +459,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "customer-aging",
     title: "Aging Summary Values",
-    description: "Outstanding amounts by aging bucket, opening balance, and unallocated payments.",
+    description: "Every customer; amounts by aging bucket (zeros when none due).",
     category: "Receivables",
     filters: { asOfDate: true, store: true, customerSearch: true },
     rpc: "get_erp_customer_aging",
@@ -478,23 +497,56 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "vendor-balance",
     title: "Vendor Balance",
-    description: "Opening balance, bills, credits, payments, and balance per vendor.",
+    description: "Every vendor with payables balance (zeros shown).",
     category: "Payables",
     filters: { store: true, vendorSearch: true },
     rpc: "get_erp_vendor_balance_report",
     columns: [
       { key: "vendor_name", label: "Vendor" },
-      { key: "opening_balance", label: "Opening balance", align: "right", format: "currency" },
-      { key: "bill_amount", label: "Bill amount", align: "right", format: "currency" },
-      { key: "vendor_credit", label: "Vendor credit (return)", align: "right", format: "currency" },
-      { key: "payment_made", label: "Payment made", align: "right", format: "currency" },
+      { key: "phone", label: "Phone" },
       { key: "balance", label: "Balance", align: "right", format: "currency" },
     ],
   },
   {
+    slug: "vendor-aging-summary",
+    title: "PB Aging Summary",
+    description: "Every vendor; open bill counts per aging bucket. Click a vendor for bill details.",
+    category: "Payables",
+    filters: { asOfDate: true, store: true, vendorSearch: true },
+    rpc: "get_erp_vendor_aging_summary_counts",
+    columns: [
+      { key: "vendor_name", label: "Vendor" },
+      { key: "bucket_current", label: "Current", align: "right", format: "number" },
+      { key: "bucket_1_15", label: "1–15 days", align: "right", format: "number" },
+      { key: "bucket_16_30", label: "16–30 days", align: "right", format: "number" },
+      { key: "bucket_31_45", label: "31–45 days", align: "right", format: "number" },
+      { key: "bucket_over_45", label: ">45 days", align: "right", format: "number" },
+      { key: "total_bills", label: "Total bills", align: "right", format: "number" },
+    ],
+  },
+  {
+    slug: "vendor-aging-details",
+    title: "PB Aging Details",
+    description: "Open purchase bills only (balance due greater than zero).",
+    category: "Payables",
+    filters: { asOfDate: true, store: true, vendorSearch: true },
+    rpc: "get_erp_vendor_aging_details",
+    columns: [
+      { key: "bill_date", label: "Date", format: "date" },
+      { key: "purchase_bill_number", label: "Bill #" },
+      { key: "store_name", label: "Store" },
+      { key: "status", label: "Status" },
+      { key: "vendor_name", label: "Vendor" },
+      { key: "age_days", label: "Age (days)", align: "right", format: "number" },
+      { key: "amount", label: "Amount", align: "right", format: "currency" },
+      { key: "applied_credit", label: "Applied credit", align: "right", format: "currency" },
+      { key: "balance_due", label: "Balance due", align: "right", format: "currency" },
+    ],
+  },
+  {
     slug: "vendor-aging",
-    title: "Bill Aging Summary",
-    description: "Outstanding purchase bills by aging bucket (values).",
+    title: "PB Aging Summary Values",
+    description: "Every vendor; amounts by aging bucket (zeros when none due).",
     category: "Payables",
     filters: { asOfDate: true, store: true, vendorSearch: true },
     rpc: "get_erp_vendor_aging",
@@ -505,6 +557,9 @@ export const ERP_REPORTS: ReportDefinition[] = [
       { key: "bucket_16_30", label: "16–30 days", align: "right", format: "currency" },
       { key: "bucket_31_45", label: "31–45 days", align: "right", format: "currency" },
       { key: "bucket_over_45", label: ">45 days", align: "right", format: "currency" },
+      { key: "opening_balance_due", label: "Opening balance", align: "right", format: "currency" },
+      { key: "available_credit", label: "Unallocated payments", align: "right", format: "currency" },
+      { key: "bill_over_paid", label: "Over-paid", align: "right", format: "currency" },
       { key: "total_due", label: "Total", align: "right", format: "currency" },
     ],
   },
@@ -572,7 +627,52 @@ export const ERP_REPORTS: ReportDefinition[] = [
   },
 ];
 
+/** Drill-down from Aging Summary (not listed on reports hub). */
+export const VENDOR_AGING_SUMMARY_DETAILS_REPORT: ReportDefinition = {
+  slug: "vendor-aging-summary-details",
+  title: "PB Aging Summary Details",
+  description: "Open purchase bills for the selected vendor.",
+  category: "Payables",
+  filters: { asOfDate: true, store: true },
+  rpc: "get_erp_vendor_aging_summary_vendor_details",
+  rowsKey: "rows",
+  columns: [
+    { key: "purchase_bill_number", label: "Bill number" },
+    { key: "bill_date", label: "Bill date", format: "date" },
+    { key: "due_date", label: "Due date", format: "date" },
+    { key: "age_days", label: "Aging days", align: "right", format: "number" },
+    { key: "bill_amount", label: "Bill amount", align: "right", format: "currency" },
+    { key: "credit", label: "Credit", align: "right", format: "currency" },
+    { key: "payment_balance", label: "Payment balance", align: "right", format: "currency" },
+  ],
+};
+
+export const CUSTOMER_AGING_SUMMARY_DETAILS_REPORT: ReportDefinition = {
+  slug: "customer-aging-summary-details",
+  title: "Aging Summary Details",
+  description: "Open invoices for the selected customer.",
+  category: "Receivables",
+  filters: { asOfDate: true, store: true },
+  rpc: "get_erp_customer_aging_summary_customer_details",
+  rowsKey: "rows",
+  columns: [
+    { key: "invoice_number", label: "Invoice number" },
+    { key: "invoice_date", label: "Invoice date", format: "date" },
+    { key: "due_date", label: "Invoice due date", format: "date" },
+    { key: "age_days", label: "Aging days", align: "right", format: "number" },
+    { key: "invoice_amount", label: "Invoice amount", align: "right", format: "currency" },
+    { key: "credit", label: "Credit", align: "right", format: "currency" },
+    { key: "payment_balance", label: "Payment balance", align: "right", format: "currency" },
+  ],
+};
+
 export function getReportBySlug(slug: string): ReportDefinition | undefined {
+  if (slug === CUSTOMER_AGING_SUMMARY_DETAILS_REPORT.slug) {
+    return CUSTOMER_AGING_SUMMARY_DETAILS_REPORT;
+  }
+  if (slug === VENDOR_AGING_SUMMARY_DETAILS_REPORT.slug) {
+    return VENDOR_AGING_SUMMARY_DETAILS_REPORT;
+  }
   return ERP_REPORTS.find((r) => r.slug === slug);
 }
 
@@ -586,6 +686,13 @@ export function getReportsByCategory(): Record<string, ReportDefinition[]> {
 
 export function extractReportRows(data: unknown, rowsKey?: string): Record<string, unknown>[] {
   if (!data) return [];
+  if (typeof data === "string") {
+    try {
+      return extractReportRows(JSON.parse(data) as unknown, rowsKey);
+    } catch {
+      return [];
+    }
+  }
   if (Array.isArray(data)) return data as Record<string, unknown>[];
   if (typeof data !== "object") return [];
 

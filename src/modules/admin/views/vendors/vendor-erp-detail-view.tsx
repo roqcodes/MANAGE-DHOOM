@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { HandCoins } from "lucide-react";
+import { HandCoins, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 import type {
   ErpPurchaseBillListRow,
@@ -13,7 +13,9 @@ import type {
 } from "@/common/erp/purchasing-types";
 import type { AuditLogEntry } from "@/common/erp/types";
 import { AdminDetailSkeleton } from "@/modules/admin/components/admin-page-skeleton";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { adminDelete, adminGet } from "@/modules/admin/lib/admin-api-client";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
 import { formatAuditLogUserDetail } from "@/modules/erp/lib/audit-log-display";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { AdminPageHeader, AdminPageLayout, AdminTableDateTime } from "@/modules/admin/ui";
@@ -24,6 +26,9 @@ type AuditLog = AuditLogEntry;
 
 export function VendorErpDetailView() {
   const params = useParams();
+  const router = useRouter();
+  const { runAction, isPending: deletePending } = useAdminAction();
+  const { confirm } = useAdminAlert();
   const id = params.id as string;
   const [profile, setProfile] = useState<VendorErpProfile | null>(null);
   const [summary, setSummary] = useState<VendorErpSummary | null>(null);
@@ -51,6 +56,24 @@ export function VendorErpDetailView() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function handleDelete() {
+    const label = profile?.name?.trim() || "this vendor";
+    const ok = await confirm({
+      title: "Delete vendor?",
+      message: `Delete "${label}"? Only vendors with no bills, payments, or other operational records can be removed. Catalog SKUs on this vendor are also removed. This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    runAction(
+      async () => {
+        await adminDelete(`vendors/${id}`);
+        router.push("/admin/vendors");
+      },
+      { errorTitle: "Couldn't delete vendor" },
+    );
+  }
 
   if (loading) {
     return (
@@ -85,6 +108,16 @@ export function VendorErpDetailView() {
             <Link href={`/admin/vendors/${id}/edit`} className={buttonVariants({ variant: "outline" })}>
               Edit
             </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              disabled={deletePending}
+              onClick={handleDelete}
+            >
+              <Trash2 data-icon="inline-start" />
+              Delete
+            </Button>
           </>
         }
       />

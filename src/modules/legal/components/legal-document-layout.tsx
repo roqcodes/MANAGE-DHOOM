@@ -32,6 +32,9 @@ export function LegalDocumentLayout({
             <Link href={LEGAL_ROUTES.terms} className="hover:text-slate-900">
               Terms
             </Link>
+            <Link href={LEGAL_ROUTES.support} className="hover:text-slate-900">
+              Support
+            </Link>
             <Link
               href={LEGAL_ROUTES.deleteAccount}
               className="hover:text-slate-900"
@@ -76,6 +79,10 @@ export function LegalDocumentLayout({
           {" · "}
           <Link href={LEGAL_ROUTES.terms} style={{ color: BRAND_ACCENT }}>
             Terms
+          </Link>
+          {" · "}
+          <Link href={LEGAL_ROUTES.support} style={{ color: BRAND_ACCENT }}>
+            Support
           </Link>
         </p>
       </footer>

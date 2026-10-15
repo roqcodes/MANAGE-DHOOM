@@ -81,7 +81,7 @@ function ProductThumbnail({ url }: { url: string | null }) {
   );
 }
 
-export function exportProductsCsv(products: ProductWithCategoryListItem[]) {
+export function getProductsExportTabular(products: ProductWithCategoryListItem[]) {
   const headers = [
     "Name",
     "Stock",
@@ -108,19 +108,15 @@ export function exportProductsCsv(products: ProductWithCategoryListItem[]) {
     formatSkuLabel(p),
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
+  return { headers, rows };
+}
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `inventory-items-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+export function exportProductsCsv(products: ProductWithCategoryListItem[]) {
+  const { headers, rows } = getProductsExportTabular(products);
+  if (rows.length === 0) return;
+  void import("@/lib/export/tabular-export").then(({ downloadTabularCsv }) => {
+    downloadTabularCsv({ baseFilename: "inventory-items-export", headers, rows });
+  });
 }
 
 export function ProductsBulkActionBar({

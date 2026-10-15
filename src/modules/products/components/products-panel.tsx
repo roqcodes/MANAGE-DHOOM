@@ -16,10 +16,11 @@ import { formatCategoryOptionLabel } from "@/modules/products/lib/categories.uti
 import { Pagination } from "@/modules/admin/components/pagination";
 import { ProductManageModal } from "@/modules/products/components/product-manage-modal";
 import {
-  exportProductsCsv,
+  getProductsExportTabular,
   ProductsBulkActionBar,
   ProductsDataTable,
 } from "@/modules/products/components/products-data-table";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { ProductsMetricsBar } from "@/modules/products/components/products-metrics-bar";
 import {
   ALL_CATEGORIES,
@@ -174,6 +175,42 @@ export function ProductsPanel({
   const storeFilterLabel =
     stores.find((s) => s.id === activeStoreIdResolved)?.name ?? "All stores";
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "inventory-items-export",
+        title: "Inventory items",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search,
+            status: statusFilter,
+            storeLabel:
+              activeStoreIdResolved && storeFilterLabel !== "All stores"
+                ? storeFilterLabel
+                : undefined,
+            extra: [
+              statusFilter !== "all" ? `Status: ${activeStatusLabel}` : "",
+              categoryFilterLabel !== "All categories"
+                ? `Category: ${categoryFilterLabel}`
+                : "",
+            ].filter(Boolean),
+          }),
+        getTabular: () => {
+          const tabular = getProductsExportTabular(filtered);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [
+      filtered,
+      search,
+      statusFilter,
+      activeStatusLabel,
+      categoryFilterLabel,
+      activeStoreIdResolved,
+      storeFilterLabel,
+    ],
+  );
+
   return (
     <>
       <AnimatePresence>
@@ -202,7 +239,7 @@ export function ProductsPanel({
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 py-3 sm:px-4 sm:py-4">
         <ProductsMetricsBar
           stats={stats}
-          onExport={() => exportProductsCsv(filtered)}
+          exportSource={exportSource}
           onImport={() => setImportOpen(true)}
           onCreate={() => setModal({ mode: "create" })}
           valuesLoading={initialLoading}

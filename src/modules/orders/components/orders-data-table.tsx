@@ -290,7 +290,7 @@ function ItemsPopover({
     </Popover>
   );
 }
-function exportOrdersCsv(orders: Order[]) {
+export function getOrdersExportTabular(orders: Order[]) {
   const headers = [
     "Order ID",
     "Customer",
@@ -315,19 +315,15 @@ function exportOrdersCsv(orders: Order[]) {
     String(Number(order.total_amount ?? 0)),
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
+  return { headers, rows };
+}
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `orders-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+function exportOrdersCsv(orders: Order[]) {
+  const { headers, rows } = getOrdersExportTabular(orders);
+  if (rows.length === 0) return;
+  void import("@/lib/export/tabular-export").then(({ downloadTabularCsv }) => {
+    downloadTabularCsv({ baseFilename: "orders-export", headers, rows });
+  });
 }
 
 function printShippingLabels(orderIds: string[]) {

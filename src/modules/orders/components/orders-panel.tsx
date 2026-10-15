@@ -10,13 +10,18 @@ import type { Order, OrderCatalogStats } from "@/common/admin/types";
 import type { OutboxOperationRecord } from "@/lib/sync/outbox-types";
 import type { OrderFilterUserRow } from "@/modules/orders/services/orders.service";
 import { Pagination } from "@/modules/admin/components/pagination";
-import { CustomerSearchSelect, useAdminDateRange } from "@/modules/admin/ui";
+import {
+  AdminListDateRangeLead,
+  CustomerSearchSelect,
+  useAdminDateRange,
+} from "@/modules/admin/ui";
 import { resolveCustomerPickerOption } from "@/modules/erp/lib/entity-live-search.client";
 import {
-  exportOrdersCsv,
+  getOrdersExportTabular,
   OrdersBulkActionBar,
   OrdersDataTable,
 } from "@/modules/orders/components/orders-data-table";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { OrdersMetricsBar } from "@/modules/orders/components/orders-metrics-bar";
 import {
   matchesViewFilter,
@@ -93,8 +98,14 @@ export function OrdersPanel({
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [viewFilter, setViewFilter] = useState<OrdersViewFilter>("all");
-  const { from: dateFrom, to: dateTo, isDateFiltering, clearDateRange } =
-    useAdminDateRange({ defaultPreset: "last_30" });
+  const {
+    from: dateFrom,
+    to: dateTo,
+    preset: datePreset,
+    isDateFiltering,
+    clearDateRange,
+    setDateRange,
+  } = useAdminDateRange({ defaultPreset: "last_30" });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [customerFilterLabel, setCustomerFilterLabel] = useState("");
 
@@ -149,11 +160,34 @@ export function OrdersPanel({
   const activeFilterLabel =
     ORDERS_VIEW_FILTERS.find((f) => f.id === viewFilter)?.label ?? "All";
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "orders-export",
+        title: channel === "online" ? "Online sales" : "Sales orders",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search,
+            dateFrom,
+            dateTo,
+            extra: [
+              activeFilterLabel !== "All" ? `View: ${activeFilterLabel}` : "",
+              selectedUserId ? "Customer filter applied" : "",
+            ].filter(Boolean),
+          }),
+        getTabular: () => {
+          const tabular = getOrdersExportTabular(filtered);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [filtered, channel, search, dateFrom, dateTo, activeFilterLabel, selectedUserId],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <OrdersMetricsBar
         stats={stats}
-        onExport={() => exportOrdersCsv(filtered)}
+        exportSource={exportSource}
         variant={channel}
         valuesLoading={initialLoading}
       />
@@ -173,6 +207,11 @@ export function OrdersPanel({
         <CardContent className="flex flex-col gap-0 p-0">
           <div className="border-b p-2">
             <InputGroup className="h-9">
+              <AdminListDateRangeLead
+                value={{ preset: datePreset, from: dateFrom, to: dateTo }}
+                onChange={setDateRange}
+                showDividerAfter
+              />
               <InputGroupAddon align="inline-start" className="pl-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger

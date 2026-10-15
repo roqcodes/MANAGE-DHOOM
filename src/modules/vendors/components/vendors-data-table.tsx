@@ -47,9 +47,10 @@ import {
   formatVendorId,
   VendorStatusBadge,
 } from "@/modules/vendors/components/vendors-ui";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
 
-export function exportVendorsCsv(vendors: Vendor[]) {
+export function getVendorsExportTabular(vendors: Vendor[]) {
   const headers = ["Name", "ID", "Status", "Contact", "Created"];
 
   const rows = vendors.map((v) => [
@@ -60,19 +61,15 @@ export function exportVendorsCsv(vendors: Vendor[]) {
     v.created_at ? format(new Date(v.created_at), "yyyy-MM-dd") : "",
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
+  return { headers, rows };
+}
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `vendors-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+export function exportVendorsCsv(vendors: Vendor[]) {
+  const { headers, rows } = getVendorsExportTabular(vendors);
+  if (rows.length === 0) return;
+  void import("@/lib/export/tabular-export").then(({ downloadTabularCsv }) => {
+    downloadTabularCsv({ baseFilename: "vendors-export", headers, rows });
+  });
 }
 
 export function VendorsBulkActionBar({
@@ -84,6 +81,7 @@ export function VendorsBulkActionBar({
 }) {
   const queryClient = useQueryClient();
   const { runAction, isPending } = useAdminAction();
+  const { confirm } = useAdminAlert();
 
   if (selectedIds.size === 0) return null;
 
@@ -127,11 +125,20 @@ export function VendorsBulkActionBar({
           variant="destructive"
           disabled={isPending}
           onClick={() => {
+            void (async () => {
+            const ok = await confirm({
+              title: "Delete vendors?",
+              message: `Delete ${ids.length} vendor${ids.length === 1 ? "" : "s"}? Only vendors with no bills, payments, or other operational records can be removed.`,
+              confirmLabel: "Delete",
+              destructive: true,
+            });
+            if (!ok) return;
             runAction(async () => {
               await bulkDeleteVendorsAction(ids);
               void invalidateAdminVendorCatalogQueries(queryClient);
               onClearSelection();
             }, { errorTitle: "Couldn't delete vendors" });
+            })();
           }}
         >
           <Trash2 data-icon="inline-start" />
@@ -159,6 +166,7 @@ export function VendorsDataTable({
 }) {
   const queryClient = useQueryClient();
   const { runAction, isPending } = useAdminAction();
+  const { confirm } = useAdminAlert();
 
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     vendors,
@@ -203,9 +211,17 @@ export function VendorsDataTable({
     });
   }
 
-  function runDelete(vendorId: string) {
+  async function runDelete(vendor: Vendor) {
+    const label = vendor.name?.trim() || "this vendor";
+    const ok = await confirm({
+      title: "Delete vendor?",
+      message: `Delete "${label}"? Only vendors with no bills, payments, or other operational records can be removed. Catalog SKUs on this vendor are also removed. This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     runAction(async () => {
-      await deleteVendorAction(vendorId);
+      await deleteVendorAction(vendor.id);
       void invalidateAdminVendorCatalogQueries(queryClient);
     }, { errorTitle: "Couldn't delete vendor" });
   }
@@ -351,7 +367,7 @@ export function VendorsDataTable({
                         <DropdownMenuItem
                           variant="destructive"
                           disabled={isPending}
-                          onClick={() => runDelete(vendor.id)}
+                          onClick={() => runDelete(vendor)}
                         >
                           <Trash2 />
                           Delete

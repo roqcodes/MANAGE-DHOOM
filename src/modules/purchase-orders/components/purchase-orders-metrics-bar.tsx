@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Download } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+
+import { CatalogExportButton } from "@/components/export/catalog-export-button";
+import type { TabularExportSource } from "@/lib/export/tabular-export";
 
 import type { PurchaseOrderCatalogStats } from "@/common/admin/types";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -82,6 +85,7 @@ export function PurchaseOrdersMetricsBar({
   allFiltersClear = true,
   onDeliveryFilter,
   onClearFilters,
+  exportSource,
   onExport,
 }: {
   stats: PurchaseOrderCatalogStats;
@@ -89,7 +93,8 @@ export function PurchaseOrdersMetricsBar({
   allFiltersClear?: boolean;
   onDeliveryFilter?: (delivery: PurchaseOrderDeliveryFilter | null) => void;
   onClearFilters?: () => void;
-  onExport: () => void;
+  exportSource?: TabularExportSource;
+  onExport?: () => void;
 }) {
   const vendorQueue = stats.pendingCount + stats.acceptedCount;
   const queueTrend =
@@ -110,10 +115,7 @@ export function PurchaseOrdersMetricsBar({
           <Link href="/admin/purchase-orders?form=new" className={buttonVariants({ size: "sm" })}>
             Create purchase order
           </Link>
-          <Button variant="outline" size="sm" onClick={onExport}>
-            <Download data-icon="inline-start" />
-            Export
-          </Button>
+          <CatalogExportButton source={exportSource} onFallbackExport={onExport} />
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
               More actions

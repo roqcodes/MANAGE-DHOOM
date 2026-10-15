@@ -8,6 +8,7 @@ export function getPublicSiteOrigin(): string {
 export const LEGAL_ROUTES = {
   privacy: "/legal/privacy",
   terms: "/legal/terms",
+  support: "/legal/support",
   deleteAccount: "/legal/delete-account",
 } as const;
 

@@ -38,6 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 function formatDisplayDate(value: string | null | undefined) {
   if (!value) return "—";
@@ -200,6 +201,7 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [acting, startActing] = useTransition();
+  const { confirm, showError } = useAdminAlert();
 
   const load = useCallback(() => {
     setLoading(true);
@@ -232,14 +234,19 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
   const returnRef = detail.return_number || formatErpDocRef("VR", detail.id);
   const paidTotal = detail.sources.payments.reduce((sum, row) => sum + row.amount, 0);
 
-  function handleFile() {
-    if (!confirm("File this VAT return?")) return;
+  async function handleFile() {
+    const ok = await confirm({
+      title: "File VAT return?",
+      message: "File this VAT return?",
+      confirmLabel: "File return",
+    });
+    if (!ok) return;
     startActing(async () => {
       try {
         await adminPatch(`erp/vat-returns/${returnId}`, { action: "file" });
         load();
       } catch (err) {
-        alert(err instanceof Error ? err.message : "Couldn't file VAT return");
+        showError(err, "Couldn't file VAT return");
       }
     });
   }
@@ -252,19 +259,25 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
         });
         setDetail(updated);
       } catch (err) {
-        alert(err instanceof Error ? err.message : "Couldn't recalculate VAT return");
+        showError(err, "Couldn't recalculate VAT return");
       }
     });
   }
 
-  function handleDelete() {
-    if (!confirm("Delete this unfiled VAT return? This cannot be undone.")) return;
+  async function handleDelete() {
+    const ok = await confirm({
+      title: "Delete VAT return?",
+      message: "Delete this unfiled VAT return? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     startActing(async () => {
       try {
         await adminDelete(`erp/vat-returns/${returnId}`);
         router.push("/admin/erp/vat-returns");
       } catch (err) {
-        alert(err instanceof Error ? err.message : "Couldn't delete VAT return");
+        showError(err, "Couldn't delete VAT return");
       }
     });
   }

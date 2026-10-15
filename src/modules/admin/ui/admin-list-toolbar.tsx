@@ -3,6 +3,14 @@
 import type { ReactNode } from "react";
 import { Ban, ChevronDown, Search, X } from "lucide-react";
 
+import { useAdminDateRangeContext } from "@/modules/admin/providers/admin-date-range-provider";
+import {
+  AdminListAsOfLead,
+  AdminListDateRangeLead,
+  type AdminDateRangePickerProps,
+  type AdminListAsOfLeadProps,
+} from "@/modules/admin/ui/admin-date-range-picker";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -51,6 +59,8 @@ export function AdminListCard({
   searchPlaceholder = "Search…",
   dateFilter: _dateFilter,
   dateRange: _dateRange,
+  inlineDateRange,
+  inlineAsOf,
   toolbarExtra,
   emptyMessage,
   isEmpty,
@@ -67,8 +77,15 @@ export function AdminListCard({
   searchPlaceholder?: string;
   /** @deprecated Use the app header date picker */
   dateFilter?: AdminDateFilterControl;
-  /** @deprecated Use the app header date picker */
+  /** @deprecated Use inlineDateRange */
   dateRange?: AdminDateRange;
+  /**
+   * Date range in the search toolbar (first segment).
+   * `undefined` = use global admin date context. `false` = hidden.
+   */
+  inlineDateRange?: AdminDateRangePickerProps | false;
+  /** As-of date (after date range when both are shown). `false` = hidden. */
+  inlineAsOf?: AdminListAsOfLeadProps | false;
   toolbarExtra?: ReactNode;
   emptyMessage: string;
   isEmpty: boolean;
@@ -80,11 +97,41 @@ export function AdminListCard({
   children: ReactNode;
   className?: string;
 }) {
+  const globalDate = useAdminDateRangeContext();
+  const resolvedInlineDate: AdminDateRangePickerProps | null =
+    inlineDateRange === false
+      ? null
+      : inlineDateRange ?? {
+          value: globalDate.value,
+          onChange: globalDate.setValue,
+        };
+
+  const resolvedInlineAsOf =
+    inlineAsOf === false || !inlineAsOf ? null : inlineAsOf;
+
+  const hasToolbarFilters = (filters?.length ?? 0) > 0;
+  const showLeadDividerBeforeSearch = Boolean(
+    resolvedInlineDate || resolvedInlineAsOf || hasToolbarFilters,
+  );
+
   return (
     <Card className={cn("overflow-hidden border border-border py-0 ring-0", className)}>
       <CardContent className="flex flex-col gap-0 p-0">
         <div className="space-y-2 border-b bg-muted/20 p-2.5">
           <InputGroup className="h-9 bg-background">
+            {resolvedInlineDate ? (
+              <AdminListDateRangeLead
+                {...resolvedInlineDate}
+                showDividerAfter={Boolean(resolvedInlineAsOf || hasToolbarFilters)}
+              />
+            ) : null}
+            {resolvedInlineAsOf ? (
+              <AdminListAsOfLead
+                value={resolvedInlineAsOf.value}
+                onChange={resolvedInlineAsOf.onChange}
+                showDividerAfter={hasToolbarFilters}
+              />
+            ) : null}
             {filters?.map((filter, index) => (
               <span key={filter.id ?? filter.label} className="contents">
                 {index > 0 ? (
@@ -125,7 +172,7 @@ export function AdminListCard({
                 </InputGroupAddon>
               </span>
             ))}
-            {(filters?.length ?? 0) > 0 ? (
+            {showLeadDividerBeforeSearch ? (
               <InputGroupAddon align="inline-start" className="px-0">
                 <div className="h-4 w-px bg-border" aria-hidden />
               </InputGroupAddon>

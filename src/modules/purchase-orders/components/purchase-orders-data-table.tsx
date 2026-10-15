@@ -50,7 +50,7 @@ import {
   PoStatusPill,
 } from "@/modules/purchase-orders/components/purchase-orders-ui";
 
-function exportPurchaseOrdersCsv(orders: AdminPurchaseOrderListRow[]) {
+export function getPurchaseOrdersExportTabular(orders: AdminPurchaseOrderListRow[]) {
   const headers = [
     "PO ID",
     "Vendor",
@@ -71,19 +71,15 @@ function exportPurchaseOrdersCsv(orders: AdminPurchaseOrderListRow[]) {
     String(Number(po.total_amount ?? 0)),
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
+  return { headers, rows };
+}
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `purchase-orders-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+function exportPurchaseOrdersCsv(orders: AdminPurchaseOrderListRow[]) {
+  const { headers, rows } = getPurchaseOrdersExportTabular(orders);
+  if (rows.length === 0) return;
+  void import("@/lib/export/tabular-export").then(({ downloadTabularCsv }) => {
+    downloadTabularCsv({ baseFilename: "purchase-orders-export", headers, rows });
+  });
 }
 
 function VendorPopover({ row }: { row: AdminPurchaseOrderListRow }) {

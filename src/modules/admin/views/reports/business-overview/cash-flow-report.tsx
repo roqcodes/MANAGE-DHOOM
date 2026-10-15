@@ -8,7 +8,7 @@ import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-sk
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { BusinessReportLayout } from "./business-report-layout";
-import { exportReportCsv, matchesReportSearch } from "./report-format";
+import { buildReportExportSource, matchesReportSearch, reportFiltersSubtitle } from "./report-format";
 import {
   StatementLineRow,
   StatementSectionHeader,
@@ -78,33 +78,41 @@ export function CashFlowReport({ report }: { report: ReportDefinition }) {
 
   const isEmpty = !loading && !rawData;
 
-  function exportCsv() {
-    const rows: Record<string, unknown>[] = [
-      { section: "Summary", account_name: "Beginning cash balance", amount: beginningCash },
-    ];
-    if (showNetIncome) {
-      rows.push({ section: "Operating", account_name: "Net income", amount: netIncome });
-    }
-    for (const line of operatingLines) {
-      rows.push({ section: "Operating", ...line });
-    }
-    for (const line of investingLines) {
-      rows.push({ section: "Investing", ...line });
-    }
-    for (const line of financingLines) {
-      rows.push({ section: "Financing", ...line });
-    }
-    rows.push(
-      { section: "Summary", account_name: "Net change in cash", amount: netChange },
-      { section: "Summary", account_name: "Ending cash balance", amount: endingCash },
-    );
-    exportReportCsv(report.slug, [
-      { key: "section", label: "Section" },
-      { key: "account_type_name", label: "Type" },
-      { key: "account_name", label: "Account" },
-      { key: "amount", label: "Amount" },
-    ], rows);
-  }
+  const cashFlowColumns = [
+    { key: "section", label: "Section" },
+    { key: "account_type_name", label: "Type" },
+    { key: "account_name", label: "Account" },
+    { key: "amount", label: "Amount", format: "currency" },
+  ];
+
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: cashFlowColumns,
+    getRows: () => {
+      const rows: Record<string, unknown>[] = [
+        { section: "Summary", account_name: "Beginning cash balance", amount: beginningCash },
+      ];
+      if (showNetIncome) {
+        rows.push({ section: "Operating", account_name: "Net income", amount: netIncome });
+      }
+      for (const line of operatingLines) {
+        rows.push({ section: "Operating", ...line });
+      }
+      for (const line of investingLines) {
+        rows.push({ section: "Investing", ...line });
+      }
+      for (const line of financingLines) {
+        rows.push({ section: "Financing", ...line });
+      }
+      rows.push(
+        { section: "Summary", account_name: "Net change in cash", amount: netChange },
+        { section: "Summary", account_name: "Ending cash balance", amount: endingCash },
+      );
+      return rows;
+    },
+    getSubtitle: () => reportFiltersSubtitle(filters, "range"),
+  });
 
   return (
     <BusinessReportLayout
@@ -113,7 +121,7 @@ export function CashFlowReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange
       toolbarExtra={
         <div className="flex gap-1 rounded-md border p-0.5">

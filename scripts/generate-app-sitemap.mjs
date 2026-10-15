@@ -14,7 +14,7 @@ mkdirSync(outDir, { recursive: true });
 const out = join(outDir, "app-sitemap.json");
 writeFileSync(
   out,
-  `${JSON.stringify({ version: 1, pages }, null, 0)}\n`,
+  `${JSON.stringify({ version: 2, generatedAt: new Date().toISOString().slice(0, 10), pages }, null, 0)}\n`,
   "utf8",
 );
 console.log(`Wrote ${pages.length} pages to ${out}`);

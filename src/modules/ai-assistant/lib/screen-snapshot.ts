@@ -1,3 +1,5 @@
+import { isGlobalProgressActive } from "@/modules/navigation/lib/async-progress";
+
 import {
   formatSidebarChromeForModel,
   readAdminSidebarChrome,
@@ -295,17 +297,49 @@ function currentRouteKey(): string {
   return window.location.pathname + window.location.search;
 }
 
+function pathOnly(path: string): string {
+  return path.split("?")[0].split("#")[0];
+}
+
+function settleBudgetMs(): number {
+  return process.env.NODE_ENV === "development" ? 45_000 : 14_000;
+}
+
+function isNextCompiling(): boolean {
+  const portals = document.querySelectorAll("nextjs-portal");
+  for (const portal of portals) {
+    const text = `${portal.shadowRoot?.textContent ?? ""} ${portal.textContent ?? ""}`;
+    if (/compil|building|bundl|hmr/i.test(text)) return true;
+  }
+  return Boolean(
+    document.querySelector(
+      "#webpack-dev-server-client-overlay, [data-nextjs-dialog-overlay], [data-next-mark]",
+    ),
+  );
+}
+
 function isMainPageLoading(): boolean {
   const main = document.querySelector("main");
   if (!main) return true;
-  if (main.querySelector(".animate-pulse.space-y-3")) return true;
+  if (main.querySelector(".animate-pulse.space-y-3, [data-slot='skeleton']")) {
+    return true;
+  }
   if (main.getAttribute("aria-busy") === "true") return true;
   return false;
 }
 
+function isAppUiBusy(): boolean {
+  return (
+    isMainPageLoading() ||
+    isGlobalProgressActive() ||
+    isNextCompiling() ||
+    document.readyState === "loading"
+  );
+}
+
 /** True when the admin main area shows skeleton / busy state (guide should wait). */
 export function isAdminPageUiLoading(): boolean {
-  return isMainPageLoading();
+  return isAppUiBusy();
 }
 
 function mainUiSignature(): string {
@@ -318,6 +352,27 @@ function mainUiSignature(): string {
   return `${currentRouteKey()}|${controls}|${textLen}|${isMainPageLoading()}`;
 }
 
+function navChromeSignature(): string {
+  const open = Array.from(
+    document.querySelectorAll<HTMLElement>(
+      "button[data-bh-nav-section][aria-expanded='true']",
+    ),
+  )
+    .map((b) => b.getAttribute("data-bh-nav-section") ?? "")
+    .join(",");
+  const flyout = document.querySelector("[data-bh-sidebar-flyout='true']")
+    ? "1"
+    : "0";
+  const links = document.querySelectorAll(
+    "[data-bh-admin-sidebar] a[href], [data-bh-sidebar-flyout] a[href]",
+  ).length;
+  return `${open}|${flyout}|${links}`;
+}
+
+function uiSignature(): string {
+  return `${mainUiSignature()}|${navChromeSignature()}|dialog:${hasOpenDialog() ? 1 : 0}`;
+}
+
 /** Two matching snapshots in a row — UI stopped shifting. */
 async function waitForMainUiStable(
   stableMs = 240,
@@ -328,85 +383,113 @@ async function waitForMainUiStable(
   let stableSince = 0;
 
   while (Date.now() < deadline) {
-    const sig = mainUiSignature();
-    const loading = isMainPageLoading();
+    const sig = uiSignature();
+    const busy = isAppUiBusy();
 
-    if (!loading && sig === last && sig.length > 0) {
+    if (!busy && sig === last && sig.length > 0) {
       if (!stableSince) stableSince = Date.now();
       if (Date.now() - stableSince >= stableMs) return;
     } else {
       last = sig;
       stableSince = 0;
     }
-    await wait(55);
+    await wait(70);
   }
 }
 
+export type GuideSettleHint = {
+  pathWhenClicked?: string;
+  expectedPath?: string | null;
+  expectedSection?: string | null;
+};
+
+function sectionIsOpen(label: string): boolean {
+  const btn = document.querySelector<HTMLElement>(
+    `button[data-bh-nav-section="${CSS.escape(label)}"]`,
+  );
+  if (btn?.getAttribute("aria-expanded") === "true") return true;
+  return Boolean(
+    document.querySelector(
+      `[data-bh-sidebar-flyout="true"][data-bh-flyout-section="${CSS.escape(label)}"]`,
+    ),
+  );
+}
+
+function routeMatches(expected: string, current: string): boolean {
+  const exp = pathOnly(expected);
+  const cur = pathOnly(current);
+  return cur === exp || cur.startsWith(`${exp}/`);
+}
+
 /**
- * Brief pause before re-scanning. Only blocks on skeletons / aria-busy — not every navigation.
+ * Wait until navigation / compile / skeletons / sidebar expand finish
+ * before the guide re-reads the screen. Localhost compile can take tens of seconds.
  */
-export async function waitForSettledUi(pathWhenClicked?: string): Promise<void> {
-  const routeAtClick = pathWhenClicked ?? currentRouteKey();
+export async function waitForSettledUi(
+  pathWhenClickedOrHint?: string | GuideSettleHint,
+): Promise<void> {
+  const hint: GuideSettleHint =
+    typeof pathWhenClickedOrHint === "string" || pathWhenClickedOrHint === undefined
+      ? { pathWhenClicked: pathWhenClickedOrHint }
+      : pathWhenClickedOrHint;
 
-  await wait(40);
+  const routeAtClick = hint.pathWhenClicked ?? currentRouteKey();
+  const expectedPath = hint.expectedPath ?? null;
+  const expectedSection = hint.expectedSection ?? null;
+  const budget = settleBudgetMs();
+  const deadline = Date.now() + budget;
+  const sigAtStart = uiSignature();
 
-  let routeChanged = false;
-  if (pathWhenClicked !== undefined) {
-    const navDeadline = Date.now() + 600;
+  await wait(50);
+
+  if (expectedPath && !routeMatches(expectedPath, routeAtClick)) {
+    while (Date.now() < deadline) {
+      if (routeMatches(expectedPath, currentRouteKey())) break;
+      await wait(90);
+    }
+  } else if (expectedSection) {
+    while (Date.now() < deadline) {
+      if (sectionIsOpen(expectedSection)) break;
+      await wait(60);
+    }
+  } else if (hint.pathWhenClicked !== undefined) {
+    const navWait = Math.min(2500, budget);
+    const navDeadline = Date.now() + navWait;
     while (Date.now() < navDeadline) {
-      if (currentRouteKey() !== routeAtClick) {
-        routeChanged = true;
-        break;
-      }
-      await wait(45);
-    }
-  }
-
-  if (!isMainPageLoading()) {
-    if (routeChanged) {
+      if (currentRouteKey() !== routeAtClick) break;
+      if (!isGlobalProgressActive() && !isNextCompiling()) break;
       await wait(80);
-      if (!isMainPageLoading()) return;
-    } else {
-      return;
     }
   }
 
-  if (typeof document !== "undefined" && document.readyState !== "complete") {
-    await new Promise<void>((resolve) => {
-      const done = () => resolve();
-      if (document.readyState === "complete") {
-        done();
-        return;
-      }
-      window.addEventListener("load", done, { once: true });
-      window.setTimeout(done, 2000);
-    });
+  while (Date.now() < deadline) {
+    if (isAppUiBusy()) {
+      await wait(100);
+      continue;
+    }
+    if (expectedPath && !routeMatches(expectedPath, currentRouteKey())) {
+      await wait(80);
+      continue;
+    }
+    if (expectedSection && !sectionIsOpen(expectedSection)) {
+      await wait(60);
+      continue;
+    }
+    if (
+      currentRouteKey() === routeAtClick &&
+      expectedPath &&
+      !routeMatches(expectedPath, routeAtClick) &&
+      uiSignature() === sigAtStart
+    ) {
+      await wait(80);
+      continue;
+    }
+    break;
   }
 
-  const loadDeadline = Date.now() + 9000;
-  while (Date.now() < loadDeadline) {
-    if (hasOpenDialog()) {
-      await wait(160);
-      await waitForMainUiStable(200, 2500);
-      return;
-    }
-
-    const main = document.querySelector("main");
-    const hasContent = Boolean(
-      main?.querySelector(
-        "button, a[href], input:not([type='hidden']), table, [role='table']",
-      ),
-    );
-
-    if (!isMainPageLoading() && hasContent) {
-      await waitForMainUiStable(260, 4500);
-      return;
-    }
-
-    await wait(70);
-  }
-
-  await waitForMainUiStable(180, 1500);
+  const stableMs = process.env.NODE_ENV === "development" ? 320 : 220;
+  const stableCap = process.env.NODE_ENV === "development" ? 8_000 : 4_000;
+  await waitForMainUiStable(stableMs, Math.min(stableCap, Math.max(800, deadline - Date.now())));
 }
 
 /** Path + sidebar section open/closed only (~low tokens, no control list). */

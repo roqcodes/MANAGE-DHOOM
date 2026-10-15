@@ -15,6 +15,7 @@ import {
 } from "@/modules/admin/components/modal";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { adminDelete, adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -215,16 +216,23 @@ export function AccountsListView() {
     [rows],
   );
   const initialLoading = loading && rows.length === 0;
+  const { confirm, showError } = useAdminAlert();
 
   async function handleDelete(row: AccountListRow) {
     if (row.is_system || row.is_locked) return;
-    if (!confirm(`Delete account "${row.name}" (${row.code})?`)) return;
+    const ok = await confirm({
+      title: "Delete account?",
+      message: `Delete "${row.name}" (${row.code})? This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(row.id);
     try {
       await adminDelete(`erp/accounts/${row.id}`);
       loadRows();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't delete account");
+      showError(err, "Couldn't delete account");
     } finally {
       setDeletingId(null);
     }

@@ -38,6 +38,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import {
   Table,
   TableBody,
@@ -134,6 +135,7 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [tab, setTab] = useState<"profile" | "statement" | "activity">("statement");
+  const { confirm } = useAdminAlert();
 
   useEffect(() => {
     adminGet<ErpEmployeeDetail>(`erp/employees/${employeeId}`)
@@ -161,7 +163,13 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
     : (employee?.salary_balance ?? 0);
 
   async function handleDelete() {
-    if (!confirm("Delete this employee? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete employee?",
+      message: "Delete this employee? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await adminDelete(`erp/employees/${employeeId}`);

@@ -17,8 +17,16 @@ import {
   useSortableData,
 } from "@/modules/admin/ui";
 import { cn } from "@/lib/utils";
+import { ReportKpiStrip } from "../business-overview/report-kpi-strip";
 import { BusinessReportLayout } from "../business-overview/business-report-layout";
-import { exportReportCsv, formatReportCell, matchesReportSearch } from "../business-overview/report-format";
+import { buildReportKpis, computeColumnAggregates } from "../business-overview/report-summaries";
+import { ReportTableTotalsRow } from "../business-overview/report-table-totals-row";
+import {
+  buildReportExportSource,
+  formatReportCell,
+  matchesReportSearch,
+  reportFiltersSubtitle,
+} from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useInventoryReportFilters } from "../inventory/use-inventory-report-filters";
 
@@ -53,21 +61,24 @@ export function PurchaseByItemReport({ report }: { report: ReportDefinition }) {
     (row, key) => row[key],
   );
 
-  const totals = useMemo(() => {
-    const sums: Record<string, number> = {};
-    for (const col of report.columns) {
-      if (col.format !== "currency" && col.format !== "number") continue;
-      if (col.key === "avg_purchase_cost") continue;
-      sums[col.key] = sorted.reduce((acc, row) => acc + Number(row[col.key] ?? 0), 0);
-    }
-    return sums;
-  }, [report.columns, sorted]);
+  const aggregates = useMemo(
+    () => computeColumnAggregates(report.columns, sorted),
+    [report.columns, sorted],
+  );
+  const kpis = useMemo(
+    () => buildReportKpis(report.columns, sorted, aggregates),
+    [report.columns, sorted, aggregates],
+  );
 
   const isEmpty = !loading && sorted.length === 0;
 
-  function exportCsv() {
-    exportReportCsv(report.slug, report.columns, sorted);
-  }
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: report.columns,
+    getRows: () => sorted,
+    getSubtitle: () => reportFiltersSubtitle(filters, "range"),
+  });
 
   return (
     <BusinessReportLayout
@@ -76,9 +87,12 @@ export function PurchaseByItemReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange
       searchPlaceholder="Search item…"
+      metrics={
+        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+      }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {loading ? (
@@ -114,29 +128,7 @@ export function PurchaseByItemReport({ report }: { report: ReportDefinition }) {
                 ))}
               </AdminTableRow>
             ))}
-            {sorted.length > 0 ? (
-              <AdminTableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
-                {report.columns.map((col, idx) => (
-                  <AdminTableCell
-                    key={col.key}
-                    className={cn(
-                      col.align === "right" ? "text-right tabular-nums" : undefined,
-                      idx === 0 && "text-foreground",
-                    )}
-                  >
-                    {idx === 0
-                      ? "Total"
-                      : col.key === "avg_purchase_cost"
-                        ? "—"
-                        : totals[col.key] != null
-                          ? col.format === "currency"
-                            ? formatCurrencyAmount(totals[col.key])
-                            : totals[col.key].toLocaleString(undefined, { maximumFractionDigits: 3 })
-                          : "—"}
-                  </AdminTableCell>
-                ))}
-              </AdminTableRow>
-            ) : null}
+            <ReportTableTotalsRow columns={report.columns} rows={sorted} />
           </AdminTableBody>
         </AdminDataTable>
       )}

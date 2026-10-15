@@ -23,6 +23,7 @@ import {
   coalesceNumber,
 } from "@/lib/numeric-input";
 import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import {
   createProductAction,
   ensureDefaultProductVariantAction,
@@ -873,14 +874,21 @@ function LiveVariantEditor({
   const { settings } = useCurrencySettings();
   const showMrp = settings.show_mrp;
   const { runAction: runDeleteAction, isPending: deletePending } = useAdminAction();
+  const { confirm } = useAdminAlert();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const images = variant.images ?? [];
   const preview = hideImages ? null : images[0]?.url ?? null;
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!canDelete) return;
-    if (!confirm(`Delete variant "${variant.name ?? "variant"}"?`)) return;
+    const ok = await confirm({
+      title: "Delete variant?",
+      message: `Delete variant "${variant.name ?? "variant"}"?`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     runDeleteAction(async () => {
       await deleteVariantAction(variant.id, productId);
       await queryClient.invalidateQueries({
@@ -1542,6 +1550,7 @@ export function ProductManageModal({
   const { settings } = useCurrencySettings();
   const showMrp = settings.show_mrp;
   const [isPending, startTransition] = useTransition();
+  const { confirm } = useAdminAlert();
   const isCreate = mode === "create";
 
   const [activeTab, setActiveTab] = useState<"details" | "variants">(
@@ -1651,6 +1660,19 @@ export function ProductManageModal({
   );
 
   const layoutGrouped = isCreate ? createVariantLayout === "grouped" : isGroupedProduct;
+
+  async function handleRemoveAllVariants() {
+    const ok = await confirm({
+      title: "Remove all variants?",
+      message:
+        "Are you sure you want to remove all variants? This will revert to a simple product.",
+      confirmLabel: "Remove variants",
+      destructive: true,
+    });
+    if (ok) {
+      handleCreateVariantLayoutSelect("none");
+    }
+  }
 
   function handleCreateVariantLayoutSelect(layout: "none" | "flat" | "grouped") {
     if (layout === "none") {
@@ -2038,9 +2060,7 @@ export function ProductManageModal({
                       <button
                         type="button"
                         onClick={() => {
-                          if (confirm("Are you sure you want to remove all variants? This will revert to a simple product.")) {
-                            handleCreateVariantLayoutSelect("none");
-                          }
+                          void handleRemoveAllVariants();
                         }}
                         className="text-xs font-medium text-slate-500 hover:text-rose-600 transition-colors"
                       >

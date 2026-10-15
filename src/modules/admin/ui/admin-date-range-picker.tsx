@@ -183,7 +183,62 @@ export function AdminDateRangePicker({
   );
 }
 
-/** Divider + date picker addon for AdminListCard toolbar */
+export type AdminListAsOfLeadProps = {
+  value: string;
+  onChange: (value: string) => void;
+  showDividerAfter?: boolean;
+};
+
+/** Single “as of” date in the list search toolbar (receivables aging). */
+export function AdminListAsOfLead({
+  value,
+  onChange,
+  showDividerAfter = true,
+}: AdminListAsOfLeadProps) {
+  return (
+    <>
+      <InputGroupAddon align="inline-start" className="pl-1">
+        <label className="flex max-w-[11rem] cursor-pointer items-center gap-1.5 px-2">
+          <CalendarRange className="size-3.5 shrink-0 opacity-70" aria-hidden />
+          <span className="sr-only">As of date</span>
+          <input
+            type="date"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-7 min-w-0 flex-1 border-0 bg-transparent p-0 text-sm tabular-nums outline-none"
+            aria-label="As of date"
+          />
+        </label>
+      </InputGroupAddon>
+      {showDividerAfter ? (
+        <InputGroupAddon align="inline-start" className="px-0">
+          <div className="h-4 w-px bg-border" aria-hidden />
+        </InputGroupAddon>
+      ) : null}
+    </>
+  );
+}
+
+/** Date range as the first segment in AdminListCard search toolbar. */
+export function AdminListDateRangeLead({
+  showDividerAfter = true,
+  ...props
+}: AdminDateRangePickerProps & { showDividerAfter?: boolean }) {
+  return (
+    <>
+      <InputGroupAddon align="inline-start" className="pl-1">
+        <AdminDateRangePicker {...props} variant="toolbar" align="start" />
+      </InputGroupAddon>
+      {showDividerAfter ? (
+        <InputGroupAddon align="inline-start" className="px-0">
+          <div className="h-4 w-px bg-border" aria-hidden />
+        </InputGroupAddon>
+      ) : null}
+    </>
+  );
+}
+
+/** @deprecated Prefer AdminListDateRangeLead (first in toolbar). */
 export function AdminListDateRangeAddon(props: AdminDateRangePickerProps) {
   return (
     <>

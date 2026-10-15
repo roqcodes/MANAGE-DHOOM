@@ -32,6 +32,7 @@ import {
 } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { EmployeeFormView } from "@/modules/admin/views/hr/employee-form-view";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 function formatDisplayDate(value: string | null) {
   if (!value) return "—";
@@ -51,6 +52,7 @@ export function EmployeesListView() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { confirm } = useAdminAlert();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const debouncedSearch = useDebouncedValue(search, 350);
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
@@ -85,7 +87,13 @@ export function EmployeesListView() {
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this employee?")) return;
+    const ok = await confirm({
+      title: "Delete employee?",
+      message: "Delete this employee?",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await adminDelete(`erp/employees/${id}`);

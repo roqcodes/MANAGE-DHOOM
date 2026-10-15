@@ -1,6 +1,7 @@
 import "server-only";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
+import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type {
   ErpPurchaseBillListRow,
@@ -117,6 +118,18 @@ export async function updateVendorErpProfile(
     entityId: vendorId,
     description: "Vendor ERP profile updated",
   });
+}
+
+export async function deleteVendorIfUnused(vendorId: string): Promise<void> {
+  const profile = await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await invokeRpc(supabase, "delete_erp_vendor_if_unused", {
+    p_vendor_id: vendorId,
+    p_actor: profile.id,
+  });
+  if (error) {
+    throw new Error(error.message.replace(/^(P0001:\s*)/i, ""));
+  }
 }
 
 export async function getVendorErpSummary(

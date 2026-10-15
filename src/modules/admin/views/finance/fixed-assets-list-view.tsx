@@ -61,7 +61,7 @@ function formatWarranty(expiry: string | null) {
 export function FixedAssetsListView() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const { showError } = useAdminAlert();
+  const { confirm, showError } = useAdminAlert();
   const { activeStoreId, storeId } = useActiveStoreScope();
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/fixed-assets");
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
@@ -97,7 +97,13 @@ export function FixedAssetsListView() {
   );
 
   async function handleDelete(row: FixedAssetListRow) {
-    if (!confirm(`Delete asset "${row.name}" (${row.asset_number})?`)) return;
+    const ok = await confirm({
+      title: "Delete fixed asset?",
+      message: `Delete "${row.name}" (${row.asset_number})?`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(row.id);
     try {
       await deleteFixedAssetAction(row.id);

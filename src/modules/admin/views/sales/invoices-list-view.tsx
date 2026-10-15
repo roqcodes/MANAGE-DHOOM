@@ -1,8 +1,12 @@
 "use client";
 
-import { useTransition } from "react";
+import { useMemo, useTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Download, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+
+import { DataExportMenu } from "@/components/export/data-export-menu";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getInvoicesExportTabular } from "@/lib/export/erp-sales-list-export";
 
 import type { ErpInvoiceListRow } from "@/common/erp/sales-types";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
@@ -66,6 +70,8 @@ export function InvoicesListView() {
     setStoreId,
     page,
     listParams,
+    dateFrom,
+    dateTo,
     isFiltering,
     clearFilters,
     activeStoreId,
@@ -89,6 +95,27 @@ export function InvoicesListView() {
     "desc",
   );
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "invoices-export",
+        title: "Invoices",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search: debouncedSearch,
+            status,
+            storeLabel: storeId ? "Selected store" : undefined,
+            dateFrom,
+            dateTo,
+          }),
+        getTabular: () => {
+          const tabular = getInvoicesExportTabular(sorted);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [sorted, debouncedSearch, status, storeId, dateFrom, dateTo],
+  );
+
   function cancelInvoice(invoiceId: string) {
     startCancel(async () => {
       await adminDelete(`erp/invoices/${invoiceId}`);
@@ -103,10 +130,7 @@ export function InvoicesListView() {
         description="Store and online invoices with payment status. Use filters to narrow by store, status, or date range."
         actions={
           <>
-            <Button variant="outline" size="sm">
-              <Download data-icon="inline-start" />
-              Export
-            </Button>
+            <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
             <Button size="sm" onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
               Create invoice

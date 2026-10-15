@@ -16,9 +16,17 @@ import {
   SortableTableHead,
   useSortableData,
 } from "@/modules/admin/ui";
-import { cn } from "@/lib/utils";
+import type { ReportColumn } from "@/common/erp/report-types";
 import { BusinessReportLayout } from "../business-overview/business-report-layout";
-import { exportReportCsv, formatReportCell, matchesReportSearch } from "../business-overview/report-format";
+import { ReportKpiStrip } from "../business-overview/report-kpi-strip";
+import { buildReportKpis, computeColumnAggregates } from "../business-overview/report-summaries";
+import { ReportTableTotalsRow } from "../business-overview/report-table-totals-row";
+import {
+  buildReportExportSource,
+  formatReportCell,
+  matchesReportSearch,
+  reportFiltersSubtitle,
+} from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useAccountantReportFilters } from "./use-accountant-report-filters";
 
@@ -43,7 +51,7 @@ export function GeneralLedgerReport({ report }: { report: ReportDefinition }) {
     accountId: filters.accountId,
   });
 
-  const columns = detailMode ? DETAIL_COLUMNS : report.columns;
+  const columns: ReportColumn[] = detailMode ? DETAIL_COLUMNS : report.columns;
 
   const rows = useMemo(
     () => extractReportRows(rawData, report.rowsKey) as Record<string, unknown>[],
@@ -62,31 +70,32 @@ export function GeneralLedgerReport({ report }: { report: ReportDefinition }) {
     (row, key) => row[key],
   );
 
-  const totals = useMemo(() => {
-    if (detailMode) return null;
-    const meta = rawData as Record<string, unknown> | null;
-    if (meta && typeof meta.total_debit === "number") {
-      return {
-        period_credit: Number(meta.total_credit ?? 0),
-        period_debit: Number(meta.total_debit ?? 0),
-      };
-    }
-    return {
-      period_credit: sorted.reduce((acc, r) => acc + Number(r.period_credit ?? 0), 0),
-      period_debit: sorted.reduce((acc, r) => acc + Number(r.period_debit ?? 0), 0),
-    };
-  }, [detailMode, rawData, sorted]);
-
   const openingBalance =
     detailMode && rawData && typeof rawData === "object"
       ? Number((rawData as Record<string, unknown>).opening_balance ?? 0)
       : null;
 
+  const aggregates = useMemo(
+    () => computeColumnAggregates(columns, sorted),
+    [columns, sorted],
+  );
+  const kpis = useMemo(() => {
+    const extra =
+      detailMode && openingBalance != null
+        ? [{ label: "Opening balance", value: formatCurrencyAmount(openingBalance) }]
+        : undefined;
+    return buildReportKpis(columns, sorted, aggregates, extra);
+  }, [columns, sorted, aggregates, detailMode, openingBalance]);
+
   const isEmpty = !loading && sorted.length === 0;
 
-  function exportCsv() {
-    exportReportCsv(report.slug, columns, sorted);
-  }
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns,
+    getRows: () => sorted,
+    getSubtitle: () => reportFiltersSubtitle(filters, "range"),
+  });
 
   return (
     <BusinessReportLayout
@@ -95,9 +104,12 @@ export function GeneralLedgerReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange
       searchPlaceholder={detailMode ? "Search journal lines…" : "Search account…"}
+      metrics={
+        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+      }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {detailMode && openingBalance != null ? (
@@ -141,27 +153,7 @@ export function GeneralLedgerReport({ report }: { report: ReportDefinition }) {
                 ))}
               </AdminTableRow>
             ))}
-            {!detailMode && totals && sorted.length > 0 ? (
-              <AdminTableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
-                {columns.map((col, idx) => (
-                  <AdminTableCell
-                    key={col.key}
-                    className={cn(
-                      col.align === "right" ? "text-right tabular-nums" : undefined,
-                      idx === 0 && "text-foreground",
-                    )}
-                  >
-                    {idx === 0
-                      ? "Total"
-                      : col.key === "balance"
-                        ? "—"
-                        : totals[col.key as keyof typeof totals] != null
-                          ? formatCurrencyAmount(totals[col.key as keyof typeof totals])
-                          : "—"}
-                  </AdminTableCell>
-                ))}
-              </AdminTableRow>
-            ) : null}
+            <ReportTableTotalsRow columns={columns} rows={sorted} />
           </AdminTableBody>
         </AdminDataTable>
       )}

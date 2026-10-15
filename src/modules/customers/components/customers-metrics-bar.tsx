@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
+import { CatalogExportButton } from "@/components/export/catalog-export-button";
+import type { TabularExportSource } from "@/lib/export/tabular-export";
+
 import type { CustomerStats } from "@/modules/customers/services/customers.service";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -58,12 +61,14 @@ function MetricSegment({
 
 export function CustomersMetricsBar({
   stats,
+  exportSource,
   onExport,
   onAddCustomer,
   valuesLoading = false,
 }: {
   stats: CustomerStats;
-  onExport: () => void;
+  exportSource?: TabularExportSource;
+  onExport?: () => void;
   onAddCustomer?: () => void;
   valuesLoading?: boolean;
 }) {
@@ -92,9 +97,7 @@ export function CustomersMetricsBar({
               Add customer
             </Link>
           )}
-          <Button variant="outline" size="sm" onClick={onExport}>
-            Export
-          </Button>
+          <CatalogExportButton source={exportSource} onFallbackExport={onExport} />
         </div>
       </div>
 

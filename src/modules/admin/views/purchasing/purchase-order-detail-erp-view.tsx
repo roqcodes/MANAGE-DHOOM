@@ -36,6 +36,7 @@ import {
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { PoStatusPill } from "@/modules/purchase-orders/components/purchase-orders-ui";
 import { cn } from "@/lib/utils";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 function lineProductName(
   line: ErpPurchaseOrderDetail["purchase_order_items"][number],
@@ -133,6 +134,7 @@ function buildTimeline(po: ErpPurchaseOrderDetail) {
 }
 
 export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
+  const { confirm } = useAdminAlert();
   const [pending, startTransition] = useTransition();
   const [po, setPo] = useState<ErpPurchaseOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -218,8 +220,14 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     po.purchase_order_items.length > 0 &&
     (!po.linked_bill || hasRemainingToReceive);
 
-  function handleCancel() {
-    if (!confirm("Cancel this purchase order?")) return;
+  async function handleCancel() {
+    const ok = await confirm({
+      title: "Cancel purchase order?",
+      message: "Cancel this purchase order?",
+      confirmLabel: "Cancel order",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       const res = await cancelAdminPurchaseOrderAction(poId);
       if (!res.ok) {
@@ -230,13 +238,15 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     });
   }
 
-  function submitDelivery() {
+  async function submitDelivery() {
     if (!po || !po.delivery.canSubmitDelivery) return;
-    if (
-      !confirm(
+    const ok = await confirm({
+      title: "Submit delivery?",
+      message:
         "Submit delivery and finalize invoice? Stock and accounting will post at the entered quantities.",
-      )
-    ) {
+      confirmLabel: "Submit delivery",
+    });
+    if (!ok) {
       return;
     }
     startTransition(async () => {

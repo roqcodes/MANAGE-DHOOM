@@ -36,6 +36,10 @@ export function BuyHubManageHome() {
             Terms
           </Link>
           {" · "}
+          <Link href="/legal/support" className="hover:text-slate-700">
+            Support
+          </Link>
+          {" · "}
           <Link href="/legal/delete-account" className="hover:text-slate-700">
             Delete account
           </Link>

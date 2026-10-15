@@ -32,6 +32,7 @@ import {
 } from "@/modules/erp/components/recurring-schedules-metrics-bar";
 import { RecurringScheduleFormDialog } from "@/modules/erp/components/recurring-schedule-form-dialog";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 type RecurringSchedulePageVariant = "invoice" | "purchase_bill";
 
@@ -161,6 +162,7 @@ export function RecurringSchedulesView({
   const [createOpen, setCreateOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState<RecurringScheduleRow | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const { confirm } = useAdminAlert();
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -283,8 +285,14 @@ export function RecurringSchedulesView({
     });
   }
 
-  function deleteSchedule(row: RecurringScheduleRow) {
-    if (!confirm(`Delete schedule "${row.name}"?`)) return;
+  async function deleteSchedule(row: RecurringScheduleRow) {
+    const ok = await confirm({
+      title: "Delete schedule?",
+      message: `Delete schedule "${row.name}"?`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setActionError(null);
     startTransition(async () => {
       try {

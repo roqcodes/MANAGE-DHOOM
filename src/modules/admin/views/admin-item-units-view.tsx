@@ -185,7 +185,7 @@ function UnitFormModal({
 
 export function AdminItemUnitsView() {
   const queryClient = useQueryClient();
-  const { showError } = useAdminAlert();
+  const { confirm, showError } = useAdminAlert();
   const [modal, setModal] = useState<ModalState>(null);
   const [search, setSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -238,7 +238,13 @@ export function AdminItemUnitsView() {
   }
 
   async function handleDelete(unit: ItemUnit) {
-    if (!confirm(`Delete "${unit.name}" (${unit.abbreviation})? This cannot be undone.`)) {
+    const ok = await confirm({
+      title: "Delete item unit?",
+      message: `Delete "${unit.name}" (${unit.abbreviation})? This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) {
       return;
     }
     setDeletingId(unit.id);

@@ -14,7 +14,7 @@ const CATEGORY_HINTS: Partial<Record<string, string>> = {
   Sales:
     "Collections, customer and item sales, credit notes, and salesman performance — filter by store, channel, and date.",
   Inventory:
-    "Stock levels, valuations, store summaries, and transfer requests — filter by store, brand, category, and status.",
+    "Stock levels, minus (negative) stock, store summaries, and transfer requests — filter by store, brand, and category.",
   "Purchases and Expenses":
     "Purchase by item (bills plus inbound transfers) and purchase by vendor (expenses, bills, credits) — by store and date.",
   Receivables:
@@ -22,7 +22,7 @@ const CATEGORY_HINTS: Partial<Record<string, string>> = {
   "Payments Received":
     "Customer collections in a date range — invoice, store, mode, bank charges, and payment-mode totals.",
   Payables:
-    "Vendor balance (opening, bills, credits, payments) and bill aging by due-date buckets.",
+    "Vendor balance, PB aging summary (counts and amounts), details, and per-vendor bill drill-down.",
   Taxes:
     "VAT return summary by store and transaction-level output/input lines with net VAT due.",
   Accountant:

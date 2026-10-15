@@ -25,12 +25,14 @@ import {
   useSortableData,
 } from "@/modules/admin/ui";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 export function TransferApprovalsListView() {
   const { stores, activeStoreId, loading: erpContextLoading } = useErpStores();
   const [fromStoreId, setFromStoreId] = useState(activeStoreId ?? "");
   const [actingId, startAction] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useAdminAlert();
   const listPath = adminListPath("erp/transfer-requests", {
     page: 0,
     status: "submitted",
@@ -74,8 +76,14 @@ export function TransferApprovalsListView() {
     });
   }
 
-  function reject(id: string) {
-    if (!confirm("Reject this transfer request?")) return;
+  async function reject(id: string) {
+    const ok = await confirm({
+      title: "Reject transfer?",
+      message: "Reject this transfer request?",
+      confirmLabel: "Reject",
+      destructive: true,
+    });
+    if (!ok) return;
     setError(null);
     startAction(async () => {
       try {

@@ -7,9 +7,10 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { BusinessReportLayout } from "./business-report-layout";
 import {
-  exportReportCsv,
+  buildReportExportSource,
   formatReportCell,
   matchesReportSearch,
+  reportFiltersSubtitle,
 } from "./report-format";
 import {
   StatementLineRow,
@@ -61,8 +62,18 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
 
   const isEmpty = !loading && filteredIncome.length === 0 && filteredExpenses.length === 0;
 
-  function exportCsv() {
-    const rows = [
+  const plColumns = [
+    { key: "section", label: "Section" },
+    { key: "account_code", label: "Code" },
+    { key: "account_name", label: "Account" },
+    { key: "amount", label: "Amount", format: "currency" },
+  ];
+
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: plColumns,
+    getRows: () => [
       ...filteredIncome.map((r) => ({
         section: "Operating income",
         account_code: r.account_code,
@@ -75,14 +86,9 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
         account_name: r.account_name,
         amount: r.amount,
       })),
-    ];
-    exportReportCsv(report.slug, [
-      { key: "section", label: "Section" },
-      { key: "account_code", label: "Code" },
-      { key: "account_name", label: "Account" },
-      { key: "amount", label: "Amount" },
-    ], rows);
-  }
+    ],
+    getSubtitle: () => reportFiltersSubtitle(filters, "range"),
+  });
 
   return (
     <BusinessReportLayout
@@ -91,7 +97,7 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}

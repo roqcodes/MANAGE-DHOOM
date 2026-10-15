@@ -9,6 +9,10 @@ import {
   defaultPageBlurb,
   PAGE_BLURBS,
 } from "./app-sitemap-blurbs";
+import {
+  defaultPageGuide,
+  type SitemapGuide,
+} from "./app-sitemap-guides";
 
 export type SitemapPage = {
   path: string;
@@ -16,17 +20,20 @@ export type SitemapPage = {
   section: string;
   about: string;
   kw: string[];
+  guide: SitemapGuide;
 };
 
 function toPage(section: string, item: AdminNavItem): SitemapPage {
+  const about = PAGE_BLURBS[item.href] ?? defaultPageBlurb(section, item.name);
   return {
     path: item.href,
     name: item.name,
     section,
-    about: PAGE_BLURBS[item.href] ?? defaultPageBlurb(section, item.name),
+    about,
     kw: [item.name, section, ...(item.keywords ?? [])].map((s) =>
       s.toLowerCase(),
     ),
+    guide: defaultPageGuide(item.href, item.name, section),
   };
 }
 

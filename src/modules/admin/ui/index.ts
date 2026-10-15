@@ -29,6 +29,9 @@ export {
 export {
   AdminDateRangePicker,
   AdminListDateRangeAddon,
+  AdminListAsOfLead,
+  AdminListDateRangeLead,
+  type AdminListAsOfLeadProps,
   type AdminDateRangePickerProps,
 } from "./admin-date-range-picker";
 export { useAdminDateRange } from "./use-admin-date-range";

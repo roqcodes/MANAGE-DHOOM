@@ -33,6 +33,8 @@ export type AssistantState =
   | "idle"
   | "user-typing"
   | "thinking"
+  | "querying"
+  | "insight"
   | "assistant-typing"
   | "guiding-pointing"
   | "guiding-scanning"
@@ -62,6 +64,8 @@ interface AiAssistantState {
   setIsUserTyping: (typing: boolean) => void;
   isAiResponding: boolean;
   setIsAiResponding: (responding: boolean) => void;
+  dataMood: "off" | "querying" | "insight";
+  setDataMood: (mood: "off" | "querying" | "insight") => void;
   assistantState: AssistantState;
 }
 
@@ -82,6 +86,7 @@ export const AiAssistantProvider = ({ children }: { children: ReactNode }) => {
   const [guideFinished, setGuideFinished] = useState(false);
   const [isUserTyping, setIsUserTyping] = useState(false);
   const [isAiResponding, setIsAiResponding] = useState(false);
+  const [dataMood, setDataMood] = useState<"off" | "querying" | "insight">("off");
   const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const assistantState: AssistantState = useMemo(() => {
@@ -91,6 +96,8 @@ export const AiAssistantProvider = ({ children }: { children: ReactNode }) => {
       if (guidePoint) return "guiding-pointing";
       return "guiding-scanning";
     }
+    if (dataMood === "querying" && isAiResponding) return "querying";
+    if (dataMood === "insight") return "insight";
     if (isAiResponding) return "assistant-typing";
     if (guideThinking) return "thinking";
     if (isUserTyping) return "user-typing";
@@ -102,6 +109,7 @@ export const AiAssistantProvider = ({ children }: { children: ReactNode }) => {
     guidePoint,
     isAiResponding,
     isUserTyping,
+    dataMood,
   ]);
 
   const pushGuideLog = useCallback((text: string, kind: GuideLogKind = "info") => {
@@ -235,6 +243,8 @@ export const AiAssistantProvider = ({ children }: { children: ReactNode }) => {
       setIsUserTyping,
       isAiResponding,
       setIsAiResponding,
+      dataMood,
+      setDataMood,
       assistantState,
     }),
     [
@@ -256,6 +266,7 @@ export const AiAssistantProvider = ({ children }: { children: ReactNode }) => {
       guideFinished,
       isUserTyping,
       isAiResponding,
+      dataMood,
       assistantState,
     ],
   );

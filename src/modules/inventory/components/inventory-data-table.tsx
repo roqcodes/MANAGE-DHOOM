@@ -55,7 +55,7 @@ function previewUrlFromRow(row: InventoryWithVariant): string | null {
   return preview?.url?.trim() ?? null;
 }
 
-function exportInventoryCsv(rows: InventoryWithVariant[]) {
+export function getInventoryExportTabular(rows: InventoryWithVariant[]) {
   const headers = [
     "Variant",
     "Product",
@@ -78,19 +78,15 @@ function exportInventoryCsv(rows: InventoryWithVariant[]) {
       : "",
   ]);
 
-  const csv = [headers, ...csvRows]
-    .map((line) =>
-      line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
+  return { headers, rows: csvRows };
+}
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `inventory-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+function exportInventoryCsv(rows: InventoryWithVariant[]) {
+  const { headers, rows: body } = getInventoryExportTabular(rows);
+  if (body.length === 0) return;
+  void import("@/lib/export/tabular-export").then(({ downloadTabularCsv }) => {
+    downloadTabularCsv({ baseFilename: "inventory-export", headers, rows: body });
+  });
 }
 
 function VariantThumb({ url }: { url: string | null }) {

@@ -7,8 +7,10 @@ import { extractReportRows } from "@/common/erp/report-types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { BusinessReportLayout } from "../business-overview/business-report-layout";
+import { ReportKpiStrip } from "../business-overview/report-kpi-strip";
 import {
-  exportReportCsv,
+  buildReportExportSource,
+  reportFiltersSubtitle,
   matchesReportSearch,
   partitionTrialBalanceSections,
   type TrialBalanceRow,
@@ -52,20 +54,34 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
     return { debit, credit };
   }, [rawData, filtered]);
 
+  const kpiItems = useMemo(
+    () =>
+      filtered.length === 0
+        ? []
+        : [
+            { label: "Accounts", value: filtered.length.toLocaleString() },
+            { label: "Net debit", value: formatCurrencyAmount(totals.debit) },
+            { label: "Net credit", value: formatCurrencyAmount(totals.credit) },
+          ],
+    [filtered.length, totals],
+  );
+
   const isEmpty = !loading && filtered.length === 0;
 
-  function exportCsv() {
-    exportReportCsv(
-      report.slug,
-      [
-        { key: "account_category", label: "Category" },
-        { key: "account_name", label: "Account" },
-        { key: "period_debit", label: "Net debit" },
-        { key: "period_credit", label: "Net credit" },
-      ],
-      filtered as Record<string, unknown>[],
-    );
-  }
+  const trialColumns = [
+    { key: "account_category", label: "Category" },
+    { key: "account_name", label: "Account" },
+    { key: "period_debit", label: "Net debit", format: "currency" },
+    { key: "period_credit", label: "Net credit", format: "currency" },
+  ];
+
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: trialColumns,
+    getRows: () => filtered as Record<string, unknown>[],
+    getSubtitle: () => reportFiltersSubtitle(filters, "asOf"),
+  });
 
   return (
     <BusinessReportLayout
@@ -74,10 +90,13 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showAsOf
       showDateRange={false}
       searchPlaceholder="Search account…"
+      metrics={
+        !loading && filtered.length > 0 ? <ReportKpiStrip items={kpiItems} /> : null
+      }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {loading ? (

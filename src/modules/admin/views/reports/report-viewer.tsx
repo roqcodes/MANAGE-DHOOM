@@ -2,13 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Download } from "lucide-react";
+import { DataExportMenu } from "@/components/export/data-export-menu";
+import {
+  buildReportExportSource,
+  formatReportPeriodRange,
+} from "@/modules/admin/views/reports/business-overview/report-format";
 
 import type { ReportChannel, ReportDefinition } from "@/common/erp/report-types";
 import { extractReportRows } from "@/common/erp/report-types";
 import { BusinessOverviewReport } from "@/modules/admin/views/reports/business-overview-report";
 import { SalesReport } from "@/modules/admin/views/reports/sales-report";
 import { InventoryReport } from "@/modules/admin/views/reports/inventory-report";
+import { PayablesReport } from "@/modules/admin/views/reports/payables-report";
 import { PaymentsPayablesReport } from "@/modules/admin/views/reports/payments-payables-report";
 import { PurchasesReport } from "@/modules/admin/views/reports/purchases-report";
 import { AccountantReport } from "@/modules/admin/views/reports/accountant-report";
@@ -23,7 +28,9 @@ import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { SortableTableHead, useSortableData } from "@/modules/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAdminDateRange } from "@/modules/admin/ui";
+import { useAdminDateRange, useDebouncedValue } from "@/modules/admin/ui";
+import { useErpReportFetch } from "@/modules/admin/views/reports/business-overview/use-erp-report-fetch";
+import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -117,7 +124,11 @@ export function ReportViewer({ report }: { report: ReportDefinition }) {
     return <ReceivablesReport report={report} />;
   }
 
-  if (report.category === "Payments Received" || report.category === "Payables") {
+  if (report.category === "Payables") {
+    return <PayablesReport report={report} />;
+  }
+
+  if (report.category === "Payments Received") {
     return <PaymentsPayablesReport report={report} />;
   }
 
@@ -139,9 +150,6 @@ export function ReportViewer({ report }: { report: ReportDefinition }) {
 function GenericReportViewer({ report }: { report: ReportDefinition }) {
   const { stores, activeStoreId } = useErpStores();
   const [accounts, setAccounts] = useState<{ id: string; code: string; name: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [rawData, setRawData] = useState<unknown>(null);
 
   const today = new Date().toISOString().slice(0, 10);
   const { from: dateFrom, to: dateTo } = useAdminDateRange({ defaultPreset: "this_month" });
@@ -151,6 +159,11 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
   const [accountId, setAccountId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
   const [vendorSearch, setVendorSearch] = useState("");
+  const debouncedCustomerSearch = useDebouncedValue(customerSearch, 250);
+  const debouncedVendorSearch = useDebouncedValue(vendorSearch, 250);
+
+  const effectiveStoreId =
+    storeId || (report.filters.store && activeStoreId ? activeStoreId : "");
 
   useEffect(() => {
     if (activeStoreId) setStoreId(activeStoreId);
@@ -159,43 +172,28 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
   useEffect(() => {
     if (!report.filters.account) return;
     const q = new URLSearchParams({ page: "0", limit: "500" });
-    if (storeId) q.set("storeId", storeId);
+    if (effectiveStoreId) q.set("storeId", effectiveStoreId);
     adminGet<{ data: { id: string; code: string; name: string }[] }>(`erp/accounts?${q.toString()}`)
       .then((res) => setAccounts(res.data ?? []))
       .catch(() => setAccounts([]));
-  }, [report.filters.account, storeId]);
+  }, [report.filters.account, effectiveStoreId]);
 
-  function loadReport() {
-    setLoading(true);
-    setError(null);
-    const q = new URLSearchParams();
-    q.set("slug", report.slug);
-    if (report.filters.dateRange) {
-      q.set("dateFrom", dateFrom);
-      q.set("dateTo", dateTo);
-    }
-    if (report.filters.asOfDate) q.set("asOf", asOf);
-    if (report.filters.store && storeId) q.set("storeId", storeId);
-    else if (report.filters.store && activeStoreId) q.set("storeId", activeStoreId);
-    if (report.filters.channel) q.set("channel", channel);
-    if (report.filters.account && accountId) q.set("accountId", accountId);
-    const searchTerm = report.filters.vendorSearch
-      ? vendorSearch.trim()
-      : customerSearch.trim();
-    if ((report.filters.customerSearch || report.filters.vendorSearch) && searchTerm) {
-      q.set("search", searchTerm);
-    }
+  const serverSearch = report.filters.vendorSearch
+    ? debouncedVendorSearch
+    : debouncedCustomerSearch;
 
-    adminGet<{ data: unknown }>(`erp/reports?${q.toString()}`)
-      .then((res) => setRawData(res.data))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load report"))
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(() => {
-    loadReport();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [report.slug, storeId, dateFrom, dateTo, asOf, channel, accountId, customerSearch, vendorSearch]);
+  const { loading, error, rawData, reload } = useErpReportFetch(report, {
+    dateFrom,
+    dateTo,
+    asOf,
+    storeId: effectiveStoreId,
+    channel,
+    accountId,
+    search:
+      report.filters.customerSearch || report.filters.vendorSearch
+        ? serverSearch
+        : undefined,
+  });
 
   const rows = useMemo(
     () => extractReportRows(rawData, report.rowsKey),
@@ -219,21 +217,17 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
     (row, key) => row[key],
   );
 
-  function exportCsv() {
-    if (rows.length === 0) return;
-    const headers = displayColumns.map((c) => c.label);
-    const lines = rows.map((row) =>
-      displayColumns.map((col) => String(row[col.key] ?? "")).join(","),
-    );
-    const csv = [headers.join(","), ...lines].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${report.slug}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: displayColumns.map((col) => ({
+      key: col.key,
+      label: col.label,
+      format: col.format,
+    })),
+    getRows: () => sorted as Record<string, unknown>[],
+    getSubtitle: () => formatReportPeriodRange(dateFrom, dateTo),
+  });
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
@@ -250,11 +244,8 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
           <h1 className="text-xl font-semibold">{report.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{report.description}</p>
         </div>
-        {rows.length > 0 ? (
-          <Button variant="outline" size="sm" onClick={exportCsv}>
-            <Download data-icon="inline-start" />
-            Export CSV
-          </Button>
+        {sorted.length > 0 ? (
+          <DataExportMenu source={exportSource} />
         ) : null}
       </div>
 
@@ -344,13 +335,15 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
               />
             </div>
           ) : null}
-          <Button size="sm" onClick={loadReport}>
+          <Button size="sm" onClick={() => reload()}>
             Run report
           </Button>
         </CardContent>
       </Card>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <AppErrorCalloutMessage message={error} title="Couldn't run report" onRetry={() => reload()} />
+      ) : null}
       {loading ? <AdminTableBodySkeleton rows={10} /> : null}
 
       {!loading && report.slug === "finance-summary" && rawData ? (

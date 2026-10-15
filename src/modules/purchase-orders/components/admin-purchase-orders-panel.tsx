@@ -14,10 +14,11 @@ import { Pagination } from "@/modules/admin/components/pagination";
 import { VendorSearchSelect } from "@/modules/admin/ui";
 import { resolveVendorPickerOption } from "@/modules/erp/lib/entity-live-search.client";
 import {
-  exportPurchaseOrdersCsv,
+  getPurchaseOrdersExportTabular,
   PurchaseOrdersBulkActionBar,
   PurchaseOrdersDataTable,
 } from "@/modules/purchase-orders/components/purchase-orders-data-table";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { PurchaseOrdersMetricsBar } from "@/modules/purchase-orders/components/purchase-orders-metrics-bar";
 import {
   buildPurchaseOrdersListParams,
@@ -185,6 +186,28 @@ export function AdminPurchaseOrdersPanel({
   const isViewFiltered =
     statusFilter !== "all" || deliveryFilter !== null || selectedVendorId !== null;
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "purchase-orders-export",
+        title: "Purchase orders",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search,
+            status: statusFilter,
+            extra: [
+              deliveryFilter ? `Delivery: ${deliveryFilter}` : "",
+              selectedVendorId ? "Vendor filter applied" : "",
+            ].filter(Boolean),
+          }),
+        getTabular: () => {
+          const tabular = getPurchaseOrdersExportTabular(filtered);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [filtered, search, statusFilter, deliveryFilter, selectedVendorId],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <PurchaseOrdersMetricsBar
@@ -193,7 +216,7 @@ export function AdminPurchaseOrdersPanel({
         allFiltersClear={statusFilter === "all" && deliveryFilter === null}
         onDeliveryFilter={(delivery) => pushFilters({ delivery })}
         onClearFilters={handleClearFilters}
-        onExport={() => exportPurchaseOrdersCsv(filtered)}
+        exportSource={exportSource}
       />
 
       <Card className="overflow-hidden border border-border py-0 ring-0">

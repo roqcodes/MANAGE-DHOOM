@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Download, Plus } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
+
+import { DataExportMenu } from "@/components/export/data-export-menu";
+import type { TabularExportSource } from "@/lib/export/tabular-export";
 
 import type { OrderCatalogStats } from "@/common/admin/types";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -21,12 +24,14 @@ import {
 
 export function OrdersMetricsBar({
   stats,
+  exportSource,
   onExport,
   variant = "online",
   valuesLoading = false,
 }: {
   stats: OrderCatalogStats;
-  onExport: () => void;
+  exportSource?: TabularExportSource;
+  onExport?: () => void;
   variant?: "online" | "erp";
   valuesLoading?: boolean;
 }) {
@@ -57,10 +62,13 @@ export function OrdersMetricsBar({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onExport}>
-            <Download data-icon="inline-start" />
-            Export
-          </Button>
+          {exportSource ? (
+            <DataExportMenu source={exportSource} />
+          ) : onExport ? (
+            <Button variant="outline" size="sm" onClick={onExport}>
+              Export
+            </Button>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -72,9 +80,15 @@ export function OrdersMetricsBar({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuGroup>
-                <DropdownMenuItem onClick={onExport}>
-                  Export all on page
-                </DropdownMenuItem>
+                {exportSource ? (
+                  <DropdownMenuItem onClick={() => void import("@/lib/export/tabular-export").then((m) => m.exportFromSource("csv", exportSource))}>
+                    Export filtered list (CSV)
+                  </DropdownMenuItem>
+                ) : onExport ? (
+                  <DropdownMenuItem onClick={onExport}>
+                    Export all on page
+                  </DropdownMenuItem>
+                ) : null}
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>

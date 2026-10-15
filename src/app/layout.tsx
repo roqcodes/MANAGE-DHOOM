@@ -62,10 +62,12 @@ export default function RootLayout({
     >
       <body className="h-full overflow-hidden bg-background font-sans text-foreground">
         <BuyHubPwa>
-          <AiAssistantRoot>
-            <NavigationProgress />
-            <AppProviders>{children}</AppProviders>
-          </AiAssistantRoot>
+          <AppProviders>
+            <AiAssistantRoot>
+              <NavigationProgress />
+              {children}
+            </AiAssistantRoot>
+          </AppProviders>
         </BuyHubPwa>
       </body>
     </html>

@@ -1,3 +1,7 @@
+import { stripOpenBlock } from "./parse-open";
+import { stripReportBlock } from "./parse-report";
+import { stripUiBlock } from "./parse-ui";
+
 export type PointDirective = {
   id: string | null;
   label: string;
@@ -18,8 +22,16 @@ export function parseSuggestDirective(raw: string): string[] {
     .slice(0, 3);
 }
 
+export function stripSuggestAndPoint(raw: string): string {
+  return stripOpenBlock(
+    stripUiBlock(
+      stripReportBlock(raw.replace(POINT_RE, "").replace(SUGGEST_RE, "")),
+    ),
+  ).trim();
+}
+
 function stripAssistantDirectives(raw: string): string {
-  return raw.replace(POINT_RE, "").replace(SUGGEST_RE, "").trim();
+  return stripSuggestAndPoint(raw);
 }
 
 export function parsePointDirective(raw: string): PointDirective {

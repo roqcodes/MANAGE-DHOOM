@@ -32,12 +32,14 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   const debouncedSearch = useDebouncedValue(search, 200);
 
   useEffect(() => {
+    if (report.category === "Receivables") return;
     if (activeStoreId) setStoreId(activeStoreId);
-  }, [activeStoreId]);
+  }, [activeStoreId, report.category]);
 
   useEffect(() => {
+    if (!report.filters.asOfDate) return;
     if (dateRange.to) setAsOf(dateRange.to);
-  }, [dateRange.to]);
+  }, [dateRange.to, report.filters.asOfDate]);
 
   const storeLabel =
     storeId ? stores.find((s) => s.id === storeId)?.name ?? "Selected store" : "All stores";
@@ -73,7 +75,6 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   const listFilters: AdminListFilter[] = [];
   if (report.filters.store) listFilters.push(storeFilter);
   if (report.filters.channel) listFilters.push(channelFilter);
-
   return {
     stores,
     storeId,

@@ -1,7 +1,9 @@
 "use client";
 
 import type { VendorCatalogStats } from "@/common/admin/types";
+import { CatalogExportButton } from "@/components/export/catalog-export-button";
 import { Button } from "@/components/ui/button";
+import type { TabularExportSource } from "@/lib/export/tabular-export";
 import { Card } from "@/components/ui/card";
 import {
   MiniSparkline,
@@ -55,13 +57,15 @@ function MetricSegment({
 
 export function VendorsMetricsBar({
   stats,
+  exportSource,
   onExport,
   onImport,
   onCreate,
   valuesLoading = false,
 }: {
   stats: VendorCatalogStats;
-  onExport: () => void;
+  exportSource?: TabularExportSource;
+  onExport?: () => void;
   onImport: () => void;
   onCreate: () => void;
   valuesLoading?: boolean;
@@ -79,9 +83,7 @@ export function VendorsMetricsBar({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onExport}>
-            Export
-          </Button>
+          <CatalogExportButton source={exportSource} onFallbackExport={onExport} />
           <Button variant="outline" size="sm" onClick={onImport}>
             Import
           </Button>

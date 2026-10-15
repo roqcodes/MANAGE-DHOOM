@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 
+import { DataExportMenu } from "@/components/export/data-export-menu";
 import { Button } from "@/components/ui/button";
-import { downloadCsvFile, rowsToCsv } from "@/lib/csv/csv-utils";
+import type { TabularExportSource } from "@/lib/export/tabular-export";
 import { CsvImportDialog } from "@/modules/erp/components/csv-import-dialog";
 import type { CsvImportEntity } from "@/modules/erp/lib/csv-import-configs";
 
@@ -25,19 +26,25 @@ export function ErpListImportExport({
 }) {
   const [importOpen, setImportOpen] = useState(false);
 
+  const exportSource: TabularExportSource = {
+    baseFilename: exportFilename.replace(/\.csv$/i, ""),
+    getTabular: () => {
+      if (exportRows.length === 0) return null;
+      return {
+        headers: exportHeaders,
+        rows: exportRows.map((row) =>
+          exportHeaders.map((header) => String(row[header] ?? "")),
+        ),
+      };
+    },
+  };
+
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() =>
-          downloadCsvFile(exportFilename, rowsToCsv(exportHeaders, exportRows))
-        }
-      >
-        <Download data-icon="inline-start" />
-        Export
-      </Button>
+      <DataExportMenu
+        source={exportSource}
+        disabled={exportRows.length === 0}
+      />
       <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
         <Upload data-icon="inline-start" />
         Import

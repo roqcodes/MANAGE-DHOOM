@@ -16,7 +16,15 @@ import {
   useSortableData,
 } from "@/modules/admin/ui";
 import { BusinessReportLayout } from "./business-report-layout";
-import { exportReportCsv, formatReportCell, matchesReportSearch } from "./report-format";
+import { ReportKpiStrip } from "./report-kpi-strip";
+import { buildReportKpis, computeColumnAggregates } from "./report-summaries";
+import { ReportTableTotalsRow } from "./report-table-totals-row";
+import {
+  buildReportExportSource,
+  formatReportCell,
+  matchesReportSearch,
+  reportFiltersSubtitle,
+} from "./report-format";
 import { useBusinessReportFilters } from "./use-business-report-filters";
 import { useErpReportFetch } from "./use-erp-report-fetch";
 
@@ -48,11 +56,24 @@ export function DayBookReport({ report }: { report: ReportDefinition }) {
     (row, key) => row[key],
   );
 
+  const aggregates = useMemo(
+    () => computeColumnAggregates(report.columns, sorted),
+    [report.columns, sorted],
+  );
+  const kpis = useMemo(
+    () => buildReportKpis(report.columns, sorted, aggregates),
+    [report.columns, sorted, aggregates],
+  );
+
   const isEmpty = !loading && sorted.length === 0;
 
-  function exportCsv() {
-    exportReportCsv(report.slug, report.columns, sorted);
-  }
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: report.columns,
+    getRows: () => sorted,
+    getSubtitle: () => reportFiltersSubtitle(filters, "range"),
+  });
 
   return (
     <BusinessReportLayout
@@ -61,8 +82,11 @@ export function DayBookReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange
+      metrics={
+        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+      }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {loading ? (
@@ -98,6 +122,7 @@ export function DayBookReport({ report }: { report: ReportDefinition }) {
                 ))}
               </AdminTableRow>
             ))}
+            <ReportTableTotalsRow columns={report.columns} rows={sorted} />
           </AdminTableBody>
         </AdminDataTable>
       )}

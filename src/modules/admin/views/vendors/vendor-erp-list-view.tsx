@@ -7,7 +7,9 @@ import { Plus } from "lucide-react";
 import type { VendorErpListRow } from "@/common/erp/purchasing-types";
 import { VENDOR_TYPE_OPTIONS } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { adminDelete, adminGet } from "@/modules/admin/lib/admin-api-client";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { Button } from "@/components/ui/button";
 import { TableHead } from "@/components/ui/table";
@@ -41,6 +43,8 @@ const VENDOR_TYPE_FILTER_OPTIONS = [
 export function VendorsErpListView() {
   const searchParams = useSearchParams();
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/vendors");
+  const { runAction, isPending: deletePending } = useAdminAction();
+  const { confirm } = useAdminAlert();
   const [reloadToken, setReloadToken] = useState(0);
   const [rows, setRows] = useState<VendorErpListRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -71,6 +75,24 @@ export function VendorsErpListView() {
   if (vendorType !== "all") listParams.vendorType = vendorType;
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
   const initialLoading = loading && rows.length === 0;
+
+  async function handleDelete(row: VendorErpListRow) {
+    const label = row.name?.trim() || "this vendor";
+    const ok = await confirm({
+      title: "Delete vendor?",
+      message: `Delete "${label}"? Only vendors with no bills, payments, or other operational records can be removed. Catalog SKUs on this vendor are also removed. This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    runAction(
+      async () => {
+        await adminDelete(`vendors/${row.id}`);
+        setReloadToken((t) => t + 1);
+      },
+      { errorTitle: "Couldn't delete vendor" },
+    );
+  }
 
   return (
     <AdminPageLayout>
@@ -187,6 +209,15 @@ export function VendorsErpListView() {
                   <ErpListRowActions
                     viewHref={`/admin/vendors/${r.id}/erp`}
                     editHref={`/admin/vendors?form=edit&id=${r.id}`}
+                    menuItems={[
+                      {
+                        label: "Delete",
+                        destructive: true,
+                        separatorBefore: true,
+                        disabled: deletePending,
+                        onClick: () => handleDelete(r),
+                      },
+                    ]}
                   />
                 </AdminTableCell>
               </AdminTableRow>

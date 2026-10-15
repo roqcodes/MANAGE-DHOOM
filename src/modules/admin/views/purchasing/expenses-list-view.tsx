@@ -8,6 +8,7 @@ import { Plus } from "lucide-react";
 
 import type { ErpExpenseListRow } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { Pagination } from "@/modules/admin/components/pagination";
@@ -49,6 +50,7 @@ function formatDisplayDate(value: string) {
 }
 
 export function ExpensesListView() {
+  const { confirm, showError } = useAdminAlert();
   const searchParams = useSearchParams();
   const { storeId, erpContextLoading } = useActiveStoreScope();
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/expenses");
@@ -108,13 +110,19 @@ export function ExpensesListView() {
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this expense?")) return;
+    const ok = await confirm({
+      title: "Delete expense?",
+      message: "Delete this expense? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await adminDelete(`erp/expenses/${id}`);
       await refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't delete expense");
+      showError(err, "Couldn't delete expense");
     } finally {
       setDeletingId(null);
     }

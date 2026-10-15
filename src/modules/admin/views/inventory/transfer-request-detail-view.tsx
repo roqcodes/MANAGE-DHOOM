@@ -12,6 +12,7 @@ import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 type RequestDetail = {
   id: string;
@@ -51,6 +52,7 @@ export function TransferRequestDetailView({
   const [loading, setLoading] = useState(true);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const { confirm } = useAdminAlert();
 
   function load() {
     Promise.all([
@@ -86,8 +88,14 @@ export function TransferRequestDetailView({
     });
   }
 
-  function reject() {
-    if (!confirm("Reject this transfer request?")) return;
+  async function reject() {
+    const ok = await confirm({
+      title: "Reject transfer?",
+      message: "Reject this transfer request?",
+      confirmLabel: "Reject",
+      destructive: true,
+    });
+    if (!ok) return;
     setError(null);
     startTransition(async () => {
       try {

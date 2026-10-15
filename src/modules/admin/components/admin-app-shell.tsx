@@ -11,7 +11,6 @@ import type { UserProfile } from "@/common/auth/types";
 import { AdminHeader } from "@/modules/admin/components/admin-header";
 import { AdminGlobalSearchProvider } from "@/modules/admin/components/admin-global-search";
 import { AdminDateRangeProvider } from "@/modules/admin/providers/admin-date-range-provider";
-import { AdminAlertProvider } from "@/modules/admin/components/admin-alert-provider";
 import { AdminSidebar } from "@/modules/admin/components/sidebar";
 import { useIsMdUp } from "@/modules/admin/hooks/use-is-md-up";
 import { AdminBootstrapProvider } from "@/modules/admin/providers/admin-bootstrap-provider";
@@ -115,7 +114,6 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
     <AdminSessionProvider profile={data.profile}>
       <AdminBootstrapProvider>
       <CurrencySettingsProvider>
-      <AdminAlertProvider>
       <AdminGlobalSearchProvider>
       <AdminDateRangeProvider>
         <div className="relative flex h-full overflow-hidden bg-[#F8FAFC]">
@@ -156,7 +154,6 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
         </div>
       </AdminDateRangeProvider>
       </AdminGlobalSearchProvider>
-      </AdminAlertProvider>
       </CurrencySettingsProvider>
       </AdminBootstrapProvider>
     </AdminSessionProvider>

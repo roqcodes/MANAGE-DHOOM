@@ -5,7 +5,6 @@ import { useMemo } from "react";
 
 import type { ReportDefinition } from "@/common/erp/report-types";
 import { extractReportRows } from "@/common/erp/report-types";
-import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
@@ -17,9 +16,16 @@ import {
   SortableTableHead,
   useSortableData,
 } from "@/modules/admin/ui";
-import { cn } from "@/lib/utils";
 import { BusinessReportLayout } from "../business-overview/business-report-layout";
-import { exportReportCsv, formatReportCell, matchesReportSearch } from "../business-overview/report-format";
+import { ReportKpiStrip } from "../business-overview/report-kpi-strip";
+import {
+  buildReportExportSource,
+  formatReportCell,
+  matchesReportSearch,
+  reportFiltersSubtitle,
+} from "../business-overview/report-format";
+import { buildReportKpis, computeColumnAggregates, hasAggregatableColumns } from "../business-overview/report-summaries";
+import { ReportTableTotalsRow } from "../business-overview/report-table-totals-row";
 import { useBusinessReportFilters } from "../business-overview/use-business-report-filters";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 
@@ -44,18 +50,18 @@ function reportSearchPlaceholder(report: ReportDefinition) {
 
 export function SalesTabularReport({
   report,
-  showTotals = false,
   footnote,
   footer,
+  kpiExtra,
 }: {
   report: ReportDefinition;
-  showTotals?: boolean;
   footnote?: string;
   footer?: (rawData: unknown) => ReactNode;
+  kpiExtra?: { label: string; value: string }[];
 }) {
   const filters = useBusinessReportFilters(report);
   const serverSearch = Boolean(report.filters.customerSearch || report.filters.vendorSearch);
-  const { loading, error, rawData, reload } = useErpReportFetch(report, {
+  const { loading, isFetching, error, rawData, reload } = useErpReportFetch(report, {
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
     asOf: filters.asOf,
@@ -83,38 +89,48 @@ export function SalesTabularReport({
     (row, key) => row[key],
   );
 
-  const totals = useMemo(() => {
-    if (!showTotals) return null;
-    const sums: Record<string, number> = {};
-    for (const col of report.columns) {
-      if (col.format !== "currency" && col.format !== "number") continue;
-      sums[col.key] = sorted.reduce((acc, row) => acc + Number(row[col.key] ?? 0), 0);
-    }
-    return sums;
-  }, [showTotals, report.columns, sorted]);
+  const aggregates = useMemo(
+    () => computeColumnAggregates(report.columns, sorted),
+    [report.columns, sorted],
+  );
 
+  const kpis = useMemo(
+    () => buildReportKpis(report.columns, sorted, aggregates, kpiExtra),
+    [report.columns, sorted, aggregates, kpiExtra],
+  );
+
+  const showFooterTotals = hasAggregatableColumns(report.columns);
   const isEmpty = !loading && sorted.length === 0;
-
-  function exportCsv() {
-    exportReportCsv(report.slug, report.columns, sorted);
-  }
 
   const showDateRange = Boolean(report.filters.dateRange);
   const showAsOf = Boolean(report.filters.asOfDate && !report.filters.dateRange);
+
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: report.columns,
+    getRows: () => sorted,
+    getSubtitle: () =>
+      reportFiltersSubtitle(filters, showAsOf ? "asOf" : "range"),
+  });
 
   return (
     <BusinessReportLayout
       report={report}
       filters={filters}
       loading={loading}
+      fetching={isFetching}
       isEmpty={isEmpty}
-      onExport={exportCsv}
-      onRefresh={reload}
+      exportSource={exportSource}
+      onRefresh={() => reload()}
       showDateRange={showDateRange}
       showAsOf={showAsOf}
       searchPlaceholder={reportSearchPlaceholder(report)}
+      error={error}
+      metrics={
+        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+      }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {footnote ? (
         <p className="border-b bg-amber-50/80 px-4 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
           {footnote}
@@ -153,26 +169,8 @@ export function SalesTabularReport({
                 ))}
               </AdminTableRow>
             ))}
-            {showTotals && totals && sorted.length > 0 ? (
-              <AdminTableRow className="bg-muted/50 font-semibold hover:bg-muted/50">
-                {report.columns.map((col, idx) => (
-                  <AdminTableCell
-                    key={col.key}
-                    className={cn(
-                      col.align === "right" ? "text-right tabular-nums" : undefined,
-                      idx === 0 && "text-foreground",
-                    )}
-                  >
-                    {idx === 0
-                      ? "Total"
-                      : totals[col.key] != null
-                        ? col.format === "currency"
-                          ? formatCurrencyAmount(totals[col.key])
-                          : totals[col.key].toLocaleString(undefined, { maximumFractionDigits: 3 })
-                        : "—"}
-                  </AdminTableCell>
-                ))}
-              </AdminTableRow>
+            {showFooterTotals ? (
+              <ReportTableTotalsRow columns={report.columns} rows={sorted} />
             ) : null}
           </AdminTableBody>
         </AdminDataTable>

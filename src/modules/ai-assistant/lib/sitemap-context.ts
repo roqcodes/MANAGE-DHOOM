@@ -4,7 +4,7 @@ import {
   getSitemapPage,
   rankSitemapPages,
 } from "./app-sitemap";
-import { looksLikePromptInjection } from "./message-intent";
+import { isDataQuestion, looksLikePromptInjection } from "./message-intent";
 
 type ChatTurn = { role: string; content: string };
 
@@ -14,7 +14,7 @@ const NAV_KNOWLEDGE_RE =
 const ENTITY_NAV_RE =
   /\b(products?|expenses?|invoices?|bills?|vendors?|customers?|orders?|inventory|stock|employees?|vat|reports?|banking|transfers?)\b/i;
 
-/** User is asking where something lives in bh-manage (not pure accounting theory). */
+/** User is asking where something lives in the admin app (not pure theory). */
 export function needsAppNavKnowledge(text: string): boolean {
   const t = text.trim();
   if (!t || looksLikePromptInjection(t)) return false;
@@ -40,7 +40,7 @@ export function chatHistorySatisfiesSitemap(
 
   const assistantBlob = history
     .filter((m) => m.role === "assistant")
-    .slice(-8)
+    .slice(-6)
     .map((m) => m.content.toLowerCase())
     .join("\n");
 
@@ -76,28 +76,36 @@ export function buildSitemapContextBlock(options: {
   message: string;
   goal?: string;
   chatHistory: ChatTurn[];
-  /** Live DOM inventory already in context — sitemap not needed. */
   hasLiveScreenInventory: boolean;
 }): string {
-  if (options.hasLiveScreenInventory) return "";
-
   const goalText = (options.goal ?? "").trim();
   const messageText = options.message.trim();
   const query = goalText || messageText;
 
-  if (!query) return "";
+  if (options.mode === "guide") {
+    const pages = query ? pickSitemapForGoal(query, 3) : [];
+    return formatSitemapContextBlock(pages, { detailed: true });
+  }
+
+  if (
+    !options.hasLiveScreenInventory &&
+    isDataQuestion(messageText) &&
+    !needsAppNavKnowledge(messageText)
+  ) {
+    return "";
+  }
+
+  const ranked = rankSitemapPages(
+    query,
+    needsAppNavKnowledge(messageText) || options.hasLiveScreenInventory ? 4 : 3,
+  );
+  if (ranked.length === 0) return "";
 
   if (chatHistorySatisfiesSitemap(query, options.chatHistory)) {
     return "";
   }
 
-  if (options.mode === "guide") {
-    const pages = pickSitemapForGoal(query, 2);
-    return formatSitemapContextBlock(pages);
-  }
-
-  if (!needsAppNavKnowledge(messageText)) return "";
-
-  const pages = rankSitemapPages(messageText, 6);
-  return formatSitemapContextBlock(pages);
+  const detailed =
+    needsAppNavKnowledge(messageText) || options.hasLiveScreenInventory;
+  return formatSitemapContextBlock(ranked, { detailed });
 }

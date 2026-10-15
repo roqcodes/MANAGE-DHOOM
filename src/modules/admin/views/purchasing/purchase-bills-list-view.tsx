@@ -42,6 +42,7 @@ import {
   filterPurchaseBillOutboxForList,
   PurchaseBillOutboxTableRows,
 } from "@/modules/admin/components/purchase-bill-outbox-table-rows";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 const PURCHASE_BILL_OUTBOX_TYPES = new Set<string>([
   ERP_CLIENT_OPERATION_TYPES.purchaseBill.create,
@@ -104,6 +105,7 @@ export function PurchaseBillsListView() {
       : "Failed to load purchase bills"
     : null;
   const [cancellingId, startCancel] = useTransition();
+  const { confirm } = useAdminAlert();
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
     "purchase_date",
@@ -115,6 +117,16 @@ export function PurchaseBillsListView() {
       await adminDelete(`erp/purchase-bills/${id}`);
       await refetch();
     });
+  }
+
+  async function confirmCancelBill(id: string) {
+    const ok = await confirm({
+      title: "Cancel purchase bill?",
+      message: "Cancel this purchase bill?",
+      confirmLabel: "Cancel bill",
+      destructive: true,
+    });
+    if (ok) handleCancel(id);
   }
   return (
     <AdminPageLayout>
@@ -309,7 +321,7 @@ export function PurchaseBillsListView() {
                                 destructive: true,
                                 separatorBefore: true,
                                 onClick: () => {
-                                  if (confirm("Cancel this purchase bill?")) handleCancel(r.id);
+                                  void confirmCancelBill(r.id);
                                 },
                               },
                             ]

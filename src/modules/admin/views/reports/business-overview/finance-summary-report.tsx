@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import type { ReportDefinition } from "@/common/erp/report-types";
-import { extractReportRows } from "@/common/erp/report-types";
+import { extractReportRows, getReportBySlug } from "@/common/erp/report-types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
+import { buildErpReportApiPath } from "@/modules/erp/lib/erp-report-api-path";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
   AdminDataTable,
@@ -43,20 +44,27 @@ export function FinanceSummaryReport({ report }: { report: ReportDefinition }) {
     accountId: "",
   });
 
-  const [positionLoading, setPositionLoading] = useState(true);
-  const [positionRows, setPositionRows] = useState<TrialBalanceRow[]>([]);
-
-  useEffect(() => {
-    setPositionLoading(true);
-    const q = new URLSearchParams({ slug: "balance-sheet", asOf: filters.asOf });
-    if (filters.storeId) q.set("storeId", filters.storeId);
-    adminGet<{ data: unknown }>(`erp/reports?${q.toString()}`)
-      .then((res) => {
-        setPositionRows(extractReportRows(res.data, "rows") as TrialBalanceRow[]);
-      })
-      .catch(() => setPositionRows([]))
-      .finally(() => setPositionLoading(false));
-  }, [filters.asOf, filters.storeId]);
+  const balanceSheetReport = getReportBySlug("balance-sheet");
+  const balancePath =
+    balanceSheetReport &&
+    buildErpReportApiPath(balanceSheetReport, {
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      asOf: filters.asOf,
+      storeId: filters.storeId,
+      channel: "all",
+      accountId: "",
+    });
+  const positionQuery = useAdminGetQuery<{ data: unknown }>({
+    path: balancePath ?? "erp/reports?slug=balance-sheet",
+    enabled: Boolean(balancePath),
+  });
+  const positionLoading = positionQuery.isLoading;
+  const positionRows = useMemo(
+    () =>
+      extractReportRows(positionQuery.data?.data, "rows") as TrialBalanceRow[],
+    [positionQuery.data],
+  );
 
   const metrics = (rawData ?? {}) as Record<string, unknown>;
   const { assets, liabilities, equity, totalAssets, totalLiabilities, totalEquity } = useMemo(

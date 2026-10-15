@@ -8,6 +8,7 @@ import { AUTH_ROUTES } from "@/modules/auth/services/auth-route.service";
 import { BRAND_ACCENT } from "@/modules/brand/lib/brand";
 import { SUPPORT_EMAIL } from "@/modules/legal/content/support-contact";
 import type { StorefrontDeletionPreview } from "@/modules/storefront/services/storefront-account-deletion.service";
+import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
 
 export function DeleteAccountPanel() {
   const [loading, setLoading] = useState(true);
@@ -16,6 +17,7 @@ export function DeleteAccountPanel() {
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [done, setDone] = useState(false);
+  const { confirm } = useAppFeedback();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,9 +57,12 @@ export function DeleteAccountPanel() {
 
   async function handleDelete() {
     if (!preview?.can_delete) return;
-    const confirmed = window.confirm(
-      "Permanently delete your DHOOM Trading account? This cannot be undone.",
-    );
+    const confirmed = await confirm({
+      title: "Delete account?",
+      message: "Permanently delete your DHOOM Trading account? This cannot be undone.",
+      confirmLabel: "Delete account",
+      destructive: true,
+    });
     if (!confirmed) return;
 
     setDeleting(true);

@@ -11,12 +11,31 @@ import {
   AdminTableRow,
 } from "@/modules/admin/ui";
 
+import type { ReportKpiItem } from "../business-overview/report-summaries";
+
 export type VatNetSummary = {
   due_tax?: number;
   recoverable_tax?: number;
   net_payable?: number;
   net_reclaimable?: number;
 };
+
+export function buildNetVatKpis(net: VatNetSummary): ReportKpiItem[] {
+  const due = Number(net.due_tax ?? 0);
+  const recoverable = Number(net.recoverable_tax ?? 0);
+  const payable = Number(net.net_payable ?? 0);
+  const reclaimable = Number(net.net_reclaimable ?? 0);
+  const items: ReportKpiItem[] = [
+    { label: "Due tax", value: formatCurrencyAmount(due) },
+    { label: "Recoverable tax", value: formatCurrencyAmount(recoverable) },
+  ];
+  if (payable > 0) {
+    items.push({ label: "Net payable", value: formatCurrencyAmount(payable) });
+  } else if (reclaimable > 0) {
+    items.push({ label: "Net reclaimable", value: formatCurrencyAmount(reclaimable) });
+  }
+  return items;
+}
 
 export function NetVatDueSection({ net }: { net: VatNetSummary }) {
   const due = Number(net.due_tax ?? 0);
@@ -173,6 +192,38 @@ export type VatDetailLine = {
   vat_amount?: number;
   vat_percentage?: number | null;
 };
+
+export function buildVatSummaryKpis(
+  salesRows: SummaryStoreRow[],
+  purchaseRows: SummaryStoreRow[],
+  net: VatNetSummary,
+): ReportKpiItem[] {
+  const salesTax = salesRows.reduce((s, r) => s + Number(r.tax_amount ?? 0), 0);
+  const purchaseTax = purchaseRows.reduce((s, r) => s + Number(r.tax_amount ?? 0), 0);
+  const netTail = buildNetVatKpis(net).slice(2);
+  return [
+    { label: "Output tax", value: formatCurrencyAmount(salesTax) },
+    { label: "Input tax", value: formatCurrencyAmount(purchaseTax) },
+    ...netTail,
+  ].slice(0, 5);
+}
+
+export function buildVatDetailsKpis(
+  outputLines: VatDetailLine[],
+  inputLines: VatDetailLine[],
+  net: VatNetSummary,
+): ReportKpiItem[] {
+  const outputVat = outputLines.reduce((s, r) => s + Number(r.vat_amount ?? 0), 0);
+  const inputVat = inputLines.reduce((s, r) => s + Number(r.vat_amount ?? 0), 0);
+  const netTail = buildNetVatKpis(net).slice(2);
+  return [
+    { label: "Output lines", value: outputLines.length.toLocaleString() },
+    { label: "Output VAT", value: formatCurrencyAmount(outputVat) },
+    { label: "Input lines", value: inputLines.length.toLocaleString() },
+    { label: "Input VAT", value: formatCurrencyAmount(inputVat) },
+    ...netTail,
+  ].slice(0, 6);
+}
 
 export function VatDetailsTable({
   title,

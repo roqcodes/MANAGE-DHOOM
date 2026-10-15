@@ -16,6 +16,7 @@ import {
   selectCls,
 } from "@/modules/admin/components/modal";
 import { adminDelete, adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -191,19 +192,28 @@ export function AccountTypesListView() {
     return map;
   }, [rows]);
 
+  const { confirm, showError } = useAdminAlert();
+
   async function handleDelete(row: AccountTypeRow) {
     if (row.is_system) return;
-    if (!confirm(`Delete account type "${row.name}"?`)) return;
+    const ok = await confirm({
+      title: "Delete account type?",
+      message: `Delete "${row.name}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(row.id);
     try {
       await adminDelete(`erp/account-types/${row.id}`);
       setRows((prev) => prev.filter((r) => r.id !== row.id));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't delete account type");
+      showError(err, "Couldn't delete account type");
     } finally {
       setDeletingId(null);
     }
-  }  return (
+  }
+  return (
     <>
       {modal ? (
         <AccountTypeFormModal

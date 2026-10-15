@@ -1,5 +1,7 @@
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatDateOnly } from "@/lib/format-date";
+import type { TabularData, TabularExportSource } from "@/lib/export/tabular-export";
+import { downloadTabularCsv } from "@/lib/export/tabular-export";
 
 export function formatReportCell(value: unknown, format?: string) {
   if (value == null || value === "") return "—";
@@ -24,29 +26,60 @@ export function formatReportAsOf(asOf: string) {
   return asOf ? formatDateOnly(asOf) : "Today";
 }
 
+export function reportFiltersSubtitle(
+  filters: { dateFrom: string; dateTo: string; asOf: string },
+  mode: "range" | "asOf" = "range",
+) {
+  if (mode === "asOf") return `As of ${formatReportAsOf(filters.asOf)}`;
+  return formatReportPeriodRange(filters.dateFrom, filters.dateTo);
+}
+
+export type ReportColumnDef = {
+  key: string;
+  label: string;
+  format?: string;
+};
+
+export function reportColumnsToTabular(
+  columns: ReportColumnDef[],
+  rows: Record<string, unknown>[],
+): TabularData {
+  return {
+    headers: columns.map((c) => c.label),
+    rows: rows.map((row) =>
+      columns.map((col) => formatReportCell(row[col.key], col.format)),
+    ),
+  };
+}
+
+export function buildReportExportSource(opts: {
+  slug: string;
+  title: string;
+  columns: ReportColumnDef[];
+  getRows: () => Record<string, unknown>[];
+  getSubtitle?: () => string;
+}): TabularExportSource {
+  return {
+    baseFilename: opts.slug,
+    title: opts.title,
+    getSubtitle: opts.getSubtitle,
+    getTabular: () => {
+      const rows = opts.getRows();
+      if (rows.length === 0) return null;
+      return reportColumnsToTabular(opts.columns, rows);
+    },
+  };
+}
+
+/** @deprecated Prefer DataExportMenu with buildReportExportSource */
 export function exportReportCsv(
   slug: string,
-  columns: { key: string; label: string }[],
+  columns: { key: string; label: string; format?: string }[],
   rows: Record<string, unknown>[],
 ) {
   if (rows.length === 0) return;
-  const headers = columns.map((c) => c.label);
-  const lines = rows.map((row) =>
-    columns
-      .map((col) => {
-        const raw = String(row[col.key] ?? "");
-        return raw.includes(",") || raw.includes('"') ? `"${raw.replace(/"/g, '""')}"` : raw;
-      })
-      .join(","),
-  );
-  const csv = [headers.join(","), ...lines].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${slug}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const { headers, rows: body } = reportColumnsToTabular(columns, rows);
+  downloadTabularCsv({ baseFilename: slug, headers, rows: body });
 }
 
 export type TrialBalanceRow = {

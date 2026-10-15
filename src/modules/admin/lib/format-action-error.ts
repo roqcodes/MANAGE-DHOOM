@@ -17,11 +17,12 @@ export function formatActionError(error: unknown): string {
 
   // Curated business messages from services — keep as-is when already short.
   if (
-    msg.startsWith("Cannot delete") ||
-    msg.startsWith("Cannot delete product") ||
+    msg.includes("Cannot delete") ||
     msg.includes("can't be undone") ||
     msg.includes("cannot be updated") ||
-    msg.includes("cannot be deleted")
+    msg.includes("cannot be deleted") ||
+    msg.includes("opening balance") ||
+    msg.includes("walk-in customer")
   ) {
     return msg.length <= 140 ? msg : msg.slice(0, 137) + "…";
   }

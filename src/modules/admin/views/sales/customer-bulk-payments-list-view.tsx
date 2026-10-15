@@ -8,6 +8,7 @@ import { Plus } from "lucide-react";
 import type { BulkCustomerPaymentBatchRow, CustomerPaymentListSummary } from "@/common/erp/sales-types";
 import { paymentModeLabel } from "@/common/erp/sales-types";
 import { PAGE_SIZE } from "@/common/admin/types";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { Pagination } from "@/modules/admin/components/pagination";
@@ -61,6 +62,7 @@ function formatDisplayDate(value: string) {
 }
 
 export function CustomerBulkPaymentsListView() {
+  const { confirm, showError } = useAdminAlert();
   const searchParams = useSearchParams();
   const { storeId, erpContextLoading } = useActiveStoreScope();
   const { isOpen, modalProps, openNew } = useErpFormModal("/admin/erp/customer-bulk-payments");
@@ -119,13 +121,19 @@ export function CustomerBulkPaymentsListView() {
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   async function handleDelete(batchId: string) {
-    if (!confirm("Delete this bulk payment batch? Invoice balances will be recalculated.")) return;
+    const ok = await confirm({
+      title: "Delete bulk payment?",
+      message: "Delete this bulk payment batch? Invoice balances will be recalculated.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(batchId);
     try {
       await adminDelete(`erp/customer-bulk-payments/${encodeURIComponent(batchId)}`);
       await refetch();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't delete bulk payment");
+      showError(err, "Couldn't delete bulk payment");
     } finally {
       setDeletingId(null);
     }

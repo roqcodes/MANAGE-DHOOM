@@ -49,6 +49,7 @@ import {
   selectCls,
 } from "@/modules/admin/components/modal";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { currencyLabel, formatInr } from "@/lib/format-currency";
 
 function GlanceMetricCard({
@@ -375,6 +376,7 @@ export function VendorDetailPanel({
 }) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
+  const { confirm } = useAdminAlert();
   const [modal, setModal] = useState<DetailModal>(null);
 
   const metrics = useMemo(() => {
@@ -393,8 +395,14 @@ export function VendorDetailPanel({
     };
   }, [vendorProducts, availableVariants]);
 
-  function handleRemove(id: string) {
-    if (!confirm("Remove this supply entry?")) return;
+  async function handleRemove(id: string) {
+    const ok = await confirm({
+      title: "Remove supply entry?",
+      message: "Remove this supply entry?",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       await removeVendorProductAction(id, vendor.id);
       await queryClient.invalidateQueries({

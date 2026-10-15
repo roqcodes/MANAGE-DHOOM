@@ -10,12 +10,15 @@ import {
   MoreHorizontal,
   ShieldCheck,
   ShieldOff,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
 
 import type { AdminUser } from "@/common/admin/types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { adminDelete } from "@/modules/admin/lib/admin-api-client";
+import { invalidateAdminCustomerCatalogQueries } from "@/modules/erp/lib/entity-live-search.client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -49,9 +52,10 @@ import {
   formatCustomerId,
   isCustomerBlocked,
 } from "@/modules/customers/components/customers-ui";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
 
-export function exportCustomersCsv(users: AdminUser[]) {
+export function getCustomersExportTabular(users: AdminUser[]) {
   const headers = [
     "Number",
     "Name",
@@ -80,19 +84,15 @@ export function exportCustomersCsv(users: AdminUser[]) {
     u.created_at ? format(new Date(u.created_at), "yyyy-MM-dd") : "",
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) =>
-      row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-    )
-    .join("\n");
+  return { headers, rows };
+}
 
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `customers-export-${format(new Date(), "yyyy-MM-dd")}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
+export function exportCustomersCsv(users: AdminUser[]) {
+  const { headers, rows } = getCustomersExportTabular(users);
+  if (rows.length === 0) return;
+  void import("@/lib/export/tabular-export").then(({ downloadTabularCsv }) => {
+    downloadTabularCsv({ baseFilename: "customers-export", headers, rows });
+  });
 }
 
 export function CustomersBulkActionBar({
@@ -189,6 +189,7 @@ export function CustomersDataTable({
 }) {
   const queryClient = useQueryClient();
   const { runAction, isPending } = useAdminAction();
+  const { confirm } = useAdminAlert();
 
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     users,
@@ -238,6 +239,25 @@ export function CustomersDataTable({
       else await unblockUserAction(userId);
       void queryClient.invalidateQueries({ queryKey: ["admin", "customers"] });
     });
+  }
+
+  async function runDelete(user: AdminUser) {
+    const label =
+      user.company_name?.trim() || user.name?.trim() || "this customer";
+    const ok = await confirm({
+      title: "Delete customer?",
+      message: `Delete "${label}"? Only customers with no invoices, orders, payments, or other operational records can be removed. This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    runAction(
+      async () => {
+        await adminDelete(`customers/${user.id}`);
+        void invalidateAdminCustomerCatalogQueries(queryClient);
+      },
+      { errorTitle: "Couldn't delete customer" },
+    );
   }
 
   if (users.length === 0) {
@@ -434,6 +454,17 @@ export function CustomersDataTable({
                           }
                         >
                           View orders
+                        </DropdownMenuItem>
+                      </DropdownMenuGroup>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuGroup>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          disabled={isPending}
+                          onClick={() => runDelete(user)}
+                        >
+                          <Trash2 />
+                          Delete
                         </DropdownMenuItem>
                       </DropdownMenuGroup>
                     </DropdownMenuContent>

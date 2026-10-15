@@ -10,7 +10,6 @@ import {
 import {
   ArrowUp,
   Check,
-  Circle,
   Copy,
   Download,
   Maximize2,
@@ -24,12 +23,27 @@ import {
 import { useAiAssistant } from "../context/AiAssistantContext";
 import { useOpenRouter } from "../hooks/useOpenRouter";
 import { FormattedSpoken } from "../lib/format-spoken";
+import { parsePointDirective, parseSuggestDirective } from "../lib/parse-point";
 import {
-  parsePointDirective,
-  parseSuggestDirective,
+  dropLabelsCoveredByRoutePills,
+  parseAssistantMessage,
+} from "../lib/parse-assistant-message";
+import { presentIncludesEntityDeepLinks } from "../lib/parse-ui";
+import { inferEntityOpenRequest } from "../lib/entity-open-request";
+import {
+  isDataQuestion,
+  wantsEntityOpen,
   wantsOnScreenGuide,
-} from "../lib/parse-point";
+} from "../lib/message-intent";
+import { needsAppNavKnowledge } from "../lib/sitemap-context";
+import { isAdminRecordDetailHref } from "../lib/parse-open";
+import { extractAdminRoutes } from "../lib/spoken-routes";
+import { AssistantActionButton, AssistantSuggestChip } from "./assistant-action-ui";
+import { AssistantOpenRecordButton } from "./AssistantOpenRecordButton";
 import { AiOrb } from "./AiOrb";
+import { AssistantPresentStack } from "./present/AssistantPresentStack";
+import { AssistantRoutePills } from "./AssistantRoutePills";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 const CHAT_MESSAGE_INDEX_ATTR = "data-chat-message-index";
 const MESSAGE_STAGGER_MS = 72;
@@ -52,9 +66,12 @@ function measureFirstVisibleMessageIndex(scroller: HTMLElement | null): number {
 
 const PROMPT_SUGGESTIONS = [
   { label: "Add product", query: "How do I add a new product with variants?" },
+  {
+    label: "Top salesman",
+    query: "Who is the best performing salesman this month?",
+  },
   { label: "Sales pipeline", query: "Where do I track pending sales orders and quotes?" },
-  { label: "Tax & VAT", query: "How does VAT return filing work here?" },
-  { label: "Stock alerts", query: "Where can I view low stock warehouse alerts?" },
+  { label: "Bill edits", query: "Who edited a purchase bill recently?" },
 ];
 
 export const ChatWindow = () => {
@@ -70,6 +87,7 @@ export const ChatWindow = () => {
     guideActive,
   } = useAiAssistant();
   const { sendMessage, isLoading } = useOpenRouter();
+  const { confirm } = useAdminAlert();
   const reduceMotion = useReducedMotion();
   const [input, setInput] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
@@ -251,8 +269,8 @@ export const ChatWindow = () => {
     }
   };
 
-  const handleShowOnScreen = (goal: string) => {
-    startGuide(goal, null);
+  const handleShowOnScreen = (userAsk: string) => {
+    startGuide(userAsk.trim(), null);
   };
 
   const submitMessage = (textToSend?: string) => {
@@ -280,9 +298,15 @@ export const ChatWindow = () => {
     setTimeout(() => setCopiedIdx(null), 1800);
   };
 
-  const handleClearHistory = () => {
+  const handleClearHistory = async () => {
     if (chatHistory.length === 0) return;
-    if (window.confirm("Clear this conversation history?")) {
+    const ok = await confirm({
+      title: "Clear conversation?",
+      message: "Clear this conversation history?",
+      confirmLabel: "Clear",
+      destructive: true,
+    });
+    if (ok) {
       clearChatHistory();
     }
   };
@@ -426,19 +450,16 @@ export const ChatWindow = () => {
                   How can I help you today?
                 </h4>
                 <p className="mt-1 max-w-[240px] text-[11px] leading-relaxed text-muted-foreground">
-                  Ask about workflows, products, and ERP data or launch on-screen guides.
+                  Ask live questions, pull custom reports, or launch on-screen guides.
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-1.5">
                   {PROMPT_SUGGESTIONS.map((item) => (
-                    <button
+                    <AssistantSuggestChip
                       key={item.label}
-                      type="button"
                       onClick={() => submitMessage(item.query)}
-                      className="group flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-muted-foreground transition hover:border-primary/40 hover:bg-primary/10 hover:text-foreground backdrop-blur-md dark:border-white/5 dark:bg-white/[0.03]"
                     >
-                      <Circle size={4} className="fill-primary/60 text-primary transition group-hover:fill-primary" />
-                      <span>{item.label}</span>
-                    </button>
+                      {item.label}
+                    </AssistantSuggestChip>
                   ))}
                 </div>
               </div>
@@ -465,19 +486,70 @@ export const ChatWindow = () => {
                 .reverse()
                 .find((m) => m.role === "user");
 
+              const parsedAssistant = !isUser
+                ? parseAssistantMessage(msg.content)
+                : null;
+              const prevAsk = prevUser?.content ?? "";
+              const showQuickOpenPills =
+                (needsAppNavKnowledge(prevAsk) || wantsOnScreenGuide(prevAsk)) &&
+                !isDataQuestion(prevAsk) &&
+                !/\b(his|her|their)\s+(email|e-?mail|phone|mobile|number|address)\b/i.test(
+                  prevAsk,
+                );
+              const routeHrefsForStrip = !isUser
+                ? [
+                    ...(parsedAssistant?.routeHrefs ?? []),
+                    ...extractAdminRoutes(msg.content),
+                  ].filter((href, i, arr) => arr.indexOf(href) === i)
+                : [];
+              const rawSpoken = !isUser
+                ? parsedAssistant
+                  ? dropLabelsCoveredByRoutePills(
+                      parsedAssistant.spoken,
+                      routeHrefsForStrip,
+                    )
+                  : spoken || msg.content
+                : msg.content;
+              const present = parsedAssistant?.present ?? null;
+              const openAction = parsedAssistant?.open ?? null;
+
+              const entityOpenPending =
+                !isUser && prevUser && wantsEntityOpen(prevUser.content)
+                  ? inferEntityOpenRequest(
+                      prevUser.content,
+                      chatHistory.slice(0, idx),
+                    )
+                  : null;
+
+              const canOpenRecord =
+                !isUser &&
+                !presentIncludesEntityDeepLinks(present) &&
+                (Boolean(openAction?.href) || Boolean(entityOpenPending));
+
               const canShowOnScreen =
                 !isUser &&
                 Boolean(prevUser) &&
                 wantsOnScreenGuide(prevUser!.content) &&
-                Boolean(pointMeta?.id);
+                Boolean(pointMeta?.id) &&
+                !canOpenRecord;
 
               const isLatestAssistant =
                 !isUser && idx === chatHistory.length - 1 && !isLoading;
               const suggestions = isLatestAssistant
                 ? parseSuggestDirective(msg.content)
                 : [];
-
-              const rawSpoken = spoken || msg.content;
+              const routeHrefs = !isUser && showQuickOpenPills
+                ? [
+                    ...(parsedAssistant?.routeHrefs ?? []),
+                    ...extractAdminRoutes(msg.content),
+                  ]
+                    .filter((href, i, arr) => arr.indexOf(href) === i)
+                    .filter(
+                      (href) =>
+                        !canOpenRecord || !isAdminRecordDetailHref(href),
+                    )
+                    .slice(0, 2)
+                : [];
 
               const pulseGuideCta =
                 canShowOnScreen &&
@@ -527,78 +599,30 @@ export const ChatWindow = () => {
                         }`}
                       >
                         <FormattedSpoken text={rawSpoken} />
+                        {present ? <AssistantPresentStack present={present} /> : null}
 
-                        {/* Interactive "Guide on Screen" Pill */}
-                        {canShowOnScreen && (
-                          <motion.button
-                            type="button"
-                            initial={{ scale: 0.95, opacity: 0 }}
-                            animate={
+                        {canOpenRecord ? (
+                          <AssistantOpenRecordButton
+                            ready={openAction}
+                            pending={openAction ? null : entityOpenPending}
+                          />
+                        ) : null}
+
+                        {canShowOnScreen ? (
+                          <AssistantActionButton
+                            variant="guide"
+                            label="Guide on Screen"
+                            pulse={
                               openPulseGuideCta
-                                ? {
-                                    scale: [1, 1.055, 1],
-                                    opacity: 1,
-                                    boxShadow: [
-                                      "0 0 10px rgba(56,189,248,0.12)",
-                                      "0 0 28px rgba(56,189,248,0.4)",
-                                      "0 0 10px rgba(56,189,248,0.12)",
-                                    ],
-                                  }
+                                ? "intro"
                                 : loopPulseGuideCta
-                                  ? {
-                                      scale: [1, 1.028, 1],
-                                      opacity: 1,
-                                      boxShadow: [
-                                        "0 0 10px rgba(56,189,248,0.12)",
-                                        "0 0 22px rgba(56,189,248,0.32)",
-                                        "0 0 10px rgba(56,189,248,0.12)",
-                                      ],
-                                    }
-                                  : { scale: 1, opacity: 1 }
+                                  ? "loop"
+                                  : false
                             }
-                            transition={
-                              openPulseGuideCta
-                                ? {
-                                    scale: {
-                                      duration: 0.72,
-                                      ease: "easeInOut",
-                                    },
-                                    boxShadow: {
-                                      duration: 0.72,
-                                      ease: "easeInOut",
-                                    },
-                                    opacity: { duration: 0.22, ease: "easeOut" },
-                                  }
-                                : loopPulseGuideCta
-                                  ? {
-                                      scale: {
-                                        repeat: Infinity,
-                                        duration: 2.6,
-                                        ease: "easeInOut",
-                                      },
-                                      boxShadow: {
-                                        repeat: Infinity,
-                                        duration: 2.6,
-                                        ease: "easeInOut",
-                                      },
-                                      opacity: {
-                                        duration: 0.22,
-                                        ease: "easeOut",
-                                      },
-                                    }
-                                  : { duration: 0.22, ease: "easeOut" }
-                            }
-                            onClick={() =>
-                              handleShowOnScreen(prevUser!.content)
-                            }
-                            className="mt-2.5 flex items-center gap-1.5 rounded-xl border border-sky-400/30 bg-gradient-to-r from-sky-500/15 via-indigo-500/15 to-purple-500/15 px-3 py-1.5 text-[11px] font-semibold text-sky-400 backdrop-blur-md transition-[border-color,background] hover:border-sky-400/50 hover:from-sky-500/25 hover:to-purple-500/25"
-                          >
-                            <span className="flex size-3.5 items-center justify-center rounded-full bg-sky-400 text-slate-950">
-                              <Play size={8} fill="currentColor" />
-                            </span>
-                            <span>Guide on Screen</span>
-                          </motion.button>
-                        )}
+                            onClick={() => handleShowOnScreen(prevUser!.content)}
+                            icon={<Play size={8} fill="currentColor" aria-hidden />}
+                          />
+                        ) : null}
                       </div>
 
                       {/* Micro-hover copy action */}
@@ -619,6 +643,13 @@ export const ChatWindow = () => {
                     </div>
                   </div>
 
+                  {routeHrefs.length > 0 ? (
+                    <AssistantRoutePills
+                      hrefs={routeHrefs}
+                      className="mt-2 w-full max-w-[90%]"
+                    />
+                  ) : null}
+
                   {/* Suggestion Chips */}
                   {suggestions.length > 0 && (
                     <motion.div
@@ -633,16 +664,13 @@ export const ChatWindow = () => {
                       </div>
                       <div className="flex flex-wrap gap-1.5">
                         {suggestions.map((q) => (
-                          <button
+                          <AssistantSuggestChip
                             key={q}
-                            type="button"
                             onClick={() => submitMessage(q)}
                             disabled={isLoading}
-                            className="group flex items-center gap-1.5 rounded-full border border-white/15 bg-white/40 px-2.5 py-1 text-left text-[11px] text-foreground/90 shadow-xs backdrop-blur-md transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary dark:border-white/5 dark:bg-white/[0.04]"
                           >
-                            <span className="size-1 rounded-full bg-primary/60 transition group-hover:scale-125 group-hover:bg-primary" />
-                            <span>{q}</span>
-                          </button>
+                            {q}
+                          </AssistantSuggestChip>
                         ))}
                       </div>
                     </motion.div>
@@ -671,7 +699,9 @@ export const ChatWindow = () => {
                     <span className="size-1.5 rounded-full bg-purple-500 animate-bounce" />
                   </div>
                   <span className="text-[11px] font-medium text-muted-foreground">
-                    Analyzing DHOOM ERP…
+                    {assistantState === "querying"
+                      ? "Reading live books…"
+                      : "Thinking it through…"}
                   </span>
                 </div>
               </motion.div>
@@ -695,20 +725,25 @@ export const ChatWindow = () => {
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 rows={1}
-                placeholder="Ask DHOOM AI or 'guide me to…'"
+                placeholder="Ask a live question or ‘guide me to…’"
                 disabled={isLoading}
                 className="max-h-24 w-full resize-none border-none bg-transparent px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
               />
 
               <div className="mr-2 flex items-center">
-                <button
+                <motion.button
                   type="submit"
                   disabled={!input.trim() || isLoading}
-                  className="flex size-7 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition hover:scale-105 active:scale-95 disabled:pointer-events-none disabled:opacity-30"
+                  whileHover={
+                    reduceMotion ? undefined : { scale: 1.06 }
+                  }
+                  whileTap={reduceMotion ? undefined : { scale: 0.92 }}
+                  transition={{ type: "spring", stiffness: 480, damping: 24 }}
+                  className="flex size-7 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_2px_10px_-2px_rgba(235,32,95,0.45)] disabled:pointer-events-none disabled:opacity-30"
                   aria-label="Send message"
                 >
                   <ArrowUp size={14} strokeWidth={2.4} />
-                </button>
+                </motion.button>
               </div>
             </form>
             <div className="mt-1 flex items-center justify-between px-1.5 text-[9px] text-muted-foreground/60">

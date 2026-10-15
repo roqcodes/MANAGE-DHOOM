@@ -29,7 +29,39 @@ import {
   resolveGuidedElement,
   isAdminPageUiLoading,
   waitForSettledUi,
+  type GuideSettleHint,
 } from "../lib/screen-snapshot";
+
+function settleHintFromClick(
+  event: MouseEvent,
+  pathWhenClicked: string,
+): GuideSettleHint {
+  const raw = event.target;
+  const el =
+    raw instanceof Element
+      ? raw.closest<HTMLElement>("a[href], button[data-bh-nav-section]")
+      : null;
+
+  let expectedPath: string | null = null;
+  const link = el?.closest("a[href]") ?? (el instanceof HTMLAnchorElement ? el : null);
+  if (link instanceof HTMLAnchorElement && link.href) {
+    try {
+      const next = new URL(link.href, window.location.origin);
+      if (next.origin === window.location.origin) {
+        const dest = `${next.pathname}${next.search}`;
+        if (dest !== pathWhenClicked) expectedPath = dest;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return {
+    pathWhenClicked,
+    expectedPath,
+    expectedSection: el?.getAttribute("data-bh-nav-section"),
+  };
+}
 
 function guideErrorMessage(error: unknown): string {
   if (error instanceof Error) {
@@ -96,7 +128,7 @@ export function useGuideLoop() {
   finishedRef.current = guideFinished;
 
   const continueGuide = useCallback(
-    async (lastEvent: string, pathWhenClicked?: string) => {
+      async (lastEvent: string, settleHint?: string | GuideSettleHint) => {
       if (!activeRef.current || busyRef.current || finishedRef.current) return;
       const goal = goalRef.current;
       if (!goal) return;
@@ -111,7 +143,7 @@ export function useGuideLoop() {
       );
 
       try {
-        await waitForSettledUi(pathWhenClicked);
+        await waitForSettledUi(settleHint);
         const screen = captureScreenSnapshot({
           includeHeaderQuickCreate: userAllowsHeaderQuickCreate(goal),
         });
@@ -332,7 +364,7 @@ export function useGuideLoop() {
       const pathWhenClicked =
         window.location.pathname + window.location.search;
       const lastEvent = describeClick(event, pointRef.current.id);
-      void continueGuide(lastEvent, pathWhenClicked);
+      void continueGuide(lastEvent, settleHintFromClick(event, pathWhenClicked));
     };
 
     document.addEventListener("click", onClick, true);
@@ -355,7 +387,10 @@ export function useGuideLoop() {
     const previousPath = pathRef.current;
     pathRef.current = fullPath;
     if (busyRef.current) return;
-    void continueGuide(`navigated to ${fullPath}`, previousPath);
+    void continueGuide(`navigated to ${fullPath}`, {
+      pathWhenClicked: previousPath,
+      expectedPath: fullPath,
+    });
   }, [continueGuide, guideActive, guideFinished, pathname]);
 
   useEffect(() => {

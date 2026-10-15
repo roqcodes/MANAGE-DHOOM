@@ -251,7 +251,7 @@ function CategoryFormModal({
 
 export function AdminCategoriesView() {
   const queryClient = useQueryClient();
-  const { showError } = useAdminAlert();
+  const { confirm, showError } = useAdminAlert();
   const [modal, setModal] = useState<ModalState>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -296,11 +296,13 @@ export function AdminCategoriesView() {
   }
 
   async function handleDelete(category: Category) {
-    if (
-      !confirm(
-        `Delete "${category.name}"? This cannot be undone.`,
-      )
-    ) {
+    const ok = await confirm({
+      title: "Delete category?",
+      message: `Delete "${category.name}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) {
       return;
     }
     setDeletingId(category.id);

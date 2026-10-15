@@ -17,8 +17,16 @@ import {
   SortableTableHead,
   useSortableData,
 } from "@/modules/admin/ui";
+import { ReportKpiStrip } from "../business-overview/report-kpi-strip";
 import { BusinessReportLayout } from "../business-overview/business-report-layout";
-import { exportReportCsv, formatReportCell, matchesReportSearch } from "../business-overview/report-format";
+import { buildReportKpis, computeColumnAggregates } from "../business-overview/report-summaries";
+import { ReportTableTotalsRow } from "../business-overview/report-table-totals-row";
+import {
+  buildReportExportSource,
+  formatReportCell,
+  matchesReportSearch,
+  reportFiltersSubtitle,
+} from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useInventoryReportFilters } from "./use-inventory-report-filters";
 
@@ -53,11 +61,24 @@ export function StockTransferReport({ report }: { report: ReportDefinition }) {
     (row, key) => row[key],
   );
 
+  const aggregates = useMemo(
+    () => computeColumnAggregates(report.columns, sorted),
+    [report.columns, sorted],
+  );
+  const kpis = useMemo(
+    () => buildReportKpis(report.columns, sorted, aggregates),
+    [report.columns, sorted, aggregates],
+  );
+
   const isEmpty = !loading && sorted.length === 0;
 
-  function exportCsv() {
-    exportReportCsv(report.slug, report.columns, sorted);
-  }
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: report.columns,
+    getRows: () => sorted,
+    getSubtitle: () => reportFiltersSubtitle(filters, "range"),
+  });
 
   return (
     <BusinessReportLayout
@@ -66,9 +87,12 @@ export function StockTransferReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange
       searchPlaceholder="Search transfer #, store, or requester…"
+      metrics={
+        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+      }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {loading ? (
@@ -126,6 +150,7 @@ export function StockTransferReport({ report }: { report: ReportDefinition }) {
                 ))}
               </AdminTableRow>
             ))}
+            <ReportTableTotalsRow columns={report.columns} rows={sorted} />
           </AdminTableBody>
         </AdminDataTable>
       )}

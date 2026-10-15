@@ -33,6 +33,7 @@ import {
 } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { SalaryPaymentFormView } from "@/modules/admin/views/hr/salary-payment-form-view";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 function formatDisplayDate(value: string) {
   try {
@@ -57,6 +58,7 @@ export function SalaryPaymentsListView() {
   });
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const { confirm } = useAdminAlert();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const {
     listParams: dateParams,
@@ -99,7 +101,13 @@ export function SalaryPaymentsListView() {
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this salary payment?")) return;
+    const ok = await confirm({
+      title: "Delete salary payment?",
+      message: "Delete this salary payment?",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await adminDelete(`erp/salary-payments/${id}`);

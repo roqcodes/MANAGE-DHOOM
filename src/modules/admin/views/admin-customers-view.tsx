@@ -2,9 +2,8 @@
 
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
-
 import type { AdminUser } from "@/common/admin/types";
+import { AdminPageLoadError } from "@/modules/feedback/components/admin-page-load-error";
 import { EMPTY_CUSTOMER_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import { CustomersPanel } from "@/modules/customers/components/customers-panel";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
@@ -38,17 +37,13 @@ export function AdminCustomersView() {
 
   if (isError) {
     return (
-      <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
-        <div className="flex items-start gap-3 rounded-xl border border-rose-200/60 bg-rose-50/40 p-5">
-          <AlertTriangle className="size-5 shrink-0 text-rose-600" />
-          <div>
-            <p className="text-sm font-semibold text-rose-900">Failed to load customers.</p>
-            <p className="mt-1 text-sm text-rose-700">
-              {error instanceof Error ? error.message : "Unknown error."}
-            </p>
-          </div>
-        </div>
-      </div>
+      <AdminPageLoadError
+        title="Couldn't load customers"
+        error={error}
+        onRetry={() =>
+          void queryClient.invalidateQueries({ queryKey: adminQueryKeys.customersList(page) })
+        }
+      />
     );
   }
   return (

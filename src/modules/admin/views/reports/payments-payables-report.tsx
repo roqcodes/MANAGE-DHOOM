@@ -9,7 +9,6 @@ export function PaymentsPayablesReport({ report }: { report: ReportDefinition })
     return (
       <SalesTabularReport
         report={report}
-        showTotals
         footer={(rawData) => {
           if (!rawData || typeof rawData !== "object") return null;
           const summary = (rawData as Record<string, unknown>).payment_summary;
@@ -22,5 +21,5 @@ export function PaymentsPayablesReport({ report }: { report: ReportDefinition })
     );
   }
 
-  return <SalesTabularReport report={report} showTotals />;
+  return <SalesTabularReport report={report} />;
 }

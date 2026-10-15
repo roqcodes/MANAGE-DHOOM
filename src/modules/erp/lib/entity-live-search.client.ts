@@ -168,3 +168,10 @@ export async function invalidateAdminVendorCatalogQueries(queryClient: QueryClie
 export function invalidateAdminCustomerSearchQueries(queryClient: QueryClient) {
   return queryClient.invalidateQueries({ queryKey: ["admin", "entity-search", "customer"] });
 }
+
+export async function invalidateAdminCustomerCatalogQueries(queryClient: QueryClient) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["admin", "customers"] }),
+    invalidateAdminCustomerSearchQueries(queryClient),
+  ]);
+}

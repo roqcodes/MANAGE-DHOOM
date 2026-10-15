@@ -25,6 +25,8 @@ export type ReportQuery = {
   entityType?: string;
   action?: string;
   userId?: string;
+  customerId?: string;
+  vendorId?: string;
 };
 
 function defaultDateRange() {
@@ -37,6 +39,18 @@ function defaultDateRange() {
   };
 }
 
+function normalizeJsonbReportRows(data: unknown): unknown {
+  if (data == null) return [];
+  if (typeof data === "string") {
+    try {
+      return normalizeJsonbReportRows(JSON.parse(data));
+    } catch {
+      return data;
+    }
+  }
+  return data;
+}
+
 async function callRpc(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   rpc: string,
@@ -47,12 +61,23 @@ async function callRpc(
       rpc: (fn: string, args: Record<string, unknown>) => ReturnType<typeof supabase.rpc>;
     }
   ).rpc(rpc, args);
-  if (error) throw new Error(error.message);
-  return data;
+  if (error) {
+    const hint =
+      error.code === "PGRST202" || /Could not find the function/i.test(error.message)
+        ? " Apply the latest Supabase migrations (receivables reports)."
+        : "";
+    throw new Error(`${error.message}${hint}`);
+  }
+  return normalizeJsonbReportRows(data);
 }
 
-export async function runErpReport(query: ReportQuery): Promise<unknown> {
-  await requireAdminOrManagerProfile();
+export async function runErpReport(
+  query: ReportQuery,
+  options?: { authenticated?: boolean },
+): Promise<unknown> {
+  if (!options?.authenticated) {
+    await requireAdminOrManagerProfile();
+  }
   const supabase = await createSupabaseServerClient();
   const report = getReportBySlug(query.slug);
   if (!report) throw new Error("Unknown report");
@@ -128,6 +153,12 @@ export async function runErpReport(query: ReportQuery): Promise<unknown> {
         p_category_id: query.categoryId ?? null,
         p_stock_level: query.stockLevel ?? "all",
       });
+    case "get_erp_minus_stock_report":
+      return callRpc(supabase, report.rpc, {
+        p_store_id: storeId,
+        p_brand_id: query.brandId ?? null,
+        p_category_id: query.categoryId ?? null,
+      });
     case "get_erp_stock_transfer_report":
       return callRpc(supabase, report.rpc, {
         p_date_from: from,
@@ -143,6 +174,13 @@ export async function runErpReport(query: ReportQuery): Promise<unknown> {
         p_store_id: storeId,
         p_search: query.search ?? null,
       });
+    case "get_erp_customer_aging_summary_customer_details":
+      if (!query.customerId) throw new Error("Customer is required");
+      return callRpc(supabase, report.rpc, {
+        p_customer_id: query.customerId,
+        p_as_of: asOf,
+        p_store_id: storeId,
+      });
     case "get_erp_customer_aging_details":
       return callRpc(supabase, report.rpc, {
         p_as_of: asOf,
@@ -152,9 +190,25 @@ export async function runErpReport(query: ReportQuery): Promise<unknown> {
         p_search: query.search ?? null,
       });
     case "get_erp_vendor_aging":
+    case "get_erp_vendor_aging_summary_counts":
       return callRpc(supabase, report.rpc, {
         p_as_of: asOf,
         p_store_id: storeId,
+        p_search: query.search ?? null,
+      });
+    case "get_erp_vendor_aging_summary_vendor_details":
+      if (!query.vendorId) throw new Error("Vendor is required");
+      return callRpc(supabase, report.rpc, {
+        p_vendor_id: query.vendorId,
+        p_as_of: asOf,
+        p_store_id: storeId,
+      });
+    case "get_erp_vendor_aging_details":
+      return callRpc(supabase, report.rpc, {
+        p_as_of: asOf,
+        p_store_id: storeId,
+        p_date_from: null,
+        p_date_to: null,
         p_search: query.search ?? null,
       });
     case "get_erp_sales_by_customer":

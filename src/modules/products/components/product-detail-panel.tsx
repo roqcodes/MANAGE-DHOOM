@@ -47,6 +47,7 @@ import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
 import { currencyLabel, formatInr } from "@/lib/format-currency";
 import { useCurrencySettings } from "@/modules/settings/providers/currency-settings-provider";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 function formatSku(variantId: string) {
   return variantId.slice(0, 8).toUpperCase();
@@ -339,6 +340,7 @@ export function ProductDetailPanel({
   const { settings } = useCurrencySettings();
   const showMrp = settings.show_mrp;
   const { runAction, isPending } = useAdminAction();
+  const { confirm } = useAdminAlert();
   const [manageOpen, setManageOpen] = useState(false);
   const [manageInitialStep, setManageInitialStep] = useState<"details" | "variants">("details");
   const [manageInitialVariantId, setManageInitialVariantId] = useState<string | null | undefined>(
@@ -376,8 +378,14 @@ export function ProductDetailPanel({
   const variantTableColCount =
     (isGroupedProduct ? 0 : 1) + 4 + (showMrp ? 1 : 0) + 1;
 
-  function handleDelete(variantId: string) {
-    if (!confirm("Delete this variant? This cannot be undone.")) return;
+  async function handleDelete(variantId: string) {
+    const ok = await confirm({
+      title: "Delete variant?",
+      message: "Delete this variant? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     runAction(async () => {
       await deleteVariantAction(variantId, product.id);
       await queryClient.invalidateQueries({

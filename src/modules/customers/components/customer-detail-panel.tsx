@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { format } from "date-fns";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
@@ -13,6 +14,7 @@ import {
   Plus,
   HandCoins,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 
 import type { Order } from "@/common/admin/types";
@@ -38,8 +40,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { adminDelete, adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
+import { invalidateAdminCustomerCatalogQueries } from "@/modules/erp/lib/entity-live-search.client";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { ActivityLogPanel } from "@/modules/erp/components/activity-log-panel";
@@ -99,6 +104,9 @@ export function CustomerDetailPanel({
   orders: Order[];
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const { runAction, isPending: deletePending } = useAdminAction();
+  const { confirm } = useAdminAlert();
   const [isPending, startTransition] = useTransition();
   const [tab, setTab] = useState<"statement" | "sales" | "activity">("statement");
   const [erp, setErp] = useState<ErpPayload | null>(null);
@@ -135,6 +143,24 @@ export function CustomerDetailPanel({
       });
       await queryClient.invalidateQueries({ queryKey: ["admin", "customers"] });
     });
+  }
+
+  async function handleDelete() {
+    const ok = await confirm({
+      title: "Delete customer?",
+      message: `Delete "${displayName}"? Only customers with no invoices, orders, payments, or other operational records can be removed. This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    runAction(
+      async () => {
+        await adminDelete(`customers/${summary.id}`);
+        await invalidateAdminCustomerCatalogQueries(queryClient);
+        router.push("/admin/customers");
+      },
+      { errorTitle: "Couldn't delete customer" },
+    );
   }
 
   return (
@@ -262,6 +288,16 @@ export function CustomerDetailPanel({
                   Unblock
                 </>
               )}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              disabled={deletePending}
+              onClick={handleDelete}
+            >
+              <Trash2 data-icon="inline-start" />
+              Delete
             </Button>
           </div>
         </CardContent>

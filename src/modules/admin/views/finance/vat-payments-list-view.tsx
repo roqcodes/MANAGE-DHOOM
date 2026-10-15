@@ -6,6 +6,7 @@ import { format, parseISO } from "date-fns";
 import { Trash2 } from "lucide-react";
 
 import type { VatPaymentListRow } from "@/common/erp/finance-types";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { adminDelete, adminGet } from "@/modules/admin/lib/admin-api-client";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -42,6 +43,7 @@ function formatDisplayDate(value: string) {
 }
 
 export function VatPaymentsListView() {
+  const { confirm, showError } = useAdminAlert();
   const searchParams = useSearchParams();
   const { activeStoreId, storeId } = useActiveStoreScope();
   const [rows, setRows] = useState<VatPaymentListRow[]>([]);
@@ -79,14 +81,20 @@ export function VatPaymentsListView() {
   const totalPaid = sorted.reduce((sum, r) => sum + r.amount, 0);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this VAT payment?")) return;
+    const ok = await confirm({
+      title: "Delete VAT payment?",
+      message: "Delete this VAT payment? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setDeletingId(id);
     try {
       await adminDelete(`erp/vat-payments/${id}`);
       setRows((prev) => prev.filter((r) => r.id !== id));
       setTotal((t) => Math.max(0, t - 1));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't delete VAT payment");
+      showError(err, "Couldn't delete VAT payment");
     } finally {
       setDeletingId(null);
     }

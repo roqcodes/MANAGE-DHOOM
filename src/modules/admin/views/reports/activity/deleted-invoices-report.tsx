@@ -25,7 +25,14 @@ import {
 } from "@/modules/admin/ui";
 import { Button } from "@/components/ui/button";
 import { BusinessReportLayout } from "../business-overview/business-report-layout";
-import { exportReportCsv, formatReportCell } from "../business-overview/report-format";
+import { ReportKpiStrip } from "../business-overview/report-kpi-strip";
+import { buildReportKpis, computeColumnAggregates } from "../business-overview/report-summaries";
+import { ReportTableTotalsRow } from "../business-overview/report-table-totals-row";
+import {
+  buildReportExportSource,
+  formatReportCell,
+  reportFiltersSubtitle,
+} from "../business-overview/report-format";
 import { useBusinessReportFilters } from "../business-overview/use-business-report-filters";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 
@@ -56,11 +63,24 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
     [rawData],
   );
 
+  const aggregates = useMemo(
+    () => computeColumnAggregates(report.columns, rows),
+    [report.columns, rows],
+  );
+  const kpis = useMemo(
+    () => buildReportKpis(report.columns, rows, aggregates),
+    [report.columns, rows, aggregates],
+  );
+
   const isEmpty = !loading && rows.length === 0;
 
-  function exportCsv() {
-    exportReportCsv(report.slug, report.columns, rows);
-  }
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: report.columns,
+    getRows: () => rows,
+    getSubtitle: () => reportFiltersSubtitle(filters, "range"),
+  });
 
   function toggleRow(id: string) {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -73,9 +93,10 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange
       searchPlaceholder="Search invoice #, customer, or user name…"
+      metrics={!loading && rows.length > 0 ? <ReportKpiStrip items={kpis} /> : null}
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {loading ? (
@@ -195,6 +216,11 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
                 </Fragment>
               );
             })}
+            <ReportTableTotalsRow
+              columns={report.columns}
+              rows={rows}
+              leadingSpacerCells={1}
+            />
           </AdminTableBody>
         </AdminDataTable>
       )}

@@ -66,15 +66,60 @@ export function rankSitemapPages(query: string, limit = 6): SitemapPage[] {
   return out;
 }
 
-/** Compact context block for the model (only injected when needed). */
-export function formatSitemapContextBlock(pages: SitemapPage[]): string {
+export function formatCompactCatalog(): string {
+  const bySection = new Map<string, SitemapPage[]>();
+  for (const page of SITEMAP.pages) {
+    const list = bySection.get(page.section) ?? [];
+    list.push(page);
+    bySection.set(page.section, list);
+  }
+  const lines = ["## App sitemap catalog (canonical routes — do not invent others)"];
+  for (const [section, pages] of bySection) {
+    lines.push(`### ${section}`);
+    for (const p of pages) {
+      lines.push(`• ${p.name} → ${p.path}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/** Compact or detailed context block for the model. */
+export function formatSitemapContextBlock(
+  pages: SitemapPage[],
+  options?: { detailed?: boolean },
+): string {
   if (pages.length === 0) return "";
-  const lines = pages.map(
-    (p) => `• ${p.name} | ${p.path} | ${p.section} — ${p.about}`,
-  );
+  if (!options?.detailed) {
+    const lines = pages.map(
+      (p) => `• ${p.name} | ${p.path} | ${p.section} — ${p.about}`,
+    );
+    return [
+      "## App sitemap (partial reference; do not invent other routes)",
+      ...lines,
+      "Live screen controls override this when present.",
+    ].join("\n");
+  }
+
+  const blocks = pages.map((p) => {
+    const g = p.guide as SitemapPage["guide"] | undefined;
+    const steps = (g?.steps ?? [])
+      .map((s) => `  ${s.n}. Look for “${s.lookFor}”: ${s.do}`)
+      .join("\n");
+    return [
+      `### ${p.name}`,
+      `path: ${p.path}`,
+      `section: ${p.section}`,
+      `about: ${p.about}`,
+      g ? `finishLine: ${g.finishLine}` : "",
+      g ? `primaryControl: ${g.primaryControl}` : "",
+      steps ? `guide:\n${steps}` : "",
+      g?.related?.length ? `related: ${g.related.join(", ")}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+  });
   return [
-    "## App sitemap (partial reference; do not invent other routes)",
-    ...lines,
-    "Live screen controls override this when present.",
+    "## App sitemap (detailed on-screen recipes; live controls override ids)",
+    ...blocks,
   ].join("\n");
 }

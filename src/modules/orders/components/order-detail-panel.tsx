@@ -82,6 +82,7 @@ import {
 import { computeOrderPaymentSummary } from "@/modules/orders/lib/order-payment-summary";
 import { Separator } from "@/components/ui/separator";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 function TimelineAvatar({ label }: { label: string }) {
   return (
@@ -559,6 +560,7 @@ export function OrderDetailPanel({ order }: { order: OrderWithItems }) {
   const [isPending, startTransition] = useTransition();
   const [showEdit, setShowEdit] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const { confirm } = useAdminAlert();
 
   const cancelled = isCancelled(order.status);
   const paid = isPaid(order.payment_status);
@@ -640,12 +642,18 @@ export function OrderDetailPanel({ order }: { order: OrderWithItems }) {
     });
   }
 
-  function handleCancelAndRefund() {
+  async function handleCancelAndRefund() {
     const confirmMessage = paid
       ? `Cancel order #${shortOrderRef(order.id)} and refund ${formatInr(total)} to the customer wallet? Stock will be restored.`
       : `Cancel order #${shortOrderRef(order.id)}? Stock will be restored. No wallet refund applies to this order.`;
 
-    if (!confirm(confirmMessage)) {
+    const ok = await confirm({
+      title: "Cancel order?",
+      message: confirmMessage,
+      confirmLabel: "Cancel order",
+      destructive: true,
+    });
+    if (!ok) {
       return;
     }
     setActionError(null);

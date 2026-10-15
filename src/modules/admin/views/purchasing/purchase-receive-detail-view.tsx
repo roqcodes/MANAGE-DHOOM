@@ -13,6 +13,7 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 type ReceiveDetail = {
   id: string;
@@ -56,6 +57,7 @@ export function PurchaseReceiveDetailView({ receiveId }: { receiveId: string }) 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const { confirm, prompt } = useAdminAlert();
 
   function reload() {
     setLoading(true);
@@ -90,8 +92,14 @@ export function PurchaseReceiveDetailView({ receiveId }: { receiveId: string }) 
     });
   }
 
-  function cancelDraft() {
-    if (!confirm("Discard this draft receive?")) return;
+  async function cancelDraft() {
+    const ok = await confirm({
+      title: "Discard draft receive?",
+      message: "Discard this draft receive?",
+      confirmLabel: "Discard",
+      destructive: true,
+    });
+    if (!ok) return;
     startTransition(async () => {
       try {
         await adminDelete(`erp/purchase-receives/${receiveId}`);
@@ -104,9 +112,22 @@ export function PurchaseReceiveDetailView({ receiveId }: { receiveId: string }) 
     });
   }
 
-  function reverseReceive() {
-    const reason = window.prompt("Reason for reversing this receive (optional):") ?? "";
-    if (!confirm("Reverse this receive? Stock will be removed and receive journals voided.")) {
+  async function reverseReceive() {
+    const reason =
+      (await prompt({
+        title: "Reverse receive",
+        message: "Reason for reversing this receive (optional):",
+        label: "Reason",
+        defaultValue: "",
+        confirmLabel: "Continue",
+      })) ?? "";
+    const ok = await confirm({
+      title: "Reverse receive?",
+      message: "Reverse this receive? Stock will be removed and receive journals voided.",
+      confirmLabel: "Reverse",
+      destructive: true,
+    });
+    if (!ok) {
       return;
     }
     startTransition(async () => {

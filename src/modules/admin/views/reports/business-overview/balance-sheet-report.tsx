@@ -8,7 +8,8 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { BusinessReportLayout } from "./business-report-layout";
 import {
-  exportReportCsv,
+  buildReportExportSource,
+  reportFiltersSubtitle,
   groupRowsByTypeName,
   matchesReportSearch,
   partitionBalanceSheetRows,
@@ -57,19 +58,21 @@ export function BalanceSheetReport({ report }: { report: ReportDefinition }) {
 
   const isEmpty = !loading && filtered.length === 0;
 
-  function exportCsv() {
-    exportReportCsv(
-      report.slug,
-      [
-        { key: "account_category", label: "Category" },
-        { key: "account_type_name", label: "Type" },
-        { key: "account_code", label: "Code" },
-        { key: "account_name", label: "Account" },
-        { key: "balance", label: "Balance" },
-      ],
-      filtered as Record<string, unknown>[],
-    );
-  }
+  const balanceColumns = [
+    { key: "account_category", label: "Category" },
+    { key: "account_type_name", label: "Type" },
+    { key: "account_code", label: "Code" },
+    { key: "account_name", label: "Account" },
+    { key: "balance", label: "Balance", format: "currency" },
+  ];
+
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: balanceColumns,
+    getRows: () => filtered as Record<string, unknown>[],
+    getSubtitle: () => reportFiltersSubtitle(filters, "asOf"),
+  });
 
   return (
     <BusinessReportLayout
@@ -78,7 +81,7 @@ export function BalanceSheetReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showAsOf
       showDateRange={false}
     >

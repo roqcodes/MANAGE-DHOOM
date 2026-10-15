@@ -17,8 +17,14 @@ import {
   SortableTableHead,
   useSortableData,
 } from "@/modules/admin/ui";
+import { ReportKpiStrip } from "../business-overview/report-kpi-strip";
 import { BusinessReportLayout } from "../business-overview/business-report-layout";
-import { exportReportCsv, formatReportCell, matchesReportSearch } from "../business-overview/report-format";
+import {
+  buildReportExportSource,
+  formatReportCell,
+  matchesReportSearch,
+  reportFiltersSubtitle,
+} from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useInventoryReportFilters } from "./use-inventory-report-filters";
 
@@ -70,9 +76,26 @@ export function StockReport({ report }: { report: ReportDefinition }) {
   const isEmpty = !loading && sorted.length === 0;
   const generatedAt = new Date().toLocaleString();
 
-  function exportCsv() {
-    exportReportCsv(report.slug, report.columns, sorted);
-  }
+  const kpiItems = useMemo(
+    () =>
+      sorted.length === 0
+        ? []
+        : [
+            { label: "Items", value: sorted.length.toLocaleString() },
+            { label: "Total stock", value: totals.stock.toLocaleString() },
+            { label: "Purchase value", value: formatCurrencyAmount(totals.purchaseValue) },
+            { label: "Sales value", value: formatCurrencyAmount(totals.salesValue) },
+          ],
+    [sorted.length, totals],
+  );
+
+  const exportSource = buildReportExportSource({
+    slug: report.slug,
+    title: report.title,
+    columns: report.columns,
+    getRows: () => sorted,
+    getSubtitle: () => reportFiltersSubtitle(filters, "asOf"),
+  });
 
   return (
     <BusinessReportLayout
@@ -81,9 +104,12 @@ export function StockReport({ report }: { report: ReportDefinition }) {
       loading={loading}
       isEmpty={isEmpty}
       onRefresh={reload}
-      onExport={exportCsv}
+      exportSource={exportSource}
       showDateRange={false}
       searchPlaceholder="Search code, name, category, or brand…"
+      metrics={
+        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpiItems} /> : null
+      }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">

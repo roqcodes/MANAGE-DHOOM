@@ -223,7 +223,7 @@ function BrandFormModal({
 
 export function AdminBrandsView() {
   const queryClient = useQueryClient();
-  const { showError } = useAdminAlert();
+  const { confirm, showError } = useAdminAlert();
   const [modal, setModal] = useState<ModalState>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -264,7 +264,13 @@ export function AdminBrandsView() {
   }
 
   async function handleDelete(brand: Brand) {
-    if (!confirm(`Delete "${brand.name}"? This cannot be undone.`)) {
+    const ok = await confirm({
+      title: "Delete brand?",
+      message: `Delete "${brand.name}"? This cannot be undone.`,
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) {
       return;
     }
     setDeletingId(brand.id);

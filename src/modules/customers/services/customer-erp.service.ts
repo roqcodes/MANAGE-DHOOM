@@ -3,6 +3,8 @@ import "server-only";
 import { randomUUID } from "crypto";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
+import { createSupabaseAdminClient } from "@/lib/integrations/supabase/admin";
+import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type {
   CustomerErpProfile,
@@ -278,6 +280,31 @@ export async function updateCustomerProfile(
     entityId: userId,
     description: "Customer profile updated",
   });
+}
+
+export async function deleteCustomerIfUnused(userId: string): Promise<void> {
+  const profile = await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+  const { error } = await invokeRpc(supabase, "delete_erp_customer_if_unused", {
+    p_user_id: userId,
+    p_actor: profile.id,
+  });
+  if (error) {
+    throw new Error(error.message.replace(/^(P0001:\s*)/i, ""));
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return;
+
+  const { error: authError } = await admin.auth.admin.deleteUser(userId);
+  if (
+    authError &&
+    !/not found|unable to find|user does not exist/i.test(authError.message)
+  ) {
+    throw new Error(
+      `Customer removed but sign-in may remain: ${authError.message}`,
+    );
+  }
 }
 
 export async function getCustomerErpSummary(userId: string): Promise<CustomerErpSummary> {

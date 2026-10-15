@@ -26,6 +26,8 @@ export interface AiOrbProps {
  * - "idle": Gentle organic breathing fluid
  * - "user-typing": Eager reactive contraction, expectant shimmer
  * - "thinking": Rapid morphing & chaotic magnetic perturbation
+ * - "querying": Gold detective pulse while reading live ERP data
+ * - "insight": Warm aha glow after a report lands
  * - "assistant-typing": Rhythmic communicative heartbeat pulse
  * - "guiding-pointing": Focused directional elongation towards action
  * - "guiding-scanning": Wide perception aperture scan
@@ -92,6 +94,35 @@ export const AiOrb: React.FC<AiOrbProps> = ({
       transition: {
         repeat: Infinity,
         duration: 3.8,
+        ease: "easeInOut",
+      },
+    },
+    querying: {
+      borderRadius: [
+        "48% 52% 38% 62% / 42% 58% 48% 52%",
+        "62% 38% 58% 42% / 55% 45% 62% 38%",
+        "40% 60% 45% 55% / 60% 40% 55% 45%",
+        "48% 52% 38% 62% / 42% 58% 48% 52%",
+      ],
+      scale: [1, 1.14, 0.96, 1.08, 1],
+      rotate: [0, 200, 360],
+      transition: {
+        repeat: Infinity,
+        duration: 1.6,
+        ease: "easeInOut",
+      },
+    },
+    insight: {
+      borderRadius: [
+        "46% 54% 48% 52% / 52% 46% 54% 48%",
+        "54% 46% 58% 42% / 48% 54% 46% 52%",
+        "46% 54% 48% 52% / 52% 46% 54% 48%",
+      ],
+      scale: [1, 1.1, 1.02, 1.08, 1],
+      rotate: [0, 12, -8, 0],
+      transition: {
+        repeat: Infinity,
+        duration: 2.1,
         ease: "easeInOut",
       },
     },
@@ -177,6 +208,10 @@ export const AiOrb: React.FC<AiOrbProps> = ({
         return "radial-gradient(circle, rgba(14,165,233,0.55) 0%, rgba(99,102,241,0.35) 50%, transparent 80%)";
       case "thinking":
         return "radial-gradient(circle, rgba(236,72,153,0.6) 0%, rgba(139,92,246,0.5) 45%, rgba(6,182,212,0.3) 75%, transparent 100%)";
+      case "querying":
+        return "radial-gradient(circle, rgba(245,158,11,0.75) 0%, rgba(234,179,8,0.45) 40%, rgba(99,102,241,0.35) 70%, transparent 100%)";
+      case "insight":
+        return "radial-gradient(circle, rgba(251,191,36,0.75) 0%, rgba(16,185,129,0.4) 50%, rgba(168,85,247,0.25) 80%, transparent 100%)";
       case "assistant-typing":
         return "radial-gradient(circle, rgba(99,102,241,0.65) 0%, rgba(56,189,248,0.45) 50%, transparent 80%)";
       case "guiding-pointing":
@@ -203,8 +238,10 @@ export const AiOrb: React.FC<AiOrbProps> = ({
         style={{ background: glowStyle }}
         animate={
           motionOn
-            ? effectiveState === "thinking"
+            ? effectiveState === "thinking" || effectiveState === "querying"
               ? { scale: [1, 1.35, 0.95, 1.25, 1], opacity: [0.65, 0.95, 0.6] }
+              : effectiveState === "insight"
+                ? { scale: [1, 1.22, 1.05, 1.18, 1], opacity: [0.7, 1, 0.7] }
               : effectiveState === "user-typing"
                 ? { scale: [0.98, 1.15, 0.98], opacity: [0.55, 0.8, 0.55] }
                 : ambientIdle
@@ -215,8 +252,10 @@ export const AiOrb: React.FC<AiOrbProps> = ({
         transition={{
           repeat: motionOn ? Infinity : 0,
           duration:
-            effectiveState === "thinking"
+            effectiveState === "thinking" || effectiveState === "querying"
               ? 1.8
+              : effectiveState === "insight"
+                ? 2.2
               : ambientIdle
                 ? 14
                 : 4.5,
@@ -245,6 +284,10 @@ export const AiOrb: React.FC<AiOrbProps> = ({
             background:
               effectiveState === "thinking"
                 ? "conic-gradient(from 0deg at 50% 50%, #ec4899, #8b5cf6, #06b6d4, #f59e0b, #ec4899)"
+                : effectiveState === "querying"
+                  ? "conic-gradient(from 0deg at 50% 50%, #f59e0b, #fbbf24, #6366f1, #06b6d4, #f59e0b)"
+                : effectiveState === "insight"
+                  ? "conic-gradient(from 0deg at 50% 50%, #fbbf24, #34d399, #a78bfa, #f59e0b, #fbbf24)"
                 : effectiveState === "user-typing"
                   ? "conic-gradient(from 0deg at 50% 50%, #06b6d4, #3b82f6, #6366f1, #06b6d4)"
                   : effectiveState === "guiding-pointing"
@@ -258,8 +301,10 @@ export const AiOrb: React.FC<AiOrbProps> = ({
           transition={{
             repeat: motionOn ? Infinity : 0,
             duration:
-              effectiveState === "thinking"
+              effectiveState === "thinking" || effectiveState === "querying"
                 ? 2
+                : effectiveState === "insight"
+                  ? 4
                 : effectiveState === "user-typing"
                   ? 3.5
                   : ambientIdle
@@ -298,8 +343,10 @@ export const AiOrb: React.FC<AiOrbProps> = ({
           className="absolute inset-[18%] rounded-full bg-gradient-to-tr from-white/95 via-sky-200/80 to-purple-200/40 mix-blend-overlay blur-[2px]"
           animate={
             motionOn
-              ? effectiveState === "thinking"
+              ? effectiveState === "thinking" || effectiveState === "querying"
                 ? { scale: [0.8, 1.4, 0.7, 1.3, 0.8], opacity: [0.8, 1, 0.7, 1] }
+                : effectiveState === "insight"
+                  ? { scale: [0.92, 1.28, 1, 1.16, 0.92], opacity: [0.8, 1, 0.85] }
                 : effectiveState === "assistant-typing"
                   ? { scale: [0.9, 1.18, 0.88, 1.1, 0.9], opacity: [0.75, 1, 0.75] }
                   : { scale: [0.92, 1.08, 0.92], opacity: [0.7, 0.9, 0.7] }
@@ -307,7 +354,14 @@ export const AiOrb: React.FC<AiOrbProps> = ({
           }
           transition={{
             repeat: motionOn ? Infinity : 0,
-            duration: effectiveState === "thinking" ? 1.4 : ambientIdle ? 10 : 3,
+            duration:
+              effectiveState === "thinking" || effectiveState === "querying"
+                ? 1.4
+                : effectiveState === "insight"
+                  ? 1.8
+                  : ambientIdle
+                    ? 10
+                    : 3,
             ease: "easeInOut",
           }}
         />
@@ -317,34 +371,27 @@ export const AiOrb: React.FC<AiOrbProps> = ({
         <div className="pointer-events-none absolute left-[10%] top-[8%] h-[35%] w-[55%] rounded-full bg-gradient-to-b from-white/75 to-transparent blur-[1px] transform -rotate-12" />
       </motion.div>
 
-      {/* Orbiting nano photon tracer */}
+      {/* Soft orbital sheen (blended — no hard tracer dot) */}
       {motionOn && !compact && (
         <motion.div
-          className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-visible"
+          className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-hidden"
           animate={{ rotate: [0, 360] }}
           transition={{
             repeat: Infinity,
             duration:
-              effectiveState === "thinking"
-                ? 1.5
-                : effectiveState === "user-typing"
-                  ? 3
+              effectiveState === "thinking" || effectiveState === "querying"
+                ? 2.2
+                : effectiveState === "insight"
+                  ? 3.2
                   : ambientIdle
-                    ? 20
-                    : 6,
+                    ? 24
+                    : 10,
             ease: "linear",
           }}
         >
           <div
-            className={`size-1.5 -translate-y-[calc(50%+2px)] rounded-full ${
-              effectiveState === "thinking"
-                ? "bg-pink-400 shadow-[0_0_10px_#f472b6,0_0_15px_#fff]"
-                : effectiveState === "user-typing"
-                  ? "bg-sky-400 shadow-[0_0_10px_#38bdf8,0_0_15px_#fff]"
-                  : effectiveState === "finished"
-                    ? "bg-emerald-300 shadow-[0_0_10px_#34d399,0_0_15px_#fff]"
-                    : "bg-cyan-300 shadow-[0_0_8px_#38bdf8,0_0_12px_#fff]"
-            }`}
+            className="h-[28%] w-[22%] -translate-y-[42%] rounded-full bg-gradient-to-b from-white/50 via-sky-200/25 to-transparent opacity-80 blur-[5px] mix-blend-overlay"
+            aria-hidden
           />
         </motion.div>
       )}

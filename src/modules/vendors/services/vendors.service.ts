@@ -15,6 +15,7 @@ import type {
 import { PAGE_SIZE } from "@/common/admin/types";
 import type { VendorErpListRow } from "@/common/erp/purchasing-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import { deleteVendorIfUnused } from "@/modules/vendors/services/vendor-erp.service";
 import {
   listActiveVendorsForPicker,
   searchActiveVendorsQuery,
@@ -182,17 +183,6 @@ export async function getAvailableVariants(
   ).filter((v) => !assignedIds.has(v.id));
 }
 
-export async function countVendorProductsForVendor(
-  vendorId: string,
-): Promise<number> {
-  const supabase = await createSupabaseServerClient();
-  const { count } = await supabase
-    .from("vendor_products")
-    .select("id", { count: "exact", head: true })
-    .eq("vendor_id", vendorId);
-  return count ?? 0;
-}
-
 export async function insertVendor(input: {
   name: string;
   contact?: string;
@@ -292,14 +282,7 @@ export async function setVendorsActiveByIds(
 }
 
 export async function deleteVendorIfNoProducts(vendorId: string): Promise<void> {
-  await requireAdminOnlyProfile();
-  const n = await countVendorProductsForVendor(vendorId);
-  if (n > 0) {
-    throw new Error("Cannot delete vendor while vendor_products exist.");
-  }
-  const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.from("vendors").delete().eq("id", vendorId);
-  if (error) throw new Error(error.message);
+  await deleteVendorIfUnused(vendorId);
 }
 
 export async function insertVendorProduct(input: {

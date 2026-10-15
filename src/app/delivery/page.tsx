@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Package, MapPin, Phone, CheckCircle, X } from "lucide-react";
 import { currencyLabel, formatCurrencyAmount } from "@/lib/format-currency";
+import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
 
 interface OrderItem {
   id: string;
@@ -50,6 +51,7 @@ export default function DeliveryDashboardPage() {
   const [isError, setIsError] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<DeliveryOrder | null>(null);
+  const { showError } = useAppFeedback();
 
   useEffect(() => {
     fetch("/api/delivery/orders")
@@ -81,11 +83,11 @@ export default function DeliveryDashboardPage() {
         const result = await fetch("/api/delivery/orders");
         setData(await result.json());
       } else {
-        alert("Failed to update order status");
+        showError(new Error("Failed to update order status"), "Couldn't update order");
       }
     } catch (err) {
       console.error(err);
-      alert("Failed to update order status");
+      showError(err, "Couldn't update order");
     } finally {
       setUpdatingId(null);
     }

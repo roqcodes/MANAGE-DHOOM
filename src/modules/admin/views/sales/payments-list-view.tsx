@@ -2,7 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Download, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
+
+import { DataExportMenu } from "@/components/export/data-export-menu";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getPaymentsExportTabular } from "@/lib/export/erp-sales-list-export";
 
 import type { CustomerPaymentListSummary, ErpPaymentListRow } from "@/common/erp/sales-types";
 import { paymentModeLabel } from "@/common/erp/sales-types";
@@ -110,6 +114,27 @@ export function PaymentsListView() {
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
 
   const isFiltering = Boolean(debouncedSearch.trim()) || isDateFiltering;
+
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "payments-export",
+        title: "Payments received",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search: debouncedSearch,
+            storeLabel: storeId ? "Selected store" : undefined,
+            dateFrom: dateParams.dateFrom,
+            dateTo: dateParams.dateTo,
+          }),
+        getTabular: () => {
+          const tabular = getPaymentsExportTabular(sorted);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [sorted, debouncedSearch, storeId, dateParams],
+  );
+
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -118,10 +143,7 @@ export function PaymentsListView() {
         description="Individual customer payments against invoices. Filter by store or date period."
         actions={
           <>
-            <Button variant="outline" size="sm">
-              <Download data-icon="inline-start" />
-              Export
-            </Button>
+            <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
             <Button variant="outline" size="sm" onClick={() => setSettlementOpen(true)}>
               Settle account
             </Button>

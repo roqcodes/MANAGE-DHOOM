@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -13,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel as UiFieldLabel } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
-import { formatActionError } from "@/modules/admin/lib/format-action-error";
+import { AppErrorCallout } from "@/modules/feedback/components/app-error-callout";
 import { RequiredFieldMark, showRequiredMark } from "@/lib/required-field-label";
 
 interface ModalProps {
@@ -114,11 +113,7 @@ export function FieldLabel({
 
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null;
-  return (
-    <Alert variant="destructive">
-      <AlertDescription className="text-sm">{formatActionError(message)}</AlertDescription>
-    </Alert>
-  );
+  return <AppErrorCallout error={message} compact className="p-3 sm:p-4" />;
 }
 
 export function PrimaryBtn({

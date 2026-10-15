@@ -9,6 +9,6 @@ export function PurchasesReport({ report }: { report: ReportDefinition }) {
     case "purchase-by-item":
       return <PurchaseByItemReport report={report} />;
     default:
-      return <SalesTabularReport report={report} showTotals />;
+      return <SalesTabularReport report={report} />;
   }
 }

@@ -6,6 +6,7 @@ import { format, parseISO } from "date-fns";
 import { Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import type { VatReturnListRow } from "@/common/erp/finance-types";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { adminDelete, adminGet, adminPatch } from "@/modules/admin/lib/admin-api-client";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -109,6 +110,7 @@ export function VatReturnsListView() {
 
   const filedCount = rows.filter((r) => r.status === "filed").length;
   const outstanding = rows.reduce((sum, r) => sum + r.balance_due, 0);
+  const { confirm, showError } = useAdminAlert();
 
   async function handleRefresh(id: string) {
     setActingId(id);
@@ -118,14 +120,19 @@ export function VatReturnsListView() {
       });
       setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...updated } : r)));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't recalculate VAT return");
+      showError(err, "Couldn't recalculate VAT return");
     } finally {
       setActingId(null);
     }
   }
 
   async function handleFile(id: string) {
-    if (!confirm("File this VAT return?")) return;
+    const ok = await confirm({
+      title: "File VAT return?",
+      message: "File this VAT return? You won't be able to edit it after filing.",
+      confirmLabel: "File return",
+    });
+    if (!ok) return;
     setActingId(id);
     try {
       await adminPatch(`erp/vat-returns/${id}`, { action: "file" });
@@ -137,21 +144,27 @@ export function VatReturnsListView() {
         ),
       );
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't file VAT return");
+      showError(err, "Couldn't file VAT return");
     } finally {
       setActingId(null);
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this unfiled VAT return? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete VAT return?",
+      message: "Delete this unfiled VAT return? This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
     setActingId(id);
     try {
       await adminDelete(`erp/vat-returns/${id}`);
       setRows((prev) => prev.filter((r) => r.id !== id));
       setTotal((t) => Math.max(0, t - 1));
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't delete VAT return");
+      showError(err, "Couldn't delete VAT return");
     } finally {
       setActingId(null);
     }

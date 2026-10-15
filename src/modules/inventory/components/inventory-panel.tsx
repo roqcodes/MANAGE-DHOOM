@@ -7,10 +7,12 @@ import { Ban, ChevronDown, Columns3, Search } from "lucide-react";
 import type { InventoryCatalogStats, InventoryWithVariant } from "@/common/admin/types";
 import { Pagination } from "@/modules/admin/components/pagination";
 import {
-  exportInventoryCsv,
+  getInventoryExportTabular,
   InventoryBulkActionBar,
   InventoryDataTable,
 } from "@/modules/inventory/components/inventory-data-table";
+import { CatalogExportButton } from "@/components/export/catalog-export-button";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { InventoryMetricsBar } from "@/modules/inventory/components/inventory-metrics-bar";
 import {
   formatSku,
@@ -79,13 +81,29 @@ export function InventoryPanel({
   const activeFilterLabel =
     INVENTORY_VIEW_FILTERS.find((f) => f.id === viewFilter)?.label ?? "All";
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "inventory-export",
+        title: "Inventory",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search,
+            extra:
+              viewFilter !== "all" ? [`View: ${activeFilterLabel}`] : undefined,
+          }),
+        getTabular: () => {
+          const tabular = getInventoryExportTabular(filtered);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [filtered, search, viewFilter, activeFilterLabel],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       {!hideMetrics ? (
-        <InventoryMetricsBar
-          stats={stats}
-          onExport={() => exportInventoryCsv(filtered)}
-        />
+        <InventoryMetricsBar stats={stats} />
       ) : (
         <p className="text-xs text-muted-foreground">
           Online stock is read-only. Increase quantities via{" "}
@@ -93,6 +111,10 @@ export function InventoryPanel({
           the Pending tab.
         </p>
       )}
+
+      <div className="flex justify-end">
+        <CatalogExportButton source={exportSource} />
+      </div>
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
         <CardContent className="flex flex-col gap-0 p-0">
