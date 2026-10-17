@@ -8,6 +8,7 @@ import { ChevronRight } from "lucide-react";
 
 import type { AdminNavBadge } from "@/common/admin/types";
 import { cn } from "@/lib/utils";
+import { INTERACTIVE_SIDEBAR_NAV_INACTIVE_HOVER } from "@/lib/ui/interactive-styles";
 import {
   ADMIN_DASHBOARD_ITEM,
   type AdminNavItem,
@@ -104,7 +105,7 @@ function NavLink({
       onMouseEnter={onPrefetch}
       onClick={() => onNavigate?.()}
       className={cn(
-        "group relative flex items-center rounded-xl text-[13px] font-semibold transition-all duration-200",
+        "group relative flex items-center rounded-xl text-[13px] font-semibold transition-colors duration-150",
         nested
           ? collapsed
             ? "justify-center px-0 py-2"
@@ -117,8 +118,8 @@ function NavLink({
             ? "bg-[#EB205F]/8 text-[#EB205F]"
             : "bg-gradient-to-r from-[#EB205F]/10 to-transparent text-[#EB205F] shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset]"
           : nested
-            ? "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+            ? cn("text-slate-500", INTERACTIVE_SIDEBAR_NAV_INACTIVE_HOVER)
+            : cn("text-slate-500", INTERACTIVE_SIDEBAR_NAV_INACTIVE_HOVER),
       )}
     >
       {!nested && active ? (
@@ -128,7 +129,7 @@ function NavLink({
         <Icon
           size={nested ? 16 : 18}
           className={cn(
-            "shrink-0 transition-transform duration-200 group-hover:scale-110",
+            "shrink-0 transition-colors duration-150",
             active ? "text-[#EB205F]" : "text-slate-400 group-hover:text-slate-600",
           )}
         />
@@ -244,10 +245,10 @@ function NavSectionGroup({
             else onFlyoutOpen();
           }}
           className={cn(
-            "relative flex w-full items-center justify-center rounded-xl px-0 py-2 text-[13px] font-semibold transition-all duration-200",
+            "group relative flex w-full items-center justify-center rounded-xl px-0 py-2 text-[13px] font-semibold transition-colors duration-150",
             activeChild
               ? "bg-gradient-to-r from-[#EB205F]/10 to-transparent text-[#EB205F]"
-              : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+              : cn("text-slate-500", INTERACTIVE_SIDEBAR_NAV_INACTIVE_HOVER),
           )}
         >
           {activeChild ? (
@@ -256,8 +257,8 @@ function NavSectionGroup({
           <SectionIcon
             size={18}
             className={cn(
-              "shrink-0",
-              activeChild ? "text-[#EB205F]" : "text-slate-400",
+              "shrink-0 transition-colors duration-150",
+              activeChild ? "text-[#EB205F]" : "text-slate-400 group-hover:text-slate-600",
             )}
           />
           {sectionAlerts > 0 ? (
@@ -312,16 +313,16 @@ function NavSectionGroup({
         onClick={onToggle}
         aria-expanded={open}
         className={cn(
-          "group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] font-semibold transition-all duration-200",
+          "group flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] font-semibold transition-colors duration-150",
           activeChild
             ? "bg-slate-50 text-slate-900"
-            : "text-slate-500 hover:bg-slate-50 hover:text-slate-900",
+            : cn("text-slate-500", INTERACTIVE_SIDEBAR_NAV_INACTIVE_HOVER),
         )}
       >
         <SectionIcon
           size={18}
           className={cn(
-            "shrink-0",
+            "shrink-0 transition-colors duration-150",
             activeChild ? "text-[#EB205F]" : "text-slate-400 group-hover:text-slate-600",
           )}
         />

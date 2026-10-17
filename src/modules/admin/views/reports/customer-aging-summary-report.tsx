@@ -22,11 +22,11 @@ import {
   buildReportExportSource,
   formatReportCell,
   matchesReportSearch,
-  reportFiltersSubtitle,
 } from "./business-overview/report-format";
 import { buildReportKpis, computeColumnAggregates, hasAggregatableColumns } from "./business-overview/report-summaries";
 import { ReportTableTotalsRow } from "./business-overview/report-table-totals-row";
-import { useBusinessReportFilters } from "./business-overview/use-business-report-filters";
+import { resolveAgingReportColumns } from "./business-overview/aging-report-columns";
+import { useAgingSummaryReportQuery } from "./business-overview/aging-report-shared";
 import { useErpReportFetch } from "./business-overview/use-erp-report-fetch";
 
 function customerDetailsHref(
@@ -42,29 +42,27 @@ function customerDetailsHref(
 }
 
 export function CustomerAgingSummaryReport({ report }: { report: ReportDefinition }) {
-  const filters = useBusinessReportFilters(report);
-  const { loading, error, rawData, reload } = useErpReportFetch(report, {
-    dateFrom: filters.dateFrom,
-    dateTo: filters.dateTo,
-    asOf: filters.asOf,
-    storeId: filters.storeId,
-    channel: filters.channel,
-    accountId: "",
-    search: report.filters.customerSearch ? filters.debouncedSearch : undefined,
-  });
+  const serverSearch = Boolean(report.filters.customerSearch);
+  const { filters, fetchParams, ageToolbar, exportSubtitle, ageMinDays, ageMaxDays } =
+    useAgingSummaryReportQuery(report, serverSearch);
+  const { loading, error, rawData, reload } = useErpReportFetch(report, fetchParams);
 
   const rows = useMemo(
     () => extractReportRows(rawData, report.rowsKey) as Record<string, unknown>[],
     [rawData, report.rowsKey],
   );
 
-  const serverSearch = Boolean(report.filters.customerSearch);
   const filtered = useMemo(() => {
     if (serverSearch) return rows;
     return rows.filter((row) => matchesReportSearch(row, filters.debouncedSearch));
   }, [rows, filters.debouncedSearch, serverSearch]);
 
-  const defaultSortKey = report.columns[0]?.key ?? "customer_name";
+  const columns = useMemo(
+    () => resolveAgingReportColumns(report.columns, ageMinDays, ageMaxDays),
+    [report.columns, ageMinDays, ageMaxDays],
+  );
+
+  const defaultSortKey = columns[0]?.key ?? "customer_name";
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     filtered,
     defaultSortKey,
@@ -73,24 +71,24 @@ export function CustomerAgingSummaryReport({ report }: { report: ReportDefinitio
   );
 
   const aggregates = useMemo(
-    () => computeColumnAggregates(report.columns, sorted),
-    [report.columns, sorted],
+    () => computeColumnAggregates(columns, sorted),
+    [columns, sorted],
   );
 
   const kpis = useMemo(
-    () => buildReportKpis(report.columns, sorted, aggregates),
-    [report.columns, sorted, aggregates],
+    () => buildReportKpis(columns, sorted, aggregates),
+    [columns, sorted, aggregates],
   );
 
-  const showFooterTotals = hasAggregatableColumns(report.columns);
+  const showFooterTotals = hasAggregatableColumns(columns);
   const isEmpty = !loading && sorted.length === 0;
 
   const exportSource = buildReportExportSource({
     slug: report.slug,
     title: report.title,
-    columns: report.columns,
+    columns,
     getRows: () => sorted,
-    getSubtitle: () => reportFiltersSubtitle(filters, "asOf"),
+    getSubtitle: exportSubtitle,
   });
 
   return (
@@ -105,16 +103,17 @@ export function CustomerAgingSummaryReport({ report }: { report: ReportDefinitio
       showAsOf
       searchPlaceholder="Search customer, phone, or invoice…"
       error={error}
-      metrics={!loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null}
+      toolbarExtra={ageToolbar}
+      metrics={!loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null}
     >
       {loading ? (
         <AdminDataTable>
-          <AdminDataTableRowsSkeleton rows={10} columns={report.columns.length} />
+          <AdminDataTableRowsSkeleton rows={10} columns={columns.length} />
         </AdminDataTable>
       ) : (
         <AdminDataTable>
           <AdminTableHeader>
-            {report.columns.map((col) => (
+            {columns.map((col) => (
               <SortableTableHead
                 key={col.key}
                 label={col.label}
@@ -133,7 +132,7 @@ export function CustomerAgingSummaryReport({ report }: { report: ReportDefinitio
               const customerName = String(row.customer_name ?? "—");
               return (
                 <AdminTableRow key={customerId || i}>
-                  {report.columns.map((col) => (
+                  {columns.map((col) => (
                     <AdminTableCell
                       key={col.key}
                       className={col.align === "right" ? "text-right tabular-nums" : undefined}
@@ -154,7 +153,7 @@ export function CustomerAgingSummaryReport({ report }: { report: ReportDefinitio
               );
             })}
             {showFooterTotals ? (
-              <ReportTableTotalsRow columns={report.columns} rows={sorted} />
+              <ReportTableTotalsRow columns={columns} rows={sorted} />
             ) : null}
           </AdminTableBody>
         </AdminDataTable>

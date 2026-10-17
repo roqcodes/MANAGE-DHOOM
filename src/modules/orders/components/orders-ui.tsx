@@ -2,11 +2,13 @@
 
 import type { OrderStatus } from "@/common/admin/types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { INTERACTIVE_PRIMARY_LINK_CLASS } from "@/lib/ui/interactive-styles";
 import { cn } from "@/lib/utils";
 
 /** Semantic accent tokens aligned with product detail / admin theme — no raw blue-* utilities. */
+
 export const ORDERS_ACCENT = {
-  link: "text-primary hover:text-primary/80",
+  link: INTERACTIVE_PRIMARY_LINK_CLASS,
   selectedRow: "data-[state=selected]:bg-accent/60",
   selectionBar: "border-border bg-accent/50",
   focus: "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -355,14 +357,14 @@ export function PaymentPill({
   return (
     <span
       className={cn(
-        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
         refunded
-          ? "bg-rose-50 text-rose-700"
+          ? "border-rose-200 bg-rose-50 text-rose-700"
           : paid
-            ? "bg-emerald-50 text-emerald-700"
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
             : notRequired
-              ? "bg-sky-50 text-sky-700"
-              : "bg-muted text-muted-foreground",
+              ? "border-sky-200 bg-sky-50 text-sky-800"
+              : "border-amber-200 bg-amber-50 text-amber-800",
       )}
     >
       {paymentStatusLabel(paymentStatus)}

@@ -191,7 +191,7 @@ function ActivityLogReport({ report }: { report: ReportDefinition }) {
       searchPlaceholder="Search description, user, store, or reference…"
       toolbarExtra={filterToolbar}
       metrics={
-        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+        !loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null
       }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}

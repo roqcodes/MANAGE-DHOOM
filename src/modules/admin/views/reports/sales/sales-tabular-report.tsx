@@ -26,6 +26,10 @@ import {
 } from "../business-overview/report-format";
 import { buildReportKpis, computeColumnAggregates, hasAggregatableColumns } from "../business-overview/report-summaries";
 import { ReportTableTotalsRow } from "../business-overview/report-table-totals-row";
+import { resolveAgingReportColumns } from "../business-overview/aging-report-columns";
+import { AgingReportAgeFilter } from "../business-overview/aging-report-age-filter";
+import { formatAgingReportSubtitle } from "../business-overview/report-format";
+import { useAgingReportAgeExtras } from "../business-overview/use-aging-report-filters";
 import { useBusinessReportFilters } from "../business-overview/use-business-report-filters";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 
@@ -60,6 +64,7 @@ export function SalesTabularReport({
   kpiExtra?: { label: string; value: string }[];
 }) {
   const filters = useBusinessReportFilters(report);
+  const age = useAgingReportAgeExtras(report);
   const serverSearch = Boolean(report.filters.customerSearch || report.filters.vendorSearch);
   const { loading, isFetching, error, rawData, reload } = useErpReportFetch(report, {
     dateFrom: filters.dateFrom,
@@ -69,6 +74,8 @@ export function SalesTabularReport({
     channel: filters.channel,
     accountId: "",
     search: serverSearch ? filters.debouncedSearch : undefined,
+    ageMinDays: age.ageMinDays,
+    ageMaxDays: age.ageMaxDays,
   });
 
   const rows = useMemo(
@@ -81,7 +88,15 @@ export function SalesTabularReport({
     return rows.filter((row) => matchesReportSearch(row, filters.debouncedSearch));
   }, [rows, filters.debouncedSearch, serverSearch]);
 
-  const defaultSortKey = report.columns[0]?.key ?? "id";
+  const columns = useMemo(
+    () =>
+      age.enabled
+        ? resolveAgingReportColumns(report.columns, age.ageMinDays, age.ageMaxDays)
+        : report.columns,
+    [report.columns, age.enabled, age.ageMinDays, age.ageMaxDays],
+  );
+
+  const defaultSortKey = columns[0]?.key ?? "id";
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     filtered,
     defaultSortKey,
@@ -90,16 +105,16 @@ export function SalesTabularReport({
   );
 
   const aggregates = useMemo(
-    () => computeColumnAggregates(report.columns, sorted),
-    [report.columns, sorted],
+    () => computeColumnAggregates(columns, sorted),
+    [columns, sorted],
   );
 
   const kpis = useMemo(
-    () => buildReportKpis(report.columns, sorted, aggregates, kpiExtra),
-    [report.columns, sorted, aggregates, kpiExtra],
+    () => buildReportKpis(columns, sorted, aggregates, kpiExtra),
+    [columns, sorted, aggregates, kpiExtra],
   );
 
-  const showFooterTotals = hasAggregatableColumns(report.columns);
+  const showFooterTotals = hasAggregatableColumns(columns);
   const isEmpty = !loading && sorted.length === 0;
 
   const showDateRange = Boolean(report.filters.dateRange);
@@ -108,10 +123,16 @@ export function SalesTabularReport({
   const exportSource = buildReportExportSource({
     slug: report.slug,
     title: report.title,
-    columns: report.columns,
+    columns,
     getRows: () => sorted,
     getSubtitle: () =>
-      reportFiltersSubtitle(filters, showAsOf ? "asOf" : "range"),
+      age.enabled
+        ? formatAgingReportSubtitle({
+            asOf: filters.asOf,
+            ageMinDays: age.ageMinDays,
+            ageMaxDays: age.ageMaxDays,
+          })
+        : reportFiltersSubtitle(filters, showAsOf ? "asOf" : "range"),
   });
 
   return (
@@ -127,8 +148,18 @@ export function SalesTabularReport({
       showAsOf={showAsOf}
       searchPlaceholder={reportSearchPlaceholder(report)}
       error={error}
+      toolbarExtra={
+        age.enabled ? (
+          <AgingReportAgeFilter
+            ageMin={age.ageMin}
+            ageMax={age.ageMax}
+            onAgeMinChange={age.setAgeMin}
+            onAgeMaxChange={age.setAgeMax}
+          />
+        ) : null
+      }
       metrics={
-        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+        !loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null
       }
     >
       {footnote ? (
@@ -138,12 +169,12 @@ export function SalesTabularReport({
       ) : null}
       {loading ? (
         <AdminDataTable>
-          <AdminDataTableRowsSkeleton rows={10} columns={report.columns.length} />
+          <AdminDataTableRowsSkeleton rows={10} columns={columns.length} />
         </AdminDataTable>
       ) : (
         <AdminDataTable>
           <AdminTableHeader>
-            {report.columns.map((col) => (
+            {columns.map((col) => (
               <SortableTableHead
                 key={col.key}
                 label={col.label}
@@ -159,7 +190,7 @@ export function SalesTabularReport({
           <AdminTableBody>
             {sorted.map((row, i) => (
               <AdminTableRow key={String(row.id ?? `${i}`)}>
-                {report.columns.map((col) => (
+                {columns.map((col) => (
                   <AdminTableCell
                     key={col.key}
                     className={col.align === "right" ? "text-right tabular-nums" : undefined}
@@ -170,7 +201,7 @@ export function SalesTabularReport({
               </AdminTableRow>
             ))}
             {showFooterTotals ? (
-              <ReportTableTotalsRow columns={report.columns} rows={sorted} />
+              <ReportTableTotalsRow columns={columns} rows={sorted} />
             ) : null}
           </AdminTableBody>
         </AdminDataTable>

@@ -96,7 +96,7 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
       exportSource={exportSource}
       showDateRange
       searchPlaceholder="Search invoice #, customer, or user name…"
-      metrics={!loading && rows.length > 0 ? <ReportKpiStrip items={kpis} /> : null}
+      metrics={!loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null}
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {loading ? (

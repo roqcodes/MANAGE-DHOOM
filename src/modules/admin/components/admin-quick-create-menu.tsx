@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { INTERACTIVE_CTA_SOLID_HOVER } from "@/lib/ui/interactive-styles";
 import {
   ADMIN_QUICK_CREATE_GROUPS,
   type QuickCreateBankingTx,
@@ -195,10 +196,9 @@ export function AdminQuickCreateMenu() {
           type="button"
           onClick={handleToggle}
           className={cn(
-            "flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[11px] font-bold uppercase tracking-[0.12em] text-primary-foreground shadow-sm shadow-primary/20 transition-all duration-200 ease-out",
-            "hover:bg-primary/90 hover:shadow-md hover:shadow-primary/25 active:scale-[0.98]",
+            "flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[11px] font-bold uppercase tracking-[0.12em] text-primary-foreground",
+            INTERACTIVE_CTA_SOLID_HOVER,
             open && "bg-primary/90 ring-2 ring-primary/30 shadow-md",
-            "motion-reduce:transition-none motion-reduce:active:scale-100",
           )}
           aria-label="Quick create"
           aria-expanded={open}

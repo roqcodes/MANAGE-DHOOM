@@ -59,7 +59,11 @@ export function AdminPageHeader({
           ) : null}
         </div>
         {actions ? (
-          <div className="flex flex-wrap items-center gap-2">{actions}</div>
+          <div
+            className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:shadow-sm [&_[data-slot=button]]:shadow-primary/10"
+          >
+            {actions}
+          </div>
         ) : null}
       </div>
     </div>

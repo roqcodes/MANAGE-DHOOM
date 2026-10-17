@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 
 import type { ErpPurchaseBillListRow } from "@/common/erp/purchasing-types";
@@ -11,6 +11,7 @@ import { Pagination } from "@/modules/admin/components/pagination";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { displayErpDocumentNumber } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
+import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
 import { TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import {
@@ -43,6 +44,8 @@ import {
   PurchaseBillOutboxTableRows,
 } from "@/modules/admin/components/purchase-bill-outbox-table-rows";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { enqueuePurchaseBillFinalize } from "@/modules/erp/lib/enqueue-purchase-bill-finalize.client";
+import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 
 const PURCHASE_BILL_OUTBOX_TYPES = new Set<string>([
   ERP_CLIENT_OPERATION_TYPES.purchaseBill.create,
@@ -105,6 +108,8 @@ export function PurchaseBillsListView() {
       : "Failed to load purchase bills"
     : null;
   const [cancellingId, startCancel] = useTransition();
+  const [finalizingId, setFinalizingId] = useState<string | null>(null);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const { confirm } = useAdminAlert();
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
@@ -117,6 +122,25 @@ export function PurchaseBillsListView() {
       await adminDelete(`erp/purchase-bills/${id}`);
       await refetch();
     });
+  }
+
+  function finalizeDraftBill(row: ErpPurchaseBillListRow) {
+    if (row.po_id) {
+      setFinalizeError("Finalize PO-linked bills from the purchase order.");
+      return;
+    }
+    setFinalizeError(null);
+    setFinalizingId(row.id);
+    void (async () => {
+      try {
+        await enqueuePurchaseBillFinalize({ billId: row.id, storeId: row.store_id });
+        await refetch();
+      } catch (err) {
+        setFinalizeError(err instanceof Error ? err.message : "Finalize failed");
+      } finally {
+        setFinalizingId(null);
+      }
+    })();
   }
 
   async function confirmCancelBill(id: string) {
@@ -146,6 +170,10 @@ export function PurchaseBillsListView() {
         <p className="rounded-md border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           {loadError}
         </p>
+      ) : null}
+
+      {finalizeError ? (
+        <AppErrorCalloutMessage message={finalizeError} onRetry={() => setFinalizeError(null)} />
       ) : null}
 
       <AdminListCard isLoading={initialLoading}
@@ -249,6 +277,7 @@ export function PurchaseBillsListView() {
                 r.credits_applied === 0 &&
                 r.balance_due === r.total_amount;
               const canEdit = r.status === "draft";
+              const canFinalize = canEdit && !r.po_id;
               return (
                 <AdminTableRow key={r.id}>
                   <AdminTableCell className="text-muted-foreground">
@@ -305,8 +334,21 @@ export function PurchaseBillsListView() {
                   <AdminTableCell align="right" className="tabular-nums">
                     {formatCurrencyAmount(r.total_amount)}
                   </AdminTableCell>
-                  <AdminTableCell align="right" className="tabular-nums">
-                    {formatCurrencyAmount(r.balance_due)}
+                  <AdminTableCell align="right">
+                    {canFinalize ? (
+                      <ErpPostActionButton
+                        size="sm"
+                        className="h-8 shrink-0 px-2.5 text-xs"
+                        disabled={finalizingId === r.id}
+                        onClick={() => finalizeDraftBill(r)}
+                      >
+                        {finalizingId === r.id ? "Finalizing…" : "Finalize"}
+                      </ErpPostActionButton>
+                    ) : r.status === "draft" ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <span className="tabular-nums">{formatCurrencyAmount(r.balance_due)}</span>
+                    )}
                   </AdminTableCell>
                   <AdminTableCell align="right">
                     <ErpListRowActions

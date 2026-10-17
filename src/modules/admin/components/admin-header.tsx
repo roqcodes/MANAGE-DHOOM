@@ -9,6 +9,8 @@ import { AdminRecentActivityMenu } from "@/modules/admin/components/admin-recent
 import { AdminHeaderDateRange } from "@/modules/admin/components/admin-header-date-range";
 import { AdminSearchTrigger } from "@/modules/admin/components/admin-global-search";
 import { ErpStoreSwitcher } from "@/modules/admin/components/erp-store-switcher";
+import { INTERACTIVE_CHROME_ICON_BUTTON } from "@/lib/ui/interactive-styles";
+import { cn } from "@/lib/utils";
 
 type AdminHeaderProps = {
   sidebarCollapsed: boolean;
@@ -36,13 +38,19 @@ export function AdminHeader({
   const refreshBtn = <AdminRefreshStatusButton />;
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-slate-200/70 bg-[#F8FAFC]/85 backdrop-blur-md">
+    <header
+      data-admin-header
+      className="sticky top-0 z-30 shrink-0 border-b border-slate-200/70 bg-[#F8FAFC]/85 backdrop-blur-md"
+    >
       <div className="grid grid-cols-1 gap-2 px-3 py-1.5 sm:px-4 md:h-[52px] md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:gap-3 md:py-0 lg:gap-4">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-200/60 hover:text-slate-900"
+            className={cn(
+              "flex size-10 shrink-0 items-center justify-center rounded-xl text-slate-500",
+              INTERACTIVE_CHROME_ICON_BUTTON,
+            )}
             aria-label={toggleLabel}
             aria-expanded={navExpanded}
           >

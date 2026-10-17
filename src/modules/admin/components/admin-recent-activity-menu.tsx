@@ -26,6 +26,7 @@ import {
   formatAuditLogUser,
 } from "@/modules/erp/lib/audit-log-display";
 import { cn } from "@/lib/utils";
+import { INTERACTIVE_CHROME_ICON_BUTTON } from "@/lib/ui/interactive-styles";
 import {
   Popover,
   PopoverContent,
@@ -128,9 +129,9 @@ export function AdminRecentActivityMenu() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors",
-          "hover:bg-slate-200/60 hover:text-slate-900",
-          "data-popup-open:bg-slate-200/70 data-popup-open:text-slate-900",
+          "flex size-10 shrink-0 items-center justify-center rounded-xl text-slate-500",
+          INTERACTIVE_CHROME_ICON_BUTTON,
+          "data-popup-open:bg-white data-popup-open:text-slate-900 data-popup-open:shadow-md data-popup-open:ring-1 data-popup-open:ring-slate-200/80",
         )}
         aria-label="Recent activity"
         title="Recent activity"

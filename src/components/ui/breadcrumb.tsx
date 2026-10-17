@@ -3,6 +3,7 @@ import { mergeProps } from "@base-ui/react/merge-props"
 import { useRender } from "@base-ui/react/use-render"
 
 import { cn } from "@/lib/utils"
+import { INTERACTIVE_LINK_CLASS } from "@/lib/ui/interactive-styles"
 import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<"nav">) {
@@ -48,7 +49,12 @@ function BreadcrumbLink({
     defaultTagName: "a",
     props: mergeProps<"a">(
       {
-        className: cn("transition-colors hover:text-foreground", className),
+        className: cn(
+          "text-muted-foreground",
+          INTERACTIVE_LINK_CLASS,
+          "hover:text-foreground",
+          className,
+        ),
       },
       props
     ),

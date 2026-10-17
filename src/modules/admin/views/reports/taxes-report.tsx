@@ -186,7 +186,7 @@ function VatReturnDetailsReport({ report }: { report: ReportDefinition }) {
       exportSource={exportSource}
       showDateRange
       searchPlaceholder="Search customer, vendor, TRN, or transaction #…"
-      metrics={!loading && !isEmpty ? <ReportKpiStrip items={kpis} /> : null}
+      metrics={!loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null}
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
       {loading ? (

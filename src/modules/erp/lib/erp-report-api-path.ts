@@ -20,6 +20,8 @@ export type ErpReportFetchParams = {
   userId?: string;
   customerId?: string;
   vendorId?: string;
+  ageMinDays?: number;
+  ageMaxDays?: number;
 };
 
 /** Stable admin API path for TanStack Query cache keys and fetch. */
@@ -64,5 +66,9 @@ export function buildErpReportApiPath(
   }
   if (params.customerId) q.set("customerId", params.customerId);
   if (params.vendorId) q.set("vendorId", params.vendorId);
+  if (report.filters.ageRange) {
+    if (params.ageMinDays != null) q.set("ageMinDays", String(params.ageMinDays));
+    if (params.ageMaxDays != null) q.set("ageMaxDays", String(params.ageMaxDays));
+  }
   return `erp/reports?${q.toString()}`;
 }

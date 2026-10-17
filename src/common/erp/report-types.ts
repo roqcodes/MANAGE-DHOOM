@@ -19,6 +19,8 @@ export type ReportFilterConfig = {
   vendorSearch?: boolean;
   storeSearch?: boolean;
   accountType?: boolean;
+  /** Filter open documents by days past due (min/max). */
+  ageRange?: boolean;
 };
 
 export type ReportStockLevel = "all" | "in_stock" | "out_of_stock" | "low_stock";
@@ -424,7 +426,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Aging Summary",
     description: "Every customer; open invoice counts per aging bucket. Click a customer for invoice details.",
     category: "Receivables",
-    filters: { asOfDate: true, store: true, customerSearch: true },
+    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true },
     rpc: "get_erp_customer_aging_summary_counts",
     columns: [
       { key: "customer_name", label: "Customer" },
@@ -461,7 +463,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Aging Summary Values",
     description: "Every customer; amounts by aging bucket (zeros when none due).",
     category: "Receivables",
-    filters: { asOfDate: true, store: true, customerSearch: true },
+    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true },
     rpc: "get_erp_customer_aging",
     columns: [
       { key: "customer_name", label: "Customer" },
@@ -512,7 +514,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "PB Aging Summary",
     description: "Every vendor; open bill counts per aging bucket. Click a vendor for bill details.",
     category: "Payables",
-    filters: { asOfDate: true, store: true, vendorSearch: true },
+    filters: { asOfDate: true, store: true, vendorSearch: true, ageRange: true },
     rpc: "get_erp_vendor_aging_summary_counts",
     columns: [
       { key: "vendor_name", label: "Vendor" },
@@ -548,7 +550,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "PB Aging Summary Values",
     description: "Every vendor; amounts by aging bucket (zeros when none due).",
     category: "Payables",
-    filters: { asOfDate: true, store: true, vendorSearch: true },
+    filters: { asOfDate: true, store: true, vendorSearch: true, ageRange: true },
     rpc: "get_erp_vendor_aging",
     columns: [
       { key: "vendor_name", label: "Vendor" },

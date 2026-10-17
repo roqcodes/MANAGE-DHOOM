@@ -745,52 +745,70 @@ export function OrderDetailPanel({ order }: { order: OrderWithItems }) {
                 setActionError(null);
                 startTransition(async () => {
                   try {
-                    if (isSalesOrder) {
-                      if (!order.store_id) {
-                        setActionError("Sales order has no store.");
-                        return;
-                      }
-                      const supabase = createSupabaseBrowserClient();
-                      const staffUserId = await resolveOutboxUserId(supabase);
-                      if (!staffUserId) {
-                        setActionError("You must be signed in.");
-                        return;
-                      }
-                      const outbox = createOutboxStore();
-                      try {
-                        await outbox.enqueue({
-                          operationType:
-                            ERP_CLIENT_OPERATION_TYPES.salesOrder.convertToInvoice,
-                          schemaVersion: 1,
-                          payload: { orderId: order.id },
-                          userId: staffUserId,
-                          storeId: order.store_id,
-                          terminalId: getOrCreateErpTerminalId(),
-                          resourceScope: salesOrderResourceScope(order.id),
-                        });
-                      } catch (enqueueErr) {
-                        setActionError(
-                          enqueueErr instanceof OutboxEnqueueError
-                            ? enqueueErr.message
-                            : enqueueErr instanceof Error
-                              ? enqueueErr.message
-                              : "Could not queue conversion",
-                        );
-                        return;
-                      } finally {
-                        await outbox.close();
-                      }
-                      dispatchOutboxChanged();
-                      broadcastSyncWake();
+                    const convertPath = isSalesOrder
+                      ? `erp/sales-orders/${order.id}/convert-to-invoice`
+                      : `orders/${order.id}/convert-to-invoice`;
+
+                    if (
+                      typeof navigator !== "undefined" &&
+                      navigator.onLine
+                    ) {
+                      const res = await adminPost<{ invoiceId: string }>(
+                        convertPath,
+                        {},
+                      );
+                      router.push(`/admin/erp/invoices/${res.invoiceId}`);
                       await invalidate();
-                      setActionError(null);
                       return;
                     }
-                    const res = await adminPost<{ invoiceId: string }>(
-                      `orders/${order.id}/convert-to-invoice`,
-                      {},
+
+                    if (!isSalesOrder) {
+                      setActionError(
+                        "You are offline. Reconnect to convert this order to an invoice.",
+                      );
+                      return;
+                    }
+
+                    if (!order.store_id) {
+                      setActionError("Sales order has no store.");
+                      return;
+                    }
+                    const supabase = createSupabaseBrowserClient();
+                    const staffUserId = await resolveOutboxUserId(supabase);
+                    if (!staffUserId) {
+                      setActionError("You must be signed in.");
+                      return;
+                    }
+                    const outbox = createOutboxStore();
+                    try {
+                      await outbox.enqueue({
+                        operationType:
+                          ERP_CLIENT_OPERATION_TYPES.salesOrder.convertToInvoice,
+                        schemaVersion: 1,
+                        payload: { orderId: order.id },
+                        userId: staffUserId,
+                        storeId: order.store_id,
+                        terminalId: getOrCreateErpTerminalId(),
+                        resourceScope: salesOrderResourceScope(order.id),
+                      });
+                    } catch (enqueueErr) {
+                      setActionError(
+                        enqueueErr instanceof OutboxEnqueueError
+                          ? enqueueErr.message
+                          : enqueueErr instanceof Error
+                            ? enqueueErr.message
+                            : "Could not queue conversion",
+                      );
+                      return;
+                    } finally {
+                      await outbox.close();
+                    }
+                    dispatchOutboxChanged();
+                    broadcastSyncWake();
+                    await invalidate();
+                    setActionError(
+                      "Conversion queued — open this order again after sync to view the invoice.",
                     );
-                    router.push(`/admin/erp/invoices/${res.invoiceId}`);
                   } catch (err) {
                     setActionError(
                       err instanceof Error ? err.message : "Conversion failed",
@@ -799,7 +817,7 @@ export function OrderDetailPanel({ order }: { order: OrderWithItems }) {
                 });
               }}
             >
-              {cancelledInvoice ? "Re-issue invoice" : "Create invoice"}
+              {cancelledInvoice ? "Re-issue invoice" : "Convert to invoice"}
             </Button>
           ) : null}
           {(activeInvoice ?? cancelledInvoice) ? (

@@ -2,6 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* Tailwind v4 defaults to @media (hover: hover). That fails on hybrid/touch laptops
+   (common on Lenovo) and some Chromium builds — hover: utilities never apply. */
+@custom-variant hover (&:hover);
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -135,6 +139,22 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer components {
+  /* Inline links in admin pages (tables, detail copy) — not nav/buttons. */
+  [data-admin-content] a:not([data-slot="button"]):not([role="button"]) {
+    @apply underline-offset-4 transition-all duration-200 ease-out;
+  }
+
+  [data-admin-content] a:not([data-slot="button"]):not([role="button"]):hover {
+    @apply text-primary underline;
+  }
+
+  /* Page / form actions use shared Button hover; ensure visible base shadow. */
+  [data-admin-content] [data-slot="button"]:not(:disabled) {
+    @apply transition-all duration-200 ease-out;
+  }
 }
 
 @layer base {

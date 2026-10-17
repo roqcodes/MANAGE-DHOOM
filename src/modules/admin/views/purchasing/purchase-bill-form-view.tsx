@@ -124,27 +124,34 @@ function poLinesToForm(
   documentDate: string,
 ): PurchaseLineFormRow[] {
   const defaultExpiry = itemExpiryFromDocumentDate(documentDate);
-  return po.purchase_order_items.map((item) => ({
-    key: item.id,
-    productId:
-      (item as { product_id?: string | null }).product_id ??
-      item.product_variants?.product_id ??
-      null,
-    variantId: item.variant_id,
-    productName:
-      (item as { products?: { name?: string | null } | null }).products?.name ??
-      item.product_variants?.products?.name ??
-      "Item",
-    barcode: item.product_variants?.barcode ?? "",
-    expiryDate: defaultExpiry,
-    quantity: item.quantity,
-    purchasePrice: item.price,
-    taxRatePercent: item.tax_rate_percent,
-    landedCostAllocated:
-      (po.landed_cost_total ?? 0) > 0
-        ? Number(item.landed_cost_allocated ?? 0)
-        : undefined,
-  }));
+  return po.purchase_order_items
+    .map((item) => {
+      const ordered = Number(item.quantity ?? 0);
+      const received = Number(item.accepted_qty ?? 0);
+      const remaining = Math.max(0, ordered - received);
+      return {
+        key: item.id,
+        productId:
+          (item as { product_id?: string | null }).product_id ??
+          item.product_variants?.product_id ??
+          null,
+        variantId: item.variant_id,
+        productName:
+          (item as { products?: { name?: string | null } | null }).products?.name ??
+          item.product_variants?.products?.name ??
+          "Item",
+        barcode: item.product_variants?.barcode ?? "",
+        expiryDate: defaultExpiry,
+        quantity: remaining,
+        purchasePrice: item.price,
+        taxRatePercent: item.tax_rate_percent,
+        landedCostAllocated:
+          (po.landed_cost_total ?? 0) > 0 && remaining > 0
+            ? Number(item.landed_cost_allocated ?? 0)
+            : undefined,
+      };
+    })
+    .filter((line) => line.quantity > 0);
 }
 
 function addDays(isoDate: string, days: number): string {
@@ -205,7 +212,6 @@ export function PurchaseBillFormView({
   const [billNumber, setBillNumber] = useState<string | null>(null);
   const [physicalReceiptOnBill, setPhysicalReceiptOnBill] = useState(true);
   const [poPrefillToken, setPoPrefillToken] = useState(0);
-
   useEffect(() => {
     if (mode === "create") {
       setDueDate(addDays(purchaseDate, 30));
@@ -293,7 +299,11 @@ export function PurchaseBillFormView({
           ? poLinesToForm(po, purchaseDate)
           : [];
         const formLanded = poLandedCostsToForm(po);
-        if (formLines.length) setLines(formLines);
+        if (formLines.length) {
+          setLines(formLines);
+        } else {
+          setError("Nothing left to receive on this purchase order — all lines are fully received.");
+        }
         setLandedCosts(formLanded);
         setLandedAllocationMethod(inferLandedAllocationMethod(formLines, formLanded));
       })
@@ -353,7 +363,8 @@ export function PurchaseBillFormView({
     [lines, landedCosts, landedAllocationMethod],
   );
 
-  const saveDisabled = pending || !landedAllocationBalanced;
+  const saveDraftDisabled = pending;
+  const finalizeDisabled = pending || !landedAllocationBalanced;
 
   function handleCancel() {
     if (isModal) {
@@ -386,15 +397,23 @@ export function PurchaseBillFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
+    onSuccess?.(id);
     if (mode === "create") {
+      if (isModal) {
+        resetCreateForm();
+        if (poIdParam) {
+          setPoPrefillToken((t) => t + 1);
+        }
+        return;
+      }
+      if (poIdParam) {
+        router.push(`/admin/purchase-orders/${poIdParam}`);
+        return;
+      }
       resetCreateForm();
-      if (poIdParam) setPoPrefillToken((t) => t + 1);
-      onSuccess?.(id);
       return;
     }
     if (isModal) {
-      onOpenChange?.(false);
-      onSuccess?.(id);
       return;
     }
     router.push(id ? `/admin/erp/purchase-bills/${id}` : "/admin/erp/purchase-bills");
@@ -403,9 +422,9 @@ export function PurchaseBillFormView({
   function submit(finalize: boolean) {
     setError(null);
     const shouldFinalize = finalize && !poId;
-    if (!landedAllocationBalanced) {
+    if (shouldFinalize && !landedAllocationBalanced) {
       setError(
-        "Landed cost allocation must match the landed cost total before saving this invoice.",
+        "Landed cost allocation must match the landed cost total before finalizing this invoice.",
       );
       return;
     }
@@ -579,17 +598,17 @@ export function PurchaseBillFormView({
       </Button>
       {mode === "create" ? (
         <>
-          <Button variant="outline" disabled={saveDisabled} onClick={() => submit(false)}>
+          <Button variant="outline" disabled={saveDraftDisabled} onClick={() => submit(false)}>
             Save draft
           </Button>
           {!poId ? (
-            <Button disabled={saveDisabled} onClick={() => submit(true)}>
-              Save & next
+            <Button disabled={finalizeDisabled} onClick={() => submit(true)}>
+              Finalize bill
             </Button>
           ) : null}
         </>
       ) : (
-        <Button disabled={saveDisabled} onClick={() => submit(false)}>
+        <Button disabled={saveDraftDisabled} onClick={() => submit(false)}>
           Save changes
         </Button>
       )}
@@ -716,15 +735,17 @@ export function PurchaseBillFormView({
               </Link>
               {mode === "create" ? (
                 <>
-                  <Button variant="outline" disabled={saveDisabled} onClick={() => submit(false)}>
+                  <Button variant="outline" disabled={saveDraftDisabled} onClick={() => submit(false)}>
                     Save draft
                   </Button>
-                  <Button disabled={saveDisabled} onClick={() => submit(true)}>
-                    Save & next
-                  </Button>
+                  {!poId ? (
+                    <Button disabled={finalizeDisabled} onClick={() => submit(true)}>
+                      Finalize bill
+                    </Button>
+                  ) : null}
                 </>
               ) : (
-                <Button disabled={saveDisabled} onClick={() => submit(false)}>
+                <Button disabled={saveDraftDisabled} onClick={() => submit(false)}>
                   Save
                 </Button>
               )}

@@ -34,6 +34,27 @@ export function reportFiltersSubtitle(
   return formatReportPeriodRange(filters.dateFrom, filters.dateTo);
 }
 
+export function formatAgingDaysRange(ageMinDays?: number, ageMaxDays?: number) {
+  if (ageMinDays == null && ageMaxDays == null) return "";
+  if (ageMinDays != null && ageMaxDays != null) {
+    if (ageMinDays === ageMaxDays) return `Age ${ageMinDays} days`;
+    return `Age ${ageMinDays}–${ageMaxDays} days`;
+  }
+  if (ageMinDays != null) return `Age ≥ ${ageMinDays} days`;
+  return `Age ≤ ${ageMaxDays} days`;
+}
+
+export function formatAgingReportSubtitle(filters: {
+  asOf: string;
+  ageMinDays?: number;
+  ageMaxDays?: number;
+}) {
+  const parts = [`As of ${formatReportAsOf(filters.asOf)}`];
+  const ageLabel = formatAgingDaysRange(filters.ageMinDays, filters.ageMaxDays);
+  if (ageLabel) parts.push(ageLabel);
+  return parts.join(" · ");
+}
+
 export type ReportColumnDef = {
   key: string;
   label: string;

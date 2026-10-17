@@ -28,6 +28,7 @@ import { createOutboxStore } from "@/lib/sync/outbox-store";
 import { getOrCreateErpTerminalId } from "@/lib/sync/erp-terminal-id";
 import { broadcastSyncWake } from "@/lib/sync/sync-network";
 import { resolveOutboxUserId } from "@/lib/sync/resolve-outbox-user-id.client";
+import { enqueuePurchaseBillFinalize } from "@/modules/erp/lib/enqueue-purchase-bill-finalize.client";
 import { purchaseBillResourceScope } from "@/modules/erp/types/purchase-payload";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
@@ -36,6 +37,7 @@ import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tab
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { ErpDocumentActions } from "@/modules/erp/components/erp-document-actions";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -272,41 +274,10 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
       setError("Bill store is missing.");
       return;
     }
+    const storeId = bill.store_id;
     startTransition(async () => {
       try {
-        const supabase = createSupabaseBrowserClient();
-        const staffUserId = await resolveOutboxUserId(supabase);
-        if (!staffUserId) {
-          setError("You must be signed in to finalize.");
-          return;
-        }
-
-        const store = createOutboxStore();
-        try {
-          await store.enqueue({
-            operationType: ERP_CLIENT_OPERATION_TYPES.purchaseBill.finalize,
-            schemaVersion: 1,
-            payload: { billId },
-            userId: staffUserId,
-            storeId: bill.store_id,
-            terminalId: getOrCreateErpTerminalId(),
-            resourceScope: purchaseBillResourceScope(billId),
-          });
-        } catch (enqueueErr) {
-          if (enqueueErr instanceof OutboxEnqueueError) {
-            setError(enqueueErr.message);
-          } else {
-            setError(
-              enqueueErr instanceof Error ? enqueueErr.message : "Could not queue finalize.",
-            );
-          }
-          return;
-        } finally {
-          await store.close();
-        }
-
-        dispatchOutboxChanged();
-        broadcastSyncWake();
+        await enqueuePurchaseBillFinalize({ billId, storeId });
         await load();
         router.refresh();
       } catch (e) {
@@ -367,9 +338,9 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {canFinalize ? (
-              <Button disabled={pending} onClick={finalize}>
-                {pending ? "Finalizing…" : "Post bill (AP only)"}
-              </Button>
+              <ErpPostActionButton disabled={pending} onClick={finalize}>
+                {pending ? "Finalizing…" : "Finalize & post to payable"}
+              </ErpPostActionButton>
             ) : null}
             {canPay ? (
               <Button

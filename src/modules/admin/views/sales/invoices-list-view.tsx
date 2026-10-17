@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 
@@ -18,6 +18,7 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatDateOnly } from "@/lib/format-date";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
+import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
 import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
@@ -39,6 +40,8 @@ import {
   useSortableData,
 } from "@/modules/admin/ui";
 import { InvoiceFormView } from "@/modules/admin/views/sales/invoice-form-view";
+import { enqueueSalesInvoiceIssue } from "@/modules/erp/lib/enqueue-sales-invoice-issue.client";
+import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 import { ErpInvoicePrintModal } from "@/modules/erp/components/erp-invoice-print-modal";
 import { useErpInvoicePrintModal } from "@/modules/erp/components/use-erp-invoice-print-modal";
 import { InvoiceChannelBadge } from "@/modules/erp/components/invoice-channel-badge";
@@ -48,6 +51,7 @@ import { PAGE_SIZE } from "@/common/admin/types";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
+  { value: "draft", label: "Draft" },
   { value: "pending", label: "Pending" },
   { value: "issued", label: "Issued" },
   { value: "partial", label: "Partial" },
@@ -89,6 +93,8 @@ export function InvoicesListView() {
   const initialLoading = isPending && !data;
   const total = data?.total ?? 0;
   const [cancellingId, startCancel] = useTransition();
+  const [issuingId, setIssuingId] = useState<string | null>(null);
+  const [issueError, setIssueError] = useState<string | null>(null);
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     rows,
     "created_at",
@@ -122,6 +128,26 @@ export function InvoicesListView() {
       await refetch();
     });
   }
+
+  function issueDraftInvoice(row: ErpInvoiceListRow) {
+    const storeId = row.store_id;
+    if (!storeId) {
+      setIssueError("Invoice store is missing.");
+      return;
+    }
+    setIssueError(null);
+    setIssuingId(row.id);
+    void (async () => {
+      try {
+        await enqueueSalesInvoiceIssue({ invoiceId: row.id, storeId });
+        await refetch();
+      } catch (err) {
+        setIssueError(err instanceof Error ? err.message : "Issue failed");
+      } finally {
+        setIssuingId(null);
+      }
+    })();
+  }
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -138,6 +164,10 @@ export function InvoicesListView() {
           </>
         }
       />
+
+      {issueError ? (
+        <AppErrorCalloutMessage message={issueError} onRetry={() => setIssueError(null)} />
+      ) : null}
 
       <AdminListCard isLoading={initialLoading}
         search={search}
@@ -274,11 +304,24 @@ export function InvoicesListView() {
                 <AdminTableCell align="right" className="font-semibold tabular-nums">
                   {formatCurrencyAmount(row.total_amount)}
                 </AdminTableCell>
-                <AdminTableCell align="right" className="font-semibold tabular-nums">
-                  {formatCurrencyAmount(row.balance_due)}
+                <AdminTableCell align="right">
+                  {row.status === "draft" ? (
+                    <ErpPostActionButton
+                      size="sm"
+                      className="h-8 shrink-0 px-2.5 text-xs"
+                      disabled={issuingId === row.id}
+                      onClick={() => issueDraftInvoice(row)}
+                    >
+                      {issuingId === row.id ? "Issuing…" : "Issue"}
+                    </ErpPostActionButton>
+                  ) : (
+                    <span className="font-semibold tabular-nums">
+                      {formatCurrencyAmount(row.balance_due)}
+                    </span>
+                  )}
                 </AdminTableCell>
                 <AdminTableCell align="right">
-                  <ErpListRowActions
+                    <ErpListRowActions
                     viewHref={`/admin/erp/invoices/${row.id}`}
                     editHref={`/admin/erp/invoices?form=edit&id=${row.id}`}
                     editDisabled={

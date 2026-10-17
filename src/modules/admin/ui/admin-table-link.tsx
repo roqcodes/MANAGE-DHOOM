@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { INTERACTIVE_FOREGROUND_LINK_CLASS } from "@/lib/ui/interactive-styles";
 import { cn } from "@/lib/utils";
 
 export function AdminTableLink({
@@ -18,10 +19,7 @@ export function AdminTableLink({
     <Link
       href={href}
       title={title}
-      className={cn(
-        "font-medium text-foreground hover:text-primary hover:underline",
-        className,
-      )}
+      className={cn(INTERACTIVE_FOREGROUND_LINK_CLASS, className)}
     >
       {children}
     </Link>

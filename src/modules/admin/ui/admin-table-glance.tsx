@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { AdminTableLink } from "@/modules/admin/ui/admin-table-link";
+import { INTERACTIVE_FOREGROUND_LINK_CLASS } from "@/lib/ui/interactive-styles";
 import { CustomerAvatar } from "@/modules/customers/components/customers-ui";
 import { formatProductPrice } from "@/modules/products/components/products-ui";
 
@@ -151,8 +152,9 @@ function AdminTableGlancePopover({
           <button
             type="button"
             className={cn(
-              "inline-flex max-w-full items-center gap-1.5 text-left text-[13px] leading-snug hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-              mutedTrigger ? "font-normal text-muted-foreground" : "font-medium text-foreground",
+              "inline-flex max-w-full items-center gap-1.5 text-left text-[13px] leading-snug",
+              INTERACTIVE_FOREGROUND_LINK_CLASS,
+              mutedTrigger ? "font-normal text-muted-foreground" : undefined,
               triggerClassName,
             )}
           />

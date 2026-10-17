@@ -224,15 +224,12 @@ export function InvoiceFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
+    onSuccess?.(id);
     if (mode === "create") {
       resetCreateForm();
-      onSuccess?.(id);
-      if (!isModal) return;
       return;
     }
     if (isModal) {
-      onOpenChange?.(false);
-      onSuccess?.(id);
       return;
     }
     router.push(id ? `/admin/erp/invoices/${id}` : "/admin/erp/invoices");
@@ -414,8 +411,11 @@ export function InvoiceFormView({
           Save as draft
         </Button>
       ) : null}
-      <Button disabled={pending} onClick={() => handleSubmit(true)}>
-        {pending ? "Saving…" : mode === "edit" ? "Update invoice" : "Save & next"}
+      <Button
+        disabled={pending}
+        onClick={() => handleSubmit(mode === "edit" ? false : true)}
+      >
+        {pending ? "Saving…" : mode === "edit" ? "Update invoice" : "Issue invoice"}
       </Button>
     </>
   ) : undefined;
@@ -541,8 +541,11 @@ export function InvoiceFormView({
                   Save as draft
                 </Button>
               ) : null}
-              <Button disabled={pending} onClick={() => handleSubmit(true)}>
-                {pending ? "Saving…" : mode === "edit" ? "Update invoice" : "Save & next"}
+              <Button
+                disabled={pending}
+                onClick={() => handleSubmit(mode === "edit" ? false : true)}
+              >
+                {pending ? "Saving…" : mode === "edit" ? "Update invoice" : "Issue invoice"}
               </Button>
             </div>
           ) : null}

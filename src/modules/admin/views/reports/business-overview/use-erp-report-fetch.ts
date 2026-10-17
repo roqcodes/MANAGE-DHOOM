@@ -34,6 +34,7 @@ export function useErpReportFetch(
       report.filters.vendorSearch,
       report.filters.storeSearch,
       report.filters.accountType,
+      report.filters.ageRange,
       params.dateFrom,
       params.dateTo,
       params.asOf,
@@ -53,6 +54,8 @@ export function useErpReportFetch(
       params.userId,
       params.customerId,
       params.vendorId,
+      params.ageMinDays,
+      params.ageMaxDays,
     ],
   );
 

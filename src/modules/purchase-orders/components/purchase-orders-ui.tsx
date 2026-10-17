@@ -12,9 +12,10 @@ import {
   PURCHASE_ORDER_STATUS_FILTERS,
 } from "@/common/admin/types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { INTERACTIVE_PRIMARY_LINK_CLASS } from "@/lib/ui/interactive-styles";
 
 export const PO_ACCENT = {
-  link: "text-primary hover:text-primary/80",
+  link: INTERACTIVE_PRIMARY_LINK_CLASS,
   selectedRow: "data-[state=selected]:bg-accent/60",
   selectionBar: "border-border bg-accent/50",
   focus: "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
@@ -156,7 +157,7 @@ export function PoStatusPill({ status }: { status: string | null }) {
           : normalized === "accepted"
             ? "border-blue-200 bg-blue-50 text-blue-700"
             : normalized === "cancelled"
-              ? "border-border bg-muted text-muted-foreground"
+              ? "border-rose-200 bg-rose-50 text-rose-700"
               : normalized === "pending"
                 ? "border-amber-200 bg-amber-50 text-amber-800"
                 : normalized === "partially_received"

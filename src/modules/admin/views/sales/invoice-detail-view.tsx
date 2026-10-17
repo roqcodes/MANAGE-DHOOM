@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -20,6 +20,7 @@ import {
 
 import { paymentModeLabel } from "@/common/erp/sales-types";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
+import { enqueueSalesInvoiceIssue } from "@/modules/erp/lib/enqueue-sales-invoice-issue.client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import {
   AdminDetailBodySkeleton,
@@ -39,6 +40,7 @@ import { formatDateOnly } from "@/lib/format-date";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -67,6 +69,7 @@ type InvoiceDetail = {
   tax_inclusive: boolean;
   source?: string | null;
   order_id?: string | null;
+  store_id?: string | null;
   editable?: boolean;
   users: { name: string | null; email: string | null; company_name: string | null } | null;
   stores: { name: string } | null;
@@ -205,10 +208,32 @@ function TotalsRow({
 export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [issuePending, startIssueTransition] = useTransition();
+  const [issueError, setIssueError] = useState<string | null>(null);
   const detailPath = `erp/invoices/${invoiceId}`;
   const { openInvoicePrint, invoicePrintModalProps } = useErpInvoicePrintModal();
   const { data: detail, isPending } = useAdminGetQuery<InvoiceDetail>({ path: detailPath });
   const initialLoading = isInitialAdminLoad(isPending, Boolean(detail));
+
+  function issueDraftInvoice() {
+    if (!detail?.store_id) {
+      setIssueError("Invoice store is missing.");
+      return;
+    }
+    const storeId = detail.store_id;
+    setIssueError(null);
+    startIssueTransition(async () => {
+      try {
+        await enqueueSalesInvoiceIssue({ invoiceId, storeId });
+        await queryClient.invalidateQueries({
+          queryKey: adminQueryKeys.erpGet(detailPath),
+        });
+        router.refresh();
+      } catch (err) {
+        setIssueError(err instanceof Error ? err.message : "Issue failed");
+      }
+    });
+  }
 
   if (initialLoading) {
     return (
@@ -263,6 +288,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
   }
 
   const canEdit = detail.editable ?? false;
+  const canIssue = detail.status === "draft" && canEdit;
   const canCancel = detail.status !== "cancelled" && canEdit;
   const canPay =
     detail.status !== "cancelled" &&
@@ -304,6 +330,11 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {canIssue ? (
+              <ErpPostActionButton disabled={issuePending} onClick={issueDraftInvoice}>
+                {issuePending ? "Issuing…" : "Issue invoice & post to books"}
+              </ErpPostActionButton>
+            ) : null}
             {canPay ? (
               <Button
                 nativeButton={false}
@@ -347,6 +378,10 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
           </div>
         }
       />
+
+      {issueError ? (
+        <p className="text-sm text-destructive">{issueError}</p>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge status={detail.status} />

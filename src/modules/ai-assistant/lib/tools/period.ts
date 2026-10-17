@@ -8,7 +8,7 @@ export type PeriodKey =
   | "last_month"
   | "this_year"
   | "custom";
-
+ 
 function dubaiNowParts() {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Dubai",

@@ -4,6 +4,13 @@ import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
 import { runErpReport } from "@/modules/erp/services/erp-reports.service";
 import type { ReportChannel } from "@/common/erp/report-types";
 
+function parseOptionalInt(raw: string | null): number | undefined {
+  if (raw == null || raw.trim() === "") return undefined;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) return undefined;
+  return n;
+}
+
 export async function GET(request: Request) {
   const auth = await requireAdminApiProfile();
   if (!auth.ok) return auth.response;
@@ -42,6 +49,8 @@ export async function GET(request: Request) {
       accountTypeId: url.searchParams.get("accountTypeId") ?? undefined,
       customerId: url.searchParams.get("customerId") ?? undefined,
       vendorId: url.searchParams.get("vendorId") ?? undefined,
+      ageMinDays: parseOptionalInt(url.searchParams.get("ageMinDays")),
+      ageMaxDays: parseOptionalInt(url.searchParams.get("ageMaxDays")),
       },
       { authenticated: true },
     );

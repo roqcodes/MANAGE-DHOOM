@@ -27,7 +27,25 @@ export type ReportQuery = {
   userId?: string;
   customerId?: string;
   vendorId?: string;
+  ageMinDays?: number;
+  ageMaxDays?: number;
 };
+
+function normalizeAgeRange(
+  ageMinDays?: number,
+  ageMaxDays?: number,
+): { ageMin: number | null; ageMax: number | null } {
+  if (ageMinDays == null && ageMaxDays == null) {
+    return { ageMin: null, ageMax: null };
+  }
+  if (ageMinDays != null && ageMaxDays != null && ageMinDays > ageMaxDays) {
+    return { ageMin: ageMaxDays, ageMax: ageMinDays };
+  }
+  return {
+    ageMin: ageMinDays ?? null,
+    ageMax: ageMaxDays ?? null,
+  };
+}
 
 function defaultDateRange() {
   const to = new Date();
@@ -88,6 +106,7 @@ export async function runErpReport(
   const asOf = query.asOf ?? to;
   const storeId = query.storeId ?? undefined;
   const channel = query.channel ?? "all";
+  const { ageMin, ageMax } = normalizeAgeRange(query.ageMinDays, query.ageMaxDays);
 
   if (report.slug === "finance-summary") {
     if (storeId) {
@@ -173,6 +192,8 @@ export async function runErpReport(
         p_as_of: asOf,
         p_store_id: storeId,
         p_search: query.search ?? null,
+        p_age_min: ageMin,
+        p_age_max: ageMax,
       });
     case "get_erp_customer_aging_summary_customer_details":
       if (!query.customerId) throw new Error("Customer is required");
@@ -195,6 +216,8 @@ export async function runErpReport(
         p_as_of: asOf,
         p_store_id: storeId,
         p_search: query.search ?? null,
+        p_age_min: ageMin,
+        p_age_max: ageMax,
       });
     case "get_erp_vendor_aging_summary_vendor_details":
       if (!query.vendorId) throw new Error("Vendor is required");

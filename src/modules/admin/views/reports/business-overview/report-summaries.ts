@@ -76,10 +76,6 @@ export function buildReportKpis(
     items.push(...extra);
   }
 
-  if (rows.length > 0 && !items.some((i) => i.label === "Rows")) {
-    items.push({ label: "Rows", value: rows.length.toLocaleString() });
-  }
-
   const summable = columns
     .filter((c) => columnAggregateMode(c) === "sum" && c.format === "currency")
     .sort((a, b) => {

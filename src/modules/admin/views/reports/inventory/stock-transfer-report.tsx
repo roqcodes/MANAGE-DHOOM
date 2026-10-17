@@ -91,7 +91,7 @@ export function StockTransferReport({ report }: { report: ReportDefinition }) {
       showDateRange
       searchPlaceholder="Search transfer #, store, or requester…"
       metrics={
-        !loading && sorted.length > 0 ? <ReportKpiStrip items={kpis} /> : null
+        !loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null
       }
     >
       {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}

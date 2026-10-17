@@ -1,0 +1,43 @@
+import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
+import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
+import { dispatchOutboxChanged } from "@/lib/sync/outbox-browser-events";
+import { getOrCreateErpTerminalId } from "@/lib/sync/erp-terminal-id";
+import { createOutboxStore } from "@/lib/sync/outbox-store";
+import { OutboxEnqueueError } from "@/lib/sync/outbox-errors";
+import { resolveOutboxUserId } from "@/lib/sync/resolve-outbox-user-id.client";
+import { broadcastSyncWake } from "@/lib/sync/sync-network";
+import { purchaseBillResourceScope } from "@/modules/erp/types/purchase-payload";
+
+export async function enqueuePurchaseBillFinalize(params: {
+  billId: string;
+  storeId: string;
+}): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const staffUserId = await resolveOutboxUserId(supabase);
+  if (!staffUserId) {
+    throw new Error("You must be signed in to finalize.");
+  }
+
+  const store = createOutboxStore();
+  try {
+    await store.enqueue({
+      operationType: ERP_CLIENT_OPERATION_TYPES.purchaseBill.finalize,
+      schemaVersion: 1,
+      payload: { billId: params.billId },
+      userId: staffUserId,
+      storeId: params.storeId,
+      terminalId: getOrCreateErpTerminalId(),
+      resourceScope: purchaseBillResourceScope(params.billId),
+    });
+  } catch (enqueueErr) {
+    if (enqueueErr instanceof OutboxEnqueueError) {
+      throw new Error(enqueueErr.message);
+    }
+    throw enqueueErr instanceof Error ? enqueueErr : new Error("Could not queue finalize.");
+  } finally {
+    await store.close();
+  }
+
+  dispatchOutboxChanged();
+  broadcastSyncWake();
+}
