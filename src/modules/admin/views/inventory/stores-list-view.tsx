@@ -11,6 +11,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -46,9 +47,9 @@ export function StoresListView() {
         breadcrumb={[{ label: "Stores", href: "/admin/erp/stores" }]}
         description="Retail and warehouse locations used for inventory, sales, and purchases."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             Add store
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

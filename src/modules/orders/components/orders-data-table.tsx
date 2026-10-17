@@ -326,9 +326,14 @@ function exportOrdersCsv(orders: Order[]) {
   });
 }
 
-function printShippingLabels(orderIds: string[]) {
+async function printShippingLabels(orderIds: string[]) {
+  const { directPrintOrderInvoice } = await import("@/lib/direct-document-print");
   for (const id of orderIds) {
-    window.open(`/admin/orders/${id}/invoice`, "_blank", "noopener,noreferrer");
+    try {
+      await directPrintOrderInvoice(id, "print");
+    } catch (err) {
+      console.error(err);
+    }
   }
 }
 
@@ -697,13 +702,12 @@ export function OrdersDataTable({
                       </DropdownMenuItem>
                       {variant === "online" ? (
                         <DropdownMenuItem
-                          nativeButton={false}
-                          render={
-                            <Link
-                              href={`/admin/orders/${order.id}/invoice`}
-                              target="_blank"
-                            />
-                          }
+                          onClick={() => {
+                            void import("@/lib/direct-document-print").then(
+                              ({ directPrintOrderInvoice }) =>
+                                directPrintOrderInvoice(order.id, "print"),
+                            );
+                          }}
                         >
                           Print invoice
                         </DropdownMenuItem>

@@ -1,5 +1,10 @@
 export { AdminInfoTip } from "./admin-info-tip";
 export {
+  AdminPageActionBar,
+  AdminPrimaryAction,
+  AdminSecondaryIconAction,
+} from "./admin-page-actions";
+export {
   AdminPageLayout,
   AdminPageHeader,
   AdminFormLayout,

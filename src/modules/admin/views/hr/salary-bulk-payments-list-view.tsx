@@ -15,6 +15,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -93,10 +94,10 @@ export function SalaryBulkPaymentsListView() {
         breadcrumb={[{ label: "Salary bulk payments", href: "/admin/erp/salary-bulk-payments" }]}
         description="Process salary payments for multiple employees in one batch."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add bulk payment
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

@@ -28,6 +28,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -141,10 +142,10 @@ export function FixedAssetsListView() {
         breadcrumb={[{ label: "Fixed assets", href: "/admin/erp/fixed-assets" }]}
         description="Track store equipment, furniture, and capital purchases by location."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus className="size-4" />
             Add fixed asset
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

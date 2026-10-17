@@ -12,6 +12,7 @@ import {
   AdminListFooter,
   AdminPageHeader,
   AdminPageLayout,
+  AdminSecondaryIconAction,
   AdminTableBody,
   AdminTableCell,
   AdminTableHeader,
@@ -103,13 +104,13 @@ export function VendorAgingSummaryDetailsView({
         ]}
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={reload} disabled={loading}>
-              <RefreshCw
-                data-icon="inline-start"
-                className={loading ? "animate-spin" : undefined}
-              />
-              Refresh
-            </Button>
+            <AdminSecondaryIconAction
+              onClick={reload}
+              disabled={loading}
+              aria-label="Refresh report"
+            >
+              <RefreshCw className={loading ? "animate-spin" : undefined} />
+            </AdminSecondaryIconAction>
             <DataExportMenu source={exportSource} disabled={isEmpty} />
           </>
         }

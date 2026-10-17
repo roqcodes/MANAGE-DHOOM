@@ -370,12 +370,16 @@ export class SyncEngine {
     now: number,
   ): Promise<void> {
     if (result.outcome === "committed") {
-      const updated = await this.store.updateState(operation.operationId, {
+      const committed: OutboxOperationRecord = {
+        ...operation,
         state: OUTBOX_OPERATION_STATES.SERVER_COMMITTED,
         serverResult: result.serverResult,
         syncingStartedAt: undefined,
-      });
-      this.emit("operation-committed", { operation: updated });
+        lastError: undefined,
+        failureClass: undefined,
+      };
+      await this.store.delete(operation.operationId);
+      this.emit("operation-committed", { operation: committed });
       return;
     }
 

@@ -25,6 +25,7 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   useErpFormModal,
@@ -55,10 +56,10 @@ export function TransferBulkPaymentsListView() {
         breadcrumb={[{ label: "Transfer bulk payments", href: "/admin/erp/transfer-bulk-payments" }]}
         description="Record payments against pending stock transfer balances."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add new payment
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

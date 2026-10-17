@@ -22,6 +22,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -110,10 +111,10 @@ export function SupplierBulkPaymentsListView() {
         breadcrumb={[{ label: "Payment made bulk", href: "/admin/erp/supplier-bulk-payments" }]}
         description="Batch supplier payments applied across multiple bills in one transaction."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add new
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

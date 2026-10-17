@@ -44,7 +44,7 @@ export function usePendingErpOutboxOperations(
     }
     const store = createOutboxStore();
     try {
-      const all = await store.list();
+      const all = await store.listPurgingCommitted();
       const relevant = all.filter((op) => operationTypes.has(op.operationType));
       setSummary({
         active: relevant.filter((op) => ACTIVE_STATES.has(op.state)),

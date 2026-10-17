@@ -17,6 +17,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
+  AdminPrimaryAction,
   AdminPageLayout,
   AdminTableBody,
   AdminTableCell,
@@ -123,10 +124,10 @@ export function PaySlipsListView() {
         breadcrumb={[{ label: "Pay slips", href: "/admin/erp/pay-slips" }]}
         description="Generate and review monthly salary pay slips by store and period."
         actions={
-          <Button size="sm" disabled={generating} onClick={handleGenerate}>
+          <AdminPrimaryAction disabled={generating} onClick={handleGenerate}>
             <Sparkles data-icon="inline-start" />
             {generating ? "Generating…" : "Generate pay slips"}
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

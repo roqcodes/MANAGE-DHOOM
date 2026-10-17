@@ -155,13 +155,11 @@ export function PurchaseOrdersBulkActionBar({
           size="sm"
           variant="outline"
           onClick={() => {
-            for (const id of selectedIds) {
-              window.open(
-                `/admin/purchase-orders/${id}/invoice`,
-                "_blank",
-                "noopener,noreferrer",
-              );
-            }
+            void import("@/lib/direct-document-print").then(async ({ directPrintPurchaseOrder }) => {
+              for (const id of selectedIds) {
+                await directPrintPurchaseOrder(id, "print");
+              }
+            });
           }}
         >
           <Printer data-icon="inline-start" />
@@ -374,13 +372,12 @@ export function PurchaseOrdersDataTable({
                         View PO
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        nativeButton={false}
-                        render={
-                          <Link
-                            href={`/admin/purchase-orders/${po.id}/invoice`}
-                            target="_blank"
-                          />
-                        }
+                        onClick={() => {
+                          void import("@/lib/direct-document-print").then(
+                            ({ directPrintPurchaseOrder }) =>
+                              directPrintPurchaseOrder(po.id, "print"),
+                          );
+                        }}
                       >
                         Print invoice
                       </DropdownMenuItem>

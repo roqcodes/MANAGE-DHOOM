@@ -1,5 +1,10 @@
 /** html2canvas cannot parse modern CSS color functions (lab, oklch, etc.). */
 
+import {
+  injectInvoicePdfStyles,
+  preparePrintDocumentForPdfCapture,
+} from "@/lib/invoice-pdf-styles";
+
 const MODERN_COLOR_PATTERN = /(lab|oklch|oklab|lch|color)\(/i;
 
 const COLOR_PROPS = [
@@ -108,6 +113,10 @@ export function inlineStylesForHtml2Canvas(
   clonedRoot: HTMLElement,
   sourceRoot: HTMLElement,
 ): void {
+  const documentCapture =
+    sourceRoot.hasAttribute("data-print-document") ||
+    sourceRoot.hasAttribute("data-invoice-document");
+
   const sourceNodes = [sourceRoot, ...sourceRoot.querySelectorAll("*")];
   const clonedNodes = [clonedRoot, ...clonedRoot.querySelectorAll("*")];
 
@@ -118,6 +127,8 @@ export function inlineStylesForHtml2Canvas(
 
     const computed = window.getComputedStyle(source);
     for (const prop of INLINE_PROPS) {
+      if (documentCapture && !isColorProp(prop)) continue;
+
       const raw = computed[prop];
       if (!raw) continue;
 
@@ -140,12 +151,21 @@ function stripUnsupportedStylesheets(clonedDoc: Document): void {
 }
 
 export function buildHtml2CanvasOptions(sourceRoot: HTMLElement) {
+  const isPrintDocument =
+    sourceRoot.hasAttribute("data-print-document") ||
+    sourceRoot.hasAttribute("data-invoice-document");
+
   return {
     scale: 2,
     useCORS: true,
+    width: isPrintDocument ? 794 : undefined,
+    windowWidth: isPrintDocument ? 794 : undefined,
     onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
       inlineStylesForHtml2Canvas(clonedElement, sourceRoot);
       stripUnsupportedStylesheets(clonedDoc);
+      if (isPrintDocument) {
+        injectInvoicePdfStyles(clonedDoc);
+      }
     },
   };
 }
@@ -160,6 +180,13 @@ export async function downloadElementAsPdf(
   filename: string,
   options: PdfOptions = {},
 ): Promise<void> {
+  if (
+    element.hasAttribute("data-print-document") ||
+    element.hasAttribute("data-invoice-document")
+  ) {
+    preparePrintDocumentForPdfCapture(element);
+  }
+
   const html2pdf = (await import("html2pdf.js")).default;
   await html2pdf()
     .set({

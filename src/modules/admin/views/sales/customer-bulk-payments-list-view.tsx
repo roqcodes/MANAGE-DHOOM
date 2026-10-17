@@ -23,6 +23,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -145,10 +146,10 @@ export function CustomerBulkPaymentsListView() {
         breadcrumb={[{ label: "Payment bulk", href: "/admin/erp/customer-bulk-payments" }]}
         description="Record payments for multiple customers in one batch per store."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add payment
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

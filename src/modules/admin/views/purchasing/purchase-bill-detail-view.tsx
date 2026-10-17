@@ -31,10 +31,16 @@ import { resolveOutboxUserId } from "@/lib/sync/resolve-outbox-user-id.client";
 import { enqueuePurchaseBillFinalize } from "@/modules/erp/lib/enqueue-purchase-bill-finalize.client";
 import { purchaseBillResourceScope } from "@/modules/erp/types/purchase-payload";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
-import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
+import {
+  AdminPageHeader,
+  AdminPageLayout,
+  AdminPrimaryAction,
+  AdminSecondaryIconAction,
+} from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
+import { ERP_DOCUMENT_UI } from "@/common/erp/document-status";
 import { ErpDocumentActions } from "@/modules/erp/components/erp-document-actions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
@@ -339,29 +345,30 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
           <div className="flex flex-wrap items-center gap-2">
             {canFinalize ? (
               <ErpPostActionButton disabled={pending} onClick={finalize}>
-                {pending ? "Finalizing…" : "Finalize & post to payable"}
+                {pending
+                  ? ERP_DOCUMENT_UI.finalizing
+                  : ERP_DOCUMENT_UI.purchaseBill.finalizeDetail}
               </ErpPostActionButton>
             ) : null}
             {canPay ? (
-              <Button
+              <AdminPrimaryAction
                 nativeButton={false}
                 render={
                   <Link href={`/admin/erp/supplier-payments/new?billId=${billId}`} />
                 }
               >
                 <CreditCard data-icon="inline-start" />
-                Add payment
-              </Button>
+                Record payment
+              </AdminPrimaryAction>
             ) : null}
             {bill.po_id ? (
-              <Button
+              <AdminSecondaryIconAction
                 nativeButton={false}
-                variant="outline"
                 render={<Link href={`/admin/purchase-orders/${bill.po_id}`} />}
+                aria-label="View purchase order"
               >
-                <FileText data-icon="inline-start" />
-                View PO
-              </Button>
+                <FileText />
+              </AdminSecondaryIconAction>
             ) : null}
             <ErpDocumentActions
               layout="bar"

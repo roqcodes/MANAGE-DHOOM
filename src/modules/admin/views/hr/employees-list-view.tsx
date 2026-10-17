@@ -17,6 +17,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -111,10 +112,10 @@ export function EmployeesListView() {
         breadcrumb={[{ label: "Employees", href: "/admin/erp/employees" }]}
         description="Manage employee records, salary structure, and employment status by store."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add employee
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

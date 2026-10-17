@@ -225,6 +225,20 @@ export class OutboxStore {
     );
   }
 
+  /** Lists operations and removes stale SERVER_COMMITTED rows (resolved sync). */
+  async listPurgingCommitted(): Promise<OutboxOperationRecord[]> {
+    const all = await this.list();
+    const active: OutboxOperationRecord[] = [];
+    for (const op of all) {
+      if (op.state === OUTBOX_OPERATION_STATES.SERVER_COMMITTED) {
+        await this.delete(op.operationId);
+      } else {
+        active.push(op);
+      }
+    }
+    return active;
+  }
+
   async updateState(
     operationId: string,
     update: OutboxStateUpdate,

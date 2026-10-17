@@ -20,7 +20,12 @@ import {
 
 import type { VatReturnDetailWithSources, VatReturnSourceLine } from "@/common/erp/finance-types";
 import { adminDelete, adminGet, adminPatch } from "@/modules/admin/lib/admin-api-client";
-import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
+import {
+  AdminPageHeader,
+  AdminPageLayout,
+  AdminPrimaryAction,
+  AdminSecondaryIconAction,
+} from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -296,44 +301,37 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
           <div className="flex flex-wrap items-center gap-2">
             {detail.status === "unfiled" ? (
               <>
-                <Button size="sm" disabled={acting} onClick={handleFile}>
+                <AdminPrimaryAction disabled={acting} onClick={handleFile}>
                   File tax
-                </Button>
-                <Button
-                  size="icon-sm"
-                  variant="outline"
+                </AdminPrimaryAction>
+                <AdminSecondaryIconAction
                   disabled={acting}
                   onClick={handleRefresh}
                   aria-label="Recalculate VAT return"
-                  title="Recalculate"
                 >
                   {acting ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                </Button>
-                <Button
-                  size="icon-sm"
-                  variant="outline"
+                </AdminSecondaryIconAction>
+                <AdminSecondaryIconAction
                   className="text-destructive hover:text-destructive"
                   disabled={acting}
                   onClick={handleDelete}
                   aria-label="Delete VAT return"
-                  title="Delete"
                 >
                   <Trash2 />
-                </Button>
+                </AdminSecondaryIconAction>
               </>
             ) : null}
             {detail.status === "filed" && detail.balance_due > 0 ? (
-              <Button
+              <AdminPrimaryAction
                 nativeButton={false}
-                size="sm"
                 render={
                   <Link
                     href={`/admin/erp/vat-returns?vatReturnId=${encodeURIComponent(returnId)}&form=new`}
                   />
                 }
               >
-                Add payment
-              </Button>
+                Record payment
+              </AdminPrimaryAction>
             ) : null}
           </div>
         }

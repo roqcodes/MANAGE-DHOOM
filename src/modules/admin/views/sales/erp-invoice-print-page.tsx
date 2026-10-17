@@ -12,6 +12,7 @@ import {
 } from "@/modules/erp/components/erp-invoice-print-document";
 import { downloadElementAsPdf } from "@/lib/html2pdf-download";
 import { printDocumentElement } from "@/lib/print-document";
+import { useAutoPrintOnLoad } from "@/lib/use-auto-print-on-load";
 
 export function ErpInvoicePrintPage() {
   const params = useParams();
@@ -32,7 +33,7 @@ export function ErpInvoicePrintPage() {
   }, [id]);
 
   const handleDownloadPdf = useCallback(async () => {
-    const element = document.querySelector("[data-invoice-document]");
+    const element = document.querySelector("[data-print-document]");
     if (!(element instanceof HTMLElement) || !invoice) return;
 
     setDownloading(true);
@@ -55,6 +56,15 @@ export function ErpInvoicePrintPage() {
     }
   }, [searchParams, invoice, downloading, handleDownloadPdf]);
 
+  useAutoPrintOnLoad(
+    Boolean(
+      invoice &&
+        !loading &&
+        searchParams.get("print") === "1" &&
+        searchParams.get("download") !== "1",
+    ),
+  );
+
   if (loading) {
     return <AdminPrintSkeleton />;
   }
@@ -71,7 +81,7 @@ export function ErpInvoicePrintPage() {
         onDownloadPdf={handleDownloadPdf}
         downloading={downloading}
         onPrint={() => {
-          const element = document.querySelector("[data-invoice-document]");
+          const element = document.querySelector("[data-print-document]");
           if (element instanceof HTMLElement) printDocumentElement(element);
         }}
       />

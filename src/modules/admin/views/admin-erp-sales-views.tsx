@@ -35,7 +35,16 @@ import {
   SalesPageHeader,
   SalesPageLayout,
 } from "@/modules/erp/components/sales-module-ui";
-import { SortableTableHead, AdminTableDateTime, useErpFormModal, useSortableData, ErpCustomerTableGlance, ErpDocumentTableGlance, ErpStoreTableGlance } from "@/modules/admin/ui";
+import {
+  AdminPrimaryAction,
+  SortableTableHead,
+  AdminTableDateTime,
+  useErpFormModal,
+  useSortableData,
+  ErpCustomerTableGlance,
+  ErpDocumentTableGlance,
+  ErpStoreTableGlance,
+} from "@/modules/admin/ui";
 import { EstimateFormView } from "@/modules/admin/views/sales/estimate-form-view";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 
@@ -75,10 +84,10 @@ export function AdminErpEstimatesView() {
         title="Estimates"
         description="Quotes and proposals for customers."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Create estimate
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

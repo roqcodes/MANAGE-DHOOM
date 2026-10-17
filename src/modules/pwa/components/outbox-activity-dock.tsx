@@ -89,7 +89,7 @@ function QueueRow({
             ? ` · ${formatDistanceToNow(op.nextAttemptAt, { addSuffix: true })}`
             : null}
         </p>
-        {op.lastError?.message ? (
+        {failed && op.lastError?.message ? (
           <p className="mt-0.5 line-clamp-2 text-[10px] text-amber-800 dark:text-amber-200/90">
             {op.lastError.message}
           </p>
@@ -177,11 +177,11 @@ export function OutboxActivityDock() {
     estimatedCompletionMs,
   );
 
-  const headline = showSavedFlash ? saveFeedback!.message : queueHeadline;
-  const subline = showSavedFlash
-    ? saveFeedback!.detail ?? (visibleCount > 0 ? queueHeadline : undefined)
-    : undefined;
+  const headline = showSavedFlash
+    ? [saveFeedback!.message, saveFeedback!.detail].filter(Boolean).join(" · ")
+    : queueHeadline;
   const savedFlashActive = showSavedFlash;
+  const canExpand = operations.length > 0;
 
   function retryOne(operationId: string) {
     setRetryError(null);
@@ -209,7 +209,7 @@ export function OutboxActivityDock() {
             className="relative overflow-hidden rounded-[22px] border border-white/80 bg-white/75 p-1.5 shadow-[0_12px_32px_-6px_rgba(30,41,59,0.16),0_0_0_1px_rgba(255,255,255,0.7)_inset,0_4px_14px_rgba(56,189,248,0.1)] backdrop-blur-2xl dark:border-white/20 dark:bg-slate-900/75 dark:shadow-[0_14px_36px_-8px_rgba(0,0,0,0.45),inset_0_1px_2px_rgba(255,255,255,0.2)]"
             role="status"
             aria-live="polite"
-            aria-label="Database sync queue"
+            aria-label="Background sync status"
           >
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-cyan-400/10 via-indigo-400/5 to-sky-400/10 opacity-90" />
 
@@ -234,16 +234,6 @@ export function OutboxActivityDock() {
               <div className="min-w-0 flex-1">
                 <p
                   className={cn(
-                    "text-[9px] font-bold uppercase tracking-wider",
-                    savedFlashActive
-                      ? "text-emerald-600/90 dark:text-emerald-400/90"
-                      : "text-slate-400 dark:text-slate-400/90",
-                  )}
-                >
-                  {savedFlashActive ? "Saved locally" : "DB sync queue"}
-                </p>
-                <p
-                  className={cn(
                     "truncate text-xs font-semibold tracking-tight",
                     savedFlashActive
                       ? "text-emerald-900 dark:text-emerald-50"
@@ -252,15 +242,10 @@ export function OutboxActivityDock() {
                 >
                   {headline}
                 </p>
-                {subline ? (
-                  <p className="truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
-                    {subline}
-                  </p>
-                ) : null}
               </div>
 
               <div className="flex shrink-0 items-center gap-0.5">
-                {operations.length > 0 ? (
+                {canExpand ? (
                   <button
                     type="button"
                     onClick={() => setExpanded((v) => !v)}

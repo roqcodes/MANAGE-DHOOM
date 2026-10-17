@@ -18,6 +18,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -101,10 +102,10 @@ export function VendorsErpListView() {
         breadcrumb={[{ label: "Vendors", href: "/admin/vendors" }]}
         description="Suppliers used for purchase bills and expenses."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add vendor
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

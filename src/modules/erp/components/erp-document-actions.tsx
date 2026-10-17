@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+
+import { directPrintFromAdminPath } from "@/lib/direct-document-print";
+import { documentPrintUrl } from "@/lib/print-document";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Download, Eye, Mail, Pencil, Printer, Share2, Trash2 } from "lucide-react";
@@ -71,7 +74,8 @@ export function ErpDocumentActions({
   const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const iconSize = size === "sm" ? "icon-sm" : "icon";
+  const iconSize =
+    layout === "bar" ? "page-icon" : size === "sm" ? "icon-sm" : size === "default" ? "icon" : "icon";
 
   function handleDelete() {
     if (!onDelete) return;
@@ -172,11 +176,18 @@ export function ErpDocumentActions({
             </Button>
           ) : (
             <Button
-              nativeButton={false}
+              nativeButton
               size={iconSize}
               variant={layout === "bar" ? "outline" : "ghost"}
-              render={<Link href={printHref!} target="_blank" />}
               aria-label="Print"
+              onClick={() => {
+                void directPrintFromAdminPath(printHref!).catch((err) => {
+                  console.error(err);
+                  window.alert(
+                    err instanceof Error ? err.message : "Could not print this document.",
+                  );
+                });
+              }}
             >
               <Printer />
             </Button>
@@ -193,11 +204,20 @@ export function ErpDocumentActions({
             </Button>
           ) : printHref ? (
             <Button
-              nativeButton={false}
+              nativeButton
               size={iconSize}
               variant={layout === "bar" ? "outline" : "ghost"}
-              render={<Link href={`${printHref}?download=1`} target="_blank" />}
               aria-label="Download PDF"
+              onClick={() => {
+                void directPrintFromAdminPath(documentPrintUrl(printHref!, "download")).catch(
+                  (err) => {
+                  console.error(err);
+                    window.alert(
+                      err instanceof Error ? err.message : "Could not download this document.",
+                    );
+                  },
+                );
+              }}
             >
               <Download />
             </Button>
@@ -292,7 +312,7 @@ export function ErpDocumentActions({
   if (layout === "bar") {
     return (
       <div className="flex flex-col items-end gap-1">
-        <div className="flex flex-wrap gap-1">{buttons}</div>
+        <div className="flex flex-wrap items-center gap-2">{buttons}</div>
         {shareMessage ? <p className="text-xs text-muted-foreground">{shareMessage}</p> : null}
       </div>
     );

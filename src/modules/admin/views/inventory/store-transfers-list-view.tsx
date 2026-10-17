@@ -17,6 +17,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -73,10 +74,10 @@ export function StoreTransfersListView() {
         breadcrumb={[{ label: "Store transfers", href: "/admin/erp/store-transfers" }]}
         description="Completed stock movements between stores."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add new transfer
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

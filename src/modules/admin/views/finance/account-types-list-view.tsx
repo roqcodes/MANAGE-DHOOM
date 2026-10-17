@@ -27,6 +27,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
+  AdminPrimaryAction,
   AdminPageLayout,
   AdminTableBody,
   AdminTableCell,
@@ -230,10 +231,10 @@ export function AccountTypesListView() {
           breadcrumb={[{ label: "Account types", href: "/admin/erp/account-types" }]}
           description="Categories and types for your chart of accounts. System types are locked."
           actions={
-            <Button size="sm" onClick={() => setModal({ mode: "create" })}>
-              <Plus className="size-4" />
+            <AdminPrimaryAction onClick={() => setModal({ mode: "create" })}>
+              <Plus data-icon="inline-start" />
               Add account type
-            </Button>
+            </AdminPrimaryAction>
           }
         />
 

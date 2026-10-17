@@ -16,6 +16,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -125,10 +126,10 @@ export function SalaryPaymentsListView() {
         breadcrumb={[{ label: "Salary payments", href: "/admin/erp/salary-payments" }]}
         description="Individual salary payments to employees. Excess over balance becomes advance."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add payment
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

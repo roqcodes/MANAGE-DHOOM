@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
+import { AdminPageActionBar } from "@/modules/admin/ui/admin-page-actions";
 import { AdminInfoTip } from "@/modules/admin/ui/admin-info-tip";
 import { cn } from "@/lib/utils";
 import { RequiredFieldMark, showRequiredMark } from "@/lib/required-field-label";
@@ -59,11 +60,9 @@ export function AdminPageHeader({
           ) : null}
         </div>
         {actions ? (
-          <div
-            className="flex flex-wrap items-center gap-2 [&_[data-slot=button]]:shadow-sm [&_[data-slot=button]]:shadow-primary/10"
-          >
+          <AdminPageActionBar className="[&_[data-slot=button]]:shadow-sm [&_[data-slot=button]]:shadow-primary/10">
             {actions}
-          </div>
+          </AdminPageActionBar>
         ) : null}
       </div>
     </div>

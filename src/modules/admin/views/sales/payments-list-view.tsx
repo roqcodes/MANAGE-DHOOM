@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Scale } from "lucide-react";
 
 import { DataExportMenu } from "@/components/export/data-export-menu";
 import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
@@ -24,7 +24,9 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
+  AdminSecondaryIconAction,
   AdminPageLayout,
   AdminTableBody,
   AdminTableCell,
@@ -144,13 +146,16 @@ export function PaymentsListView() {
         actions={
           <>
             <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
-            <Button variant="outline" size="sm" onClick={() => setSettlementOpen(true)}>
-              Settle account
-            </Button>
-            <Button size="sm" onClick={() => openNew()}>
+            <AdminSecondaryIconAction
+              onClick={() => setSettlementOpen(true)}
+              aria-label="Settle account"
+            >
+              <Scale />
+            </AdminSecondaryIconAction>
+            <AdminPrimaryAction onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
               Add new payment
-            </Button>
+            </AdminPrimaryAction>
           </>
         }
       />

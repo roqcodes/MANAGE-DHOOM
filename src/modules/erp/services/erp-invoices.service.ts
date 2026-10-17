@@ -71,7 +71,13 @@ export async function listErpInvoices(filters?: {
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
   if (filters?.userId) query = query.eq("user_id", filters.userId);
-  if (filters?.status && filters.status !== "all") query = query.eq("status", filters.status);
+  if (filters?.status && filters.status !== "all") {
+    if (filters.status === "draft") {
+      query = query.in("status", ["pending", "draft"]);
+    } else {
+      query = query.eq("status", filters.status);
+    }
+  }
   if (filters?.openOnly) query = query.gt("balance_due", 0);
   if (filters?.dateFrom) query = query.gte("created_at", `${filters.dateFrom}T00:00:00`);
   if (filters?.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59`);

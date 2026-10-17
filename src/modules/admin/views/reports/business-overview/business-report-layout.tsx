@@ -1,14 +1,18 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { RefreshCw } from "lucide-react";
+import { Download, RefreshCw } from "lucide-react";
 
 import type { ReportDefinition } from "@/common/erp/report-types";
 import { DataExportMenu } from "@/components/export/data-export-menu";
 import type { TabularExportSource } from "@/lib/export/tabular-export";
 import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
-import { Button } from "@/components/ui/button";
-import { AdminListCard, AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
+import {
+  AdminListCard,
+  AdminPageHeader,
+  AdminPageLayout,
+  AdminSecondaryIconAction,
+} from "@/modules/admin/ui";
 import type { useBusinessReportFilters } from "./use-business-report-filters";
 
 export type BusinessReportFilters = ReturnType<typeof useBusinessReportFilters>;
@@ -64,20 +68,24 @@ export function BusinessReportLayout({
         actions={
           <>
             {onRefresh ? (
-              <Button variant="outline" size="sm" onClick={onRefresh} disabled={loading || fetching}>
-                <RefreshCw
-                  data-icon="inline-start"
-                  className={loading || fetching ? "animate-spin" : undefined}
-                />
-                Refresh
-              </Button>
+              <AdminSecondaryIconAction
+                onClick={onRefresh}
+                disabled={loading || fetching}
+                aria-label="Refresh report"
+              >
+                <RefreshCw className={loading || fetching ? "animate-spin" : undefined} />
+              </AdminSecondaryIconAction>
             ) : null}
             {exportSource ? (
               <DataExportMenu source={exportSource} disabled={isEmpty} />
             ) : onExport ? (
-              <Button variant="outline" size="sm" onClick={onExport} disabled={isEmpty}>
-                Export
-              </Button>
+              <AdminSecondaryIconAction
+                onClick={onExport}
+                disabled={isEmpty}
+                aria-label="Export report"
+              >
+                <Download />
+              </AdminSecondaryIconAction>
             ) : null}
           </>
         }

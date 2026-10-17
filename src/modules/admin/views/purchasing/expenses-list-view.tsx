@@ -20,6 +20,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -134,10 +135,10 @@ export function ExpensesListView() {
         breadcrumb={[{ label: "Expenses", href: "/admin/erp/expenses" }]}
         description="Operating expenses and petty cash spend by store. Filter by expense account type or period."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add expense
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

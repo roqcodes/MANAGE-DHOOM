@@ -47,6 +47,7 @@ import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
 import { invalidateAdminCustomerCatalogQueries } from "@/modules/erp/lib/entity-live-search.client";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
+import { salesInvoiceStatusForBadge } from "@/common/erp/document-status";
 import { ActivityLogPanel } from "@/modules/erp/components/activity-log-panel";
 import {
   blockUserAction,
@@ -496,7 +497,7 @@ export function CustomerDetailPanel({
                             {formatCurrencyAmount(inv.balanceDue)}
                           </TableCell>
                           <TableCell>
-                            <StatusBadge status={inv.status} />
+                            <StatusBadge status={salesInvoiceStatusForBadge(inv.status)} />
                           </TableCell>
                         </TableRow>
                       ))}

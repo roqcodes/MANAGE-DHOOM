@@ -17,6 +17,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -82,10 +83,10 @@ export function VendorCreditsListView() {
         breadcrumb={[{ label: "Vendor credits", href: "/admin/erp/vendor-credits" }]}
         description="Credits issued by vendors against purchase bills. Remaining balance can be applied to future bills."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add vendor credit
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

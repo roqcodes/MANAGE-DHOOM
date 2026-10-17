@@ -32,7 +32,8 @@ export function getDependencyStatus(
   for (const depId of operation.dependsOn) {
     const dep = byId.get(depId);
     if (!dep) {
-      return "wait";
+      // Purged from IndexedDB after successful sync.
+      continue;
     }
     if (BLOCKING_DEPENDENCY_STATES.has(dep.state)) {
       return "blocked";

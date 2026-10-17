@@ -30,6 +30,7 @@ import {
   AdminFormSection,
   AdminFormShell,
   AdminListCard,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -97,10 +98,10 @@ export function EmployeeOpeningBalancesListView() {
         breadcrumb={[{ label: "Opening balances", href: "/admin/erp/employee-opening-balances" }]}
         description="Set initial salary payable balances when migrating from another system."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add opening balance
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

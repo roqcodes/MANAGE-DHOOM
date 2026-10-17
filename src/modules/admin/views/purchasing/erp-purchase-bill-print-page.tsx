@@ -1,44 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import { AdminPrintSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { InvoicePrintToolbar } from "@/modules/admin/components/invoice-print-toolbar";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
-import { formatCurrencyAmount } from "@/lib/format-currency";
-import {
-  landedAllocFromStoredLine,
-  loadedUnitCostFromStoredLine,
-} from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { downloadElementAsPdf } from "@/lib/html2pdf-download";
-
-type PurchaseBillPrintData = {
-  id: string;
-  purchase_bill_number: string;
-  vendor_bill_number: string | null;
-  purchase_date: string;
-  due_date: string | null;
-  subtotal: number;
-  tax_amount: number;
-  discount: number;
-  landed_cost_total: number;
-  total_amount: number;
-  balance_due: number;
-  vendors: { name: string | null; address: string | null; trn: string | null } | null;
-  stores: { name: string | null } | null;
-  erp_purchase_bill_lines: Array<{
-    product_name: string;
-    quantity: number;
-    purchase_price: number;
-    tax_rate_percent: number;
-    line_total: number;
-    landed_cost_allocated?: number;
-    unit_loaded_cost?: number | null;
-  }>;
-};
+import { printDocumentElement } from "@/lib/print-document";
+import { useAutoPrintOnLoad } from "@/lib/use-auto-print-on-load";
+import {
+  PurchaseBillPrintDocument,
+  type PurchaseBillPrintData,
+} from "@/modules/purchasing/components/purchase-bill-print-document";
 
 export function ErpPurchaseBillPrintPage() {
+  const searchParams = useSearchParams();
   const params = useParams();
   const id = typeof params.id === "string" ? params.id : "";
   const [bill, setBill] = useState<PurchaseBillPrintData | null>(null);
@@ -56,7 +33,7 @@ export function ErpPurchaseBillPrintPage() {
   }, [id]);
 
   const handleDownloadPdf = useCallback(async () => {
-    const element = document.querySelector("[data-purchase-bill-document]");
+    const element = document.querySelector("[data-print-document]");
     if (!(element instanceof HTMLElement) || !bill) return;
 
     setDownloading(true);
@@ -66,6 +43,15 @@ export function ErpPurchaseBillPrintPage() {
       setDownloading(false);
     }
   }, [bill]);
+
+  useAutoPrintOnLoad(
+    Boolean(
+      bill &&
+        !loading &&
+        searchParams.get("print") === "1" &&
+        searchParams.get("download") !== "1",
+    ),
+  );
 
   if (loading) {
     return <AdminPrintSkeleton />;
@@ -82,75 +68,13 @@ export function ErpPurchaseBillPrintPage() {
         title={`Purchase bill · ${bill.purchase_bill_number}`}
         onDownloadPdf={handleDownloadPdf}
         downloading={downloading}
+        onPrint={() => {
+          const element = document.querySelector("[data-print-document]");
+          if (element instanceof HTMLElement) printDocumentElement(element);
+        }}
       />
-      <div className="mx-auto max-w-3xl p-8 print:p-0" data-purchase-bill-document>
-        <header className="mb-6 border-b pb-4">
-          <h1 className="text-xl font-semibold">Purchase Bill</h1>
-          <p className="text-sm text-slate-600">{bill.purchase_bill_number}</p>
-        </header>
-        <div className="mb-6 grid gap-4 text-sm sm:grid-cols-2">
-          <div>
-            <p className="font-medium">Vendor</p>
-            <p>{bill.vendors?.name ?? "—"}</p>
-            <p className="text-slate-600">{bill.vendors?.address ?? ""}</p>
-            {bill.vendors?.trn ? <p>TRN: {bill.vendors.trn}</p> : null}
-          </div>
-          <div className="text-right">
-            <p>Store: {bill.stores?.name ?? "—"}</p>
-            <p>Date: {bill.purchase_date}</p>
-            <p>Due: {bill.due_date ?? "—"}</p>
-            {bill.vendor_bill_number ? <p>Vendor bill #: {bill.vendor_bill_number}</p> : null}
-          </div>
-        </div>
-        <table className="mb-6 w-full text-sm">
-          <thead>
-            <tr className="border-b text-left text-xs uppercase text-slate-500">
-              <th className="py-2">Item</th>
-              <th className="py-2">Qty</th>
-              <th className="py-2">Rate</th>
-              {bill.landed_cost_total > 0 ? <th className="py-2">Loaded unit</th> : null}
-              <th className="py-2">Tax</th>
-              {bill.landed_cost_total > 0 ? <th className="py-2 text-right">Landed</th> : null}
-              <th className="py-2 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bill.erp_purchase_bill_lines.map((line, i) => {
-              const landedAlloc = landedAllocFromStoredLine(line);
-              const loadedUnit = loadedUnitCostFromStoredLine({
-                quantity: line.quantity,
-                purchasePrice: line.purchase_price,
-                landed_cost_allocated: line.landed_cost_allocated,
-                unit_loaded_cost: line.unit_loaded_cost,
-              });
-              return (
-                <tr key={i} className="border-b border-slate-100">
-                  <td className="py-2">{line.product_name}</td>
-                  <td className="py-2">{line.quantity}</td>
-                  <td className="py-2">{formatCurrencyAmount(line.purchase_price)}</td>
-                  {bill.landed_cost_total > 0 ? (
-                    <td className="py-2">{formatCurrencyAmount(loadedUnit)}</td>
-                  ) : null}
-                  <td className="py-2">{line.tax_rate_percent}%</td>
-                  {bill.landed_cost_total > 0 ? (
-                    <td className="py-2 text-right">
-                      {landedAlloc > 0 ? formatCurrencyAmount(landedAlloc) : "—"}
-                    </td>
-                  ) : null}
-                  <td className="py-2 text-right">{formatCurrencyAmount(line.line_total)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div className="ml-auto max-w-xs space-y-1 text-sm">
-          <p className="flex justify-between"><span>Subtotal</span><span>{formatCurrencyAmount(bill.subtotal)}</span></p>
-          <p className="flex justify-between"><span>Tax</span><span>{formatCurrencyAmount(bill.tax_amount)}</span></p>
-          <p className="flex justify-between"><span>Discount</span><span>{formatCurrencyAmount(bill.discount)}</span></p>
-          <p className="flex justify-between"><span>Landed costs</span><span>{formatCurrencyAmount(bill.landed_cost_total)}</span></p>
-          <p className="flex justify-between font-semibold"><span>Total</span><span>{formatCurrencyAmount(bill.total_amount)}</span></p>
-          <p className="flex justify-between"><span>Balance due</span><span>{formatCurrencyAmount(bill.balance_due)}</span></p>
-        </div>
+      <div className="flex justify-center pb-10 pt-4 print:pb-0 print:pt-0">
+        <PurchaseBillPrintDocument bill={bill} />
       </div>
     </div>
   );

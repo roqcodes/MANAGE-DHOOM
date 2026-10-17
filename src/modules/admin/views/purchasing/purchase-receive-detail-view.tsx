@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 
 import type { PurchaseReceiveAdjustments } from "@/common/erp/purchasing-types";
 import { adminDelete, adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
@@ -12,7 +13,12 @@ import { displayErpDocumentNumber } from "@/lib/erp-document-ref";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
+import {
+  AdminPageHeader,
+  AdminPageLayout,
+  AdminPrimaryAction,
+  AdminSecondaryIconAction,
+} from "@/modules/admin/ui";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 type ReceiveDetail = {
@@ -197,18 +203,26 @@ export function PurchaseReceiveDetailView({ receiveId }: { receiveId: string }) 
           <>
             {receive.status === "draft" ? (
               <>
-                <Button size="sm" disabled={pending} onClick={finalize}>
+                <AdminPrimaryAction disabled={pending} onClick={finalize}>
                   Finalize receive
-                </Button>
-                <Button size="sm" variant="outline" disabled={pending} onClick={cancelDraft}>
-                  Discard draft
-                </Button>
+                </AdminPrimaryAction>
+                <AdminSecondaryIconAction
+                  disabled={pending}
+                  onClick={cancelDraft}
+                  aria-label="Discard draft"
+                >
+                  <Trash2 />
+                </AdminSecondaryIconAction>
               </>
             ) : null}
             {receive.status === "finalized" && !isReversal ? (
-              <Button size="sm" variant="destructive" disabled={pending} onClick={reverseReceive}>
+              <AdminPrimaryAction
+                variant="destructive"
+                disabled={pending}
+                onClick={reverseReceive}
+              >
                 Reverse receive
-              </Button>
+              </AdminPrimaryAction>
             ) : null}
           </>
         }

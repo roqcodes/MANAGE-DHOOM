@@ -13,6 +13,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -75,10 +76,10 @@ export function JournalEntriesListView() {
         breadcrumb={[{ label: "Journal entries", href: "/admin/erp/journal-entries" }]}
         description="Posted journals from invoices, payments, bills, and manual entries."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Manual journal
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

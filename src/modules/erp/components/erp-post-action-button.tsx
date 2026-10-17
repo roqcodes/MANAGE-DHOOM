@@ -9,7 +9,14 @@ export const ERP_POST_ACTION_BUTTON_CLASS =
 
 export function ErpPostActionButton({
   className,
+  size = "page",
   ...props
 }: ComponentProps<typeof Button>) {
-  return <Button className={cn(ERP_POST_ACTION_BUTTON_CLASS, className)} {...props} />;
+  return (
+    <Button
+      size={size}
+      className={cn(ERP_POST_ACTION_BUTTON_CLASS, "rounded-full", className)}
+      {...props}
+    />
+  );
 }

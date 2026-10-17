@@ -19,7 +19,7 @@ export function formatOutboxOperationLabel(operationType: string): string {
     case ERP_CLIENT_OPERATION_TYPES.salesInvoice.update:
       return "Update sales invoice";
     case ERP_CLIENT_OPERATION_TYPES.salesInvoice.issue:
-      return "Issue sales invoice";
+      return "Finalize sales invoice";
     case ERP_CLIENT_OPERATION_TYPES.salesInvoice.cancel:
       return "Cancel sales invoice";
     case ERP_CLIENT_OPERATION_TYPES.purchaseOrder.create:

@@ -19,6 +19,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -45,6 +46,7 @@ import {
 } from "@/modules/admin/components/purchase-bill-outbox-table-rows";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { enqueuePurchaseBillFinalize } from "@/modules/erp/lib/enqueue-purchase-bill-finalize.client";
+import { ERP_DOCUMENT_UI } from "@/common/erp/document-status";
 import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 
 const PURCHASE_BILL_OUTBOX_TYPES = new Set<string>([
@@ -159,10 +161,10 @@ export function PurchaseBillsListView() {
         breadcrumb={[{ label: "Purchase bills", href: "/admin/erp/purchase-bills" }]}
         description="Vendor purchase bills and amounts payable. Draft bills can be edited; finalized bills accept supplier payments."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Create purchase bill
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 
@@ -342,7 +344,9 @@ export function PurchaseBillsListView() {
                         disabled={finalizingId === r.id}
                         onClick={() => finalizeDraftBill(r)}
                       >
-                        {finalizingId === r.id ? "Finalizing…" : "Finalize"}
+                        {finalizingId === r.id
+                          ? ERP_DOCUMENT_UI.finalizing
+                          : ERP_DOCUMENT_UI.purchaseBill.finalizeList}
                       </ErpPostActionButton>
                     ) : r.status === "draft" ? (
                       <span className="text-muted-foreground">—</span>

@@ -21,6 +21,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminPageHeader,
+  AdminPrimaryAction,
   AdminPageLayout,
   AdminTableBody,
   AdminTableCell,
@@ -112,10 +113,10 @@ export function CashAccountsListView() {
         breadcrumb={[{ label: "Banking", href: "/admin/erp/banking" }]}
         description="Bank, cash, and loan accounts with live balances."
         actions={
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
+          <AdminPrimaryAction onClick={() => setCreateOpen(true)}>
             <Plus data-icon="inline-start" />
             Add account
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

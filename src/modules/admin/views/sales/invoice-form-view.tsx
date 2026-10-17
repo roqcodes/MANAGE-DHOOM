@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import type { CustomerErpProfile, SalesLineFormRow } from "@/common/erp/sales-types";
+import { ERP_DOCUMENT_UI, isSalesInvoiceDraft } from "@/common/erp/document-status";
 import { calcSalesLine, roundSalesMoney } from "@/common/erp/sales-types";
 import {
   addMonthsToDateInput,
@@ -25,7 +26,6 @@ import { notifyErpLocalFormSaved } from "@/modules/erp/lib/erp-form-save-feedbac
 import type { SalesInvoiceCreatePayload } from "@/modules/erp/types/sales-invoice-payload";
 import type { SalesInvoiceUpdatePayload } from "@/modules/erp/types/sales-invoice-payload";
 import { salesInvoiceResourceScope } from "@/modules/erp/types/sales-invoice-payload";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import {
   AdminFormField,
   AdminFormGrid,
@@ -41,9 +41,6 @@ import {
   SalesLinesEditor,
   salesLinesToApiInput,
 } from "@/modules/erp/components/sales-lines-editor";
-import { getSalesLinesStockFeedback } from "@/modules/erp/lib/sales-line-stock-validation";
-import { adminAppSettingsQueryOptions } from "@/modules/settings/lib/app-settings-query";
-import type { LineProductContextMap } from "@/common/erp/line-product-context";
 import {
   ActiveStoreFormField,
   useActiveStoreFormField,
@@ -56,6 +53,7 @@ import { coalesceNumber } from "@/lib/numeric-input";
 import { Label } from "@/components/ui/label";
 import { AdminCustomerFormView } from "@/modules/admin/views/admin-customer-form-view";
 import { invalidateAdminCustomerSearchQueries } from "@/modules/erp/lib/entity-live-search.client";
+import { adminGet } from "@/modules/admin/lib/admin-api-client";
 
 function customerSelectLabel(profile: CustomerErpProfile): string {
   return (
@@ -89,11 +87,9 @@ export function InvoiceFormView({
     useActiveStoreFormField({ mode });
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [stockWarning, setStockWarning] = useState<string | null>(null);
   const [loadingInvoice, setLoadingInvoice] = useState(mode === "edit");
+  const [invoiceStatus, setInvoiceStatus] = useState<string | null>(null);
 
-  const { data: appSettings } = useQuery(adminAppSettingsQueryOptions());
-  const allowNegativeStoreStock = appSettings?.allow_negative_store_stock ?? false;
   const isModal = variant === "modal";
 
   const [customerId, setCustomerId] = useState("");
@@ -122,6 +118,7 @@ export function InvoiceFormView({
   useEffect(() => {
     if (mode !== "edit" || !invoiceId) return;
     adminGet<{
+      status: string;
       user_id: string;
       store_id: string | null;
       created_at: string;
@@ -141,6 +138,7 @@ export function InvoiceFormView({
       }>;
     }>(`erp/invoices/${invoiceId}`)
       .then((detail) => {
+        setInvoiceStatus(detail.status);
         setCustomerId(detail.user_id);
         setCustomerLabel(detail.users?.name ?? detail.users?.email ?? "");
         if (detail.store_id) setStoreId(detail.store_id);
@@ -219,7 +217,6 @@ export function InvoiceFormView({
     setTaxInclusive(true);
     setNotes("");
     setLines([]);
-    setStockWarning(null);
     setError(null);
   }
 
@@ -229,15 +226,12 @@ export function InvoiceFormView({
       resetCreateForm();
       return;
     }
-    if (isModal) {
-      return;
-    }
+    if (isModal) return;
     router.push(id ? `/admin/erp/invoices/${id}` : "/admin/erp/invoices");
   }
 
   function handleSubmit(finalize: boolean) {
     setError(null);
-    setStockWarning(null);
     if (!customerId) {
       setError("Customer is required");
       return;
@@ -252,38 +246,17 @@ export function InvoiceFormView({
       return;
     }
     if (finalize && totals.total <= 0) {
-      setError("Enter line rates so the total is greater than zero before issuing.");
+      setError("Enter line rates so the total is greater than zero before finalizing.");
+      return;
+    }
+
+    if (finalize && apiLines.some((line) => !line.productId)) {
+      setError("Each line must be linked to a product (use product search) before finalizing.");
       return;
     }
 
     startTransition(async () => {
       try {
-        if (finalize) {
-          const productIds = [
-            ...new Set(apiLines.map((line) => line.productId).filter(Boolean) as string[]),
-          ];
-          if (productIds.length > 0 && effectiveStoreId) {
-            const stockCtx = await adminGet<{ data: LineProductContextMap }>(
-              `erp/line-product-context?storeId=${encodeURIComponent(effectiveStoreId)}&productIds=${productIds.join(",")}`,
-            );
-            const feedback = getSalesLinesStockFeedback(
-              lines,
-              stockCtx.data ?? {},
-              allowNegativeStoreStock,
-            );
-            if (feedback.blocking) {
-              setError(feedback.blocking);
-              return;
-            }
-            if (feedback.warning) {
-              setStockWarning(feedback.warning);
-            }
-          } else if (apiLines.some((line) => !line.productId)) {
-            setError("Each line must be linked to a product (use product search) before issuing.");
-            return;
-          }
-        }
-
         const supabase = createSupabaseBrowserClient();
         const staffUserId = await resolveOutboxUserId(supabase);
         if (!staffUserId) {
@@ -312,6 +285,17 @@ export function InvoiceFormView({
               terminalId: getOrCreateErpTerminalId(),
               resourceScope: salesInvoiceResourceScope(invoiceId),
             });
+            if (finalize && isSalesInvoiceDraft(invoiceStatus)) {
+              await store.enqueue({
+                operationType: ERP_CLIENT_OPERATION_TYPES.salesInvoice.issue,
+                schemaVersion: 1,
+                payload: { invoiceId },
+                userId: staffUserId,
+                storeId: effectiveStoreId,
+                terminalId: getOrCreateErpTerminalId(),
+                resourceScope: salesInvoiceResourceScope(invoiceId),
+              });
+            }
           } else {
             const createPayload: SalesInvoiceCreatePayload = {
               userId: customerId,
@@ -347,18 +331,15 @@ export function InvoiceFormView({
           await store.close();
         }
 
+        const posting = finalize && (mode === "create" || isSalesInvoiceDraft(invoiceStatus));
         notifyErpLocalFormSaved({
           entityLabel: "Sales invoice",
           mode: mode === "edit" ? "update" : "create",
-          queuedForPost: finalize,
+          queuedForPost: posting,
         });
         dispatchOutboxChanged();
         broadcastSyncWake();
-        if (mode === "create") {
-          handleSuccessNavigate();
-        } else {
-          handleSuccessNavigate(invoiceId);
-        }
+        handleSuccessNavigate(mode === "create" ? undefined : invoiceId);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to queue invoice");
       }
@@ -369,6 +350,8 @@ export function InvoiceFormView({
 
   const title = mode === "edit" ? "Edit invoice" : "Create invoice";
   const backHref = invoiceId ? `/admin/erp/invoices/${invoiceId}` : "/admin/erp/invoices";
+  const isDraftEdit = mode === "edit" && isSalesInvoiceDraft(invoiceStatus);
+  const showDraftActions = mode === "create" || isDraftEdit;
 
   const totalsSidebar = (
     <Card className="h-fit">
@@ -406,17 +389,20 @@ export function InvoiceFormView({
       <Button type="button" variant="outline" onClick={handleCancel}>
         Cancel
       </Button>
-      {mode === "create" ? (
+      {showDraftActions ? (
         <Button variant="outline" disabled={pending} onClick={() => handleSubmit(false)}>
-          Save as draft
+          {ERP_DOCUMENT_UI.saveDraft}
         </Button>
       ) : null}
-      <Button
-        disabled={pending}
-        onClick={() => handleSubmit(mode === "edit" ? false : true)}
-      >
-        {pending ? "Saving…" : mode === "edit" ? "Update invoice" : "Issue invoice"}
-      </Button>
+      {showDraftActions ? (
+        <Button disabled={pending} onClick={() => handleSubmit(true)}>
+          {pending ? "Saving…" : ERP_DOCUMENT_UI.saveAndFinalize}
+        </Button>
+      ) : (
+        <Button disabled={pending} onClick={() => handleSubmit(false)}>
+          {pending ? "Saving…" : "Update invoice"}
+        </Button>
+      )}
     </>
   ) : undefined;
 
@@ -526,9 +512,6 @@ export function InvoiceFormView({
             />
           </AdminFormSection>
 
-          {stockWarning ? (
-            <p className="text-sm text-amber-700 dark:text-amber-400">{stockWarning}</p>
-          ) : null}
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
           {!isModal ? (
@@ -536,17 +519,20 @@ export function InvoiceFormView({
               <Link href={backHref} className={buttonVariants({ variant: "outline" })}>
                 Cancel
               </Link>
-              {mode === "create" ? (
+              {showDraftActions ? (
                 <Button variant="outline" disabled={pending} onClick={() => handleSubmit(false)}>
-                  Save as draft
+                  {ERP_DOCUMENT_UI.saveDraft}
                 </Button>
               ) : null}
-              <Button
-                disabled={pending}
-                onClick={() => handleSubmit(mode === "edit" ? false : true)}
-              >
-                {pending ? "Saving…" : mode === "edit" ? "Update invoice" : "Issue invoice"}
-              </Button>
+              {showDraftActions ? (
+                <Button disabled={pending} onClick={() => handleSubmit(true)}>
+                  {pending ? "Saving…" : ERP_DOCUMENT_UI.saveAndFinalize}
+                </Button>
+              ) : (
+                <Button disabled={pending} onClick={() => handleSubmit(false)}>
+                  {pending ? "Saving…" : "Update invoice"}
+                </Button>
+              )}
             </div>
           ) : null}
         </AdminFormModalLayout>

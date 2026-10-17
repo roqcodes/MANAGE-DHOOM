@@ -27,6 +27,7 @@ import {
   AdminListCard,
   AdminListFooter,
   AdminPageHeader,
+  AdminPrimaryAction,
   AdminPageLayout,
   AdminTableBody,
   AdminTableCell,
@@ -256,10 +257,10 @@ export function AccountsListView() {
           breadcrumb={[{ label: "Accounts", href: "/admin/erp/accounts" }]}
           description="Chart of accounts for the active store. System and locked accounts cannot be edited or deleted."
           actions={
-            <Button size="sm" onClick={() => setModal({ mode: "create" })}>
-              <Plus className="size-4" />
+            <AdminPrimaryAction onClick={() => setModal({ mode: "create" })}>
+              <Plus data-icon="inline-start" />
               Add account
-            </Button>
+            </AdminPrimaryAction>
           }
         />
 

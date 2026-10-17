@@ -19,6 +19,11 @@ import {
 } from "lucide-react";
 
 import { paymentModeLabel } from "@/common/erp/sales-types";
+import {
+  ERP_DOCUMENT_UI,
+  isSalesInvoiceDraft,
+  salesInvoiceStatusForBadge,
+} from "@/common/erp/document-status";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
 import { enqueueSalesInvoiceIssue } from "@/modules/erp/lib/enqueue-sales-invoice-issue.client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -29,11 +34,17 @@ import {
 } from "@/modules/admin/components/admin-page-skeleton";
 import { useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
-import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
+import {
+  AdminPageHeader,
+  AdminPageLayout,
+  AdminPrimaryAction,
+} from "@/modules/admin/ui";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
 import { ErpDocumentActions } from "@/modules/erp/components/erp-document-actions";
-import { ErpInvoicePrintModal } from "@/modules/erp/components/erp-invoice-print-modal";
-import { useErpInvoicePrintModal } from "@/modules/erp/components/use-erp-invoice-print-modal";
+import {
+  erpInvoicePrintUrl,
+  useErpInvoicePrintModal,
+} from "@/modules/erp/components/use-erp-invoice-print-modal";
 import { InvoiceChannelBadge } from "@/modules/erp/components/invoice-channel-badge";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatDateOnly } from "@/lib/format-date";
@@ -211,7 +222,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
   const [issuePending, startIssueTransition] = useTransition();
   const [issueError, setIssueError] = useState<string | null>(null);
   const detailPath = `erp/invoices/${invoiceId}`;
-  const { openInvoicePrint, invoicePrintModalProps } = useErpInvoicePrintModal();
+  const { openInvoicePrint } = useErpInvoicePrintModal();
   const { data: detail, isPending } = useAdminGetQuery<InvoiceDetail>({ path: detailPath });
   const initialLoading = isInitialAdminLoad(isPending, Boolean(detail));
 
@@ -230,7 +241,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
         });
         router.refresh();
       } catch (err) {
-        setIssueError(err instanceof Error ? err.message : "Issue failed");
+        setIssueError(err instanceof Error ? err.message : "Finalize failed");
       }
     });
   }
@@ -288,11 +299,11 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
   }
 
   const canEdit = detail.editable ?? false;
-  const canIssue = detail.status === "draft" && canEdit;
+  const canFinalize = isSalesInvoiceDraft(detail.status) && canEdit;
   const canCancel = detail.status !== "cancelled" && canEdit;
   const canPay =
     detail.status !== "cancelled" &&
-    detail.status !== "draft" &&
+    !isSalesInvoiceDraft(detail.status) &&
     detail.balance_due > 0;
 
   const collected = detail.amount_paid + detail.credits_applied;
@@ -330,13 +341,15 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {canIssue ? (
+            {canFinalize ? (
               <ErpPostActionButton disabled={issuePending} onClick={issueDraftInvoice}>
-                {issuePending ? "Issuing…" : "Issue invoice & post to books"}
+                {issuePending
+                  ? ERP_DOCUMENT_UI.finalizing
+                  : ERP_DOCUMENT_UI.salesInvoice.finalizeDetail}
               </ErpPostActionButton>
             ) : null}
             {canPay ? (
-              <Button
+              <AdminPrimaryAction
                 nativeButton={false}
                 render={
                   <Link
@@ -346,7 +359,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
               >
                 <CreditCard data-icon="inline-start" />
                 Record payment
-              </Button>
+              </AdminPrimaryAction>
             ) : null}
             <ErpDocumentActions
               layout="bar"
@@ -361,7 +374,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                 documentNumber: detail.invoice_number,
                 defaultEmail: detail.users?.email,
                 amount: detail.total_amount,
-                printUrl: `/admin/erp/invoices/${detail.id}/print`,
+                printUrl: erpInvoicePrintUrl(detail.id),
               }}
               canEdit={canEdit}
               canDelete={canCancel}
@@ -384,7 +397,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={detail.status} />
+        <StatusBadge status={salesInvoiceStatusForBadge(detail.status)} />
         <InvoiceChannelBadge source={detail.source} />
         <span className="text-sm text-muted-foreground">
           {detail.tax_inclusive ? "Tax inclusive" : "Tax exclusive"}
@@ -767,7 +780,6 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
         </div>
       </ErpDocumentTabsLayout>
 
-      <ErpInvoicePrintModal {...invoicePrintModalProps} />
     </AdminPageLayout>
   );
 }

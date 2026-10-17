@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
@@ -31,6 +31,8 @@ const DASHBOARD_ITEM = ADMIN_DASHBOARD_ITEM;
 /** Expanded sidebar width (was 260px). */
 const SIDEBAR_WIDTH_EXPANDED_CLASS = "w-[232px]";
 const SIDEBAR_WIDTH_COLLAPSED_CLASS = "md:w-[72px]";
+const SIDEBAR_COLLAPSED_ICON_SIZE = 22;
+const SIDEBAR_FLYOUT_VIEWPORT_MARGIN = 8;
 
 type NavItem = AdminNavItem;
 type NavSection = AdminNavSection;
@@ -109,9 +111,9 @@ function NavLink({
         nested
           ? collapsed
             ? "justify-center px-0 py-2"
-            : "gap-2 py-1.5 pl-9 pr-3 text-[12px] font-medium"
+            : "gap-2 py-1.5 pl-6 pr-3 text-[12px] font-medium"
           : collapsed
-            ? "justify-center px-0 py-2"
+            ? "justify-center px-0 py-1"
             : "gap-2.5 px-3 py-2",
         active
           ? nested
@@ -125,15 +127,27 @@ function NavLink({
       {!nested && active ? (
         <div className="absolute left-0 h-5 w-1 rounded-r-full bg-[#EB205F] shadow-[0_0_8px_rgba(235, 32, 95, 0.35)]" />
       ) : null}
-      {!nested || collapsed ? (
+      {nested && !collapsed ? (
+        <span
+          className="flex size-4 shrink-0 items-center justify-center transition-colors duration-150"
+          aria-hidden
+        >
+          <Icon
+            className={cn(
+              "size-3.5 stroke-[1.75]",
+              active ? "text-[#EB205F]" : "text-slate-400 group-hover:text-slate-600",
+            )}
+          />
+        </span>
+      ) : (
         <Icon
-          size={nested ? 16 : 18}
+          size={collapsed ? (nested ? 16 : SIDEBAR_COLLAPSED_ICON_SIZE) : 18}
           className={cn(
             "shrink-0 transition-colors duration-150",
             active ? "text-[#EB205F]" : "text-slate-400 group-hover:text-slate-600",
           )}
         />
-      ) : null}
+      )}
       {collapsed ? (
         <span className="sr-only">
           {item.name}
@@ -193,14 +207,31 @@ function NavSectionGroup({
 }) {
   const visibleItems = section.items.filter((item) => !isAdminRouteHidden(item.href));
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
   const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
 
   const updateFlyoutPosition = useCallback(() => {
     const el = triggerRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    setFlyoutPos({ top: rect.top, left: rect.right });
+    const left = rect.right;
+    let top = rect.top;
+
+    const flyout = flyoutRef.current;
+    if (flyout) {
+      const flyoutHeight = flyout.getBoundingClientRect().height;
+      const maxTop = window.innerHeight - flyoutHeight - SIDEBAR_FLYOUT_VIEWPORT_MARGIN;
+      top = Math.min(top, maxTop);
+      top = Math.max(SIDEBAR_FLYOUT_VIEWPORT_MARGIN, top);
+    }
+
+    setFlyoutPos({ top, left });
   }, []);
+
+  useLayoutEffect(() => {
+    if (!flyoutOpen) return;
+    updateFlyoutPosition();
+  }, [flyoutOpen, visibleItems.length, updateFlyoutPosition]);
 
   useEffect(() => {
     if (!flyoutOpen) {
@@ -245,7 +276,7 @@ function NavSectionGroup({
             else onFlyoutOpen();
           }}
           className={cn(
-            "group relative flex w-full items-center justify-center rounded-xl px-0 py-2 text-[13px] font-semibold transition-colors duration-150",
+            "group relative flex w-full items-center justify-center rounded-xl px-0 py-1 text-[13px] font-semibold transition-colors duration-150",
             activeChild
               ? "bg-gradient-to-r from-[#EB205F]/10 to-transparent text-[#EB205F]"
               : cn("text-slate-500", INTERACTIVE_SIDEBAR_NAV_INACTIVE_HOVER),
@@ -255,7 +286,7 @@ function NavSectionGroup({
             <div className="absolute left-0 h-5 w-1 rounded-r-full bg-[#EB205F] shadow-[0_0_8px_rgba(235, 32, 95, 0.35)]" />
           ) : null}
           <SectionIcon
-            size={18}
+            size={SIDEBAR_COLLAPSED_ICON_SIZE}
             className={cn(
               "shrink-0 transition-colors duration-150",
               activeChild ? "text-[#EB205F]" : "text-slate-400 group-hover:text-slate-600",
@@ -270,14 +301,15 @@ function NavSectionGroup({
 
         {flyoutOpen && flyoutPos ? (
           <div
+            ref={flyoutRef}
             data-bh-sidebar-flyout="true"
             data-bh-flyout-section={section.label}
-            className="fixed z-[100] pl-2"
+            className="fixed z-[100] max-h-[calc(100vh-16px)] pl-2"
             style={{ top: flyoutPos.top, left: flyoutPos.left }}
             onMouseEnter={onFlyoutOpen}
             onMouseLeave={onFlyoutClose}
           >
-            <div className="min-w-[220px] rounded-xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
+            <div className="max-h-[inherit] min-w-[220px] overflow-y-auto rounded-xl border border-slate-200/80 bg-white p-2 shadow-lg shadow-slate-900/10">
             <p className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400">
               {section.label}
             </p>
@@ -460,8 +492,10 @@ export function AdminSidebar({
 
       <nav
         className={cn(
-          "flex-1 space-y-1 overflow-y-auto pb-3 transition-[padding] duration-200",
-          collapsed ? "px-2" : "px-3",
+          "flex-1 overflow-y-auto pb-3 transition-[padding] duration-200",
+          collapsed
+            ? "flex flex-col justify-evenly px-2"
+            : "space-y-1 px-3",
         )}
       >
         {dashboardItem ? (

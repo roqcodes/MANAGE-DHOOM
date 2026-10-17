@@ -63,7 +63,7 @@ export function usePendingSalesOrderCreates(): SalesOrderOutboxSummary {
     }
     const store = createOutboxStore();
     try {
-      const all = await store.list();
+      const all = await store.listPurgingCommitted();
       setSummary({
         pending: all.filter(
           (op) => isActiveSalesOrderOp(op) && op.state !== OUTBOX_OPERATION_STATES.SYNCING,

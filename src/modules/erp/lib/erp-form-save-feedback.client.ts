@@ -11,7 +11,7 @@ export type ErpLocalSaveFeedbackOptions = {
 
 /** Instant “saved” feedback in the sync activity bar (forms reset immediately on create). */
 export function notifyErpLocalFormSaved(options: ErpLocalSaveFeedbackOptions): void {
-  const message = options.mode === "create" ? "Saved" : "Updated";
+  const message = options.mode === "create" ? "Saved locally" : "Updated locally";
   let detail = options.entityLabel;
   if (options.queuedForPost) {
     detail = `${detail} · will post when synchronized`;

@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+
+import { directPrintFromAdminPath } from "@/lib/direct-document-print";
 import type { ComponentType, ReactNode } from "react";
 import { Eye, MoreHorizontal, Pencil, Printer } from "lucide-react";
 
@@ -164,12 +166,19 @@ export function ErpListRowActions({
         </Button>
       ) : printHref ? (
         <Button
-          nativeButton={false}
+          nativeButton
           size="icon-sm"
           variant="ghost"
-          render={<Link href={printHref} target="_blank" />}
           aria-label="Print"
           className={responsiveIcons ? "hidden md:inline-flex" : undefined}
+          onClick={() => {
+            void directPrintFromAdminPath(printHref).catch((err) => {
+              console.error(err);
+              window.alert(
+                err instanceof Error ? err.message : "Could not print this document.",
+              );
+            });
+          }}
         >
           <Printer />
         </Button>

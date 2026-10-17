@@ -1,7 +1,7 @@
 "use client";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
 import type { AdminPurchaseOrderDetail } from "@/common/admin/types";
@@ -11,11 +11,34 @@ import { AdminPageLayout } from "@/modules/admin/ui";
 import { PurchaseOrderInvoiceDocument } from "@/modules/purchase-orders/components/purchase-order-invoice-document";
 import { adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import { printDocumentElement } from "@/lib/print-document";
+import { useAutoPrintOnLoad } from "@/lib/use-auto-print-on-load";
 
 type PoDetailPayload = { po: AdminPurchaseOrderDetail };
 
 function shortPoRef(id: string) {
   return `${id.slice(0, 8)}…`;
+}
+
+function AdminPurchaseOrderInvoiceContent({ po }: { po: AdminPurchaseOrderDetail }) {
+  const searchParams = useSearchParams();
+  useAutoPrintOnLoad(searchParams.get("print") === "1");
+
+  return (
+    <div className="min-h-0 flex-1 bg-slate-50 print:bg-white">
+      <InvoicePrintToolbar
+        backHref={`/admin/purchase-orders/${po.id}`}
+        title={`PO invoice · ${shortPoRef(po.id)}`}
+        onPrint={() => {
+          const element = document.querySelector("[data-print-document]");
+          if (element instanceof HTMLElement) printDocumentElement(element);
+        }}
+      />
+      <div className="flex justify-center pb-10 pt-4 print:pb-0 print:pt-0">
+        <PurchaseOrderInvoiceDocument po={po} />
+      </div>
+    </div>
+  );
 }
 
 export function AdminPurchaseOrderInvoicePage() {
@@ -73,17 +96,5 @@ export function AdminPurchaseOrderInvoicePage() {
     );
   }
 
-  const { po } = data;
-
-  return (
-    <div className="min-h-0 flex-1 bg-slate-50 print:bg-white">
-      <InvoicePrintToolbar
-        backHref={`/admin/purchase-orders/${po.id}`}
-        title={`PO invoice · ${shortPoRef(po.id)}`}
-      />
-      <div className="pb-10 pt-4 print:pb-0 print:pt-0">
-        <PurchaseOrderInvoiceDocument po={po} />
-      </div>
-    </div>
-  );
+  return <AdminPurchaseOrderInvoiceContent po={data.po} />;
 }

@@ -13,6 +13,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -86,10 +87,10 @@ export function ProfitWithdrawalsListView() {
         breadcrumb={[{ label: "Profit withdrawal", href: "/admin/erp/profit-withdrawals" }]}
         description="Owner profit withdrawals from payment accounts."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add withdrawal
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

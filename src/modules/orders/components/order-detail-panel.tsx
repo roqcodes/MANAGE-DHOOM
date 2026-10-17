@@ -879,25 +879,21 @@ export function OrderDetailPanel({ order }: { order: OrderWithItems }) {
                 <DropdownMenuContent align="end">
                   <DropdownMenuGroup>
                     <DropdownMenuItem
-                      nativeButton={false}
-                      render={
-                        <Link
-                          href={`/admin/orders/${order.id}/invoice`}
-                          target="_blank"
-                        />
-                      }
+                      onClick={() => {
+                        void import("@/lib/direct-document-print").then(({ directPrintOrderInvoice }) =>
+                          directPrintOrderInvoice(order.id, "print"),
+                        );
+                      }}
                     >
                       <Printer />
                       Print invoice
                     </DropdownMenuItem>
                     <DropdownMenuItem
-                      nativeButton={false}
-                      render={
-                        <Link
-                          href={`/admin/orders/${order.id}/invoice?download=1`}
-                          target="_blank"
-                        />
-                      }
+                      onClick={() => {
+                        void import("@/lib/direct-document-print").then(({ directPrintOrderInvoice }) =>
+                          directPrintOrderInvoice(order.id, "download"),
+                        );
+                      }}
                     >
                       <Download />
                       Download invoice (PDF)

@@ -9,6 +9,11 @@ import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/ca
 import { getInvoicesExportTabular } from "@/lib/export/erp-sales-list-export";
 
 import type { ErpInvoiceListRow } from "@/common/erp/sales-types";
+import {
+  ERP_DOCUMENT_UI,
+  isSalesInvoiceDraft,
+  salesInvoiceStatusForBadge,
+} from "@/common/erp/document-status";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
 import { prefetchErpInvoiceDetail } from "@/modules/admin/lib/admin-prefetch-nav";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
@@ -24,6 +29,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -42,7 +48,6 @@ import {
 import { InvoiceFormView } from "@/modules/admin/views/sales/invoice-form-view";
 import { enqueueSalesInvoiceIssue } from "@/modules/erp/lib/enqueue-sales-invoice-issue.client";
 import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
-import { ErpInvoicePrintModal } from "@/modules/erp/components/erp-invoice-print-modal";
 import { useErpInvoicePrintModal } from "@/modules/erp/components/use-erp-invoice-print-modal";
 import { InvoiceChannelBadge } from "@/modules/erp/components/invoice-channel-badge";
 import { TableHead } from "@/components/ui/table";
@@ -52,7 +57,6 @@ import { PAGE_SIZE } from "@/common/admin/types";
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
   { value: "draft", label: "Draft" },
-  { value: "pending", label: "Pending" },
   { value: "issued", label: "Issued" },
   { value: "partial", label: "Partial" },
   { value: "paid", label: "Paid" },
@@ -63,7 +67,7 @@ const STATUS_OPTIONS = [
 export function InvoicesListView() {
   const queryClient = useQueryClient();
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/invoices");
-  const { openInvoicePrint, invoicePrintModalProps } = useErpInvoicePrintModal();
+  const { openInvoicePrint } = useErpInvoicePrintModal();
   const {
     search,
     setSearch,
@@ -142,7 +146,7 @@ export function InvoicesListView() {
         await enqueueSalesInvoiceIssue({ invoiceId: row.id, storeId });
         await refetch();
       } catch (err) {
-        setIssueError(err instanceof Error ? err.message : "Issue failed");
+        setIssueError(err instanceof Error ? err.message : "Finalize failed");
       } finally {
         setIssuingId(null);
       }
@@ -157,10 +161,10 @@ export function InvoicesListView() {
         actions={
           <>
             <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
-            <Button size="sm" onClick={() => openNew()}>
+            <AdminPrimaryAction onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
               Create invoice
-            </Button>
+            </AdminPrimaryAction>
           </>
         }
       />
@@ -296,7 +300,7 @@ export function InvoicesListView() {
                   <ErpCustomerTableGlance userId={row.user_id} name={row.customer_name} />
                 </AdminTableCell>
                 <AdminTableCell>
-                  <StatusBadge status={row.status} />
+                  <StatusBadge status={salesInvoiceStatusForBadge(row.status)} />
                 </AdminTableCell>
                 <AdminTableCell className="hidden text-muted-foreground lg:table-cell">
                   {formatDateOnly(row.due_date)}
@@ -305,14 +309,16 @@ export function InvoicesListView() {
                   {formatCurrencyAmount(row.total_amount)}
                 </AdminTableCell>
                 <AdminTableCell align="right">
-                  {row.status === "draft" ? (
+                  {isSalesInvoiceDraft(row.status) ? (
                     <ErpPostActionButton
                       size="sm"
                       className="h-8 shrink-0 px-2.5 text-xs"
                       disabled={issuingId === row.id}
                       onClick={() => issueDraftInvoice(row)}
                     >
-                      {issuingId === row.id ? "Issuing…" : "Issue"}
+                      {issuingId === row.id
+                        ? ERP_DOCUMENT_UI.finalizing
+                        : ERP_DOCUMENT_UI.salesInvoice.finalizeList}
                     </ErpPostActionButton>
                   ) : (
                     <span className="font-semibold tabular-nums">
@@ -373,7 +379,6 @@ export function InvoicesListView() {
         />
       ) : null}
 
-      <ErpInvoicePrintModal {...invoicePrintModalProps} />
     </AdminPageLayout>
   );
 }

@@ -17,6 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { formatActionError } from "@/modules/admin/lib/format-action-error";
@@ -272,10 +273,10 @@ export function AdminTaxConfigView() {
               Manage GST rates and tax rules.
             </p>
           </div>
-          <Button size="sm" onClick={() => setShowAddModal(true)}>
-            <Plus className="size-4" />
+          <AdminPrimaryAction onClick={() => setShowAddModal(true)}>
+            <Plus data-icon="inline-start" />
             Add tax rate
-          </Button>
+          </AdminPrimaryAction>
         </div>
 
         <div className="flex flex-col gap-4">

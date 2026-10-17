@@ -18,6 +18,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -74,10 +75,10 @@ export function StockAdjustmentsListView() {
         breadcrumb={[{ label: "Stock adjustment", href: "/admin/erp/stock-adjustments" }]}
         description="Manual stock corrections by store with cost impact for inventory valuation."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add adjustment
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

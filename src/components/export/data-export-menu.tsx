@@ -17,19 +17,25 @@ import {
   type TabularExportSource,
 } from "@/lib/export/tabular-export";
 
+type DataExportButtonSize = "sm" | "default" | "lg" | "icon" | "page" | "page-icon";
+
 export function DataExportMenu({
   source,
   disabled,
-  size = "sm",
+  presentation = "icon",
+  size,
   variant = "outline",
   label = "Export",
 }: {
   source: TabularExportSource;
   disabled?: boolean;
-  size?: "sm" | "default" | "lg" | "icon";
+  /** Icon-only for page headers; labeled for dense toolbars. */
+  presentation?: "icon" | "labeled";
+  size?: DataExportButtonSize;
   variant?: "outline" | "default" | "secondary" | "ghost";
   label?: string;
 }) {
+  const buttonSize = size ?? (presentation === "icon" ? "page-icon" : "page");
   const [pending, setPending] = useState(false);
 
   async function run(format: TabularExportFormat) {
@@ -48,12 +54,19 @@ export function DataExportMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant={variant} size={size} disabled={isDisabled} />
+          <Button
+            variant={variant}
+            size={buttonSize}
+            disabled={isDisabled}
+            aria-label={presentation === "icon" ? label : undefined}
+            title={presentation === "icon" ? label : undefined}
+            className={presentation === "labeled" ? "rounded-full" : undefined}
+          />
         }
       >
-        <Download data-icon="inline-start" />
-        {label}
-        <ChevronDown data-icon="inline-end" />
+        <Download data-icon={presentation === "labeled" ? "inline-start" : undefined} />
+        {presentation === "labeled" ? label : null}
+        {presentation === "labeled" ? <ChevronDown data-icon="inline-end" /> : null}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>

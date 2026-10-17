@@ -20,6 +20,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -176,10 +177,10 @@ export function VatReturnsListView() {
         breadcrumb={[{ label: "VAT returns", href: "/admin/erp/vat-returns" }]}
         description="Output tax (sales) minus input tax (purchases). Payable is zero when purchases exceed sales."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Add VAT return
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

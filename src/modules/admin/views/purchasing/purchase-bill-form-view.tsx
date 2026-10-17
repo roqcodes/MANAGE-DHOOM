@@ -11,6 +11,7 @@ import type {
 } from "@/common/erp/purchasing-types";
 import { itemExpiryFromDocumentDate } from "@/lib/format-date";
 import { calcPurchaseLine, roundMoney } from "@/common/erp/purchasing-types";
+import { ERP_DOCUMENT_UI, isPurchaseBillDraft } from "@/common/erp/document-status";
 import type {
   LandedAllocationMethod,
   PurchaseLineFormRow,
@@ -184,6 +185,7 @@ export function PurchaseBillFormView({
   const [error, setError] = useState<string | null>(null);
   const [landedMaster, setLandedMaster] = useState<ErpLandedCostItem[]>([]);
   const [loading, setLoading] = useState(mode === "edit");
+  const [billStatus, setBillStatus] = useState<string | null>(null);
   const isModal = variant === "modal";
 
   const poIdParam = poIdFromQuery ?? searchParams.get("poId") ?? undefined;
@@ -229,6 +231,7 @@ export function PurchaseBillFormView({
     adminGet<{ bill: BillDetail }>(`erp/purchase-bills/${billId}`)
       .then((res) => {
         const bill = res.bill;
+        setBillStatus(bill.status);
         setVendorId(bill.vendor_id);
         setVendorLabel(bill.vendors?.name ?? "");
         setStoreId(bill.store_id);
@@ -482,7 +485,11 @@ export function PurchaseBillFormView({
         const store = createOutboxStore();
         try {
           if (billId) {
-            const updatePayload: PurchaseBillUpdatePayload = { ...payload, billId };
+            const { finalize: _omitFinalize, ...payloadWithoutFinalize } = payload;
+            const updatePayload: PurchaseBillUpdatePayload = {
+              ...payloadWithoutFinalize,
+              billId,
+            };
             await store.enqueue({
               operationType: ERP_CLIENT_OPERATION_TYPES.purchaseBill.update,
               schemaVersion: 1,
@@ -492,6 +499,17 @@ export function PurchaseBillFormView({
               terminalId: getOrCreateErpTerminalId(),
               resourceScope: purchaseBillResourceScope(billId),
             });
+            if (shouldFinalize && isPurchaseBillDraft(billStatus)) {
+              await store.enqueue({
+                operationType: ERP_CLIENT_OPERATION_TYPES.purchaseBill.finalize,
+                schemaVersion: 1,
+                payload: { billId },
+                userId: staffUserId,
+                storeId: effectiveStoreId,
+                terminalId: getOrCreateErpTerminalId(),
+                resourceScope: purchaseBillResourceScope(billId),
+              });
+            }
           } else {
             await store.enqueue({
               operationType: ERP_CLIENT_OPERATION_TYPES.purchaseBill.create,
@@ -517,10 +535,13 @@ export function PurchaseBillFormView({
           await store.close();
         }
 
+        const posting =
+          shouldFinalize &&
+          (!billId || isPurchaseBillDraft(billStatus));
         notifyErpLocalFormSaved({
           entityLabel: "Purchase bill",
           mode: billId ? "update" : "create",
-          queuedForPost: shouldFinalize,
+          queuedForPost: posting,
         });
         dispatchOutboxChanged();
         broadcastSyncWake();
@@ -535,6 +556,8 @@ export function PurchaseBillFormView({
 
   const title = mode === "edit" ? "Edit purchase bill" : "Purchase entry";
   const description = billNumber ?? "Record vendor bills, line items, and landed costs.";
+  const isDraftEdit = mode === "edit" && isPurchaseBillDraft(billStatus);
+  const showDraftActions = mode === "create" || isDraftEdit;
 
   const totalsSidebar = (
     <div className="space-y-4">
@@ -596,14 +619,14 @@ export function PurchaseBillFormView({
       <Button type="button" variant="outline" onClick={handleCancel}>
         Cancel
       </Button>
-      {mode === "create" ? (
+      {showDraftActions ? (
         <>
           <Button variant="outline" disabled={saveDraftDisabled} onClick={() => submit(false)}>
-            Save draft
+            {ERP_DOCUMENT_UI.saveDraft}
           </Button>
           {!poId ? (
             <Button disabled={finalizeDisabled} onClick={() => submit(true)}>
-              Finalize bill
+              {ERP_DOCUMENT_UI.saveAndFinalize}
             </Button>
           ) : null}
         </>
@@ -733,20 +756,20 @@ export function PurchaseBillFormView({
               <Link href="/admin/erp/purchase-bills" className={buttonVariants({ variant: "outline" })}>
                 Cancel
               </Link>
-              {mode === "create" ? (
+              {showDraftActions ? (
                 <>
                   <Button variant="outline" disabled={saveDraftDisabled} onClick={() => submit(false)}>
-                    Save draft
+                    {ERP_DOCUMENT_UI.saveDraft}
                   </Button>
                   {!poId ? (
                     <Button disabled={finalizeDisabled} onClick={() => submit(true)}>
-                      Finalize bill
+                      {ERP_DOCUMENT_UI.saveAndFinalize}
                     </Button>
                   ) : null}
                 </>
               ) : (
                 <Button disabled={saveDraftDisabled} onClick={() => submit(false)}>
-                  Save
+                  Save changes
                 </Button>
               )}
             </div>

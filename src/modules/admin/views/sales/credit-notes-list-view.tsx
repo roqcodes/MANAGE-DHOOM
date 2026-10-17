@@ -17,6 +17,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -83,10 +84,10 @@ export function CreditNotesListView() {
         breadcrumb={[{ label: "Credit notes", href: "/admin/erp/credit-notes" }]}
         description="Credit notes reduce invoice balances. Filter by status, store, or date."
         actions={
-          <Button size="sm" onClick={() => openNew()}>
+          <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />
             Create credit note
-          </Button>
+          </AdminPrimaryAction>
         }
       />
 

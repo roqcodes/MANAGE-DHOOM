@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Scale } from "lucide-react";
 
 import type {
   ErpSupplierPaymentListRow,
@@ -23,7 +23,9 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminPrimaryAction,
   AdminPageHeader,
+  AdminSecondaryIconAction,
   AdminPageLayout,
   AdminTableBody,
   AdminTableCell,
@@ -125,13 +127,16 @@ export function SupplierPaymentsListView() {
         description="Individual supplier payments against purchase bills. Filter by payment mode or period."
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={() => setSettlementOpen(true)}>
-              Settle account
-            </Button>
-            <Button size="sm" onClick={() => openNew()}>
+            <AdminSecondaryIconAction
+              onClick={() => setSettlementOpen(true)}
+              aria-label="Settle account"
+            >
+              <Scale />
+            </AdminSecondaryIconAction>
+            <AdminPrimaryAction onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
               Add new payment
-            </Button>
+            </AdminPrimaryAction>
           </>
         }
       />

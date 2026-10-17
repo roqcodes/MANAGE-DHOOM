@@ -9,10 +9,7 @@ import {
   isOutboxOpVisibleInActivity,
 } from "@/lib/sync/outbox-queue-estimate";
 import { createOutboxStore } from "@/lib/sync/outbox-store";
-import {
-  OUTBOX_OPERATION_STATES,
-  type OutboxOperationRecord,
-} from "@/lib/sync/outbox-types";
+import { OUTBOX_OPERATION_STATES, type OutboxOperationRecord } from "@/lib/sync/outbox-types";
 
 export type OutboxQueueActivity = {
   operations: OutboxOperationRecord[];
@@ -41,8 +38,8 @@ export function useOutboxQueueActivity(): OutboxQueueActivity {
     }
     const store = createOutboxStore();
     try {
-      const all = await store.list();
-      setOperations(sortOperations(all.filter(isOutboxOpVisibleInActivity)));
+      const active = (await store.listPurgingCommitted()).filter(isOutboxOpVisibleInActivity);
+      setOperations(sortOperations(active));
     } finally {
       await store.close();
       setLoading(false);

@@ -14,6 +14,8 @@ import { buildOrderInvoiceFilename } from "@/modules/orders/lib/invoice-filename
 import { adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { downloadElementAsPdf } from "@/lib/html2pdf-download";
+import { printDocumentElement } from "@/lib/print-document";
+import { useAutoPrintOnLoad } from "@/lib/use-auto-print-on-load";
 
 type OrderDetailPayload = { order: OrderWithItems };
 
@@ -27,7 +29,7 @@ function AdminOrderInvoiceContent({ order }: { order: OrderWithItems }) {
   const autoDownloadedRef = useRef(false);
 
   const handleDownloadPdf = useCallback(async () => {
-    const element = document.querySelector("[data-invoice-document]");
+    const element = document.querySelector("[data-print-document]");
     if (!(element instanceof HTMLElement)) return;
 
     setDownloading(true);
@@ -49,6 +51,10 @@ function AdminOrderInvoiceContent({ order }: { order: OrderWithItems }) {
     }
   }, [searchParams, downloading, handleDownloadPdf]);
 
+  useAutoPrintOnLoad(
+    searchParams.get("print") === "1" && searchParams.get("download") !== "1",
+  );
+
   return (
     <div className="min-h-0 flex-1 bg-slate-50 print:bg-white">
       <InvoicePrintToolbar
@@ -56,8 +62,12 @@ function AdminOrderInvoiceContent({ order }: { order: OrderWithItems }) {
         title={`Order invoice · #${shortOrderRef(order.id)}`}
         onDownloadPdf={handleDownloadPdf}
         downloading={downloading}
+        onPrint={() => {
+          const element = document.querySelector("[data-print-document]");
+          if (element instanceof HTMLElement) printDocumentElement(element);
+        }}
       />
-      <div className="pb-10 pt-4 print:pb-0 print:pt-0">
+      <div className="flex justify-center pb-10 pt-4 print:pb-0 print:pt-0">
         <OrderInvoiceDocument order={order} />
       </div>
     </div>
