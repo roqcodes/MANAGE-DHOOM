@@ -8,6 +8,7 @@ import {
   Bot,
   Bug,
   CloudUpload,
+  Download,
   Headphones,
   Keyboard,
   LogOut,
@@ -24,6 +25,10 @@ import { cn } from "@/lib/utils";
 import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
 import { signOutAction } from "@/modules/auth/actions/auth.actions";
 import { useIsMdUp } from "@/modules/admin/hooks/use-is-md-up";
+import {
+  PWA_WINDOWS_MANUAL_INSTALL,
+  usePwaInstall,
+} from "@/modules/pwa/lib/use-pwa-install";
 
 const CLOSE_DELAY_MS = 180;
 
@@ -162,6 +167,8 @@ export function AdminProfileMenu() {
     useOutboxActivityPreference();
   const { enabled: loadDebugEnabled, setEnabled: setLoadDebugEnabled } =
     useAdminLoadDebugPreference();
+  const { canPromptInstall, isInstalled, promptInstall } = usePwaInstall();
+  const [installHelp, setInstallHelp] = useState<string | null>(null);
   const isMd = useIsMdUp();
   const [open, setOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -189,6 +196,16 @@ export function AdminProfileMenu() {
   }, []);
 
   const closeMenu = useCallback(() => setOpen(false), []);
+
+  const handleInstallApp = useCallback(async () => {
+    setInstallHelp(null);
+    const outcome = await promptInstall();
+    if (outcome === "accepted") {
+      closeMenu();
+      return;
+    }
+    setInstallHelp(PWA_WINDOWS_MANUAL_INSTALL);
+  }, [closeMenu, promptInstall]);
 
   useEffect(() => {
     if (!open || isMd) return;
@@ -348,6 +365,26 @@ export function AdminProfileMenu() {
           </div>
 
           <div className="space-y-0.5 p-2">
+            {!isInstalled ? (
+              <button
+                type="button"
+                className="group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition-all duration-150 hover:bg-slate-100/90 hover:text-slate-900 active:scale-[0.98]"
+                onClick={() => void handleInstallApp()}
+              >
+                <span
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-[#EB205F]/10 text-[#EB205F] group-hover:bg-[#EB205F]/15"
+                  aria-hidden
+                >
+                  <Download className="size-4" />
+                </span>
+                <span>
+                  {canPromptInstall ? "Install DHOOM Trading" : "Install app (Windows)"}
+                </span>
+              </button>
+            ) : null}
+            {installHelp ? (
+              <p className="px-3 pb-1 text-[10px] leading-snug text-amber-800">{installHelp}</p>
+            ) : null}
             {MENU_ITEMS.map((item) => (
               <ProfileMenuButton key={item.label} item={item} onNavigate={closeMenu} />
             ))}

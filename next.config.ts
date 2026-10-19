@@ -8,7 +8,9 @@ const withSerwist = withSerwistInit({
   swSrc: "src/sw.ts",
   swDest: "public/sw.js",
   additionalPrecacheEntries: [{ url: "/~offline", revision: offlineShellRevision }],
-  disable: process.env.NODE_ENV === "development",
+  disable:
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_ENABLE_PWA_DEV !== "true",
   register: false,
 });
 

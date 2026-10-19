@@ -16,6 +16,10 @@ function requestPersistentStorage() {
   });
 }
 
+const serwistDisabled =
+  process.env.NODE_ENV === "development" &&
+  process.env.NEXT_PUBLIC_ENABLE_PWA_DEV !== "true";
+
 export function BuyHubPwa({ children }: { children: React.ReactNode }) {
   const [enabled, setEnabled] = useState(false);
 
@@ -34,6 +38,7 @@ export function BuyHubPwa({ children }: { children: React.ReactNode }) {
     <>
       <SerwistProvider
         swUrl="/sw.js"
+        disable={serwistDisabled}
         register
         reloadOnOnline={false}
         cacheOnNavigation={false}
@@ -41,7 +46,7 @@ export function BuyHubPwa({ children }: { children: React.ReactNode }) {
         {children}
         <PwaUpdateReady />
       </SerwistProvider>
-      <PwaInstallHint />
+      <PwaInstallHint swActive={!serwistDisabled} />
     </>
   );
 }

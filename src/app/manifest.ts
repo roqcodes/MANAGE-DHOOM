@@ -8,6 +8,7 @@ const BACKGROUND_COLOR = "#f8fafc";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: APP_NAME,
     short_name: BRAND_SHORT_NAME,
     description: "B2B electronics store operations and supplier portal",

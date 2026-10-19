@@ -35,7 +35,6 @@ export function shouldSuppressInstallPrompt(): boolean {
   if (isRunningAsInstalledPwa()) return true;
   try {
     if (sessionStorage.getItem(SESSION_DISMISS_KEY) === "1") return true;
-    if (sessionStorage.getItem(SESSION_ASKED_KEY) === "1") return true;
   } catch {
     return false;
   }

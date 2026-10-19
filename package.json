@@ -11,6 +11,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:push": "supabase db push",
+    "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "pwa:validate": "node scripts/validate-pwa-phase1.mjs",
     "outbox:validate": "tsx scripts/validate-outbox-phase2.ts",
     "outbox:validate:sync": "tsx scripts/validate-outbox-phase3.ts",
@@ -58,6 +59,7 @@
     "eslint-config-next": "16.2.3",
     "fake-indexeddb": "^6.2.5",
     "serwist": "^9.5.12",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

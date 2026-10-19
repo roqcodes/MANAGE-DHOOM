@@ -30,10 +30,26 @@ if (!existsSync(swPath)) {
   }
 }
 
-for (const icon of [icon192, icon512].filter(Boolean)) {
-  const buf = readFileSync(icon);
+function pngSize(buf) {
+  if (buf.length < 24) return null;
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+}
+
+for (const [label, iconPath, expect] of [
+  ["icon-192", icon192, 192],
+  ["icon-512", icon512, 512],
+]) {
+  if (!iconPath) continue;
+  const buf = readFileSync(iconPath);
   if (buf.length < 200) {
-    errors.push(`Icon too small: ${icon}`);
+    errors.push(`Icon too small: ${iconPath}`);
+    continue;
+  }
+  const { w, h } = pngSize(buf) ?? { w: 0, h: 0 };
+  if (w !== expect || h !== expect) {
+    errors.push(
+      `${label} must be ${expect}x${expect} (got ${w}x${h}) — run npm run pwa:icons`,
+    );
   }
 }
 
