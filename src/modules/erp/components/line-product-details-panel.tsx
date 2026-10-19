@@ -184,12 +184,12 @@ export function LineProductDetailsPanel({
           },
           {
             label: "Avg inventory cost",
-            labelSubline: "(WAC)",
+
             value: formatPrice(data.avgPurchasePrice),
           },
           {
             label: "Last purchase unit",
-            labelSubline: "(loaded)",
+
             value: formatPrice(data.lastPurchasePrice),
           },
           {
@@ -215,12 +215,12 @@ export function LineProductDetailsPanel({
           },
           {
             label: "Avg inventory cost",
-            labelSubline: "(WAC)",
+
             value: formatPrice(data.avgPurchasePrice),
           },
           {
             label: "Last purchase unit",
-            labelSubline: "(loaded)",
+
             value: formatPrice(data.lastPurchasePrice),
           },
           {

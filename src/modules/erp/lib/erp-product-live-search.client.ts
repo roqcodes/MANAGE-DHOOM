@@ -54,8 +54,13 @@ async function fetchErpProductLiveSearchViaApi(
     );
     return res.data;
   }
+  const params = new URLSearchParams({
+    q: query,
+    limit: PICKER_LIMIT,
+  });
+  if (storeId) params.set("storeId", storeId);
   const res = await adminGet<{ data: ErpProductSearchRow[] }>(
-    `erp/purchase-catalog?q=${encodeURIComponent(query)}&limit=${PICKER_LIMIT}`,
+    `erp/purchase-catalog?${params.toString()}`,
   );
   return res.data;
 }

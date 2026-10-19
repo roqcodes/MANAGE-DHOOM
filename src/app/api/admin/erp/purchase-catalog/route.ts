@@ -6,9 +6,11 @@ import { searchPurchaseVariants } from "@/modules/erp/services/erp-purchase-cata
 export async function GET(request: Request) {
   const auth = await requireAdminApiProfile();
   if (!auth.ok) return auth.response;
-  const q = new URL(request.url).searchParams.get("q") ?? "";
+  const params = new URL(request.url).searchParams;
+  const q = params.get("q") ?? "";
+  const storeId = params.get("storeId") ?? undefined;
   try {
-    const data = await searchPurchaseVariants(q);
+    const data = await searchPurchaseVariants(q, 25, storeId);
     return NextResponse.json({ data });
   } catch (error) {
     console.error("[GET /api/admin/erp/purchase-catalog]", error);

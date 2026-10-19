@@ -187,6 +187,8 @@ export interface ErpProductSearchRow {
   barcode: string | null;
   purchase_price: number | null;
   tax_rate_percent: number | null;
+  /** Store on-hand when `storeId` was passed to catalog search. */
+  available_stock?: number;
 }
 
 /** @deprecated Use ErpProductSearchRow — ERP purchasing is product-level */

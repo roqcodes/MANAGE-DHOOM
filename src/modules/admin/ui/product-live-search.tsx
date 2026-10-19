@@ -41,8 +41,11 @@ type ProductLiveSearchProps = {
   onCreateRequest?: (query: string) => void;
 };
 
-function isSalesRow(row: ProductLiveSearchRow): row is ErpSalesProductSearchRow {
-  return "available_stock" in row;
+function rowAvailableStock(row: ProductLiveSearchRow): number | null {
+  if (!("available_stock" in row) || row.available_stock == null) {
+    return null;
+  }
+  return Number(row.available_stock);
 }
 
 export function ProductLiveSearch({
@@ -289,7 +292,9 @@ export function ProductLiveSearch({
               </div>
             ))
           ) : (
-            results.map((row, index) => (
+            results.map((row, index) => {
+              const stock = rowAvailableStock(row);
+              return (
               <button
                 key={row.id}
                 id={`${listboxId}-option-${index}`}
@@ -313,13 +318,14 @@ export function ProductLiveSearch({
                     <p className="truncate text-xs text-muted-foreground">Barcode: {row.barcode}</p>
                   ) : null}
                 </div>
-                {isSalesRow(row) ? (
+                {stock != null ? (
                   <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                    Stock: {row.available_stock}
+                    Stock: {stock}
                   </span>
                 ) : null}
               </button>
-            ))
+              );
+            })
           )}
           {canCreate && results.length > 0 ? (
             <div className="mt-1 border-t border-border pt-1">

@@ -63,6 +63,7 @@ function mapCatalogToPurchaseRow(row: CatalogRpcRow): ErpProductSearchRow {
     purchase_price:
       row.purchase_price != null ? roundMoney(Number(row.purchase_price)) : null,
     tax_rate_percent: row.tax_rate_percent != null ? Number(row.tax_rate_percent) : null,
+    available_stock: Number(row.available_stock ?? 0),
   };
 }
 
