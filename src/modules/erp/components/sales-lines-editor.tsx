@@ -83,7 +83,8 @@ export function SalesLinesEditor({
     linesRef.current = lines;
   }, [lines]);
 
-  const colSpan = (showSerial ? 1 : 0) + 6;
+  /** Item + qty + rate + tax% + tax amount + total + details + delete (+ optional #). */
+  const colSpan = 8 + (showSerial ? 1 : 0);
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -183,7 +184,7 @@ export function SalesLinesEditor({
       />
 
       <div className="overflow-x-auto rounded-lg border">
-        <Table>
+        <Table className="w-full table-fixed">
           <TableHeader>
             <TableRow>
               {showSerial ? <TableHead className="w-10">#</TableHead> : null}
@@ -206,7 +207,12 @@ export function SalesLinesEditor({
                 taxInclusive,
               );
               const detailsOpen = expandedKeys.has(line.key);
-              const canShowDetails = Boolean(line.productId && storeId && customerId);
+              const canShowDetails = Boolean(line.productId && storeId);
+              const detailsDisabledReason = !storeId
+                ? "Select a store"
+                : !line.productId
+                  ? "Choose the item from product search to link it"
+                  : undefined;
 
               return (
                 <Fragment key={line.key}>
@@ -258,7 +264,7 @@ export function SalesLinesEditor({
                       <LineProductDetailsToggle
                         open={detailsOpen}
                         disabled={!canShowDetails}
-                        disabledReason="Select customer and add a product from search"
+                        disabledReason={detailsDisabledReason}
                         onToggle={() => toggleDetails(line.key)}
                       />
                     </TableCell>
@@ -275,12 +281,13 @@ export function SalesLinesEditor({
                   </TableRow>
                   {detailsOpen ? (
                     <TableRow className="bg-muted/10 hover:bg-muted/10">
-                      <TableCell colSpan={colSpan} className="py-3">
+                      <TableCell colSpan={colSpan} className="w-full max-w-0 py-3">
                         <LineProductDetailsPanel
                           productId={line.productId!}
                           storeId={storeId}
                           customerId={customerId}
                           counterpartyKind="customer"
+                          variant="sales"
                           enabled={canShowDetails}
                         />
                       </TableCell>

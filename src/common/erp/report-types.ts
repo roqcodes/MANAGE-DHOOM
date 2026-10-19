@@ -443,7 +443,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Aging Details",
     description: "Open invoices only (balance due greater than zero).",
     category: "Receivables",
-    filters: { asOfDate: true, store: true, customerSearch: true },
+    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true },
     rpc: "get_erp_customer_aging_details",
     columns: [
       { key: "invoice_date", label: "Date", format: "date" },
@@ -531,7 +531,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "PB Aging Details",
     description: "Open purchase bills only (balance due greater than zero).",
     category: "Payables",
-    filters: { asOfDate: true, store: true, vendorSearch: true },
+    filters: { asOfDate: true, store: true, vendorSearch: true, ageRange: true },
     rpc: "get_erp_vendor_aging_details",
     columns: [
       { key: "bill_date", label: "Date", format: "date" },

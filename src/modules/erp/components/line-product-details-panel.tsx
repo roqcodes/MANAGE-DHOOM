@@ -23,21 +23,28 @@ function formatPrice(value: number | null | undefined) {
 
 function MetricBlock({
   label,
+  labelSubline,
   value,
   emphasize = false,
 }: {
   label: string;
+  labelSubline?: string;
   value: string;
   emphasize?: boolean;
 }) {
   return (
-    <div className="min-w-[130px] flex-1">
-      <div className="rounded-md bg-muted/80 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-muted-foreground">
-        {label}
+    <div className="flex min-w-0 flex-col items-center text-center">
+      <div
+        className="flex w-full min-h-[2.25rem] flex-col items-center justify-center rounded-md bg-muted/80 px-1.5 py-1 text-[10px] font-medium leading-tight text-muted-foreground"
+      >
+        <span>{label}</span>
+        {labelSubline ? (
+          <span className="mt-0.5 text-[9px] font-normal leading-tight">{labelSubline}</span>
+        ) : null}
       </div>
       <p
         className={cn(
-          "mt-1.5 px-0.5 text-sm tabular-nums",
+          "mt-1.5 w-full text-center text-sm tabular-nums",
           emphasize ? "font-semibold text-foreground" : "text-foreground/90",
         )}
       >
@@ -74,12 +81,22 @@ export function LineProductDetailsToggle({
   );
 }
 
+type LineProductDetailsVariant = "sales" | "purchase";
+
+type MetricDef = {
+  label: string;
+  labelSubline?: string;
+  value: string;
+  emphasize?: boolean;
+};
+
 export function LineProductDetailsPanel({
   productId,
   storeId,
   customerId,
   vendorId,
   counterpartyKind = "customer",
+  variant = "sales",
   enabled = true,
 }: {
   productId: string;
@@ -87,6 +104,8 @@ export function LineProductDetailsPanel({
   customerId?: string;
   vendorId?: string;
   counterpartyKind?: "customer" | "vendor";
+  /** Purchase bills/PO modals use vendor-focused last column ordering. */
+  variant?: LineProductDetailsVariant;
   enabled?: boolean;
 }) {
   const counterpartyId = counterpartyKind === "customer" ? customerId : vendorId;
@@ -121,15 +140,14 @@ export function LineProductDetailsPanel({
       );
       return res.data[productId] ?? null;
     },
-    enabled: enabled && Boolean(storeId && productId && counterpartyId),
+    enabled: enabled && Boolean(storeId && productId),
     staleTime: ERP_PRODUCT_SEARCH_STALE_MS,
   });
 
-  if (!storeId || !productId || !counterpartyId) {
+  if (!storeId || !productId) {
     return (
       <p className="text-xs text-muted-foreground">
-        Select {counterpartyKind === "customer" ? "a customer" : "a vendor"} and link a
-        catalog product to view details.
+        Select a store and link a catalog product to view details.
       </p>
     );
   }
@@ -146,42 +164,95 @@ export function LineProductDetailsPanel({
     );
   }
 
-  const counterpartyLabel =
-    counterpartyKind === "customer"
-      ? "Last selling price (this customer)"
-      : "Last purchase price (this vendor)";
+  const stockValue =
+    data.onHandStock < 0
+      ? `${formatStock(data.onHandStock)} (short)`
+      : formatStock(data.onHandStock);
+
+  const counterpartyValue = formatPrice(
+    counterpartyId ? data.counterpartyLastPrice : null,
+  );
+
+  const metrics: MetricDef[] =
+    variant === "purchase"
+      ? [
+          {
+            label: "On-hand stock",
+            labelSubline: "(store)",
+            value: stockValue,
+            emphasize: true,
+          },
+          {
+            label: "Avg inventory cost",
+            labelSubline: "(WAC)",
+            value: formatPrice(data.avgPurchasePrice),
+          },
+          {
+            label: "Last purchase unit",
+            labelSubline: "(loaded)",
+            value: formatPrice(data.lastPurchasePrice),
+          },
+          {
+            label: "Last bill rate",
+            labelSubline: "(this vendor)",
+            value: counterpartyValue,
+          },
+          {
+            label: "Avg selling price",
+            value: formatPrice(data.avgSellingPrice),
+          },
+          {
+            label: "Last selling price",
+            value: formatPrice(data.lastSellingPrice),
+          },
+        ]
+      : [
+          {
+            label: "On-hand stock",
+            labelSubline: "(store)",
+            value: stockValue,
+            emphasize: true,
+          },
+          {
+            label: "Avg inventory cost",
+            labelSubline: "(WAC)",
+            value: formatPrice(data.avgPurchasePrice),
+          },
+          {
+            label: "Last purchase unit",
+            labelSubline: "(loaded)",
+            value: formatPrice(data.lastPurchasePrice),
+          },
+          {
+            label: "Avg selling price",
+            value: formatPrice(data.avgSellingPrice),
+          },
+          {
+            label: "Last selling price",
+            value: formatPrice(data.lastSellingPrice),
+          },
+          {
+            label: "Last selling price",
+            labelSubline: "(this customer)",
+            value: counterpartyValue,
+          },
+        ];
 
   return (
-    <div className="flex flex-wrap gap-4 rounded-lg border border-border/60 bg-muted/20 px-3 py-3">
-      <MetricBlock
-        label="On-hand stock (store)"
-        value={
-          data.onHandStock < 0
-            ? `${formatStock(data.onHandStock)} (short)`
-            : formatStock(data.onHandStock)
-        }
-        emphasize
-      />
-      <MetricBlock
-        label="Avg inventory cost (WAC)"
-        value={formatPrice(data.avgPurchasePrice)}
-      />
-      <MetricBlock
-        label="Last purchase unit (loaded)"
-        value={formatPrice(data.lastPurchasePrice)}
-      />
-      <MetricBlock
-        label="Avg selling price"
-        value={formatPrice(data.avgSellingPrice)}
-      />
-      <MetricBlock
-        label="Last selling price"
-        value={formatPrice(data.lastSellingPrice)}
-      />
-      <MetricBlock
-        label={counterpartyLabel}
-        value={formatPrice(data.counterpartyLastPrice)}
-      />
+    <div
+      className="grid w-full grid-cols-6 gap-2 rounded-lg border border-border/60 bg-muted/20 px-3 py-3"
+      role="group"
+      aria-label="Line product metrics"
+    >
+      {metrics.map((metric) => (
+        <MetricBlock
+          key={`${metric.label}-${metric.labelSubline ?? ""}`}
+          label={metric.label}
+          labelSubline={metric.labelSubline}
+          value={metric.value}
+          emphasize={metric.emphasize}
+        />
+      ))}
     </div>
   );
 }

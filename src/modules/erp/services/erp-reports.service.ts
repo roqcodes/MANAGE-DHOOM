@@ -209,6 +209,8 @@ export async function runErpReport(
         p_date_from: null,
         p_date_to: null,
         p_search: query.search ?? null,
+        p_age_min: ageMin,
+        p_age_max: ageMax,
       });
     case "get_erp_vendor_aging":
     case "get_erp_vendor_aging_summary_counts":
@@ -233,6 +235,8 @@ export async function runErpReport(
         p_date_from: null,
         p_date_to: null,
         p_search: query.search ?? null,
+        p_age_min: ageMin,
+        p_age_max: ageMax,
       });
     case "get_erp_sales_by_customer":
     case "get_erp_sales_by_item":

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
+  firstPositivePrice,
   purchaseLineDefaultsFromSearchRow,
   resolvePurchaseLineDefaultsFromSelection,
 } from "@/modules/erp/lib/resolve-product-line-defaults.client";
@@ -83,8 +84,8 @@ export function PurchaseLinesEditor({
     linesRef.current = lines;
   }, [lines]);
 
-  const colSpan =
-    (showSerial ? 1 : 0) + 5 + (showExpiry ? 1 : 0) + 2;
+  /** Item + qty + rate + tax% + [expiry] + amount + details + delete (+ optional Sl#). */
+  const colSpan = 7 + (showSerial ? 1 : 0) + (showExpiry ? 1 : 0);
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -137,14 +138,10 @@ export function PurchaseLinesEditor({
         const updated = current.map((l) => {
           if (l.key !== key) return l;
           const nextPrice =
-            resolved.purchasePrice > 0
-              ? roundMoney(resolved.purchasePrice)
-              : l.purchasePrice > 0
-                ? l.purchasePrice
-                : roundMoney(resolved.purchasePrice);
+            firstPositivePrice(resolved.purchasePrice, l.purchasePrice) ?? 0;
           return {
             ...l,
-            purchasePrice: nextPrice,
+            purchasePrice: roundMoney(nextPrice),
             taxRatePercent: resolved.taxRatePercent,
           };
         });
@@ -215,7 +212,7 @@ export function PurchaseLinesEditor({
       ) : null}
 
       <div className="overflow-x-auto rounded-lg border border-slate-200">
-        <Table>
+        <Table className="w-full table-fixed">
           <TableHeader>
             <TableRow>
               {showSerial ? <TableHead className="w-10">Sl#</TableHead> : null}
@@ -237,7 +234,12 @@ export function PurchaseLinesEditor({
                 coalesceNumber(line.taxRatePercent),
               );
               const detailsOpen = expandedKeys.has(line.key);
-              const canShowDetails = Boolean(line.productId && storeId && vendorId);
+              const canShowDetails = Boolean(line.productId && storeId);
+              const detailsDisabledReason = !storeId
+                ? "Select a store"
+                : !line.productId
+                  ? "Choose the item from product search to link it"
+                  : undefined;
 
               return (
                 <Fragment key={line.key}>
@@ -300,7 +302,7 @@ export function PurchaseLinesEditor({
                       <LineProductDetailsToggle
                         open={detailsOpen}
                         disabled={!canShowDetails}
-                        disabledReason="Select vendor and add a product from search"
+                        disabledReason={detailsDisabledReason}
                         onToggle={() => toggleDetails(line.key)}
                       />
                     </TableCell>
@@ -312,12 +314,13 @@ export function PurchaseLinesEditor({
                   </TableRow>
                   {detailsOpen ? (
                     <TableRow className="bg-muted/10 hover:bg-muted/10">
-                      <TableCell colSpan={colSpan} className="py-3">
+                      <TableCell colSpan={colSpan} className="w-full max-w-0 py-3">
                         <LineProductDetailsPanel
                           productId={line.productId!}
                           storeId={storeId}
                           vendorId={vendorId}
                           counterpartyKind="vendor"
+                          variant="purchase"
                           enabled={canShowDetails}
                         />
                       </TableCell>

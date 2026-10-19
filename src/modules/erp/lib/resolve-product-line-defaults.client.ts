@@ -32,7 +32,9 @@ async function fetchProductContext(
 }
 
 /** First strictly positive price after money rounding; skips unset / zero / noise. */
-function firstPositivePrice(...candidates: (number | null | undefined)[]): number | null {
+export function firstPositivePrice(
+  ...candidates: (number | null | undefined)[]
+): number | null {
   for (const value of candidates) {
     if (value == null || !Number.isFinite(value) || value <= 0) continue;
     const rounded = roundMoney(value);
@@ -120,20 +122,18 @@ export async function resolvePurchaseLineDefaultsFromSelection(
       return { purchasePrice: roundMoney(purchasePrice), taxRatePercent };
     }
 
-    // Prefer latest bill / vendor rates over catalog & WAC (WAC is averaged, often below last load).
+    // Avg store WAC first, then catalog default from item master; bill history is fallback only.
     const resolved = firstPositivePrice(
-      ctx.counterpartyLastPrice,
-      ctx.lastPurchasePrice,
-      ctx.vendorLastBillPurchaseRate,
-      ctx.lastBillPurchaseRate,
+      ctx.avgPurchasePrice,
       ctx.catalogPurchasePrice,
       searchPrice,
-      ctx.avgPurchasePrice,
+      ctx.lastBillPurchaseRate,
+      ctx.lastPurchasePrice,
+      ctx.vendorLastBillPurchaseRate,
+      ctx.counterpartyLastPrice,
     );
     if (resolved != null) {
       purchasePrice = resolved;
-    } else if (searchPrice > 0) {
-      purchasePrice = searchPrice;
     }
 
     if (ctx.taxRatePercent != null) {
