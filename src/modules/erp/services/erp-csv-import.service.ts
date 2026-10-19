@@ -320,7 +320,7 @@ async function importPurchaseBills(rows: Record<string, string>[], storeId?: str
         taxRatePercent: parseFloat(r.tax_rate) || 0,
       }));
 
-      await createPurchaseBill({
+      const billOutcome = await createPurchaseBill({
         vendorId: vendor.id,
         storeId: resolvedStoreId,
         purchaseDate: first.bill_date || new Date().toISOString().slice(0, 10),
@@ -329,6 +329,12 @@ async function importPurchaseBills(rows: Record<string, string>[], storeId?: str
         reference: first.reference?.trim() || undefined,
         finalize: true,
       });
+      if (billOutcome.finalizeFailed) {
+        errors.push(
+          `Bill group ${billIndex}: draft ${billOutcome.documentId} created; finalization failed: ${billOutcome.finalizeError ?? "unknown"}`,
+        );
+        continue;
+      }
       imported += billRows.length;
     } catch (err) {
       errors.push(`Bill group ${billIndex}: ${err instanceof Error ? err.message : "Failed"}`);

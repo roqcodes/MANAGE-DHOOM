@@ -3,6 +3,11 @@ import "server-only";
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { ErpLineInput, ErpInvoiceListRow } from "@/common/erp/sales-types";
+import { buildAuditUpdateEvent } from "@/modules/erp/lib/audit-change-summary";
+import {
+  SALES_INVOICE_AUDIT_FIELD_LABELS,
+  salesInvoiceAuditSnapshotFromDetail,
+} from "@/modules/erp/lib/document-audit-snapshots";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
@@ -83,19 +88,23 @@ export async function listErpInvoices(filters?: {
   if (filters?.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
   if (filters?.search?.trim()) {
     const s = filters.search.trim();
-    const { data: customerMatches } = await supabase
-      .from("users")
-      .select("id")
-      .or(
-        `name.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%,customer_number.ilike.%${s}%,company_name.ilike.%${s}%`,
-      )
-      .limit(50);
-
-    const customerIds = (customerMatches ?? []).map((row) => row.id);
-    if (customerIds.length > 0) {
-      query = query.or(`invoice_number.ilike.%${s}%,user_id.in.(${customerIds.join(",")})`);
-    } else {
+    if (filters?.userId) {
       query = query.ilike("invoice_number", `%${s}%`);
+    } else {
+      const { data: customerMatches } = await supabase
+        .from("users")
+        .select("id")
+        .or(
+          `name.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%,customer_number.ilike.%${s}%,company_name.ilike.%${s}%`,
+        )
+        .limit(50);
+
+      const customerIds = (customerMatches ?? []).map((row) => row.id);
+      if (customerIds.length > 0) {
+        query = query.or(`invoice_number.ilike.%${s}%,user_id.in.(${customerIds.join(",")})`);
+      } else {
+        query = query.ilike("invoice_number", `%${s}%`);
+      }
     }
   }
 
@@ -221,6 +230,19 @@ export async function updateErpInvoice(
 ): Promise<void> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const beforeDetail = await fetchErpInvoiceDetail(invoiceId);
+  const beforeSnapshot = salesInvoiceAuditSnapshotFromDetail({
+    ...beforeDetail,
+    users: beforeDetail.users,
+    invoice_items: beforeDetail.invoice_items as
+      | Array<{
+          product_name: string | null;
+          quantity: number | null;
+          unit_price: number | null;
+          gst_rate?: number | null;
+        }>
+      | null,
+  });
   const { error } = await (
     supabase as unknown as {
       rpc: (
@@ -240,19 +262,32 @@ export async function updateErpInvoice(
   });
   if (error) throw new Error(error.message);
 
-  const { data: invoice } = await supabase
-    .from("invoices")
-    .select("store_id")
-    .eq("id", invoiceId)
-    .maybeSingle();
-
-  await logAuditEvent({
-    action: "update",
-    entityType: "invoice",
-    entityId: invoiceId,
-    description: "ERP invoice updated",
-    storeId: invoice?.store_id ?? undefined,
+  const afterDetail = await fetchErpInvoiceDetail(invoiceId);
+  const afterSnapshot = salesInvoiceAuditSnapshotFromDetail({
+    ...afterDetail,
+    users: afterDetail.users,
+    invoice_items: afterDetail.invoice_items as
+      | Array<{
+          product_name: string | null;
+          quantity: number | null;
+          unit_price: number | null;
+          gst_rate?: number | null;
+        }>
+      | null,
   });
+
+  await logAuditEvent(
+    buildAuditUpdateEvent({
+      action: "update",
+      entityType: "invoice",
+      entityId: invoiceId,
+      storeId: afterDetail.store_id ?? undefined,
+      headline: "ERP invoice updated",
+      before: beforeSnapshot,
+      after: afterSnapshot,
+      fieldLabels: SALES_INVOICE_AUDIT_FIELD_LABELS,
+    }),
+  );
 }
 
 export function computeErpInvoiceEditable(invoice: {

@@ -12,9 +12,15 @@ import {
   calcUnitLoadedCostFromAlloc,
   canApplyManualLandedAllocations,
 } from "@/modules/purchasing/lib/purchase-landed-allocation";
+import { buildAuditUpdateEvent } from "@/modules/erp/lib/audit-change-summary";
+import {
+  PURCHASE_BILL_AUDIT_FIELD_LABELS,
+  purchaseBillAuditSnapshotFromDetail,
+} from "@/modules/erp/lib/document-audit-snapshots";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
+import type { ErpDocumentCreateOutcome } from "@/common/erp/document-create-outcome";
 
 function linesToJson(lines: ErpPurchaseLineInput[], landedCostTotal = 0): Json {
   const includeLanded =
@@ -118,25 +124,31 @@ export async function listPurchaseBills(options: {
   if (options.dateTo) query = query.lte("purchase_date", options.dateTo);
   if (options.search?.trim()) {
     const s = options.search.trim();
-    const { data: vendorMatches } = await supabase
-      .from("vendors")
-      .select("id")
-      .eq("is_active", true)
-      .or(
-        `name.ilike.%${s}%,contact.ilike.%${s}%,email.ilike.%${s}%,trn.ilike.%${s}%,phone.ilike.%${s}%`,
-      )
-      .limit(50);
+    if (options.vendorId) {
+      query = query.or(
+        `purchase_bill_number.ilike.%${s}%,vendor_bill_number.ilike.%${s}%,batch_reference.ilike.%${s}%`,
+      );
+    } else {
+      const { data: vendorMatches } = await supabase
+        .from("vendors")
+        .select("id")
+        .eq("is_active", true)
+        .or(
+          `name.ilike.%${s}%,contact.ilike.%${s}%,email.ilike.%${s}%,trn.ilike.%${s}%,phone.ilike.%${s}%`,
+        )
+        .limit(50);
 
-    const filters = [
-      `purchase_bill_number.ilike.%${s}%`,
-      `vendor_bill_number.ilike.%${s}%`,
-      `batch_reference.ilike.%${s}%`,
-    ];
-    const vendorIds = (vendorMatches ?? []).map((row) => row.id);
-    if (vendorIds.length > 0) {
-      filters.push(`vendor_id.in.(${vendorIds.join(",")})`);
+      const filters = [
+        `purchase_bill_number.ilike.%${s}%`,
+        `vendor_bill_number.ilike.%${s}%`,
+        `batch_reference.ilike.%${s}%`,
+      ];
+      const vendorIds = (vendorMatches ?? []).map((row) => row.id);
+      if (vendorIds.length > 0) {
+        filters.push(`vendor_id.in.(${vendorIds.join(",")})`);
+      }
+      query = query.or(filters.join(","));
     }
-    query = query.or(filters.join(","));
   }
 
   const { data, error, count } = await query;
@@ -194,7 +206,7 @@ export async function createPurchaseBill(input: {
   finalize?: boolean;
   /** Standalone bills: Zoho-style mark as received (stock on bill finalize). */
   physicalReceiptOnBill?: boolean;
-}): Promise<string> {
+}): Promise<ErpDocumentCreateOutcome> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(input.storeId);
@@ -230,7 +242,22 @@ export async function createPurchaseBill(input: {
     const { error: finalizeError } = await supabase.rpc("finalize_erp_purchase_bill", {
       p_bill_id: billId,
     });
-    if (finalizeError) throw new Error(finalizeError.message);
+    if (finalizeError) {
+      const message = finalizeError.message;
+      await logAuditEvent({
+        action: "create_purchase_bill",
+        entityType: "purchase_bill",
+        entityId: billId,
+        description: "Purchase bill draft created; finalization failed",
+        storeId,
+      });
+      return {
+        documentId: billId,
+        finalized: false,
+        finalizeFailed: true,
+        finalizeError: message,
+      };
+    }
   }
 
   await logAuditEvent({
@@ -241,7 +268,7 @@ export async function createPurchaseBill(input: {
     storeId,
   });
 
-  return billId;
+  return { documentId: billId, finalized: finalize };
 }
 
 export async function cancelPurchaseBill(billId: string): Promise<void> {
@@ -349,6 +376,9 @@ export async function updateDraftPurchaseBill(
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
 
+  const beforeDetail = await getPurchaseBillDetail(billId);
+  const beforeSnapshot = purchaseBillAuditSnapshotFromDetail(beforeDetail);
+
   const { data: bill, error: fetchError } = await supabase
     .from("erp_purchase_bills")
     .select("status, accounting_posted, inventory_committed, legacy_stock_via_bill")
@@ -451,11 +481,19 @@ export async function updateDraftPurchaseBill(
 
   await applyBillLandedAllocations(supabase, billId, input.lines, totals.landedTotal);
 
-  await logAuditEvent({
-    action: "update",
-    entityType: "purchase_bill",
-    entityId: billId,
-    description: "Purchase bill draft updated",
-    storeId: input.storeId,
-  });
+  const afterDetail = await getPurchaseBillDetail(billId);
+  const afterSnapshot = purchaseBillAuditSnapshotFromDetail(afterDetail);
+
+  await logAuditEvent(
+    buildAuditUpdateEvent({
+      action: "update",
+      entityType: "purchase_bill",
+      entityId: billId,
+      storeId: input.storeId,
+      headline: "Purchase bill draft updated",
+      before: beforeSnapshot,
+      after: afterSnapshot,
+      fieldLabels: PURCHASE_BILL_AUDIT_FIELD_LABELS,
+    }),
+  );
 }

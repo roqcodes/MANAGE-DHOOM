@@ -6,6 +6,8 @@ import type { AuditLogEntry } from "@/common/erp/types";
 import { AdminPanelSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import {
+  formatAuditActivityLabel,
+  formatAuditLogDescription,
   formatAuditLogUser,
   formatAuditLogUserDetail,
 } from "@/modules/erp/lib/audit-log-display";
@@ -48,7 +50,7 @@ export function AuditLogEntryList({
       {logs.map((log) => (
         <div key={log.id} className="rounded-lg border border-slate-100 px-3 py-2 text-sm">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="font-medium capitalize">{log.action.replace(/_/g, " ")}</span>
+            <span className="font-medium">{formatAuditActivityLabel(log)}</span>
             <span className="text-xs text-slate-500">
               {new Date(log.created_at).toLocaleString()}
             </span>
@@ -57,7 +59,9 @@ export function AuditLogEntryList({
             By {formatAuditLogUserDetail(log)}
             {log.user_role ? ` · ${log.user_role}` : ""}
           </p>
-          {log.description ? <p className="mt-1 text-slate-600">{log.description}</p> : null}
+          {formatAuditLogDescription(log) ? (
+            <p className="mt-1 text-slate-600">{formatAuditLogDescription(log)}</p>
+          ) : null}
         </div>
       ))}
     </div>

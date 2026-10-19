@@ -91,6 +91,58 @@ export async function syncProductVideos(
   if (error) throw new Error(error.message);
 }
 
+function normalizeMediaUrl(url: string): string {
+  return url.trim();
+}
+
+/** Append only URLs not already stored for the product. */
+export async function addProductImagesDeduped(
+  productId: string,
+  urls: string[],
+): Promise<string[]> {
+  await requireAdminOrManagerProfile();
+  const cleanUrls = urls.map(normalizeMediaUrl).filter(Boolean);
+  if (cleanUrls.length === 0) return [];
+
+  const supabase = await createSupabaseServerClient();
+  const { data: existing, error: existingErr } = await supabase
+    .from("product_images")
+    .select("url")
+    .eq("product_id", productId);
+  if (existingErr) throw new Error(existingErr.message);
+
+  const known = new Set((existing ?? []).map((r) => normalizeMediaUrl(r.url)));
+  const toAdd = cleanUrls.filter((u) => !known.has(u));
+  if (toAdd.length > 0) {
+    await addProductImages(productId, toAdd);
+  }
+  return toAdd;
+}
+
+/** Append only URLs not already stored for the product. */
+export async function addProductVideosDeduped(
+  productId: string,
+  urls: string[],
+): Promise<string[]> {
+  await requireAdminOrManagerProfile();
+  const cleanUrls = urls.map(normalizeMediaUrl).filter(Boolean);
+  if (cleanUrls.length === 0) return [];
+
+  const supabase = await createSupabaseServerClient();
+  const { data: existing, error: existingErr } = await supabase
+    .from("product_videos")
+    .select("url")
+    .eq("product_id", productId);
+  if (existingErr) throw new Error(existingErr.message);
+
+  const known = new Set((existing ?? []).map((r) => normalizeMediaUrl(r.url)));
+  const toAdd = cleanUrls.filter((u) => !known.has(u));
+  if (toAdd.length > 0) {
+    await addProductVideos(productId, toAdd);
+  }
+  return toAdd;
+}
+
 export async function addProductImages(
   productId: string,
   urls: string[],

@@ -19,6 +19,11 @@ import type {
 } from "@/common/admin/types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { invokeRpc } from "@/lib/integrations/supabase/rpc";
+import {
+  assertUniqueProductName,
+  rethrowUniqueNameViolation,
+  trimMasterName,
+} from "@/lib/erp/master-name-uniqueness";
 
 export async function getProducts(
   page = 0,
@@ -407,10 +412,13 @@ export async function insertProduct(input: {
 }): Promise<string> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Product name is required");
+  await assertUniqueProductName(supabase, name);
   const { data, error } = await supabase
     .from("products")
     .insert({
-      name: input.name,
+      name,
       description: input.description,
       category_id: input.categoryId,
       brand_id: input.brandId,
@@ -427,7 +435,10 @@ export async function insertProduct(input: {
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "product");
+    throw new Error(error.message);
+  }
   return data.id;
 }
 
@@ -450,10 +461,13 @@ export async function updateProductById(
 ): Promise<void> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Product name is required");
+  await assertUniqueProductName(supabase, name, id);
   const { error } = await supabase
     .from("products")
     .update({
-      name: input.name,
+      name,
       description: input.description,
       category_id: input.categoryId,
       brand_id: input.brandId,
@@ -471,7 +485,10 @@ export async function updateProductById(
         : {}),
     })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "product");
+    throw new Error(error.message);
+  }
 }
 
 export async function setProductActive(id: string, isActive: boolean): Promise<void> {

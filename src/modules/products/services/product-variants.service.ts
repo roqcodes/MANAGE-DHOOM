@@ -12,6 +12,11 @@ import {
 import {
   deleteVendorProductsForVariant,
 } from "@/modules/products/services/vendor-products-cleanup.service";
+import {
+  assertUniqueVariantName,
+  rethrowUniqueNameViolation,
+  trimMasterName,
+} from "@/lib/erp/master-name-uniqueness";
 
 export async function insertVariantWithInventory(input: {
   productId: string;
@@ -29,12 +34,15 @@ export async function insertVariantWithInventory(input: {
 }): Promise<string> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Variant name is required");
+  await assertUniqueVariantName(supabase, input.productId, name);
 
   const { data: row, error: insErr } = await supabase
     .from("product_variants")
     .insert({
       product_id: input.productId,
-      name: input.name,
+      name,
       price: input.price,
       mrp: input.mrp,
       variant_group_id: input.variantGroupId ?? null,
@@ -48,7 +56,10 @@ export async function insertVariantWithInventory(input: {
     .select("id")
     .single();
 
-  if (insErr) throw new Error(insErr.message);
+  if (insErr) {
+    rethrowUniqueNameViolation(insErr, "variant");
+    throw new Error(insErr.message);
+  }
   if (!row?.id) throw new Error("Variant insert failed.");
 
   try {
@@ -79,10 +90,20 @@ export async function updateVariantById(
 ): Promise<void> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Variant name is required");
+  const { data: existing, error: loadErr } = await supabase
+    .from("product_variants")
+    .select("product_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (loadErr) throw new Error(loadErr.message);
+  if (!existing?.product_id) throw new Error("Variant not found");
+  await assertUniqueVariantName(supabase, existing.product_id, name, id);
   const { error } = await supabase
     .from("product_variants")
     .update({
-      name: input.name,
+      name,
       price: input.price,
       mrp: input.mrp,
       barcode: input.barcode ?? null,
@@ -93,7 +114,10 @@ export async function updateVariantById(
       markup_percent: input.markupPercent ?? null,
     })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "variant");
+    throw new Error(error.message);
+  }
 }
 
 /**

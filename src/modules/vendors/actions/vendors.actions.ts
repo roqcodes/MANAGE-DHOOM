@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { safeRevalidateVendors } from "@/lib/cache/safe-revalidate";
 
 import {
   deleteVendorIfNoProducts,
@@ -26,7 +26,7 @@ export async function createVendorAction(data: {
   isActive?: boolean;
 }): Promise<string> {
   const id = await insertVendor(data);
-  revalidatePath("/admin/vendors");
+  safeRevalidateVendors(id);
   return id;
 }
 
@@ -35,7 +35,7 @@ export async function updateVendorAction(
   data: { name: string; contact: string },
 ): Promise<void> {
   await updateVendorById(id, { name: data.name, contact: data.contact });
-  revalidatePath("/admin/vendors");
+  safeRevalidateVendors(id);
 }
 
 export async function toggleVendorAction(
@@ -43,13 +43,12 @@ export async function toggleVendorAction(
   isActive: boolean,
 ): Promise<void> {
   await setVendorActive(id, isActive);
-  revalidatePath("/admin/vendors");
-  revalidatePath(`/admin/vendors/${id}`);
+  safeRevalidateVendors(id);
 }
 
 export async function deleteVendorAction(id: string): Promise<void> {
   await deleteVendorIfNoProducts(id);
-  revalidatePath("/admin/vendors");
+  safeRevalidateVendors();
 }
 
 export async function bulkSetVendorsActiveAction(
@@ -58,15 +57,12 @@ export async function bulkSetVendorsActiveAction(
 ): Promise<void> {
   if (ids.length === 0) return;
   await setVendorsActiveByIds(ids, isActive);
-  revalidatePath("/admin/vendors");
-  for (const id of ids) {
-    revalidatePath(`/admin/vendors/${id}`);
-  }
+  safeRevalidateVendors();
 }
 
 export async function bulkDeleteVendorsAction(ids: string[]): Promise<void> {
   for (const id of ids) {
     await deleteVendorIfNoProducts(id);
   }
-  revalidatePath("/admin/vendors");
+  safeRevalidateVendors();
 }

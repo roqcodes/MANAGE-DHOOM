@@ -55,6 +55,27 @@ export function formatAgingReportSubtitle(filters: {
   return parts.join(" · ");
 }
 
+export function formatExpiredDaysRange(expiredMinDays?: number, expiredMaxDays?: number) {
+  if (expiredMinDays == null && expiredMaxDays == null) return "";
+  if (expiredMinDays != null && expiredMaxDays != null) {
+    if (expiredMinDays === expiredMaxDays) return `Expired ${expiredMinDays} days`;
+    return `Expired ${expiredMinDays}–${expiredMaxDays} days`;
+  }
+  if (expiredMinDays != null) return `Expired ≥ ${expiredMinDays} days`;
+  return `Expired ≤ ${expiredMaxDays} days`;
+}
+
+export function formatDeadStockReportSubtitle(filters: {
+  asOf: string;
+  ageMinDays?: number;
+  ageMaxDays?: number;
+}) {
+  const parts = [`As of ${formatReportAsOf(filters.asOf)}`];
+  const range = formatExpiredDaysRange(filters.ageMinDays, filters.ageMaxDays);
+  if (range) parts.push(range);
+  return parts.join(" · ");
+}
+
 export type ReportColumnDef = {
   key: string;
   label: string;

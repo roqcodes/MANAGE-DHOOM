@@ -66,7 +66,7 @@ export function buildErpReportApiPath(
   }
   if (params.customerId) q.set("customerId", params.customerId);
   if (params.vendorId) q.set("vendorId", params.vendorId);
-  if (report.filters.ageRange) {
+  if (report.filters.ageRange || report.filters.expiredDaysRange) {
     if (params.ageMinDays != null) q.set("ageMinDays", String(params.ageMinDays));
     if (params.ageMaxDays != null) q.set("ageMaxDays", String(params.ageMaxDays));
   }

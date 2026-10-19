@@ -8,7 +8,6 @@ import { Loader2 } from "lucide-react";
 import type {
   BulkSupplierPaymentBatchRow,
   BulkSupplierPaymentLine,
-  ErpPurchaseBillListRow,
   PaidThroughAccountOption,
 } from "@/common/erp/purchasing-types";
 import { ERP_SUPPLIER_PAYMENT_MODES } from "@/common/erp/purchasing-types";
@@ -135,18 +134,17 @@ export function SupplierBulkPaymentFormView({
   }
 
   async function buildFifoLines(amount: number, excludeBillIds: string[]): Promise<PendingLine[]> {
-    if (!effectiveStoreId) return [];
+    if (!effectiveStoreId || !vendorId) return [];
     const exclude = excludeBillIds.join(",");
-    const fifoUrl = vendorId
-      ? `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&vendorId=${encodeURIComponent(vendorId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`
-      : `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`;
     const res = await adminGet<{
       allocations: Array<{
         purchaseBillId?: string;
         purchase_bill_id?: string;
         amount: number;
       }>;
-    }>(fifoUrl);
+    }>(
+      `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&vendorId=${encodeURIComponent(vendorId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
+    );
 
     type BillLookup = {
       id: string;
@@ -155,26 +153,11 @@ export function SupplierBulkPaymentFormView({
       vendor_name?: string | null;
     };
     const lookup = new Map<string, BillLookup>();
-    if (vendorId) {
-      const billsRes = await adminGet<{ data: BillLookup[] }>(
-        `erp/supplier-payments?view=payable-bills&vendorId=${encodeURIComponent(vendorId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
-      );
-      for (const row of billsRes.data ?? []) {
-        if (row.balance_due > 0) lookup.set(row.id, row);
-      }
-    } else {
-      const q = new URLSearchParams({
-        page: "0",
-        limit: "100",
-        openOnly: "1",
-        storeId: effectiveStoreId,
-      });
-      const full = await adminGet<{ data: ErpPurchaseBillListRow[] }>(
-        `erp/purchase-bills?${q.toString()}`,
-      );
-      for (const row of full.data ?? []) {
-        if (row.balance_due > 0) lookup.set(row.id, row);
-      }
+    const billsRes = await adminGet<{ data: BillLookup[] }>(
+      `erp/supplier-payments?view=payable-bills&vendorId=${encodeURIComponent(vendorId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
+    );
+    for (const row of billsRes.data ?? []) {
+      if (row.balance_due > 0) lookup.set(row.id, row);
     }
     const pending: PendingLine[] = [];
 
@@ -200,6 +183,10 @@ export function SupplierBulkPaymentFormView({
     const amt = parseFloat(lineAmount);
     if (!amt || amt <= 0) return setError("Enter a positive amount.");
     if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+    if (!vendorId) {
+      setError("Select a vendor before applying FIFO or adding a bill.");
+      return;
+    }
 
     setIsAddingLine(true);
     try {
@@ -215,10 +202,6 @@ export function SupplierBulkPaymentFormView({
         return;
       }
 
-      if (!vendorId) {
-        setError("Select a vendor when adding a specific bill.");
-        return;
-      }
       if (lines.some((l) => l.purchaseBillId === selectedBillId)) {
         setError("Bill already added.");
         return;
@@ -396,7 +379,8 @@ export function SupplierBulkPaymentFormView({
             <AdminFormGrid cols={1}>
               <AdminFormField
                 label="Vendor"
-                hint="Optional for FIFO — limits allocation to one vendor's bills."
+                required
+                hint="Bill search and FIFO apply only to this vendor's open bills."
               >
                 <VendorSearchSelect
                   value={vendorId || null}
@@ -405,6 +389,7 @@ export function SupplierBulkPaymentFormView({
                   onChange={(id, option) => {
                     setVendorId(id ?? "");
                     setVendorLabel(option?.label ?? "");
+                    setLines([]);
                     setSelectedBillId("");
                     setBillLabel("");
                     setSelectedBillBalance(0);
@@ -417,6 +402,7 @@ export function SupplierBulkPaymentFormView({
                 hint="Optional — leave empty to apply the amount FIFO (oldest due first)."
               >
                 <PurchaseBillSearchSelect
+                  key={vendorId || "no-vendor"}
                   value={selectedBillId || null}
                   selectedLabel={billLabel || undefined}
                   vendorId={vendorId || undefined}

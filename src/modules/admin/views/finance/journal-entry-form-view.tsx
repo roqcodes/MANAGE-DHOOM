@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
@@ -61,6 +61,8 @@ export function JournalEntryFormView({
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
   const [lines, setLines] = useState<LineRow[]>([emptyLine(), emptyLine()]);
+  const operationIdRef = useRef(crypto.randomUUID());
+  const submitInFlightRef = useRef(false);
   const isModal = variant === "modal";
 
   useEffect(() => {
@@ -125,9 +127,12 @@ export function JournalEntryFormView({
       return;
     }
 
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     startTransition(async () => {
       try {
         const res = await adminPost<{ id: string }>("erp/journal-entries", {
+          operationId: operationIdRef.current,
           transactionDate,
           description,
           storeId: effectiveStoreId,
@@ -136,6 +141,8 @@ export function JournalEntryFormView({
         handleSuccessNavigate(res.id);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to post journal");
+      } finally {
+        submitInFlightRef.current = false;
       }
     });
   }

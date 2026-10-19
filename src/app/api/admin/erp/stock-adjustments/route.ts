@@ -27,8 +27,17 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
   try {
     const body = await request.json();
-    const id = await createStockAdjustment(body);
-    return NextResponse.json({ id }, { status: 201 });
+    const outcome = await createStockAdjustment(body);
+    return NextResponse.json(
+      {
+        id: outcome.documentId,
+        adjustmentId: outcome.documentId,
+        finalized: outcome.finalized,
+        finalizeFailed: outcome.finalizeFailed ?? false,
+        finalizeError: outcome.finalizeError,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to create adjustment";
     return NextResponse.json({ error: msg }, { status: 400 });

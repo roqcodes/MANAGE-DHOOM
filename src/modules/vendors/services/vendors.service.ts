@@ -15,6 +15,11 @@ import type {
 import { PAGE_SIZE } from "@/common/admin/types";
 import type { VendorErpListRow } from "@/common/erp/purchasing-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import {
+  assertUniqueVendorName,
+  rethrowUniqueNameViolation,
+  trimMasterName,
+} from "@/lib/erp/master-name-uniqueness";
 import { deleteVendorIfUnused } from "@/modules/vendors/services/vendor-erp.service";
 import {
   listActiveVendorsForPicker,
@@ -209,10 +214,14 @@ export async function insertVendor(input: {
     throw new Error("Opening balance date is required when opening balance is set");
   }
 
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Vendor name is required");
+  await assertUniqueVendorName(supabase, name);
+
   const { data, error } = await supabase
     .from("vendors")
     .insert({
-      name: input.name,
+      name,
       contact: input.contact ?? null,
       vendor_type: input.vendorType ?? null,
       trn: input.trn ?? null,
@@ -228,13 +237,16 @@ export async function insertVendor(input: {
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "vendor");
+    throw new Error(error.message);
+  }
 
   await logAuditEvent({
     action: "create",
     entityType: "vendor",
     entityId: data.id,
-    description: `Vendor created: ${input.name}`,
+    description: `Vendor created: ${name}`,
   });
 
   return data.id;
@@ -246,11 +258,17 @@ export async function updateVendorById(
 ): Promise<void> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Vendor name is required");
+  await assertUniqueVendorName(supabase, name, id);
   const { error } = await supabase
     .from("vendors")
-    .update({ name: input.name, contact: input.contact })
+    .update({ name, contact: input.contact })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "vendor");
+    throw new Error(error.message);
+  }
 }
 
 export async function setVendorActive(

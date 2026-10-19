@@ -15,7 +15,7 @@ function parseAgeDaysInput(raw: string): number | undefined {
 
 /** Age (days past due) filter; safe to call on every report — no-op when `ageRange` is off. */
 export function useAgingReportAgeExtras(report: ReportDefinition) {
-  const enabled = Boolean(report.filters.ageRange);
+  const enabled = Boolean(report.filters.ageRange || report.filters.expiredDaysRange);
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
   const debouncedAgeMin = useDebouncedValue(ageMin, 300);

@@ -11,6 +11,11 @@ import type {
 } from "@/common/erp/purchasing-types";
 import { derivePurchaseBillDisplayStatus } from "@/common/erp/purchasing-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import {
+  assertUniqueVendorName,
+  rethrowUniqueNameViolation,
+  trimMasterName,
+} from "@/lib/erp/master-name-uniqueness";
 
 export interface VendorErpProfileUpdate {
   name?: string | null;
@@ -86,10 +91,17 @@ export async function updateVendorErpProfile(
     throw new Error("Opening balance date is required when opening balance is set");
   }
 
+  let nextName: string | undefined;
+  if (input.name !== undefined) {
+    nextName = trimMasterName(input.name ?? "");
+    if (!nextName) throw new Error("Vendor name is required");
+    await assertUniqueVendorName(supabase, nextName, vendorId);
+  }
+
   const { error } = await supabase
     .from("vendors")
     .update({
-      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(nextName !== undefined ? { name: nextName } : {}),
       ...(input.contact !== undefined ? { contact: input.contact } : {}),
       ...(input.vendorType !== undefined ? { vendor_type: input.vendorType } : {}),
       ...(input.trn !== undefined ? { trn: input.trn } : {}),
@@ -110,7 +122,10 @@ export async function updateVendorErpProfile(
     })
     .eq("id", vendorId);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "vendor");
+    throw new Error(error.message);
+  }
 
   await logAuditEvent({
     action: "update",

@@ -15,16 +15,17 @@ export async function addVariantImages(
   urls: string[],
 ): Promise<void> {
   await requireAdminOrManagerProfile();
-  const cleanUrls = urls.map((u) => u.trim()).filter(Boolean);
-  if (cleanUrls.length === 0) return;
-
   const supabase = await createSupabaseServerClient();
 
   const { data: existing, error: existingErr } = await supabase
     .from("variant_images")
-    .select("id,is_preview,sort_order")
+    .select("id,url,is_preview,sort_order")
     .eq("variant_id", variantId);
   if (existingErr) throw new Error(existingErr.message);
+
+  const known = new Set((existing ?? []).map((r) => r.url.trim()));
+  const cleanUrls = urls.map((u) => u.trim()).filter(Boolean).filter((u) => !known.has(u));
+  if (cleanUrls.length === 0) return;
 
   const hasPreview = (existing ?? []).some((r) => r.is_preview);
   const nextSortBase =

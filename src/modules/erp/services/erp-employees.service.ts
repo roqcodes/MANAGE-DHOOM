@@ -10,6 +10,10 @@ import type {
 } from "@/common/erp/hr-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import {
+  assertUniqueEmployeeFullName,
+  trimMasterName,
+} from "@/lib/erp/master-name-uniqueness";
+import {
   requireErpStoreId,
   resolveErpStoreId,
 } from "@/modules/erp/services/store-context.service";
@@ -165,10 +169,13 @@ export async function createEmployee(input: {
   const profile = await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(input.storeId);
+  const fullName = trimMasterName(input.fullName);
+  if (!fullName) throw new Error("Full name is required");
+  await assertUniqueEmployeeFullName(supabase, fullName);
 
   const { data, error } = await supabase.rpc("create_erp_employee", {
     p_store_id: storeId,
-    p_full_name: input.fullName,
+    p_full_name: fullName,
     p_mobile: input.mobile,
     p_joining_date: input.joiningDate,
     p_basic_salary: input.basicSalary ?? 0,
@@ -214,6 +221,12 @@ export async function updateEmployee(
 ): Promise<void> {
   const profile = await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+
+  if (input.fullName !== undefined) {
+    const fullName = trimMasterName(input.fullName);
+    if (!fullName) throw new Error("Full name is required");
+    await assertUniqueEmployeeFullName(supabase, fullName, id);
+  }
 
   const { error } = await supabase.rpc("update_erp_employee", {
     p_employee_id: id,

@@ -190,6 +190,7 @@ export async function getJournalLinesForSource(
 }
 
 export async function createManualJournalEntry(input: {
+  operationId: string;
   transactionDate: string;
   description: string;
   storeId?: string;
@@ -203,6 +204,10 @@ export async function createManualJournalEntry(input: {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(input.storeId);
+  const operationId = input.operationId.trim();
+  if (!operationId) {
+    throw new Error("Journal operation id is required.");
+  }
 
   const linesJson = input.lines.map((line) => ({
     account_id: line.accountId,
@@ -219,8 +224,8 @@ export async function createManualJournalEntry(input: {
     p_transaction_date: input.transactionDate,
     p_description: input.description,
     p_store_id: storeId,
-    p_source_entity_type: "manual",
-    p_source_entity_id: null,
+    p_source_entity_type: "manual_client_operation",
+    p_source_entity_id: operationId,
     p_lines: linesJson,
   });
 

@@ -60,6 +60,10 @@ export function formatActionError(error: unknown): string {
     return "Linked to other records — can't remove.";
   }
 
+  if (lower.includes("with this name already exists")) {
+    return msg.length <= 160 ? msg : msg.slice(0, 157) + "…";
+  }
+
   if (
     lower.includes("duplicate key") ||
     lower.includes("unique constraint") ||

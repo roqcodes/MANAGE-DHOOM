@@ -21,6 +21,8 @@ export type ReportFilterConfig = {
   accountType?: boolean;
   /** Filter open documents by days past due (min/max). */
   ageRange?: boolean;
+  /** Dead stock: days since expiry (min/max). */
+  expiredDaysRange?: boolean;
 };
 
 export type ReportStockLevel = "all" | "in_stock" | "out_of_stock" | "low_stock";
@@ -347,6 +349,36 @@ export const ERP_REPORTS: ReportDefinition[] = [
       { key: "sku_count", label: "SKUs", align: "right", format: "number" },
       { key: "total_stock", label: "Units", align: "right", format: "number" },
       { key: "stock_value_at_cost", label: "Value at cost", align: "right", format: "currency" },
+    ],
+  },
+  {
+    slug: "dead-stock",
+    title: "Dead Stock",
+    description:
+      "Expired inventory lots with estimated on-hand quantity (from purchase bills and receives).",
+    category: "Inventory",
+    filters: {
+      asOfDate: true,
+      store: true,
+      brand: true,
+      category: true,
+      customerSearch: true,
+      expiredDaysRange: true,
+    },
+    rpc: "get_erp_dead_stock_report",
+    columns: [
+      { key: "product_code", label: "Code" },
+      { key: "product_name", label: "Name" },
+      { key: "category_name", label: "Category" },
+      { key: "brand_name", label: "Brand" },
+      { key: "store_name", label: "Store" },
+      { key: "expiry_date", label: "Expiry", format: "date" },
+      { key: "days_expired", label: "Days expired", align: "right", format: "number" },
+      { key: "quantity", label: "Est. qty", align: "right", format: "number" },
+      { key: "purchase_price", label: "Unit cost", align: "right", format: "currency" },
+      { key: "stock_purchase_value", label: "Value at cost", align: "right", format: "currency" },
+      { key: "source_ref", label: "Source #" },
+      { key: "source_type", label: "Source" },
     ],
   },
   {

@@ -5,11 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
-import type {
-  ErpInvoiceListRow,
-  PaidThroughAccountOption,
-  ReceivableInvoiceRow,
-} from "@/common/erp/sales-types";
+import type { PaidThroughAccountOption, ReceivableInvoiceRow } from "@/common/erp/sales-types";
 import { ERP_CUSTOMER_PAYMENT_MODES, paymentModeLabel } from "@/common/erp/sales-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -136,37 +132,22 @@ export function CustomerBulkPaymentFormView({
   }
 
   async function buildFifoLines(amount: number, excludeInvoiceIds: string[]): Promise<PendingLine[]> {
-    if (!effectiveStoreId) return [];
+    if (!effectiveStoreId || !userId) return [];
     const exclude = excludeInvoiceIds.join(",");
-    const fifoUrl = userId
-      ? `erp/customer-bulk-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&userId=${encodeURIComponent(userId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`
-      : `erp/customer-bulk-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`;
     const res = await adminGet<{
       allocations: Array<{
         invoiceId?: string;
         invoice_id?: string;
         amount: number;
       }>;
-    }>(fifoUrl);
+    }>(
+      `erp/customer-bulk-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&userId=${encodeURIComponent(userId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
+    );
 
-    type InvoiceLookupRow = ErpInvoiceListRow | ReceivableInvoiceRow;
-    let lookupRows: InvoiceLookupRow[] = [];
-    if (userId) {
-      const receivable = await adminGet<{ data: ReceivableInvoiceRow[] }>(
-        `erp/payments?view=receivable-invoices&userId=${encodeURIComponent(userId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
-      );
-      lookupRows = receivable.data ?? [];
-    } else {
-      const q = new URLSearchParams({
-        page: "0",
-        limit: "100",
-        openOnly: "1",
-        storeId: effectiveStoreId,
-      });
-      const full = await adminGet<{ data: ErpInvoiceListRow[] }>(`erp/invoices?${q.toString()}`);
-      lookupRows = (full.data ?? []).filter((row) => row.balance_due > 0);
-    }
-    const lookup = new Map(lookupRows.map((row) => [row.id, row]));
+    const receivable = await adminGet<{ data: ReceivableInvoiceRow[] }>(
+      `erp/payments?view=receivable-invoices&userId=${encodeURIComponent(userId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
+    );
+    const lookup = new Map((receivable.data ?? []).map((row) => [row.id, row]));
     const pending: PendingLine[] = [];
 
     for (const alloc of res.allocations) {
@@ -174,20 +155,10 @@ export function CustomerBulkPaymentFormView({
       if (!invoiceId || excludeInvoiceIds.includes(invoiceId)) continue;
       const invoice = lookup.get(invoiceId);
       if (!invoice) continue;
-      if (
-        userId &&
-        "user_id" in invoice &&
-        invoice.user_id &&
-        invoice.user_id !== userId
-      ) {
-        continue;
-      }
       pending.push({
         invoiceId: invoice.id,
         invoiceNumber: invoice.invoice_number,
-        customerName:
-          ("customer_name" in invoice ? invoice.customer_name : null) ??
-          (customerLabel || null),
+        customerName: customerLabel || null,
         balanceDue: invoice.balance_due,
         amount: alloc.amount,
         receiptRef: receiptRef.trim(),
@@ -205,6 +176,11 @@ export function CustomerBulkPaymentFormView({
 
     setIsAddingLine(true);
     try {
+      if (!userId) {
+        setError("Select a customer before applying FIFO or adding an invoice.");
+        return;
+      }
+
       if (!selectedInvoiceId) {
         const fifoLines = await buildFifoLines(amt, lines.map((l) => l.invoiceId));
         if (fifoLines.length === 0) {
@@ -397,7 +373,8 @@ export function CustomerBulkPaymentFormView({
             <AdminFormGrid cols={1}>
               <AdminFormField
                 label="Customer"
-                hint="Optional for FIFO — limits allocation to one customer's invoices."
+                required
+                hint="Invoice search and FIFO apply only to this customer's open invoices."
               >
                 <CustomerSearchSelect
                   value={userId || null}
@@ -406,6 +383,7 @@ export function CustomerBulkPaymentFormView({
                   onChange={(id, option) => {
                     setUserId(id ?? "");
                     setCustomerLabel(option?.label ?? "");
+                    setLines([]);
                     setSelectedInvoiceId("");
                     setInvoiceLabel("");
                     setSelectedInvoiceBalance(0);
@@ -419,11 +397,13 @@ export function CustomerBulkPaymentFormView({
                 hint="Optional — leave empty to apply the amount FIFO (oldest due first)."
               >
                 <InvoiceSearchSelect
+                  key={userId || "no-customer"}
                   value={selectedInvoiceId || null}
                   selectedLabel={invoiceLabel || undefined}
                   storeId={effectiveStoreId || undefined}
+                  userId={userId || undefined}
                   openOnly
-                  disabled={!effectiveStoreId}
+                  disabled={!effectiveStoreId || !userId}
                   onChange={(id, option) => {
                     setSelectedInvoiceId(id ?? "");
                     setInvoiceLabel(option?.label ?? "");

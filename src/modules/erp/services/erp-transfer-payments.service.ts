@@ -8,7 +8,7 @@ import type {
   ErpTransferPaymentListRow,
   PendingTransferPaymentRow,
 } from "@/common/erp/inventory-types";
-import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import { logAuditEventRequired } from "@/modules/erp/services/audit-log.service";
 import { resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import { getTransferStatement } from "@/modules/erp/services/erp-store-transfers.service";
 import type { TransferStatementSummary } from "@/common/erp/inventory-types";
@@ -212,11 +212,17 @@ export async function createBulkTransferPayment(input: {
   };
 
   if (!result.idempotent) {
-    await logAuditEvent({
-      action: "payment_received",
+    await logAuditEventRequired({
+      action: "create",
       entityType: "transfer_payment_bulk",
-      description: `Bulk transfer payment: ${result.payment_ids.length} allocations`,
-      metadata: { batchRef: result.reference, paymentIds: result.payment_ids },
+      entityId: result.reference,
+      description: `Bulk transfer payment: ${result.payment_ids.length} allocation(s)`,
+      metadata: {
+        batchRef: result.reference,
+        reference: result.reference,
+        batch_ref: result.reference,
+        payment_ids: result.payment_ids,
+      },
     });
   }
 

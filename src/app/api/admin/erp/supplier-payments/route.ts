@@ -90,7 +90,10 @@ export async function GET(request: Request) {
       if (!storeId) {
         return NextResponse.json({ error: "storeId required" }, { status: 400 });
       }
-      const vendorId = url.searchParams.get("vendorId") ?? undefined;
+      const vendorId = url.searchParams.get("vendorId");
+      if (!vendorId) {
+        return NextResponse.json({ error: "vendorId required" }, { status: 400 });
+      }
       const allocations = await buildFifoAllocationsForBills(
         storeId,
         amount,

@@ -16,7 +16,7 @@ import type {
   PaymentAllocationInput,
   ReceivableInvoiceRow,
 } from "@/common/erp/sales-types";
-import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import { logAuditEventRequired } from "@/modules/erp/services/audit-log.service";
 import {
   requireErpStoreId,
   resolveErpStoreId,
@@ -274,6 +274,30 @@ export async function recordCustomerPayment(input: {
     throw new Error("Allocation total exceeds payment amount");
   }
 
+  if (allocations.length > 0) {
+    const invoiceIds = allocations.map((a) => a.invoiceId);
+    const { data: invoiceRows, error: invoiceLookupError } = await supabase
+      .from("invoices")
+      .select("id, user_id, store_id, invoice_number, balance_due")
+      .in("id", invoiceIds);
+    if (invoiceLookupError) throw new Error(invoiceLookupError.message);
+
+    const invoiceById = new Map((invoiceRows ?? []).map((row) => [row.id, row]));
+    for (const alloc of allocations) {
+      const invoice = invoiceById.get(alloc.invoiceId);
+      if (!invoice) throw new Error("Invoice not found");
+      if (invoice.user_id !== input.userId) {
+        throw new Error(`Invoice ${invoice.invoice_number} does not belong to this customer`);
+      }
+      if (invoice.store_id !== storeId) {
+        throw new Error(`Invoice ${invoice.invoice_number} belongs to a different store`);
+      }
+      if (alloc.amount > Number(invoice.balance_due ?? 0)) {
+        throw new Error(`Amount exceeds balance for invoice ${invoice.invoice_number}`);
+      }
+    }
+  }
+
   const allocJson: Json = allocations.map((a) => ({
     invoice_id: a.invoiceId,
     amount: a.amount,
@@ -302,15 +326,35 @@ export async function recordCustomerPayment(input: {
 
   if (error) throw new Error(error.message);
 
-  await logAuditEvent({
+  const paymentId = data as string;
+  const { data: paymentRow } = await supabase
+    .from("erp_customer_payments")
+    .select("payment_number, reference, settlement_discount")
+    .eq("id", paymentId)
+    .maybeSingle();
+
+  const paymentNumber = paymentRow?.payment_number ?? null;
+
+  await logAuditEventRequired({
     action: input.isBulk ? "create_bulk_customer_payment" : "payment_received",
     entityType: "erp_payment",
-    entityId: data as string,
-    description: `Payment recorded: ${input.totalAmount}`,
+    entityId: paymentId,
+    description: paymentNumber
+      ? `${input.isBulk ? "Bulk payment line" : "Payment"} ${paymentNumber}: ${input.totalAmount}${
+          settlementDiscount > 0 ? ` (settlement discount ${settlementDiscount})` : ""
+        }`
+      : `Payment recorded: ${input.totalAmount}`,
+    metadata: {
+      payment_number: paymentNumber,
+      reference: paymentRow?.reference ?? input.reference ?? null,
+      total_amount: input.totalAmount,
+      settlement_discount: settlementDiscount > 0 ? settlementDiscount : undefined,
+      is_bulk: input.isBulk ?? false,
+    },
     storeId,
   });
 
-  return data as string;
+  return paymentId;
 }
 
 export async function getPaymentDetail(paymentId: string) {
@@ -941,6 +985,7 @@ export async function recordBulkCustomerPaymentBatch(input: {
 
   const batchId = `${CUSTOMER_BULK_REF_PREFIX}${randomUUID()}`;
   let customerIndex = 0;
+  const paymentIds: string[] = [];
 
   for (const [userId, customerLines] of byCustomer) {
     const totalAmount = customerLines.reduce((sum, line) => sum + line.amount, 0);
@@ -952,7 +997,7 @@ export async function recordBulkCustomerPaymentBatch(input: {
       .map((line) => line.receiptRef?.trim())
       .filter((ref): ref is string => Boolean(ref));
 
-    await recordCustomerPayment({
+    const paymentId = await recordCustomerPayment({
       userId,
       storeId,
       paymentDate: input.paymentDate,
@@ -968,14 +1013,24 @@ export async function recordBulkCustomerPaymentBatch(input: {
       isBulk: true,
       allocations,
     });
+    paymentIds.push(paymentId);
     customerIndex += 1;
   }
 
-  await logAuditEvent({
+  const batchTotal = input.lines.reduce((s, l) => s + l.amount, 0);
+  await logAuditEventRequired({
     action: "create_bulk_customer_payment",
     entityType: "customer_payment_batch",
     entityId: batchId,
-    description: `Bulk customer payment batch: ${input.lines.reduce((s, l) => s + l.amount, 0)}`,
+    description: `Bulk customer payment ${batchTotal} — ${input.lines.length} invoice(s), ${byCustomer.size} customer(s)`,
+    metadata: {
+      reference: batchId,
+      batch_ref: batchId,
+      total_amount: batchTotal,
+      invoice_count: input.lines.length,
+      customer_count: byCustomer.size,
+      payment_ids: paymentIds,
+    },
     storeId,
   });
 
@@ -989,7 +1044,7 @@ export async function deleteBulkCustomerPaymentBatch(batchId: string): Promise<v
 
   const { data: payments, error: listError } = await supabase
     .from("erp_customer_payments")
-    .select("id, erp_payment_allocations(invoice_id)")
+    .select("id, store_id, erp_payment_allocations(invoice_id)")
     .eq("reference", ref)
     .eq("is_bulk", true);
 
@@ -1016,10 +1071,16 @@ export async function deleteBulkCustomerPaymentBatch(batchId: string): Promise<v
     await supabase.rpc("recalculate_invoice_balance", { p_invoice_id: invoiceId });
   }
 
-  await logAuditEvent({
+  await logAuditEventRequired({
     action: "delete",
     entityType: "customer_payment_batch",
     entityId: ref,
-    description: "Bulk customer payment batch deleted",
+    description: `Bulk customer payment batch deleted (${paymentIds.length} payment(s))`,
+    metadata: {
+      reference: ref,
+      batch_ref: ref,
+      payment_ids: paymentIds,
+    },
+    storeId: payments[0]?.store_id as string | undefined,
   });
 }

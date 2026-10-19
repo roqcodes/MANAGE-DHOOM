@@ -89,7 +89,10 @@ export async function GET(request: Request) {
       if (!storeId) {
         return NextResponse.json({ error: "Store is required" }, { status: 400 });
       }
-      const userId = searchParams.get("userId") ?? undefined;
+      const userId = searchParams.get("userId");
+      if (!userId) {
+        return NextResponse.json({ error: "userId required" }, { status: 400 });
+      }
       const allocations = await buildFifoAllocationsForAmount(
         storeId,
         amount,

@@ -8,20 +8,26 @@ export function AgingReportAgeFilter({
   ageMax,
   onAgeMinChange,
   onAgeMaxChange,
+  minLabel = "Min age (days)",
+  maxLabel = "Max age (days)",
+  idPrefix = "aging-age",
 }: {
   ageMin: string;
   ageMax: string;
   onAgeMinChange: (value: string) => void;
   onAgeMaxChange: (value: string) => void;
+  minLabel?: string;
+  maxLabel?: string;
+  idPrefix?: string;
 }) {
   return (
     <div className="flex flex-wrap items-end gap-2">
       <div className="grid gap-1">
-        <Label htmlFor="aging-age-min" className="text-xs text-muted-foreground">
-          Min age (days)
+        <Label htmlFor={`${idPrefix}-min`} className="text-xs text-muted-foreground">
+          {minLabel}
         </Label>
         <Input
-          id="aging-age-min"
+          id={`${idPrefix}-min`}
           type="number"
           min={0}
           step={1}
@@ -33,11 +39,11 @@ export function AgingReportAgeFilter({
         />
       </div>
       <div className="grid gap-1">
-        <Label htmlFor="aging-age-max" className="text-xs text-muted-foreground">
-          Max age (days)
+        <Label htmlFor={`${idPrefix}-max`} className="text-xs text-muted-foreground">
+          {maxLabel}
         </Label>
         <Input
-          id="aging-age-max"
+          id={`${idPrefix}-max`}
           type="number"
           min={0}
           step={1}

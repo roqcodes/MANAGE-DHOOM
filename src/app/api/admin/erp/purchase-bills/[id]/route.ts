@@ -6,6 +6,11 @@ import {
   executeIdempotentOperation,
   idempotentOperationErrorResponse,
 } from "@/lib/erp/client-operations/execute-idempotent-operation";
+import { buildAuditUpdateEvent } from "@/modules/erp/lib/audit-change-summary";
+import {
+  PURCHASE_BILL_AUDIT_FIELD_LABELS,
+  purchaseBillAuditSnapshotFromDetail,
+} from "@/modules/erp/lib/document-audit-snapshots";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import {
   cancelPurchaseBill,
@@ -136,6 +141,9 @@ export async function PUT(request: Request, context: RouteContext) {
         );
       }
 
+      const beforeDetail = await getPurchaseBillDetail(routeBillId);
+      const beforeSnapshot = purchaseBillAuditSnapshotFromDetail(beforeDetail);
+
       const outcome = await executeIdempotentOperation<{ billId: string }>({
         operationId: idempotent.data.operationId,
         operationType: idempotent.data.operationType,
@@ -146,13 +154,21 @@ export async function PUT(request: Request, context: RouteContext) {
       });
 
       if (!outcome.idempotentReplay && outcome.result?.billId) {
-        await logAuditEvent({
-          action: "update",
-          entityType: "purchase_bill",
-          entityId: outcome.result.billId,
-          description: "Purchase bill draft updated (durable sync)",
-          storeId: idempotent.data.storeId,
-        });
+        const afterDetail = await getPurchaseBillDetail(outcome.result.billId);
+        const afterSnapshot = purchaseBillAuditSnapshotFromDetail(afterDetail);
+        await logAuditEvent(
+          buildAuditUpdateEvent({
+            action: "update",
+            entityType: "purchase_bill",
+            entityId: outcome.result.billId,
+            storeId: idempotent.data.storeId,
+            headline: "Purchase bill draft updated",
+            syncNote: "(durable sync)",
+            before: beforeSnapshot,
+            after: afterSnapshot,
+            fieldLabels: PURCHASE_BILL_AUDIT_FIELD_LABELS,
+          }),
+        );
       }
 
       return NextResponse.json({

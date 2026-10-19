@@ -15,7 +15,7 @@ import type {
   SupplierPaymentModeTotals,
 } from "@/common/erp/purchasing-types";
 import { ERP_SUPPLIER_PAYMENT_MODES } from "@/common/erp/purchasing-types";
-import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import { logAuditEventRequired } from "@/modules/erp/services/audit-log.service";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { erpDocumentDateSortKey } from "@/lib/format-date";
 import {
@@ -482,6 +482,30 @@ export async function recordSupplierPayment(input: {
     throw new Error("Allocation total exceeds payment amount");
   }
 
+  if (allocations.length > 0) {
+    const billIds = allocations.map((a) => a.purchaseBillId);
+    const { data: billRows, error: billLookupError } = await supabase
+      .from("erp_purchase_bills")
+      .select("id, vendor_id, store_id, purchase_bill_number, balance_due")
+      .in("id", billIds);
+    if (billLookupError) throw new Error(billLookupError.message);
+
+    const billById = new Map((billRows ?? []).map((row) => [row.id, row]));
+    for (const alloc of allocations) {
+      const bill = billById.get(alloc.purchaseBillId);
+      if (!bill) throw new Error("Purchase bill not found");
+      if (bill.vendor_id !== input.vendorId) {
+        throw new Error(`Bill ${bill.purchase_bill_number} does not belong to this vendor`);
+      }
+      if (bill.store_id !== storeId) {
+        throw new Error(`Bill ${bill.purchase_bill_number} belongs to a different store`);
+      }
+      if (alloc.amount > Number(bill.balance_due ?? 0)) {
+        throw new Error(`Amount exceeds balance for bill ${bill.purchase_bill_number}`);
+      }
+    }
+  }
+
   const allocJson: Json = allocations.map((a) => ({
     purchase_bill_id: a.purchaseBillId,
     amount: a.amount,
@@ -512,15 +536,35 @@ export async function recordSupplierPayment(input: {
 
   if (error) throw new Error(error.message);
 
-  await logAuditEvent({
+  const paymentId = data as string;
+  const { data: paymentRow } = await supabase
+    .from("erp_supplier_payments")
+    .select("payment_number, reference, settlement_discount")
+    .eq("id", paymentId)
+    .maybeSingle();
+
+  const paymentNumber = paymentRow?.payment_number ?? null;
+
+  await logAuditEventRequired({
     action: input.isBulk ? "create_bulk_supplier_payment" : "supplier_payment",
     entityType: "supplier_payment",
-    entityId: data as string,
-    description: `Supplier payment: ${input.totalAmount}`,
+    entityId: paymentId,
+    description: paymentNumber
+      ? `${input.isBulk ? "Bulk payment line" : "Payment made"} ${paymentNumber}: ${input.totalAmount}${
+          settlementDiscount > 0 ? ` (settlement discount ${settlementDiscount})` : ""
+        }`
+      : `Supplier payment: ${input.totalAmount}`,
+    metadata: {
+      payment_number: paymentNumber,
+      reference: paymentRow?.reference ?? input.reference ?? null,
+      total_amount: input.totalAmount,
+      settlement_discount: settlementDiscount > 0 ? settlementDiscount : undefined,
+      is_bulk: input.isBulk ?? false,
+    },
     storeId,
   });
 
-  return data as string;
+  return paymentId;
 }
 
 export async function recordBulkSupplierPaymentBatch(input: {
@@ -597,11 +641,19 @@ export async function recordBulkSupplierPaymentBatch(input: {
 
   if (bulkError) throw new Error(bulkError.message);
 
-  await logAuditEvent({
+  const batchTotal = input.billLines.reduce((s, l) => s + l.amount, 0);
+  await logAuditEventRequired({
     action: "create_bulk_supplier_payment",
     entityType: "supplier_payment_batch",
     entityId: batchId,
-    description: `Bulk supplier payment batch: ${input.billLines.reduce((s, l) => s + l.amount, 0)}`,
+    description: `Bulk supplier payment ${batchTotal} — ${input.billLines.length} bill(s), ${byVendor.size} vendor(s)`,
+    metadata: {
+      reference: batchId,
+      batch_ref: batchId,
+      total_amount: batchTotal,
+      bill_count: input.billLines.length,
+      vendor_count: byVendor.size,
+    },
     storeId,
   });
 

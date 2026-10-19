@@ -6,6 +6,12 @@ import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import type { AccountListRow, AccountTypeRow } from "@/common/erp/finance-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import {
+  assertUniqueAccountName,
+  assertUniqueAccountTypeName,
+  rethrowUniqueNameViolation,
+  trimMasterName,
+} from "@/lib/erp/master-name-uniqueness";
+import {
   resolveErpStoreId,
   withAccountStoreScope,
 } from "@/modules/erp/services/store-context.service";
@@ -38,17 +44,23 @@ export async function createAccountType(input: {
 }): Promise<string> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Account type name is required");
+  await assertUniqueAccountTypeName(supabase, input.accountCategory, name);
   const { data, error } = await supabase
     .from("account_types")
     .insert({
       account_category: input.accountCategory,
-      name: input.name,
+      name,
       description: input.description ?? "",
       is_system: false,
     })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "account type");
+    throw new Error(error.message);
+  }
   await logAuditEvent({
     action: "create_account_type",
     entityType: "account_type",
@@ -75,16 +87,23 @@ export async function updateAccountType(
     .single();
   if (type?.is_system) throw new Error("Cannot edit system account type");
 
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Account type name is required");
+  await assertUniqueAccountTypeName(supabase, input.accountCategory, name, typeId);
+
   const { error } = await supabase
     .from("account_types")
     .update({
       account_category: input.accountCategory,
-      name: input.name,
+      name,
       description: input.description ?? "",
       updated_at: new Date().toISOString(),
     })
     .eq("id", typeId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "account type");
+    throw new Error(error.message);
+  }
 
   await logAuditEvent({
     action: "update_account_type",
@@ -213,15 +232,21 @@ export async function createAccount(input: {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = (await resolveErpStoreId(input.storeId)) ?? undefined;
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Account name is required");
+  await assertUniqueAccountName(supabase, name);
   const { data, error } = await supabase.rpc("create_erp_account", {
     p_account_type_id: input.accountTypeId,
-    p_name: input.name,
+    p_name: name,
     p_code: input.code,
     p_description: input.description ?? undefined,
     p_store_id: storeId,
     p_opening_balance: input.openingBalance ?? 0,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "account");
+    throw new Error(error.message);
+  }
   await logAuditEvent({
     action: "create_account",
     entityType: "account",
@@ -255,16 +280,23 @@ export async function updateAccount(
     throw new Error("Cannot edit system or locked account");
   }
 
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Account name is required");
+  await assertUniqueAccountName(supabase, name, accountId);
+
   const { error } = await supabase.rpc("update_erp_account", {
     p_account_id: accountId,
-    p_name: input.name,
+    p_name: name,
     p_code: input.code,
     p_description: input.description ?? "",
     p_store_id: input.storeId ?? null,
     p_opening_balance: input.openingBalance ?? 0,
     p_is_active: input.isActive ?? true,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "account");
+    throw new Error(error.message);
+  }
   await logAuditEvent({
     action: "update_account",
     entityType: "account",

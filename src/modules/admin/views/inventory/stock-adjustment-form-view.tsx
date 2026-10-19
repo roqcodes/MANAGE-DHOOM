@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -26,6 +26,7 @@ import {
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { draftFinalizeUserMessage } from "@/common/erp/document-create-outcome";
 
 type AdjLine = {
   key: string;
@@ -58,6 +59,8 @@ export function StockAdjustmentFormView({
   const [adjustmentDate, setAdjustmentDate] = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState("");
   const [lines, setLines] = useState<AdjLine[]>([]);
+  const [draftAdjustmentId, setDraftAdjustmentId] = useState<string | null>(null);
+  const submitInFlightRef = useRef(false);
 
   function handleCancel() {
     if (isModal) {
@@ -100,6 +103,12 @@ export function StockAdjustmentFormView({
       setError("Add at least one item");
       return;
     }
+    if (draftAdjustmentId && !finalize) {
+      setError(
+        `A draft adjustment already exists. Open /admin/erp/stock-adjustments/${draftAdjustmentId} or use Finalize to complete it.`,
+      );
+      return;
+    }
     for (const line of lines) {
       if (line.direction === "add" && (!line.purchaseCost || line.purchaseCost <= 0)) {
         setError(`Purchase cost is required when adding stock (${line.productName})`);
@@ -107,9 +116,20 @@ export function StockAdjustmentFormView({
       }
     }
 
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     startTransition(async () => {
       try {
-        const res = await adminPost<{ id: string }>("erp/stock-adjustments", {
+        if (finalize && draftAdjustmentId) {
+          await adminPost(`erp/stock-adjustments/${draftAdjustmentId}`, {});
+          handleSuccessNavigate(draftAdjustmentId);
+          return;
+        }
+        const res = await adminPost<{
+          id: string;
+          finalizeFailed?: boolean;
+          finalizeError?: string;
+        }>("erp/stock-adjustments", {
           storeId: effectiveStoreId,
           adjustmentDate,
           note: note || undefined,
@@ -121,9 +141,23 @@ export function StockAdjustmentFormView({
             purchaseCost: l.direction === "remove" ? 0 : l.purchaseCost,
           })),
         });
+        if (res.finalizeFailed) {
+          setDraftAdjustmentId(res.id);
+          setError(
+            draftFinalizeUserMessage(
+              "Stock adjustment",
+              res.id,
+              `/admin/erp/stock-adjustments/${res.id}`,
+              res.finalizeError,
+            ),
+          );
+          return;
+        }
         handleSuccessNavigate(res.id);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Save failed");
+      } finally {
+        submitInFlightRef.current = false;
       }
     });
   }

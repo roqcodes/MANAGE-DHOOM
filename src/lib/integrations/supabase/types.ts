@@ -429,6 +429,51 @@ export type Database = {
           },
         ]
       }
+      catalog_product_create_operations: {
+        Row: {
+          operation_id: string
+          created_by: string
+          product_id: string | null
+          status: string
+          result: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          operation_id: string
+          created_by: string
+          product_id?: string | null
+          status?: string
+          result?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          operation_id?: string
+          created_by?: string
+          product_id?: string | null
+          status?: string
+          result?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_product_create_operations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_product_create_operations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string
@@ -5691,6 +5736,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      catalog_product_create_reserve_product: {
+        Args: {
+          p_operation_id: string
+          p_name: string
+          p_description: string | null
+          p_category_id: string | null
+          p_brand_id: string | null
+          p_image_url: string | null
+          p_variant_layout: string
+          p_item_type: string
+          p_hsn_sac: string | null
+          p_price: number | null
+          p_mrp: number | null
+          p_barcode: string | null
+          p_purchase_price: number | null
+          p_tax_rate_percent: number | null
+        }
+        Returns: Json
+      }
       add_to_cart: {
         Args: { p_quantity?: number; p_user_id: string; p_variant_id: string }
         Returns: Json

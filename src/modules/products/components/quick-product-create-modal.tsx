@@ -6,11 +6,9 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import type { Category } from "@/common/admin/types";
 import type { ErpProductSearchRow } from "@/common/erp/purchasing-types";
-import {
-  createProductAction,
-  ensureDefaultProductVariantAction,
-} from "@/modules/products/actions/products.actions";
+import { createCatalogProductAction } from "@/modules/products/actions/create-product-catalog.action";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { formatActionError } from "@/modules/admin/lib/format-action-error";
 import {
   FieldLabel,
   FormError,
@@ -21,6 +19,7 @@ import {
   selectCls,
 } from "@/modules/admin/components/modal";
 import { invalidateAdminProductCatalogQueries } from "@/modules/erp/lib/erp-product-live-search.client";
+import { useProductCreateSession } from "@/modules/products/lib/product-create-session";
 import { DEFAULT_ITEM_TAX_RATE_PERCENT } from "@/modules/tax/default-item-tax-rate";
 
 export type QuickProductCreateModalProps = {
@@ -42,6 +41,7 @@ export function QuickProductCreateModal({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const { begin, end } = useProductCreateSession(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +57,9 @@ export function QuickProductCreateModal({
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const operationId = begin();
+    if (!operationId) return;
+
     const fd = new FormData(e.currentTarget);
     const name = (fd.get("name") as string).trim();
     const barcode = (fd.get("barcode") as string).trim();
@@ -67,6 +70,7 @@ export function QuickProductCreateModal({
 
     if (!name) {
       setError("Product name is required.");
+      end();
       return;
     }
 
@@ -77,36 +81,52 @@ export function QuickProductCreateModal({
 
     if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
       setError("Enter a valid purchase price.");
+      end();
       return;
     }
     if (!Number.isFinite(taxRatePercent) || taxRatePercent < 0) {
       setError("Enter a valid tax rate.");
+      end();
       return;
     }
 
     setError(null);
     startTransition(async () => {
       try {
-        const productId = await createProductAction({
+        const result = await createCatalogProductAction({
+          operationId,
           name,
           description: "",
           categoryId: categoryId || null,
           brandId: null,
           imageUrl: null,
-          itemType: "goods",
           variantLayout: "flat",
+          itemType: "goods",
           barcode: barcode || null,
           purchasePrice,
           taxRatePercent,
           hsnSac: hsnSac || null,
+          setup: { mode: "simple", ensureDefaultVariant: true },
         });
 
-        await ensureDefaultProductVariantAction(productId);
+        await invalidateAdminProductCatalogQueries(queryClient);
 
-        void invalidateAdminProductCatalogQueries(queryClient);
+        if (result.status === "failed" || !result.productId) {
+          setError(result.message);
+          return;
+        }
+
+        if (result.status === "partial") {
+          setError(
+            result.openProductHref
+              ? `${result.message} Check the product list or retry with the same save session.`
+              : result.message,
+          );
+          return;
+        }
 
         onCreated({
-          id: productId,
+          id: result.productId,
           product_name: name,
           barcode: barcode || null,
           purchase_price: purchasePrice,
@@ -114,7 +134,12 @@ export function QuickProductCreateModal({
         });
         onClose();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not create product.");
+        setError(
+          formatActionError(err) ||
+            "We couldn't confirm whether the product was saved. Check the product list before trying again.",
+        );
+      } finally {
+        end();
       }
     });
   }

@@ -23,6 +23,9 @@ const ENTITY_LABELS: Record<string, string> = {
   customer_payment: "Payment received",
   erp_payment: "Payment received",
   customer_payment_batch: "Bulk payment",
+  supplier_payment_batch: "Bulk payment made",
+  transfer_payment_bulk: "Transfer bulk payment",
+  salary_bulk_payment: "Salary bulk payment",
   supplier_payment: "Payment made",
   vendor_credit: "Vendor credit",
   purchase_order: "Purchase order",
@@ -49,6 +52,10 @@ const ACTION_LABELS: Record<string, string> = {
   email_sent: "Emailed",
   recurring_run: "Ran schedule",
   convert: "Converted",
+  payment_received: "Payment received",
+  supplier_payment: "Payment made",
+  create_bulk_customer_payment: "Bulk payment received",
+  create_bulk_supplier_payment: "Bulk payment made",
 };
 
 export function formatAuditActionLabel(action: string): string {
@@ -68,11 +75,37 @@ export function formatAuditEntityLabel(entityType: string): string {
     .join(" ");
 }
 
+function batchHrefFromMetadata(
+  metadata: Record<string, unknown> | undefined,
+  entityId: string | null,
+  prefix: string,
+  basePath: string,
+): string | null {
+  const ref =
+    (typeof metadata?.batch_ref === "string" && metadata.batch_ref) ||
+    (typeof metadata?.reference === "string" && metadata.reference) ||
+    null;
+  const pathId = ref ?? (entityId ? `${prefix}${entityId}` : null);
+  return pathId ? `${basePath}/${encodeURIComponent(pathId)}` : null;
+}
+
 export function auditLogEntityHref(log: AuditLogEntry): string | null {
   const id = log.entity_id;
-  if (!id) return null;
+  const metadata = log.metadata ?? {};
 
   switch (log.entity_type) {
+    case "customer_payment_batch":
+      return batchHrefFromMetadata(metadata, id, "CBPB:", "/admin/erp/customer-bulk-payments");
+    case "supplier_payment_batch":
+      return batchHrefFromMetadata(metadata, id, "BULK:", "/admin/erp/supplier-bulk-payments");
+    case "transfer_payment_bulk": {
+      const ref =
+        (typeof metadata.batchRef === "string" && metadata.batchRef) ||
+        (typeof metadata.reference === "string" && metadata.reference);
+      return ref ? `/admin/erp/transfer-bulk-payments` : null;
+    }
+    case "salary_bulk_payment":
+      return id ? `/admin/erp/salary-bulk-payments` : null;
     case "invoice":
       return `/admin/erp/invoices/${id}`;
     case "purchase_bill":
@@ -86,8 +119,6 @@ export function auditLogEntityHref(log: AuditLogEntry): string | null {
     case "customer_payment":
     case "erp_payment":
       return `/admin/erp/payments/${id}`;
-    case "customer_payment_batch":
-      return `/admin/erp/customer-bulk-payments/${id}`;
     case "supplier_payment":
       return `/admin/erp/supplier-payments/${id}`;
     case "vendor_credit":
@@ -117,9 +148,36 @@ export function auditLogEntityHref(log: AuditLogEntry): string | null {
   }
 }
 
+type AuditLogLike = Pick<AuditLogEntry, "action" | "metadata" | "description">;
+
+function auditChangeLines(log: AuditLogLike): string[] {
+  const raw = log.metadata?.changes;
+  if (!Array.isArray(raw)) return [];
+  return raw.filter((line): line is string => typeof line === "string" && line.trim().length > 0);
+}
+
+/** Full description for tables and panels (includes field-level edits when logged). */
+export function formatAuditLogDescription(log: AuditLogLike): string {
+  if (log.description?.trim()) return log.description.trim();
+  const summary = log.metadata?.change_summary;
+  if (typeof summary === "string" && summary.trim()) return summary.trim();
+  return "";
+}
+
+/** Activity column / title: prefer first concrete change on updates. */
+export function formatAuditActivityLabel(log: AuditLogLike): string {
+  const changes = auditChangeLines(log);
+  if (log.action === "update" && changes.length > 0) return changes[0];
+  return formatAuditActionLabel(log.action);
+}
+
 export function formatAuditActivityTitle(log: AuditLogEntry): string {
-  const action = formatAuditActionLabel(log.action);
+  const changes = auditChangeLines(log);
   const entity = formatAuditEntityLabel(log.entity_type);
+  if (log.action === "update" && changes.length > 0) {
+    return `${entity}: ${changes[0]}`;
+  }
+  const action = formatAuditActionLabel(log.action);
   return `${action} ${entity.toLowerCase()}`;
 }
 
@@ -137,4 +195,8 @@ export const AUDIT_ACTION_FILTER_OPTIONS = [
   { value: "finalize_purchase_bill", label: "Finalize bill" },
   { value: "convert", label: "Convert" },
   { value: "email_sent", label: "Email sent" },
+  { value: "payment_received", label: "Payment received" },
+  { value: "supplier_payment", label: "Payment made" },
+  { value: "create_bulk_customer_payment", label: "Bulk payment received" },
+  { value: "create_bulk_supplier_payment", label: "Bulk payment made" },
 ];

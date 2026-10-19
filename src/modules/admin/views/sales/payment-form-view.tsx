@@ -474,6 +474,7 @@ export function PaymentFormView({
                   onChange={(id, option) => {
                     setUserId(id ?? "");
                     setCustomerLabel(option?.label ?? "");
+                    setLines([]);
                     setSelectedInvoiceId("");
                     setInvoiceLabel("");
                     setSelectedInvoiceBalance(0);
@@ -487,11 +488,13 @@ export function PaymentFormView({
                 hint="Optional — leave empty to apply the amount FIFO (oldest due first)."
               >
                 <InvoiceSearchSelect
+                  key={userId || "no-customer"}
                   value={selectedInvoiceId || null}
                   selectedLabel={invoiceLabel || undefined}
                   storeId={effectiveStoreId || undefined}
+                  userId={userId || undefined}
                   openOnly
-                  disabled={!effectiveStoreId}
+                  disabled={!effectiveStoreId || !userId}
                   onChange={(id, option) => {
                     setSelectedInvoiceId(id ?? "");
                     setInvoiceLabel(option?.label ?? "");

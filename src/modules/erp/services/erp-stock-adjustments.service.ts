@@ -9,6 +9,7 @@ import type {
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
+import type { ErpDocumentCreateOutcome } from "@/common/erp/document-create-outcome";
 
 export async function listStockAdjustments(
   page = 0,
@@ -69,7 +70,7 @@ export async function createStockAdjustment(input: {
   lines: StockAdjustmentLineInput[];
   note?: string;
   finalize?: boolean;
-}): Promise<string> {
+}): Promise<ErpDocumentCreateOutcome> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
 
@@ -104,7 +105,25 @@ export async function createStockAdjustment(input: {
   const adjustmentId = data as string;
 
   if (finalize) {
-    await finalizeStockAdjustment(adjustmentId);
+    try {
+      await finalizeStockAdjustment(adjustmentId);
+    } catch (error) {
+      const finalizeError =
+        error instanceof Error ? error.message : "Finalization failed";
+      await logAuditEvent({
+        action: "stock_adjustment",
+        entityType: "stock_adjustment",
+        entityId: adjustmentId,
+        description: "Stock adjustment draft created; finalization failed",
+        storeId: input.storeId,
+      });
+      return {
+        documentId: adjustmentId,
+        finalized: false,
+        finalizeFailed: true,
+        finalizeError,
+      };
+    }
   }
 
   await logAuditEvent({
@@ -115,7 +134,7 @@ export async function createStockAdjustment(input: {
     storeId: input.storeId,
   });
 
-  return adjustmentId;
+  return { documentId: adjustmentId, finalized: finalize };
 }
 
 export async function finalizeStockAdjustment(adjustmentId: string): Promise<void> {

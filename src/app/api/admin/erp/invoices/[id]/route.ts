@@ -6,6 +6,11 @@ import {
   executeIdempotentOperation,
   idempotentOperationErrorResponse,
 } from "@/lib/erp/client-operations/execute-idempotent-operation";
+import { buildAuditUpdateEvent } from "@/modules/erp/lib/audit-change-summary";
+import {
+  SALES_INVOICE_AUDIT_FIELD_LABELS,
+  salesInvoiceAuditSnapshotFromDetail,
+} from "@/modules/erp/lib/document-audit-snapshots";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import {
   idempotentSalesInvoiceUpdateBodySchema,
@@ -16,6 +21,21 @@ import {
   fetchErpInvoiceDetail,
   updateErpInvoice,
 } from "@/modules/erp/services/erp-invoices.service";
+
+function invoiceAuditSnapshotFromFetched(detail: Awaited<ReturnType<typeof fetchErpInvoiceDetail>>) {
+  return salesInvoiceAuditSnapshotFromDetail({
+    ...detail,
+    users: detail.users,
+    invoice_items: detail.invoice_items as
+      | Array<{
+          product_name: string | null;
+          quantity: number | null;
+          unit_price: number | null;
+          gst_rate?: number | null;
+        }>
+      | null,
+  });
+}
 
 export async function GET(
   _request: Request,
@@ -53,6 +73,9 @@ export async function PATCH(
         );
       }
 
+      const beforeDetail = await fetchErpInvoiceDetail(routeInvoiceId);
+      const beforeSnapshot = invoiceAuditSnapshotFromFetched(beforeDetail);
+
       const outcome = await executeIdempotentOperation<{
         invoiceId: string;
         status: string;
@@ -66,13 +89,21 @@ export async function PATCH(
       });
 
       if (!outcome.idempotentReplay && outcome.result?.invoiceId) {
-        await logAuditEvent({
-          action: "update",
-          entityType: "invoice",
-          entityId: outcome.result.invoiceId,
-          description: "ERP invoice updated (durable sync)",
-          storeId: idempotent.data.storeId,
-        });
+        const afterDetail = await fetchErpInvoiceDetail(outcome.result.invoiceId);
+        const afterSnapshot = invoiceAuditSnapshotFromFetched(afterDetail);
+        await logAuditEvent(
+          buildAuditUpdateEvent({
+            action: "update",
+            entityType: "invoice",
+            entityId: outcome.result.invoiceId,
+            storeId: idempotent.data.storeId,
+            headline: "ERP invoice updated",
+            syncNote: "(durable sync)",
+            before: beforeSnapshot,
+            after: afterSnapshot,
+            fieldLabels: SALES_INVOICE_AUDIT_FIELD_LABELS,
+          }),
+        );
       }
 
       return NextResponse.json({

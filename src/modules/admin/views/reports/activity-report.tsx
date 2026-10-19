@@ -26,8 +26,9 @@ import { Label } from "@/components/ui/label";
 import {
   AUDIT_ACTION_FILTER_OPTIONS,
   AUDIT_ENTITY_FILTER_OPTIONS,
-  formatAuditActionLabel,
+  formatAuditActivityLabel,
   formatAuditEntityLabel,
+  formatAuditLogDescription,
 } from "@/modules/erp/lib/audit-log-display";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { BusinessReportLayout } from "./business-overview/business-report-layout";
@@ -227,8 +228,18 @@ function ActivityLogReport({ report }: { report: ReportDefinition }) {
                       : col.key === "entity_label"
                         ? formatAuditEntityLabel(String(row.entity_type ?? ""))
                         : col.key === "activity_label"
-                          ? formatAuditActionLabel(String(row.action ?? ""))
-                          : formatReportCell(row[col.key], col.format)}
+                          ? formatAuditActivityLabel({
+                              action: String(row.action ?? ""),
+                              metadata: (row.metadata ?? {}) as Record<string, unknown>,
+                              description: row.description as string | null,
+                            })
+                          : col.key === "description"
+                            ? formatAuditLogDescription({
+                                action: String(row.action ?? ""),
+                                metadata: (row.metadata ?? {}) as Record<string, unknown>,
+                                description: row.description as string | null,
+                              }) || formatReportCell(row[col.key], col.format)
+                            : formatReportCell(row[col.key], col.format)}
                   </AdminTableCell>
                 ))}
               </AdminTableRow>

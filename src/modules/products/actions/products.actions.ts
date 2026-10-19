@@ -1,8 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
-import { revalidatePublicCatalog } from "@/lib/cache/public-catalog-cache";
+import { safeRevalidateProductCatalog } from "@/lib/cache/safe-revalidate";
 
 import {
   deleteProduct,
@@ -60,8 +58,7 @@ export async function createProductAction(data: {
   if (data.videoUrls && data.videoUrls.length > 0) {
     await addProductVideos(id, data.videoUrls);
   }
-  revalidatePath("/admin/products");
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(id);
   return id;
 }
 
@@ -105,9 +102,7 @@ export async function updateProductAction(
   if (data.videoUrls !== undefined) {
     await syncProductVideos(id, data.videoUrls);
   }
-  revalidatePath("/admin/products");
-  revalidatePath(`/admin/products/${id}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(id);
 }
 
 export async function toggleProductAction(
@@ -115,9 +110,7 @@ export async function toggleProductAction(
   isActive: boolean,
 ): Promise<void> {
   await setProductActive(id, isActive);
-  revalidatePath("/admin/products");
-  revalidatePath(`/admin/products/${id}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(id);
 }
 
 export async function updateProductSpecsAction(
@@ -125,15 +118,12 @@ export async function updateProductSpecsAction(
   specs: Record<string, string>,
 ): Promise<void> {
   await updateProductSpecs(id, specs);
-  revalidatePath("/admin/products");
-  revalidatePath(`/admin/products/${id}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(id);
 }
 
 export async function deleteProductAction(id: string): Promise<void> {
   await deleteProduct(id);
-  revalidatePath("/admin/products");
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog();
 }
 
 export async function bulkSetProductsActiveAction(
@@ -142,11 +132,10 @@ export async function bulkSetProductsActiveAction(
 ): Promise<void> {
   if (ids.length === 0) return;
   await setProductsActiveByIds(ids, isActive);
-  revalidatePath("/admin/products");
   for (const id of ids) {
-    revalidatePath(`/admin/products/${id}`);
+    safeRevalidateProductCatalog(id);
   }
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog();
 }
 
 /** Create default online SKU for simple products (product-level price, no variants). */
@@ -154,9 +143,7 @@ export async function ensureDefaultProductVariantAction(
   productId: string,
 ): Promise<string> {
   const variantId = await ensureDefaultProductVariant(productId);
-  revalidatePath("/admin/products");
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
   return variantId;
 }
 
@@ -166,9 +153,7 @@ export async function upgradeProductToGroupedLayoutAction(
   groupName?: string,
 ): Promise<void> {
   await upgradeProductToGroupedLayout(productId, groupName);
-  revalidatePath("/admin/products");
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
 }
 
 /** Downgrade grouped catalog to flat variants; SKUs and stock are preserved. */
@@ -176,15 +161,12 @@ export async function downgradeProductToFlatLayoutAction(
   productId: string,
 ): Promise<void> {
   await downgradeProductToFlatLayout(productId);
-  revalidatePath("/admin/products");
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
 }
 
 export async function bulkDeleteProductsAction(ids: string[]): Promise<void> {
   for (const id of ids) {
     await deleteProduct(id);
   }
-  revalidatePath("/admin/products");
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog();
 }

@@ -92,8 +92,17 @@ export async function POST(request: Request) {
       );
     }
 
-    const id = await createPurchaseBill(body);
-    return NextResponse.json({ id }, { status: 201 });
+    const outcome = await createPurchaseBill(body);
+    return NextResponse.json(
+      {
+        id: outcome.documentId,
+        billId: outcome.documentId,
+        finalized: outcome.finalized,
+        finalizeFailed: outcome.finalizeFailed ?? false,
+        finalizeError: outcome.finalizeError,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     const mapped = idempotentOperationErrorResponse(error);
     if (

@@ -13,6 +13,10 @@ import type {
   CustomerStatementLine,
 } from "@/common/erp/sales-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import {
+  assertUniqueCustomerCompanyName,
+  rethrowUniqueNameViolation,
+} from "@/lib/erp/master-name-uniqueness";
 
 async function upsertCustomerCreditLimit(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
@@ -78,6 +82,7 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
 
   const companyName = input.companyName?.trim();
   if (!companyName) throw new Error("Company name is required");
+  await assertUniqueCustomerCompanyName(supabase, companyName);
 
   const name = buildCustomerName(input) || companyName;
   const openingBalance = input.openingBalance ?? 0;
@@ -106,10 +111,13 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
     opening_balance_date: input.openingBalanceDate ?? null,
     avatar_url: input.avatarUrl?.trim() || null,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "customer");
+    throw new Error(error.message);
+  }
 
   if (input.address?.trim()) {
-    await supabase.from("addresses").insert({
+    const { error: addressError } = await supabase.from("addresses").insert({
       user_id: id,
       label: "Primary",
       line1: input.address.trim(),
@@ -119,6 +127,11 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
       phone: input.phone?.trim() || input.landline?.trim() || "—",
       is_default: true,
     });
+    if (addressError) {
+      throw new Error(
+        `Customer was created, but the address could not be saved. Open the customer record to add the address. (${addressError.message})`,
+      );
+    }
   }
 
   if (input.creditLimit != null && input.creditLimit > 0) {
@@ -208,6 +221,12 @@ export async function updateCustomerProfile(
     throw new Error("Opening balance date is required when opening balance is set");
   }
 
+  if (input.companyName !== undefined) {
+    const companyName = input.companyName?.trim();
+    if (!companyName) throw new Error("Company name is required");
+    await assertUniqueCustomerCompanyName(supabase, companyName, userId);
+  }
+
   const { error } = await supabase
     .from("users")
     .update({
@@ -235,7 +254,10 @@ export async function updateCustomerProfile(
         : {}),
     })
     .eq("id", userId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "customer");
+    throw new Error(error.message);
+  }
 
   if (input.address !== undefined) {
     const { data: existing } = await supabase

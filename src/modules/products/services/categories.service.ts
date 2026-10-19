@@ -6,6 +6,10 @@ import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.serv
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { Database } from "@/lib/integrations/supabase/types";
 import type { Category } from "@/common/admin/types";
+import {
+  assertUniqueCategoryName,
+  rethrowUniqueNameViolation,
+} from "@/lib/erp/master-name-uniqueness";
 
 const CATEGORY_COLUMNS =
   "id,name,parent_id,thumbnail_url,image_url,sort_order,is_active,slug,description,created_at,updated_at";
@@ -66,6 +70,8 @@ export async function createCategory(input: CategoryInput): Promise<string> {
   if (!name) throw new Error("Category name is required.");
 
   const supabase = await createSupabaseServerClient();
+  const parentId = input.parentId ?? null;
+  await assertUniqueCategoryName(supabase, name, parentId);
   const slug = input.slug?.trim() || slugify(name);
   const imageUrl = input.imageUrl?.trim() || null;
 
@@ -73,7 +79,7 @@ export async function createCategory(input: CategoryInput): Promise<string> {
     .from("categories")
     .insert({
       name,
-      parent_id: input.parentId ?? null,
+      parent_id: parentId,
       thumbnail_url: null,
       image_url: imageUrl,
       sort_order: input.sortOrder ?? 0,
@@ -84,7 +90,10 @@ export async function createCategory(input: CategoryInput): Promise<string> {
     .select("id")
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "category");
+    throw new Error(error.message);
+  }
   if (!data) throw new Error("Failed to create category.");
   return data.id;
 }
@@ -100,14 +109,28 @@ export async function updateCategory(
   }
 
   const supabase = await createSupabaseServerClient();
+  const { data: current, error: currentErr } = await supabase
+    .from("categories")
+    .select("name, parent_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (currentErr) throw new Error(currentErr.message);
+  if (!current) throw new Error("Category not found");
+
   const updateData: Database["public"]["Tables"]["categories"]["Update"] = {};
 
+  const nextName = input.name !== undefined ? input.name.trim() : current.name;
+  const nextParentId =
+    input.parentId !== undefined ? input.parentId : current.parent_id;
   if (input.name !== undefined) {
-    const name = input.name.trim();
-    if (!name) throw new Error("Category name is required.");
-    updateData.name = name;
+    if (!nextName) throw new Error("Category name is required.");
+    updateData.name = nextName;
   }
   if (input.parentId !== undefined) updateData.parent_id = input.parentId;
+  if (input.name !== undefined || input.parentId !== undefined) {
+    if (!nextName) throw new Error("Category name is required.");
+    await assertUniqueCategoryName(supabase, nextName, nextParentId, id);
+  }
   if (input.imageUrl !== undefined) {
     const imageUrl = input.imageUrl?.trim() || null;
     updateData.image_url = imageUrl;
@@ -125,7 +148,10 @@ export async function updateCategory(
     .update(updateData)
     .eq("id", id);
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "category");
+    throw new Error(error.message);
+  }
 }
 
 export async function deleteCategory(id: string): Promise<void> {

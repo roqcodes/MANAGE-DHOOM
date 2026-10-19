@@ -6,6 +6,10 @@ import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.serv
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { Database } from "@/lib/integrations/supabase/types";
 import type { Brand } from "@/common/admin/types";
+import {
+  assertUniqueBrandName,
+  rethrowUniqueNameViolation,
+} from "@/lib/erp/master-name-uniqueness";
 
 const BRAND_COLUMNS =
   "id,name,logo_url,image_url,sort_order,is_active,slug,description,created_at,updated_at";
@@ -65,6 +69,7 @@ export async function createBrand(input: BrandInput): Promise<string> {
   if (!name) throw new Error("Brand name is required.");
 
   const supabase = await createSupabaseServerClient();
+  await assertUniqueBrandName(supabase, name);
   const slug = input.slug?.trim() || slugify(name);
   const imageUrl = input.imageUrl?.trim() || null;
 
@@ -82,7 +87,10 @@ export async function createBrand(input: BrandInput): Promise<string> {
     .select("id")
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "brand");
+    throw new Error(error.message);
+  }
   if (!data) throw new Error("Failed to create brand.");
   return data.id;
 }
@@ -99,6 +107,7 @@ export async function updateBrand(
   if (input.name !== undefined) {
     const name = input.name.trim();
     if (!name) throw new Error("Brand name is required.");
+    await assertUniqueBrandName(supabase, name, id);
     updateData.name = name;
   }
   if (input.imageUrl !== undefined) {
@@ -114,7 +123,10 @@ export async function updateBrand(
   }
 
   const { error } = await supabase.from("brands").update(updateData).eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "brand");
+    throw new Error(error.message);
+  }
 }
 
 export async function deleteBrand(id: string): Promise<void> {

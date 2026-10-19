@@ -5,7 +5,7 @@ export type ColumnAggregateMode = "sum" | "avg" | "none";
 
 const AVG_KEY_PATTERN = /percent|_pct|profit_percent|vat_percentage|avg_/i;
 const SKIP_AGG_PATTERN =
-  /running_balance|opening_balance|^balance$|age_days|bucket_|invoice_number|payment_number/i;
+  /running_balance|opening_balance|^balance$|age_days|days_expired|bucket_|invoice_number|payment_number/i;
 
 export function columnAggregateMode(col: ReportColumn): ColumnAggregateMode {
   if (col.format !== "currency" && col.format !== "number") return "none";

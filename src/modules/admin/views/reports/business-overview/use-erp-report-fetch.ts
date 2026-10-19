@@ -35,6 +35,7 @@ export function useErpReportFetch(
       report.filters.storeSearch,
       report.filters.accountType,
       report.filters.ageRange,
+      report.filters.expiredDaysRange,
       params.dateFrom,
       params.dateTo,
       params.asOf,

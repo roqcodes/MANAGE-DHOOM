@@ -24,18 +24,19 @@ import {
 } from "@/lib/numeric-input";
 import { useAdminAction } from "@/modules/admin/hooks/use-admin-action";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { createCatalogProductAction } from "@/modules/products/actions/create-product-catalog.action";
 import {
-  createProductAction,
   ensureDefaultProductVariantAction,
   updateProductAction,
 } from "@/modules/products/actions/products.actions";
 import {
   createVariantAction,
-  createVariantGroupAction,
   saveGroupedVariantsAction,
   updateVariantAction,
   deleteVariantAction,
 } from "@/modules/products/actions/variants.actions";
+import { useProductCreateSession } from "@/modules/products/lib/product-create-session";
+import type { CatalogProductCreateSetup } from "@/modules/products/types/product-create-result";
 import { Button } from "@/components/ui/button";
 import {
   Modal,
@@ -1550,8 +1551,10 @@ export function ProductManageModal({
   const { settings } = useCurrencySettings();
   const showMrp = settings.show_mrp;
   const [isPending, startTransition] = useTransition();
-  const { confirm } = useAdminAlert();
+  const { confirm, showSuccess, showWarning } = useAdminAlert();
   const isCreate = mode === "create";
+  const { begin: beginCreateOperation, end: endCreateOperation } =
+    useProductCreateSession(isCreate);
 
   const [activeTab, setActiveTab] = useState<"details" | "variants">(
     initialStepId === "variants" ? "variants" : "details"
@@ -1897,6 +1900,9 @@ export function ProductManageModal({
       setActiveTab("variants");
       return;
     }
+    const operationId = beginCreateOperation();
+    if (!operationId) return;
+
     setError(null);
     startTransition(async () => {
       try {
@@ -1906,12 +1912,50 @@ export function ProductManageModal({
         );
         const catalogImage = catalogImageFromProductDraft(productDraft);
         const erpFields = variantErpFieldsFromDraft(productDraft);
-        const hasVariants =
+        const hasVariantRows =
           layoutGrouped
-            ? groupDrafts.some((g) => g.rows.length > 0)
+            ? groupDrafts.some((g) => g.rows.some((r) => r.name.trim().length > 0))
             : variantDrafts.length > 0;
 
-        const id = await createProductAction({
+        let setup: CatalogProductCreateSetup;
+        if (layoutGrouped && groupDrafts.some((g) => g.rows.length > 0)) {
+          setup = {
+            mode: "grouped",
+            groups: groupDrafts.map((g, gi) => ({
+              name: g.name.trim(),
+              sortOrder: gi,
+              variants: g.rows
+                .filter((r) => r.name.trim().length > 0)
+                .map((r, ri) => ({
+                  name: r.name.trim(),
+                  price: roundMoney2(r.price),
+                  mrp: roundMoney2(r.mrp),
+                  stock: r.stock,
+                  ...(gi === 0 && ri === 0 ? erpFields : {}),
+                })),
+            })),
+          };
+        } else if (variantDrafts.length > 0) {
+          setup = {
+            mode: "flat",
+            variants: variantDrafts.map((v, i) => ({
+              name: v.name.trim() || DEFAULT_SKU_NAME,
+              price: roundMoney2(v.price),
+              mrp: roundMoney2(v.mrp),
+              stock: v.stock,
+              imageUrls: orderedImages(v.imageUrls, v.previewIndex),
+              ...(i === 0 ? erpFields : {}),
+            })),
+          };
+        } else {
+          setup = {
+            mode: "simple",
+            ensureDefaultVariant: productDraft.defaultPrice > 0,
+          };
+        }
+
+        const result = await createCatalogProductAction({
+          operationId,
           name: productDraft.name.trim(),
           description: productDraft.description.trim(),
           categoryId: productDraft.categoryId,
@@ -1922,57 +1966,47 @@ export function ProductManageModal({
           videoUrls: productDraft.videoUrls,
           itemType: productDraft.itemType,
           hsnSac: productDraft.hsnSac.trim() || null,
-          price: hasVariants
+          price: hasVariantRows
             ? null
             : productDraft.defaultPrice > 0
               ? roundMoney2(productDraft.defaultPrice)
               : null,
-          mrp: hasVariants
+          mrp: hasVariantRows
             ? null
             : productDraft.defaultMrp > 0
               ? roundMoney2(productDraft.defaultMrp)
               : null,
-          barcode: hasVariants ? null : erpFields.barcode,
-          purchasePrice: hasVariants ? null : erpFields.purchasePrice,
-          taxRatePercent: hasVariants ? null : erpFields.taxRatePercent,
+          barcode: hasVariantRows ? null : erpFields.barcode,
+          purchasePrice: hasVariantRows ? null : erpFields.purchasePrice,
+          taxRatePercent: hasVariantRows ? null : erpFields.taxRatePercent,
+          setup,
         });
 
-        if (layoutGrouped && groupDrafts.some((g) => g.rows.length > 0)) {
-          for (let gi = 0; gi < groupDrafts.length; gi++) {
-            const g = groupDrafts[gi];
-            const groupId = await createVariantGroupAction(id, {
-              name: g.name.trim(),
-              sortOrder: gi,
-            });
-            for (let ri = 0; ri < g.rows.length; ri++) {
-              const row = g.rows[ri];
-              await createVariantAction(id, {
-                name: row.name.trim(),
-                price: roundMoney2(row.price),
-                mrp: roundMoney2(row.mrp),
-                variantGroupId: groupId,
-                ...(gi === 0 && ri === 0 ? erpFields : {}),
-              });
-            }
-          }
-        } else if (variantDrafts.length > 0) {
-          for (let i = 0; i < variantDrafts.length; i++) {
-            const v = variantDrafts[i];
-              await createVariantAction(id, {
-                name: v.name.trim() || DEFAULT_SKU_NAME,
-                price: roundMoney2(v.price),
-                mrp: roundMoney2(v.mrp),
-                imageUrls: orderedImages(v.imageUrls, v.previewIndex),
-                ...(i === 0 ? erpFields : {}),
-              });
-          }
-        } else if (productDraft.defaultPrice > 0) {
-          await ensureDefaultProductVariantAction(id);
+        await invalidateAdminProductCatalogQueries(queryClient);
+
+        if (result.status === "failed") {
+          setError(result.message);
+          return;
         }
-        await queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+
+        if (result.status === "partial") {
+          const partialMsg = result.openProductHref
+            ? `${result.message} You can open the saved product from the catalog or retry setup with the same save session.`
+            : result.message;
+          setError(partialMsg);
+          showWarning(partialMsg);
+          return;
+        }
+
+        showSuccess(result.message);
         onClose();
       } catch (err) {
-        setError(formatActionError(err));
+        setError(
+          formatActionError(err) ||
+            "We couldn't confirm whether the product was saved. Check the product list before trying again.",
+        );
+      } finally {
+        endCreateOperation();
       }
     });
   }

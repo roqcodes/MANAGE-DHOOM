@@ -178,6 +178,16 @@ export async function runErpReport(
         p_brand_id: query.brandId ?? null,
         p_category_id: query.categoryId ?? null,
       });
+    case "get_erp_dead_stock_report":
+      return callRpc(supabase, report.rpc, {
+        p_as_of: asOf,
+        p_store_id: storeId ?? null,
+        p_brand_id: query.brandId ?? null,
+        p_category_id: query.categoryId ?? null,
+        p_days_expired_min: ageMin,
+        p_days_expired_max: ageMax,
+        p_search: query.search ?? null,
+      });
     case "get_erp_stock_transfer_report":
       return callRpc(supabase, report.rpc, {
         p_date_from: from,
@@ -286,17 +296,21 @@ export async function runErpReport(
         p_store_id: storeId,
         p_search: query.search ?? null,
       });
-    case "get_erp_activity_log_report":
-      return callRpc(supabase, report.rpc, {
-        p_date_from: from,
-        p_date_to: to,
-        p_store_id: storeId,
-        p_entity_type: query.entityType ?? null,
-        p_action: query.action ?? null,
-        p_user_id: query.userId ?? null,
-        p_search: query.search ?? null,
-        p_limit: 500,
+    case "get_erp_activity_log_report": {
+      const { listActivityLogReportRows } = await import(
+        "@/modules/erp/services/audit-log.service"
+      );
+      return listActivityLogReportRows({
+        dateFrom: from,
+        dateTo: to,
+        storeId,
+        entityType: query.entityType,
+        action: query.action,
+        userId: query.userId,
+        search: query.search,
+        limit: 500,
       });
+    }
     case "get_erp_deleted_invoices_report":
       return callRpc(supabase, report.rpc, {
         p_date_from: from,

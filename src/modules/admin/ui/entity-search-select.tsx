@@ -510,6 +510,7 @@ export function InvoiceSearchSelect({
   disabled,
   openOnly,
   storeId,
+  userId,
 }: {
   value: string | null;
   onChange: (id: string | null, option?: EntitySearchOption) => void;
@@ -518,6 +519,8 @@ export function InvoiceSearchSelect({
   disabled?: boolean;
   openOnly?: boolean;
   storeId?: string;
+  /** When set, only open invoices for this customer are listed. */
+  userId?: string;
 }) {
   return (
     <EntitySearchSelect
@@ -526,10 +529,10 @@ export function InvoiceSearchSelect({
       selectedLabel={selectedLabel}
       className={className}
       disabled={disabled}
-      cacheScope={`invoice-select:${storeId ?? "all"}:${openOnly ? "open" : "all"}`}
+      cacheScope={`invoice-select:${storeId ?? "all"}:${userId ?? "all"}:${openOnly ? "open" : "all"}`}
       staleTime={ENTITY_DOCUMENT_SEARCH_STALE_MS}
       placeholder="Select invoice"
-      searchPlaceholder="Invoice number or customer…"
+      searchPlaceholder={userId ? "Invoice number…" : "Invoice number or customer…"}
       emptyText="No invoices found"
       minChars={1}
       loadOnFocus
@@ -537,6 +540,7 @@ export function InvoiceSearchSelect({
         const params = new URLSearchParams({ search: q, page: "0", limit: "15" });
         if (openOnly) params.set("openOnly", "1");
         if (storeId) params.set("storeId", storeId);
+        if (userId) params.set("userId", userId);
         const res = await adminGet<{
           data: Array<{
             id: string;

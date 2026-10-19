@@ -199,7 +199,7 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
       }),
     );
 
-    createdId = await createPurchaseBill({
+    const billOutcome = await createPurchaseBill({
       vendorId: schedule.vendor_id,
       storeId: schedule.store_id ?? undefined,
       purchaseDate: schedule.next_run_date,
@@ -208,6 +208,13 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
       notes: String(payload.notes ?? `Recurring: ${schedule.name}`),
       finalize: true,
     });
+    if (billOutcome.finalizeFailed) {
+      throw new Error(
+        billOutcome.finalizeError ??
+          `Purchase bill ${billOutcome.documentId} saved as draft; finalize manually.`,
+      );
+    }
+    createdId = billOutcome.documentId;
   }
 
   const nextRun = addFrequency(schedule.next_run_date, schedule.frequency as RecurringScheduleRow["frequency"]);

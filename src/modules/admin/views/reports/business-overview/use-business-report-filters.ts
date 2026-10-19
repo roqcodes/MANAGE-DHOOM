@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import type { ReportChannel, ReportDefinition } from "@/common/erp/report-types";
+import { applyAdminDatePreset } from "@/modules/admin/lib/admin-date-range";
 import { useAdminDateRange, useDebouncedValue, type AdminListFilter } from "@/modules/admin/ui";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { formatReportAsOf, formatReportPeriodRange } from "./report-format";
@@ -32,9 +33,15 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   const debouncedSearch = useDebouncedValue(search, 200);
 
   useEffect(() => {
-    if (report.category === "Receivables") return;
+    // Receivables + activity log: default to all stores (recent activity is global).
+    if (report.category === "Receivables" || report.slug === "activity-logs") return;
     if (activeStoreId) setStoreId(activeStoreId);
-  }, [activeStoreId, report.category]);
+  }, [activeStoreId, report.category, report.slug]);
+
+  useEffect(() => {
+    if (report.slug !== "activity-logs") return;
+    dateRange.setDateRange(applyAdminDatePreset(defaultPreset));
+  }, [report.slug, defaultPreset, dateRange.setDateRange]);
 
   useEffect(() => {
     if (!report.filters.asOfDate) return;

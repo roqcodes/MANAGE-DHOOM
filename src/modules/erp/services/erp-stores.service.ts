@@ -5,6 +5,11 @@ import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { ErpStoreListRow, StoreCreateInput } from "@/common/erp/inventory-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import type { Store } from "@/common/erp/types";
+import {
+  assertUniqueStoreName,
+  rethrowUniqueNameViolation,
+  trimMasterName,
+} from "@/lib/erp/master-name-uniqueness";
 
 export interface StoreUpdateInput {
   name?: string;
@@ -73,11 +78,14 @@ export async function createStore(input: StoreCreateInput): Promise<string> {
 
 async function createStoreWithCompany(companyId: string, input: StoreCreateInput): Promise<string> {
   const supabase = await createSupabaseServerClient();
+  const name = trimMasterName(input.name);
+  if (!name) throw new Error("Store name is required");
+  await assertUniqueStoreName(supabase, name);
   const { data, error } = await supabase
     .from("stores")
     .insert({
       company_id: companyId,
-      name: input.name,
+      name,
       code: input.code ?? null,
       address_line1: input.addressLine1 ?? null,
       address_line2: input.addressLine2 ?? null,
@@ -97,13 +105,16 @@ async function createStoreWithCompany(companyId: string, input: StoreCreateInput
     .select("id")
     .single();
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "store");
+    throw new Error(error.message);
+  }
 
   await logAuditEvent({
     action: "create",
     entityType: "store",
     entityId: data.id,
-    description: `Store created: ${input.name}`,
+    description: `Store created: ${name}`,
   });
 
   return data.id;
@@ -120,10 +131,15 @@ export async function getStoreById(id: string): Promise<Store | null> {
 export async function updateStore(id: string, input: StoreUpdateInput): Promise<void> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  if (input.name !== undefined) {
+    const name = trimMasterName(input.name);
+    if (!name) throw new Error("Store name is required");
+    await assertUniqueStoreName(supabase, name, id);
+  }
   const { error } = await supabase
     .from("stores")
     .update({
-      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.name !== undefined ? { name: trimMasterName(input.name) } : {}),
       ...(input.code !== undefined ? { code: input.code } : {}),
       ...(input.addressLine1 !== undefined ? { address_line1: input.addressLine1 } : {}),
       ...(input.addressLine2 !== undefined ? { address_line2: input.addressLine2 } : {}),
@@ -143,7 +159,10 @@ export async function updateStore(id: string, input: StoreUpdateInput): Promise<
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) throw new Error(error.message);
+  if (error) {
+    rethrowUniqueNameViolation(error, "store");
+    throw new Error(error.message);
+  }
 
   await logAuditEvent({
     action: "update",

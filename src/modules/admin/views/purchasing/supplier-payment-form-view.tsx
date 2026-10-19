@@ -122,6 +122,8 @@ export function SupplierPaymentFormView({
       const bill = res.bill;
       const balance = bill.balance_due ?? 0;
       if (balance <= 0) return;
+      setVendorId(bill.vendor_id);
+      setVendorLabel(bill.vendors?.name ?? "");
       setLines([
         {
           purchaseBillId: bill.id,
@@ -439,6 +441,7 @@ export function SupplierPaymentFormView({
                   onChange={(id, option) => {
                     setVendorId(id ?? "");
                     setVendorLabel(option?.label ?? "");
+                    setLines([]);
                     setSelectedBillId("");
                     setBillLabel("");
                     setSelectedBillBalance(0);
@@ -451,6 +454,7 @@ export function SupplierPaymentFormView({
                 hint="Optional — leave empty to apply the amount FIFO (oldest due first)."
               >
                 <PurchaseBillSearchSelect
+                  key={vendorId || "no-vendor"}
                   value={selectedBillId || null}
                   selectedLabel={billLabel || undefined}
                   vendorId={vendorId || undefined}

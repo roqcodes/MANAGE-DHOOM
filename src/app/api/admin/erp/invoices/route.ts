@@ -95,6 +95,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid request" }, { status: 400 });
     }
 
+    console.warn(
+      "[POST /api/admin/erp/invoices] Non-idempotent direct create; production UI uses the outbox idempotent envelope.",
+    );
+
     const id = await createErpInvoice({ ...direct.data, storeId: body.storeId });
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {

@@ -1,8 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
-import { revalidatePublicCatalog } from "@/lib/cache/public-catalog-cache";
+import { safeRevalidateProductCatalog } from "@/lib/cache/safe-revalidate";
 
 import {
   deleteVariantAndSupplyRows,
@@ -21,8 +19,7 @@ export async function updateVariantGroupAction(
   data: { name: string },
 ): Promise<void> {
   await updateVariantGroupById(groupId, { name: data.name });
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
 }
 
 export type GroupedVariantSaveRow = {
@@ -91,10 +88,7 @@ export async function saveGroupedVariantsAction(
     }
   }
 
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
-  revalidatePath("/admin/products");
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
 }
 
 export async function createVariantGroupAction(
@@ -106,8 +100,7 @@ export async function createVariantGroupAction(
     name: data.name,
     sortOrder: data.sortOrder,
   });
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
   return groupId;
 }
 
@@ -145,8 +138,7 @@ export async function createVariantAction(
   if (data.imageUrls && data.imageUrls.length > 0) {
     await addVariantImages(variantId, data.imageUrls);
   }
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
   return variantId;
 }
 
@@ -176,8 +168,7 @@ export async function updateVariantAction(
     unitId: data.unitId,
     markupPercent: data.markupPercent,
   });
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
 }
 
 export async function deleteVariantAction(
@@ -185,6 +176,5 @@ export async function deleteVariantAction(
   productId: string,
 ): Promise<void> {
   await deleteVariantAndSupplyRows(id);
-  revalidatePath(`/admin/products/${productId}`);
-  revalidatePublicCatalog();
+  safeRevalidateProductCatalog(productId);
 }

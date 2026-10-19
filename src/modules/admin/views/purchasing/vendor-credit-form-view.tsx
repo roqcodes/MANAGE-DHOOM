@@ -520,6 +520,7 @@ export function VendorCreditFormView({
               </AdminFormField>
               <AdminFormField label="Source purchase bill" className="sm:col-span-2">
                 <PurchaseBillSearchSelect
+                  key={vendorId || "no-vendor"}
                   value={sourceBillId || null}
                   selectedLabel={billLabel || undefined}
                   vendorId={vendorId || undefined}
