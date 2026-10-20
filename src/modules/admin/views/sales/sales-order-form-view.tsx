@@ -45,6 +45,7 @@ import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { coalesceNumber } from "@/lib/numeric-input";
 import { Label } from "@/components/ui/label";
+import { SalesmanPinField } from "@/modules/erp/components/salesman-pin-field";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   AdminFormSkeleton,
@@ -80,7 +81,9 @@ export function SalesOrderFormView({
   const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
   const [shipmentDate, setShipmentDate] = useState(new Date().toISOString().slice(0, 10));
   const [deliveryMethod, setDeliveryMethod] = useState("");
-  const [salesPerson, setSalesPerson] = useState("");
+  const [salesmanPin, setSalesmanPin] = useState("");
+  const [salesPersonId, setSalesPersonId] = useState<string | null>(null);
+  const salesmanPinValid = Boolean(salesPersonId);
   const [discount, setDiscount] = useState(0);
   const [taxInclusive, setTaxInclusive] = useState(true);
   const [lines, setLines] = useState<SalesLineFormRow[]>([]);
@@ -159,7 +162,8 @@ export function SalesOrderFormView({
     setOrderDate(new Date().toISOString().slice(0, 10));
     setShipmentDate(new Date().toISOString().slice(0, 10));
     setDeliveryMethod("");
-    setSalesPerson("");
+    setSalesmanPin("");
+    setSalesPersonId(null);
     setDiscount(0);
     setTaxInclusive(true);
     setLines([]);
@@ -215,6 +219,10 @@ export function SalesOrderFormView({
       );
       return;
     }
+    if (!salesPersonId) {
+      setError("Enter a valid salesman PIN");
+      return;
+    }
 
     startTransition(async () => {
       try {
@@ -230,6 +238,7 @@ export function SalesOrderFormView({
           referenceNumber: referenceNumber || undefined,
           shipmentDate: shipmentDate || undefined,
           deliveryMethod: deliveryMethod || undefined,
+          salesPersonId,
           subtotal: totals.subtotal,
           tax: totals.tax,
           discount: coalesceNumber(discount),
@@ -341,6 +350,7 @@ export function SalesOrderFormView({
       onCancel={handleCancel}
       submitLabel={isEdit ? "Save changes" : "Save & next"}
       pending={pending}
+      submitDisabled={!salesmanPinValid}
       loadingLabel="Saving locally…"
     />
   ) : undefined;
@@ -416,13 +426,11 @@ export function SalesOrderFormView({
                   onChange={(e) => setDeliveryMethod(e.target.value)}
                 />
               </AdminFormField>
-              <AdminFormField label="Sales person">
-                <Input
-                  placeholder="Sales person"
-                  value={salesPerson}
-                  onChange={(e) => setSalesPerson(e.target.value)}
-                />
-              </AdminFormField>
+              <SalesmanPinField
+                value={salesmanPin}
+                onChange={setSalesmanPin}
+                onSalesmanChange={(s) => setSalesPersonId(s?.id ?? null)}
+              />
               <AdminFormField label="Store" required>
                 <ActiveStoreFormField
                   mode={isEdit ? "edit" : "create"}
@@ -458,7 +466,7 @@ export function SalesOrderFormView({
               <Button variant="outline" disabled>
                 Save as draft
               </Button>
-              <Button disabled={pending} onClick={handleSubmit}>
+              <Button disabled={pending || !salesmanPinValid} onClick={handleSubmit}>
                 {pending ? "Saving locally…" : "Save & next"}
               </Button>
             </div>

@@ -2,6 +2,7 @@ import "server-only";
 
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import { withSalesmanDocumentAudit } from "@/modules/erp/lib/log-sales-document-audit";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId } from "@/modules/erp/services/store-context.service";
 import { updateSalesOrderViaRpc } from "@/modules/orders/services/sales-order-update-rpc";
@@ -37,13 +38,15 @@ export async function updateSalesOrder(input: UpdateSalesOrderInput): Promise<{
     items: input.items,
   });
 
-  await logAuditEvent({
-    action: "update",
-    entityType: "sales_order",
-    entityId: orderId,
-    description: `Sales order ${salesOrderNumber} updated`,
-    storeId,
-  });
+  await logAuditEvent(
+    withSalesmanDocumentAudit("sales_order", input.salesPersonId, {
+      action: "update",
+      entityType: "sales_order",
+      entityId: orderId,
+      description: `Sales order ${salesOrderNumber} updated`,
+      storeId,
+    }),
+  );
 
   return { orderId, salesOrderNumber };
 }

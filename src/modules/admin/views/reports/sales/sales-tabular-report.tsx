@@ -76,6 +76,7 @@ export function SalesTabularReport({
     search: serverSearch ? filters.debouncedSearch : undefined,
     ageMinDays: age.ageMinDays,
     ageMaxDays: age.ageMaxDays,
+    salesmanId: filters.salesmanId,
   });
 
   const rows = useMemo(

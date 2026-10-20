@@ -41,10 +41,13 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
 
   const data = (rawData ?? {}) as Record<string, unknown>;
   const income = (data.income as PlLine[] | undefined) ?? [];
+  const cogs = (data.cogs as PlLine[] | undefined) ?? [];
   const expenses = (data.expenses as PlLine[] | undefined) ?? [];
   const totalIncome = Number(data.total_income ?? 0);
-  const totalExpenses = Number(data.total_expenses ?? 0);
-  const netProfit = Number(data.net_profit ?? totalIncome - totalExpenses);
+  const totalCogs = Number(data.total_cogs ?? 0);
+  const totalExpenses = Number(data.total_operating_expenses ?? data.total_expenses ?? 0);
+  const grossProfit = Number(data.gross_profit ?? totalIncome - totalCogs);
+  const netProfit = Number(data.net_profit ?? grossProfit - totalExpenses);
 
   const filteredIncome = useMemo(
     () =>
@@ -52,6 +55,13 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
         matchesReportSearch(row as Record<string, unknown>, filters.debouncedSearch),
       ),
     [income, filters.debouncedSearch],
+  );
+  const filteredCogs = useMemo(
+    () =>
+      cogs.filter((row) =>
+        matchesReportSearch(row as Record<string, unknown>, filters.debouncedSearch),
+      ),
+    [cogs, filters.debouncedSearch],
   );
   const filteredExpenses = useMemo(
     () =>
@@ -61,7 +71,11 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
     [expenses, filters.debouncedSearch],
   );
 
-  const isEmpty = !loading && filteredIncome.length === 0 && filteredExpenses.length === 0;
+  const isEmpty =
+    !loading &&
+    filteredIncome.length === 0 &&
+    filteredCogs.length === 0 &&
+    filteredExpenses.length === 0;
 
   const plColumns = [
     { key: "section", label: "Section" },
@@ -77,6 +91,12 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
     getRows: () => [
       ...filteredIncome.map((r) => ({
         section: "Operating income",
+        account_code: r.account_code,
+        account_name: r.account_name,
+        amount: r.amount,
+      })),
+      ...filteredCogs.map((r) => ({
+        section: "Cost of goods sold",
         account_code: r.account_code,
         account_name: r.account_name,
         amount: r.amount,
@@ -106,9 +126,10 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
         <AdminTableBodySkeleton rows={12} />
       ) : (
         <div className="space-y-6 p-1">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <SummaryMetric label="Total income" value={totalIncome} />
-            <SummaryMetric label="Total expenses" value={totalExpenses} />
+            <SummaryMetric label="COGS" value={totalCogs} />
+            <SummaryMetric label="Gross profit" value={grossProfit} />
             <SummaryMetric label="Net profit / loss" value={netProfit} highlight />
           </div>
 
@@ -123,6 +144,18 @@ export function ProfitAndLossReport({ report }: { report: ReportDefinition }) {
               />
             ))}
             <StatementTotalRow label="Total operating income" amount={totalIncome} />
+
+            <StatementSectionHeader title="Cost of goods sold" />
+            {filteredCogs.map((row) => (
+              <StatementLineRow
+                key={`cogs-${row.account_code}-${row.account_name}`}
+                label={row.account_name ?? row.account_code ?? "—"}
+                amount={Number(row.amount ?? 0)}
+                indent
+              />
+            ))}
+            <StatementTotalRow label="Total COGS" amount={totalCogs} />
+            <StatementTotalRow label="Gross profit" amount={grossProfit} />
 
             <StatementSectionHeader title="Operating expense" />
             {filteredExpenses.map((row) => (

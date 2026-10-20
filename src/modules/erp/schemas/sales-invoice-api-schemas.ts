@@ -24,19 +24,20 @@ export const salesInvoiceCreatePayloadSchema = z.object({
   taxInclusive: z.boolean().optional(),
   reference: z.string().optional(),
   notes: z.string().optional(),
-  salesPersonId: z.string().uuid().optional(),
+  salesPersonId: z.string().uuid(),
   estimateId: z.string().uuid().optional(),
   finalize: z.boolean().optional(),
 });
 
 export const salesInvoiceUpdatePayloadSchema = salesInvoiceCreatePayloadSchema
-  .omit({ userId: true, estimateId: true, finalize: true, salesPersonId: true })
+  .omit({ userId: true, estimateId: true, finalize: true })
   .extend({
     invoiceId: z.string().uuid(),
   });
 
 export const salesInvoiceIssuePayloadSchema = z.object({
   invoiceId: z.string().uuid(),
+  salesPersonId: z.string().uuid(),
 });
 
 export const salesInvoiceCancelPayloadSchema = z.object({

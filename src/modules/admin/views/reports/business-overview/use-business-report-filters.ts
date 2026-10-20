@@ -7,6 +7,7 @@ import { applyAdminDatePreset } from "@/modules/admin/lib/admin-date-range";
 import { useAdminDateRange, useDebouncedValue, type AdminListFilter } from "@/modules/admin/ui";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { formatReportAsOf, formatReportPeriodRange } from "./report-format";
+import { useSalesmanReportFilter } from "./use-salesman-report-filter";
 
 export function useBusinessReportFilters(report: ReportDefinition) {
   const { stores, activeStoreId } = useErpStores();
@@ -31,6 +32,7 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   const [channel, setChannel] = useState<ReportChannel>("all");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);
+  const salesman = useSalesmanReportFilter(report);
 
   useEffect(() => {
     // Receivables + activity log: default to all stores (recent activity is global).
@@ -82,6 +84,7 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   const listFilters: AdminListFilter[] = [];
   if (report.filters.store) listFilters.push(storeFilter);
   if (report.filters.channel) listFilters.push(channelFilter);
+  if (salesman.listFilter) listFilters.push(salesman.listFilter);
   return {
     stores,
     storeId,
@@ -105,5 +108,7 @@ export function useBusinessReportFilters(report: ReportDefinition) {
     channel,
     channelFilter,
     listFilters,
+    salesmanId: salesman.salesmanId,
+    setSalesmanId: salesman.setSalesmanId,
   };
 }

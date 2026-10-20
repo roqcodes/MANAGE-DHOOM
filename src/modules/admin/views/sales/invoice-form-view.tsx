@@ -61,6 +61,7 @@ import { Label } from "@/components/ui/label";
 import { AdminCustomerFormView } from "@/modules/admin/views/admin-customer-form-view";
 import { invalidateAdminCustomerSearchQueries } from "@/modules/erp/lib/entity-live-search.client";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { SalesmanPinField } from "@/modules/erp/components/salesman-pin-field";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 function customerSelectLabel(profile: CustomerErpProfile): string {
@@ -110,7 +111,10 @@ export function InvoiceFormView({
   const [discount, setDiscount] = useState(0);
   const [taxInclusive, setTaxInclusive] = useState(true);
   const [notes, setNotes] = useState("");
+  const [salesmanPin, setSalesmanPin] = useState("");
+  const [salesPersonId, setSalesPersonId] = useState<string | null>(null);
   const [lines, setLines] = useState<SalesLineFormRow[]>([]);
+  const salesmanPinValid = Boolean(salesPersonId);
   const [creditHeadroom, setCreditHeadroom] = useState<InvoiceCreditHeadroom | null>(null);
   const [creditHeadroomLoading, setCreditHeadroomLoading] = useState(false);
 
@@ -258,6 +262,8 @@ export function InvoiceFormView({
     setDiscount(0);
     setTaxInclusive(true);
     setNotes("");
+    setSalesmanPin("");
+    setSalesPersonId(null);
     setLines([]);
     setError(null);
   }
@@ -295,6 +301,10 @@ export function InvoiceFormView({
 
     if (finalize && apiLines.some((line) => !line.productId)) {
       setError("Each line must be linked to a product (use product search) before finalizing.");
+      return;
+    }
+    if (!salesPersonId) {
+      setError("Enter a valid salesman PIN");
       return;
     }
 
@@ -335,6 +345,7 @@ export function InvoiceFormView({
               discount: coalesceNumber(discount),
               taxInclusive,
               notes: notes || undefined,
+              salesPersonId,
             };
             await store.enqueue({
               operationType: ERP_CLIENT_OPERATION_TYPES.salesInvoice.update,
@@ -349,7 +360,7 @@ export function InvoiceFormView({
               await store.enqueue({
                 operationType: ERP_CLIENT_OPERATION_TYPES.salesInvoice.issue,
                 schemaVersion: 1,
-                payload: { invoiceId },
+                payload: { invoiceId, salesPersonId },
                 userId: staffUserId,
                 storeId: effectiveStoreId,
                 terminalId: getOrCreateErpTerminalId(),
@@ -365,6 +376,7 @@ export function InvoiceFormView({
               discount: coalesceNumber(discount),
               taxInclusive,
               notes: notes || undefined,
+              salesPersonId,
               finalize,
             };
             await store.enqueue({
@@ -470,18 +482,24 @@ export function InvoiceFormView({
       {showDraftActions ? (
         <Button
           variant="outline"
-          disabled={pending || creditLimitBlocked}
+          disabled={pending || creditLimitBlocked || !salesmanPinValid}
           onClick={() => handleSubmit(false)}
         >
           {ERP_DOCUMENT_UI.saveDraft}
         </Button>
       ) : null}
       {showDraftActions ? (
-        <Button disabled={pending || creditLimitBlocked} onClick={() => handleSubmit(true)}>
+        <Button
+          disabled={pending || creditLimitBlocked || !salesmanPinValid}
+          onClick={() => handleSubmit(true)}
+        >
           {pending ? "Saving…" : ERP_DOCUMENT_UI.saveAndFinalize}
         </Button>
       ) : (
-        <Button disabled={pending || creditLimitBlocked} onClick={() => handleSubmit(false)}>
+        <Button
+          disabled={pending || creditLimitBlocked || !salesmanPinValid}
+          onClick={() => handleSubmit(false)}
+        >
           {pending ? "Saving…" : "Update invoice"}
         </Button>
       )}
@@ -572,6 +590,11 @@ export function InvoiceFormView({
               <AdminFormField label="Notes" className="sm:col-span-2">
                 <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
               </AdminFormField>
+              <SalesmanPinField
+                value={salesmanPin}
+                onChange={setSalesmanPin}
+                onSalesmanChange={(s) => setSalesPersonId(s?.id ?? null)}
+              />
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
                 <input
                   type="checkbox"
@@ -604,18 +627,24 @@ export function InvoiceFormView({
               {showDraftActions ? (
                 <Button
                   variant="outline"
-                  disabled={pending || creditLimitBlocked}
+                  disabled={pending || creditLimitBlocked || !salesmanPinValid}
                   onClick={() => handleSubmit(false)}
                 >
                   {ERP_DOCUMENT_UI.saveDraft}
                 </Button>
               ) : null}
               {showDraftActions ? (
-                <Button disabled={pending || creditLimitBlocked} onClick={() => handleSubmit(true)}>
+                <Button
+                  disabled={pending || creditLimitBlocked || !salesmanPinValid}
+                  onClick={() => handleSubmit(true)}
+                >
                   {pending ? "Saving…" : ERP_DOCUMENT_UI.saveAndFinalize}
                 </Button>
               ) : (
-                <Button disabled={pending || creditLimitBlocked} onClick={() => handleSubmit(false)}>
+                <Button
+                  disabled={pending || creditLimitBlocked || !salesmanPinValid}
+                  onClick={() => handleSubmit(false)}
+                >
                   {pending ? "Saving…" : "Update invoice"}
                 </Button>
               )}

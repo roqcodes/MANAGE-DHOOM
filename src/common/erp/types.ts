@@ -216,4 +216,6 @@ export interface LogAuditEventInput {
   newData?: Record<string, unknown> | null;
   storeId?: string | null;
   userId?: string | null;
+  /** When set, activity is attributed to this ERP salesman (not the signed-in portal user). */
+  salesmanId?: string | null;
 }

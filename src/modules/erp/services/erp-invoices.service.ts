@@ -8,6 +8,7 @@ import {
   SALES_INVOICE_AUDIT_FIELD_LABELS,
   salesInvoiceAuditSnapshotFromDetail,
 } from "@/modules/erp/lib/document-audit-snapshots";
+import { withSalesmanDocumentAudit } from "@/modules/erp/lib/log-sales-document-audit";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
@@ -153,6 +154,9 @@ export async function createErpInvoice(input: {
   estimateId?: string;
   finalize?: boolean;
 }): Promise<string> {
+  if (!input.salesPersonId) {
+    throw new Error("A salesman must be attributed to this invoice.");
+  }
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(input.storeId);
@@ -174,13 +178,15 @@ export async function createErpInvoice(input: {
 
   if (error) throw new Error(error.message);
 
-  await logAuditEvent({
-    action: "create_invoice",
-    entityType: "invoice",
-    entityId: data as string,
-    description: "ERP invoice created",
-    storeId,
-  });
+  await logAuditEvent(
+    withSalesmanDocumentAudit("invoice", input.salesPersonId, {
+      action: "create_invoice",
+      entityType: "invoice",
+      entityId: data as string,
+      description: "ERP invoice created",
+      storeId,
+    }),
+  );
 
   return data as string;
 }
@@ -226,8 +232,12 @@ export async function updateErpInvoice(
     taxInclusive?: boolean;
     reference?: string;
     notes?: string;
+    salesPersonId?: string;
   },
 ): Promise<void> {
+  if (!input.salesPersonId) {
+    throw new Error("A salesman must be attributed to this invoice.");
+  }
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const beforeDetail = await fetchErpInvoiceDetail(invoiceId);
@@ -259,6 +269,7 @@ export async function updateErpInvoice(
     p_tax_inclusive: input.taxInclusive ?? false,
     p_reference: input.reference ?? undefined,
     p_notes: input.notes ?? undefined,
+    p_sales_person_id: input.salesPersonId,
   });
   if (error) throw new Error(error.message);
 
@@ -277,16 +288,20 @@ export async function updateErpInvoice(
   });
 
   await logAuditEvent(
-    buildAuditUpdateEvent({
-      action: "update",
-      entityType: "invoice",
-      entityId: invoiceId,
-      storeId: afterDetail.store_id ?? undefined,
-      headline: "ERP invoice updated",
-      before: beforeSnapshot,
-      after: afterSnapshot,
-      fieldLabels: SALES_INVOICE_AUDIT_FIELD_LABELS,
-    }),
+    withSalesmanDocumentAudit(
+      "invoice",
+      input.salesPersonId,
+      buildAuditUpdateEvent({
+        action: "update",
+        entityType: "invoice",
+        entityId: invoiceId,
+        storeId: afterDetail.store_id ?? undefined,
+        headline: "ERP invoice updated",
+        before: beforeSnapshot,
+        after: afterSnapshot,
+        fieldLabels: SALES_INVOICE_AUDIT_FIELD_LABELS,
+      }),
+    ),
   );
 }
 

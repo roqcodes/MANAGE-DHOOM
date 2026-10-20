@@ -65,6 +65,7 @@ function ActivityLogReport({ report }: { report: ReportDefinition }) {
     entityType,
     action,
     userId,
+    salesmanId: filters.salesmanId,
   });
 
   useEffect(() => {

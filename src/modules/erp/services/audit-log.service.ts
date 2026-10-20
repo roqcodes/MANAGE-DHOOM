@@ -78,17 +78,21 @@ export const getErpContext = cache(async (userId?: string): Promise<ErpContext |
 export async function logAuditEvent(input: LogAuditEventInput): Promise<string | null> {
   const supabase = await createSupabaseServerClient();
 
+  const salesmanId = input.salesmanId ?? null;
   let userId = input.userId ?? null;
-  if (!userId) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    userId = user?.id ?? null;
-  }
 
-  if (!userId) {
-    console.error("log_audit_event skipped: no authenticated user");
-    return null;
+  if (!salesmanId) {
+    if (userId === undefined) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      userId = user?.id ?? null;
+    }
+
+    if (!userId) {
+      console.error("log_audit_event skipped: no authenticated user");
+      return null;
+    }
   }
 
   const normalized = normalizeAuditEntityId(input.entityId, input.metadata ?? {});
@@ -102,7 +106,8 @@ export async function logAuditEvent(input: LogAuditEventInput): Promise<string |
     p_old_data: input.oldData as Json | undefined,
     p_new_data: input.newData as Json | undefined,
     p_store_id: input.storeId ?? undefined,
-    p_user_id: userId,
+    p_user_id: salesmanId ? undefined : (userId ?? undefined),
+    p_salesman_id: salesmanId ?? undefined,
   });
 
   if (error) {
@@ -188,6 +193,11 @@ const ACTIVITY_LOG_REPORT_SELECT = `
     email,
     role
   ),
+  erp_salesmen:erp_salesmen!audit_logs_salesman_id_fkey (
+    id,
+    name,
+    email
+  ),
   stores:stores!audit_logs_store_id_fkey (
     name
   )
@@ -195,6 +205,11 @@ const ACTIVITY_LOG_REPORT_SELECT = `
 
 type ActivityLogReportDbRow = AuditLogDbRow & {
   stores?: { name: string | null } | { name: string | null }[] | null;
+  erp_salesmen?:
+    | { id: string; name: string; email: string | null }
+    | { id: string; name: string; email: string | null }[]
+    | null;
+  salesman_id?: string | null;
 };
 
 function auditEntityReferenceFromRow(
@@ -226,10 +241,17 @@ function auditEntityReferenceFromRow(
 
 function mapActivityLogReportRow(row: ActivityLogReportDbRow): Record<string, unknown> {
   const user = Array.isArray(row.users) ? row.users[0] : row.users;
+  const salesman = Array.isArray(row.erp_salesmen) ? row.erp_salesmen[0] : row.erp_salesmen;
   const store = Array.isArray(row.stores) ? row.stores[0] : row.stores;
   const metadata = (row.metadata as Record<string, unknown>) ?? {};
   const entityType = row.entity_type ?? "";
   const action = row.action ?? "";
+
+  const displayName =
+    salesman?.name?.trim() ||
+    user?.name?.trim() ||
+    user?.email?.trim() ||
+    "Unknown user";
 
   return {
     id: row.id,
@@ -240,9 +262,9 @@ function mapActivityLogReportRow(row: ActivityLogReportDbRow): Record<string, un
     description: row.description,
     store_id: row.store_id,
     store_name: store?.name ?? null,
-    user_id: user?.id ?? row.user_id,
-    user_name: user?.name?.trim() || user?.email?.trim() || "Unknown user",
-    user_email: user?.email ?? null,
+    user_id: salesman?.id ?? user?.id ?? row.user_id,
+    user_name: displayName,
+    user_email: salesman?.email ?? user?.email ?? null,
     entity_reference: auditEntityReferenceFromRow(row.entity_id, metadata),
     entity_label: formatAuditEntityLabel(entityType),
     metadata,
@@ -261,6 +283,7 @@ export async function listActivityLogReportRows(filters: {
   entityType?: string;
   action?: string;
   userId?: string;
+  salesmanId?: string;
   search?: string;
   limit?: number;
 }): Promise<Record<string, unknown>[]> {
@@ -285,6 +308,9 @@ export async function listActivityLogReportRows(filters: {
   }
   if (filters.userId && filters.userId !== "all") {
     query = query.eq("user_id", filters.userId);
+  }
+  if (filters.salesmanId) {
+    query = query.eq("salesman_id", filters.salesmanId);
   }
 
   const { data, error } = await query;

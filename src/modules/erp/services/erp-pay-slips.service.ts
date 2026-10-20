@@ -15,6 +15,8 @@ type PaySlipListFilters = {
   storeId?: string;
   employeeId?: string;
   period?: string;
+  periodMonth?: number;
+  periodYear?: number;
   dateFrom?: string;
   dateTo?: string;
   search?: string;
@@ -46,7 +48,16 @@ export async function listPaySlips(
   const from = page * limit;
   const storeId = await resolveErpStoreId(filters.storeId);
   const useDateRange = Boolean(filters.dateFrom || filters.dateTo);
-  const { month, year } = useDateRange ? {} : periodToMonthYear(filters.period);
+  const hasExplicitPeriod =
+    filters.periodMonth != null &&
+    filters.periodYear != null &&
+    !Number.isNaN(filters.periodMonth) &&
+    !Number.isNaN(filters.periodYear);
+  const { month, year } = hasExplicitPeriod
+    ? { month: filters.periodMonth, year: filters.periodYear }
+    : useDateRange
+      ? {}
+      : periodToMonthYear(filters.period);
 
   let query = supabase
     .from("erp_pay_slips")

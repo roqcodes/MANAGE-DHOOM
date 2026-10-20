@@ -57,6 +57,7 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
     channel: "all",
     accountId: "",
     search: filters.debouncedSearch,
+    salesmanId: filters.salesmanId,
   });
 
   const rows = useMemo(

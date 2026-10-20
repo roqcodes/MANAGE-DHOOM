@@ -33,10 +33,12 @@ function customerDetailsHref(
   customerId: string,
   asOf: string,
   storeId: string,
+  salesmanId: string,
 ) {
   const q = new URLSearchParams();
   if (asOf) q.set("asOf", asOf);
   if (storeId) q.set("storeId", storeId);
+  if (salesmanId) q.set("salesmanId", salesmanId);
   const qs = q.toString();
   return `/admin/erp/reports/customer-aging-summary/${customerId}${qs ? `?${qs}` : ""}`;
 }
@@ -139,7 +141,12 @@ export function CustomerAgingSummaryReport({ report }: { report: ReportDefinitio
                     >
                       {col.key === "customer_name" && customerId ? (
                         <Link
-                          href={customerDetailsHref(customerId, filters.asOf, filters.storeId)}
+                          href={customerDetailsHref(
+                            customerId,
+                            filters.asOf,
+                            filters.storeId,
+                            filters.salesmanId,
+                          )}
                           className="font-medium text-primary hover:underline"
                         >
                           {customerName}

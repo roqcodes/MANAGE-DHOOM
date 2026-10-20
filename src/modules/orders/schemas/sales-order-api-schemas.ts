@@ -14,7 +14,7 @@ export const salesOrderPayloadSchema = z.object({
   referenceNumber: z.string().optional(),
   shipmentDate: z.string().optional(),
   deliveryMethod: z.string().optional(),
-  salesPersonId: z.string().uuid().optional(),
+  salesPersonId: z.string().uuid(),
   estimateId: z.string().uuid().optional(),
   subtotal: z.number(),
   tax: z.number(),

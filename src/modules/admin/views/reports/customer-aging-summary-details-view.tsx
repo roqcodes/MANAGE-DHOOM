@@ -41,10 +41,12 @@ export function CustomerAgingSummaryDetailsView({
   customerId,
   initialAsOf,
   initialStoreId,
+  initialSalesmanId,
 }: {
   customerId: string;
   initialAsOf?: string;
   initialStoreId?: string;
+  initialSalesmanId?: string;
 }) {
   const filters = useBusinessReportFilters(report);
 
@@ -52,6 +54,10 @@ export function CustomerAgingSummaryDetailsView({
     if (initialAsOf) filters.setAsOf(initialAsOf);
     if (initialStoreId) filters.setStoreId(initialStoreId);
   }, [initialAsOf, initialStoreId, filters.setAsOf, filters.setStoreId]);
+
+  useEffect(() => {
+    if (initialSalesmanId) filters.setSalesmanId(initialSalesmanId);
+  }, [initialSalesmanId, filters.setSalesmanId]);
 
   const { loading, error, rawData, reload } = useErpReportFetch(report, {
     dateFrom: filters.dateFrom,
@@ -61,6 +67,7 @@ export function CustomerAgingSummaryDetailsView({
     channel: filters.channel,
     accountId: "",
     customerId,
+    salesmanId: filters.salesmanId,
   });
 
   const payload = (rawData ?? {}) as DetailsPayload;
@@ -91,6 +98,7 @@ export function CustomerAgingSummaryDetailsView({
   const summaryBackQs = new URLSearchParams();
   if (filters.asOf) summaryBackQs.set("asOf", filters.asOf);
   if (filters.storeId) summaryBackQs.set("storeId", filters.storeId);
+  if (filters.salesmanId) summaryBackQs.set("salesmanId", filters.salesmanId);
   const summaryBackHref = `/admin/erp/reports/customer-aging-summary${
     summaryBackQs.toString() ? `?${summaryBackQs.toString()}` : ""
   }`;

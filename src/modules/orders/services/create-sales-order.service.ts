@@ -3,6 +3,7 @@ import "server-only";
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { notifyOrderStatusChange } from "@/modules/admin/services/push-notifications.service";
+import { withSalesmanDocumentAudit } from "@/modules/erp/lib/log-sales-document-audit";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId } from "@/modules/erp/services/store-context.service";
 import { createSalesOrderViaRpc } from "@/modules/orders/services/sales-order-create-rpc";
@@ -41,13 +42,15 @@ export async function createSalesOrder(input: CreateSalesOrderInput): Promise<{
     },
   );
 
-  await logAuditEvent({
-    action: "create",
-    entityType: "sales_order",
-    entityId: orderId,
-    description: `Sales order ${soNumber}`,
-    storeId: storeId ?? undefined,
-  });
+  await logAuditEvent(
+    withSalesmanDocumentAudit("sales_order", input.salesPersonId, {
+      action: "create",
+      entityType: "sales_order",
+      entityId: orderId,
+      description: `Sales order ${soNumber}`,
+      storeId: storeId ?? undefined,
+    }),
+  );
 
   await notifyOrderStatusChange(orderId, "processing").catch(() => undefined);
 

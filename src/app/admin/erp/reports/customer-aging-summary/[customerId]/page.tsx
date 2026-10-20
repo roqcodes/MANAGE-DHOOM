@@ -5,15 +5,16 @@ export default async function CustomerAgingSummaryDetailsPage({
   searchParams,
 }: {
   params: Promise<{ customerId: string }>;
-  searchParams: Promise<{ asOf?: string; storeId?: string }>;
+  searchParams: Promise<{ asOf?: string; storeId?: string; salesmanId?: string }>;
 }) {
   const { customerId } = await params;
-  const { asOf, storeId } = await searchParams;
+  const { asOf, storeId, salesmanId } = await searchParams;
   return (
     <CustomerAgingSummaryDetailsView
       customerId={customerId}
       initialAsOf={asOf}
       initialStoreId={storeId}
+      initialSalesmanId={salesmanId}
     />
   );
 }

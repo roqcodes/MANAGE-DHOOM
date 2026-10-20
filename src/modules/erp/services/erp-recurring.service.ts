@@ -169,6 +169,12 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
       })),
     );
 
+    const salesPersonId =
+      typeof payload.salesPersonId === "string" ? payload.salesPersonId.trim() : "";
+    if (!salesPersonId) {
+      throw new Error("Recurring invoice schedules must include salesPersonId in the payload.");
+    }
+
     createdId = await createErpInvoice({
       userId: schedule.customer_id,
       storeId: schedule.store_id ?? undefined,
@@ -178,6 +184,7 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
       discount: Number(payload.discount ?? 0),
       taxInclusive: Boolean(payload.taxInclusive),
       notes: String(payload.notes ?? `Recurring: ${schedule.name}`),
+      salesPersonId,
       finalize: true,
     });
   } else {

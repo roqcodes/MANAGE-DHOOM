@@ -11,7 +11,7 @@ export type SalesOrderCreatePayload = {
   referenceNumber?: string;
   shipmentDate?: string;
   deliveryMethod?: string;
-  salesPersonId?: string;
+  salesPersonId: string;
   estimateId?: string;
   subtotal: number;
   tax: number;

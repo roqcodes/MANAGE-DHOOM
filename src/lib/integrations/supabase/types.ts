@@ -237,6 +237,7 @@ export type Database = {
           metadata: Json
           new_data: Json | null
           old_data: Json | null
+          salesman_id: string | null
           store_id: string | null
           user_id: string | null
         }
@@ -250,6 +251,7 @@ export type Database = {
           metadata?: Json
           new_data?: Json | null
           old_data?: Json | null
+          salesman_id?: string | null
           store_id?: string | null
           user_id?: string | null
         }
@@ -263,6 +265,7 @@ export type Database = {
           metadata?: Json
           new_data?: Json | null
           old_data?: Json | null
+          salesman_id?: string | null
           store_id?: string | null
           user_id?: string | null
         }
@@ -279,6 +282,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_logs_salesman_id_fkey"
+            columns: ["salesman_id"]
+            isOneToOne: false
+            referencedRelation: "erp_salesmen"
             referencedColumns: ["id"]
           },
         ]
@@ -1036,6 +1046,50 @@ export type Database = {
             columns: ["variant_id"]
             isOneToOne: false
             referencedRelation: "product_variants"
+            referencedColumns: ["id"]
+          },
+        ]
+      },
+      erp_salesmen: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          phone: string | null
+          pin: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          phone?: string | null
+          pin: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone?: string | null
+          pin?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_salesmen_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -6353,7 +6407,14 @@ export type Database = {
       }
       get_default_tax_rate: { Args: never; Returns: number }
       get_erp_context: { Args: { p_user_id?: string }; Returns: Json }
-      get_erp_financial_dashboard: { Args: never; Returns: Json }
+      get_erp_financial_dashboard: {
+        Args: {
+          p_date_from?: string
+          p_date_to?: string
+          p_store_id?: string | null
+        }
+        Returns: Json
+      }
       get_erp_reconciliation_snapshot: { Args: never; Returns: Json }
       get_invoice_by_id: {
         Args: { p_invoice_id: string; p_user_id: string }
@@ -6416,10 +6477,24 @@ export type Database = {
           p_metadata?: Json
           p_new_data?: Json
           p_old_data?: Json
+          p_salesman_id?: string
           p_store_id?: string
           p_user_id?: string
         }
         Returns: string
+      }
+      create_erp_salesman: {
+        Args: {
+          p_email?: string
+          p_name: string
+          p_phone?: string
+          p_pin: string
+        }
+        Returns: string
+      }
+      verify_erp_salesman_pin: {
+        Args: { p_pin: string }
+        Returns: Json
       }
       log_stock_movement: {
         Args: {

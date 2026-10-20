@@ -51,6 +51,7 @@ export async function GET(request: Request) {
       vendorId: url.searchParams.get("vendorId") ?? undefined,
       ageMinDays: parseOptionalInt(url.searchParams.get("ageMinDays")),
       ageMaxDays: parseOptionalInt(url.searchParams.get("ageMaxDays")),
+      salesmanId: url.searchParams.get("salesmanId") ?? undefined,
       },
       { authenticated: true },
     );

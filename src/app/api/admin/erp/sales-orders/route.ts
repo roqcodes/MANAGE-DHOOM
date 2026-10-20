@@ -8,6 +8,10 @@ import {
   idempotentOperationErrorResponse,
 } from "@/lib/erp/client-operations/execute-idempotent-operation";
 import { notifyOrderStatusChange } from "@/modules/admin/services/push-notifications.service";
+import {
+  salesPersonIdFromPayload,
+  withSalesmanDocumentAudit,
+} from "@/modules/erp/lib/log-sales-document-audit";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { createSalesOrder } from "@/modules/orders/services/create-sales-order.service";
 import {
@@ -77,13 +81,16 @@ export async function POST(request: Request) {
         terminalId: idempotent.data.terminalId,
       });
       if (!outcome.idempotentReplay && outcome.result?.orderId) {
-        await logAuditEvent({
-          action: "create",
-          entityType: "sales_order",
-          entityId: outcome.result.orderId,
-          description: `Sales order ${outcome.result.salesOrderNumber ?? outcome.result.orderId}`,
-          storeId: idempotent.data.storeId,
-        });
+        const salesPersonId = salesPersonIdFromPayload(idempotent.data.payload);
+        await logAuditEvent(
+          withSalesmanDocumentAudit("sales_order", salesPersonId, {
+            action: "create",
+            entityType: "sales_order",
+            entityId: outcome.result.orderId,
+            description: `Sales order ${outcome.result.salesOrderNumber ?? outcome.result.orderId}`,
+            storeId: idempotent.data.storeId,
+          }),
+        );
         await notifyOrderStatusChange(outcome.result.orderId, "processing").catch(
           () => undefined,
         );

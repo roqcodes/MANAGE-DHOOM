@@ -50,10 +50,10 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
     if (meta && typeof meta.total_debit === "number" && typeof meta.total_credit === "number") {
       return { debit: meta.total_debit, credit: meta.total_credit };
     }
-    const debit = filtered.reduce((acc, r) => acc + Number(r.period_debit ?? 0), 0);
-    const credit = filtered.reduce((acc, r) => acc + Number(r.period_credit ?? 0), 0);
+    const debit = rows.reduce((acc, r) => acc + Number(r.period_debit ?? 0), 0);
+    const credit = rows.reduce((acc, r) => acc + Number(r.period_credit ?? 0), 0);
     return { debit, credit };
-  }, [rawData, filtered]);
+  }, [rawData, rows]);
 
   const kpiItems = useMemo(
     () =>

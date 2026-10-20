@@ -39,11 +39,24 @@ export async function billExpenseToCustomer(expenseId: string): Promise<string> 
   const taxPercent = Number(expense.tax_percent ?? 0);
 
   const invoiceDate = new Date().toISOString().slice(0, 10);
+  const expenseSalesPersonId = (expenseRow as { sales_person_id?: string | null })
+    .sales_person_id;
+  const salesPersonId =
+    typeof expenseSalesPersonId === "string" && expenseSalesPersonId.length > 0
+      ? expenseSalesPersonId
+      : null;
+  if (!salesPersonId) {
+    throw new Error(
+      "Billable expense invoicing requires a salesman. Create the invoice from Sales with a PIN instead.",
+    );
+  }
+
   const invoiceId = await createErpInvoice({
     userId: expenseRow.billable_customer_id,
     storeId: expense.store_id ?? undefined,
     invoiceDate,
     dueDate: addMonthsToDateInput(invoiceDate, DEFAULT_INVOICE_DUE_MONTHS),
+    salesPersonId,
     lines: [
       {
         productName: expense.reference?.trim() || "Billable expense",

@@ -30,6 +30,7 @@ async function deleteTestDatabase(name: string): Promise<void> {
 
 const samplePayload: SalesOrderCreatePayload = {
   userId: "00000000-0000-4000-8000-000000000001",
+  salesPersonId: "00000000-0000-4000-8000-000000000099",
   subtotal: 10,
   tax: 0,
   discount: 0,

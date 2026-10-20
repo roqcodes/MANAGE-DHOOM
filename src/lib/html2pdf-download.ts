@@ -2,6 +2,7 @@
 
 import {
   injectInvoicePdfStyles,
+  injectTabularPdfStyles,
   preparePrintDocumentForPdfCapture,
 } from "@/lib/invoice-pdf-styles";
 
@@ -124,14 +125,22 @@ export function prepareTabularExportForPdfCapture(root: HTMLElement): void {
   root.style.boxSizing = "border-box";
 }
 
+function resolveTabularCloneRoot(
+  clonedElement: HTMLElement,
+  sourceRoot: HTMLElement,
+): HTMLElement {
+  if (!isTabularExportRoot(sourceRoot)) return clonedElement;
+  const inner = clonedElement.querySelector("[data-tabular-export]");
+  return inner instanceof HTMLElement ? inner : clonedElement;
+}
+
 export function inlineStylesForHtml2Canvas(
   clonedRoot: HTMLElement,
   sourceRoot: HTMLElement,
 ): void {
   const documentCapture =
     sourceRoot.hasAttribute("data-print-document") ||
-    sourceRoot.hasAttribute("data-invoice-document") ||
-    isTabularExportRoot(sourceRoot);
+    sourceRoot.hasAttribute("data-invoice-document");
 
   const sourceNodes = [sourceRoot, ...sourceRoot.querySelectorAll("*")];
   const clonedNodes = [clonedRoot, ...clonedRoot.querySelectorAll("*")];
@@ -183,13 +192,11 @@ export function buildHtml2CanvasOptions(sourceRoot: HTMLElement) {
     width: captureWidth,
     windowWidth: captureWidth,
     onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
-      inlineStylesForHtml2Canvas(clonedElement, sourceRoot);
+      const styleCloneRoot = resolveTabularCloneRoot(clonedElement, sourceRoot);
+      inlineStylesForHtml2Canvas(styleCloneRoot, sourceRoot);
       stripUnsupportedStylesheets(clonedDoc);
       if (isTabularExport) {
-        clonedElement.style.setProperty("position", "relative", "important");
-        clonedElement.style.setProperty("left", "0", "important");
-        clonedElement.style.setProperty("top", "0", "important");
-        clonedElement.style.setProperty("margin", "0", "important");
+        injectTabularPdfStyles(clonedDoc);
       }
       if (isPrintDocument) {
         injectInvoicePdfStyles(clonedDoc);

@@ -10,7 +10,9 @@ import {
   exportPortalUsersCsv,
   PortalStaffDataTable,
 } from "@/modules/users/components/users-data-table";
+import { UsersCreateSalesmanModal } from "@/modules/users/components/users-create-salesman-modal";
 import { UsersCreateStaffModal } from "@/modules/users/components/users-create-staff-modal";
+import { UsersSalesmenPanel } from "@/modules/users/components/users-salesmen-panel";
 import { UsersPurgeModal } from "@/modules/users/components/users-purge-modal";
 import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
 import { UsersStaffAccessModal } from "@/modules/users/components/users-staff-access-modal";
@@ -42,6 +44,7 @@ export function UsersListPanel({
   const [roleUser, setRoleUser] = useState<DBUser | null>(null);
   const [purgeUser, setPurgeUser] = useState<DBUser | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createSalesmanOpen, setCreateSalesmanOpen] = useState(false);
 
   const filtered = useMemo(
     () => content.data.filter((user) => matchesUserSearch(user, search)),
@@ -74,6 +77,13 @@ export function UsersListPanel({
             onCreated={() => setCreateOpen(false)}
           />
         ) : null}
+        {createSalesmanOpen && canManageRoles ? (
+          <UsersCreateSalesmanModal
+            key="create-salesman"
+            onClose={() => setCreateSalesmanOpen(false)}
+            onCreated={() => setCreateSalesmanOpen(false)}
+          />
+        ) : null}
         {purgeUser && canManageRoles ? (
           <UsersPurgeModal
             key={purgeUser.id}
@@ -95,10 +105,16 @@ export function UsersListPanel({
               </p>
             </div>
             {canManageRoles ? (
-              <Button size="sm" onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4" />
-                Create user
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => setCreateSalesmanOpen(true)}>
+                  <Plus className="size-4" />
+                  Create salesman
+                </Button>
+                <Button size="sm" onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" />
+                  Create user
+                </Button>
+              </div>
             ) : null}
           </div>
 
@@ -169,6 +185,12 @@ export function UsersListPanel({
           ) : null}
         </CardContent>
       </Card>
+
+      {canManageRoles ? (
+        <div className="mt-4">
+          <UsersSalesmenPanel />
+        </div>
+      ) : null}
     </>
   );
 }

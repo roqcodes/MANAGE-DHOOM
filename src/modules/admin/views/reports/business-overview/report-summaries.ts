@@ -54,6 +54,7 @@ const KPI_KEY_PRIORITY = [
   "total",
   "stock",
   "profit",
+  "uncosted_revenue",
   "tax_amount",
   "gst_amount",
   "period_debit",

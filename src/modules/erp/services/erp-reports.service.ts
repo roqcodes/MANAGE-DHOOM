@@ -29,6 +29,7 @@ export type ReportQuery = {
   vendorId?: string;
   ageMinDays?: number;
   ageMaxDays?: number;
+  salesmanId?: string;
 };
 
 function normalizeAgeRange(
@@ -133,6 +134,7 @@ export async function runErpReport(
   const asOf = query.asOf ?? to;
   const storeId = query.storeId ?? undefined;
   const channel = query.channel ?? "all";
+  const salesmanId = query.salesmanId ?? null;
   const { ageMin, ageMax } = normalizeAgeRange(query.ageMinDays, query.ageMaxDays);
 
   if (report.slug === "finance-summary") {
@@ -186,6 +188,7 @@ export async function runErpReport(
       return callRpc(supabase, report.rpc, {
         p_store_id: storeId,
         p_search: query.search ?? null,
+        p_salesman_id: salesmanId,
       });
     case "get_erp_vendor_balance_report":
       return callRpc(supabase, report.rpc, {
@@ -231,6 +234,7 @@ export async function runErpReport(
         p_search: query.search ?? null,
         p_age_min: ageMin,
         p_age_max: ageMax,
+        p_salesman_id: salesmanId,
       });
     case "get_erp_customer_aging_summary_customer_details":
       if (!query.customerId) throw new Error("Customer is required");
@@ -238,6 +242,7 @@ export async function runErpReport(
         p_customer_id: query.customerId,
         p_as_of: asOf,
         p_store_id: storeId,
+        p_salesman_id: salesmanId,
       });
     case "get_erp_customer_aging_details":
       return callRpc(supabase, report.rpc, {
@@ -248,6 +253,7 @@ export async function runErpReport(
         p_search: query.search ?? null,
         p_age_min: ageMin,
         p_age_max: ageMax,
+        p_salesman_id: salesmanId,
       });
     case "get_erp_vendor_aging":
     case "get_erp_vendor_aging_summary_counts":
@@ -283,6 +289,7 @@ export async function runErpReport(
         p_date_to: to,
         p_store_id: storeId,
         p_channel: channel,
+        p_salesman_id: salesmanId,
       });
     case "get_erp_daily_collection_report":
     case "get_erp_monthly_collection_report":
@@ -293,6 +300,12 @@ export async function runErpReport(
       });
     case "get_erp_payments_received_report":
     case "get_erp_credit_note_report":
+      return callRpc(supabase, report.rpc, {
+        p_date_from: from,
+        p_date_to: to,
+        p_store_id: storeId,
+        p_salesman_id: salesmanId,
+      });
     case "get_erp_day_book":
       return callRpc(supabase, report.rpc, {
         p_date_from: from,
@@ -334,6 +347,7 @@ export async function runErpReport(
         entityType: query.entityType,
         action: query.action,
         userId: query.userId,
+        salesmanId: query.salesmanId,
         search: query.search,
         limit: 500,
       });
@@ -345,6 +359,7 @@ export async function runErpReport(
         p_store_id: storeId,
         p_search: query.search ?? null,
         p_limit: 200,
+        p_salesman_id: salesmanId,
       });
     default:
       throw new Error(`Report RPC not wired: ${report.rpc}`);

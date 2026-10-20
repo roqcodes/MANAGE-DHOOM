@@ -21,6 +21,8 @@ export type ReportFilterConfig = {
   accountType?: boolean;
   /** Filter open documents by days past due (min/max). */
   ageRange?: boolean;
+  /** Filter by ERP salesman (invoice sales_person_id / activity attribution). */
+  salesman?: boolean;
   /** Dead stock: days since expiry (min/max). */
   expiredDaysRange?: boolean;
 };
@@ -226,7 +228,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Sales by Customer",
     description: "Invoice totals, margin, and profit by customer. Filter by store and channel.",
     category: "Sales",
-    filters: { dateRange: true, store: true, channel: true },
+    filters: { dateRange: true, store: true, channel: true, salesman: true },
     rpc: "get_erp_sales_by_customer",
     columns: [
       { key: "customer_name", label: "Customer" },
@@ -235,8 +237,9 @@ export const ERP_REPORTS: ReportDefinition[] = [
       { key: "total_discount", label: "Discount", align: "right", format: "currency" },
       { key: "tax", label: "Tax", align: "right", format: "currency" },
       { key: "net_sales_value", label: "Net sales", align: "right", format: "currency" },
-      { key: "purchase_cost", label: "Purchase cost", align: "right", format: "currency" },
-      { key: "net_profit", label: "Net profit", align: "right", format: "currency" },
+      { key: "purchase_cost", label: "COGS (recognized)", align: "right", format: "currency" },
+      { key: "uncosted_revenue", label: "Pending cost (revenue)", align: "right", format: "currency" },
+      { key: "net_profit", label: "Recognized profit", align: "right", format: "currency" },
       { key: "profit_percent", label: "Profit %", align: "right", format: "number" },
       { key: "channel", label: "Channel" },
     ],
@@ -246,15 +249,17 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Sales by Item",
     description: "Line-item sales, cost, and profit. ERP store vs online channel.",
     category: "Sales",
-    filters: { dateRange: true, store: true, channel: true },
+    filters: { dateRange: true, store: true, channel: true, salesman: true },
     rpc: "get_erp_sales_by_item",
     columns: [
       { key: "product_name", label: "Item" },
       { key: "total_qty", label: "Qty sold", align: "right", format: "number" },
-      { key: "total_amount", label: "Sales", align: "right", format: "currency" },
+      { key: "net_sales_ex_tax", label: "Net sales (ex tax)", align: "right", format: "currency" },
+      { key: "total_amount", label: "Sales (incl. tax)", align: "right", format: "currency" },
       { key: "total_tax", label: "Tax", align: "right", format: "currency" },
-      { key: "purchase_cost", label: "Purchase cost", align: "right", format: "currency" },
-      { key: "profit", label: "Profit", align: "right", format: "currency" },
+      { key: "purchase_cost", label: "COGS (recognized)", align: "right", format: "currency" },
+      { key: "uncosted_revenue", label: "Pending cost (revenue)", align: "right", format: "currency" },
+      { key: "profit", label: "Recognized profit", align: "right", format: "currency" },
       { key: "channel", label: "Channel" },
     ],
   },
@@ -263,7 +268,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Sales by Salesman",
     description: "Invoices, credit notes, cost, and profit by sales person.",
     category: "Sales",
-    filters: { dateRange: true, store: true, channel: true },
+    filters: { dateRange: true, store: true, channel: true, salesman: true },
     rpc: "get_erp_sales_by_salesman",
     columns: [
       { key: "salesman_name", label: "Name" },
@@ -272,8 +277,9 @@ export const ERP_REPORTS: ReportDefinition[] = [
       { key: "total_sales_without_tax", label: "Sales (ex tax)", align: "right", format: "currency" },
       { key: "credit_note_count", label: "CN count", align: "right", format: "number" },
       { key: "credit_note_total", label: "CN total", align: "right", format: "currency" },
-      { key: "purchase_cost", label: "Purchase cost", align: "right", format: "currency" },
-      { key: "profit", label: "Profit", align: "right", format: "currency" },
+      { key: "purchase_cost", label: "COGS (recognized)", align: "right", format: "currency" },
+      { key: "uncosted_revenue", label: "Pending cost (revenue)", align: "right", format: "currency" },
+      { key: "profit", label: "Recognized profit", align: "right", format: "currency" },
       { key: "profit_percent", label: "Profit %", align: "right", format: "number" },
     ],
   },
@@ -282,7 +288,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Credit Note Report",
     description: "Credit notes issued in the period.",
     category: "Sales",
-    filters: { dateRange: true, store: true },
+    filters: { dateRange: true, store: true, salesman: true },
     rpc: "get_erp_credit_note_report",
     columns: [
       { key: "credit_note_date", label: "Date", format: "date" },
@@ -445,7 +451,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Customer Balance",
     description: "Every customer with balance (opening + invoices). Zero and negative amounts are shown.",
     category: "Receivables",
-    filters: { store: true, customerSearch: true },
+    filters: { store: true, customerSearch: true, salesman: true },
     rpc: "get_erp_customer_balance_report",
     columns: [
       { key: "customer_name", label: "Customer" },
@@ -458,7 +464,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Aging Summary",
     description: "Every customer; open invoice counts per aging bucket. Click a customer for invoice details.",
     category: "Receivables",
-    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true },
+    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true, salesman: true },
     rpc: "get_erp_customer_aging_summary_counts",
     columns: [
       { key: "customer_name", label: "Customer" },
@@ -475,7 +481,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Aging Details",
     description: "Open invoices only (balance due greater than zero).",
     category: "Receivables",
-    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true },
+    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true, salesman: true },
     rpc: "get_erp_customer_aging_details",
     columns: [
       { key: "invoice_date", label: "Date", format: "date" },
@@ -484,6 +490,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
       { key: "document_type", label: "Type" },
       { key: "status", label: "Status" },
       { key: "customer_name", label: "Customer" },
+      { key: "salesman_name", label: "Salesman" },
       { key: "age_days", label: "Age (days)", align: "right", format: "number" },
       { key: "amount", label: "Amount", align: "right", format: "currency" },
       { key: "applied_credit", label: "Applied credit", align: "right", format: "currency" },
@@ -495,7 +502,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Aging Summary Values",
     description: "Every customer; amounts by aging bucket (zeros when none due).",
     category: "Receivables",
-    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true },
+    filters: { asOfDate: true, store: true, customerSearch: true, ageRange: true, salesman: true },
     rpc: "get_erp_customer_aging",
     columns: [
       { key: "customer_name", label: "Customer" },
@@ -515,7 +522,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Payments Received",
     description: "Customer payments in the period with mode totals.",
     category: "Payments Received",
-    filters: { dateRange: true, store: true },
+    filters: { dateRange: true, store: true, salesman: true },
     rpc: "get_erp_payments_received_report",
     rowsKey: "rows",
     columns: [
@@ -627,6 +634,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
       activityAction: true,
       activityUser: true,
       customerSearch: true,
+      salesman: true,
     },
     rpc: "get_erp_activity_log_report",
     columns: [
@@ -644,7 +652,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
     title: "Deleted Invoices",
     description: "Cancelled invoices with line items, who deleted them, and why.",
     category: "Activity",
-    filters: { dateRange: true, store: true, customerSearch: true },
+    filters: { dateRange: true, store: true, customerSearch: true, salesman: true },
     rpc: "get_erp_deleted_invoices_report",
     columns: [
       { key: "invoice_created_at", label: "Invoice created", format: "date" },
@@ -686,7 +694,7 @@ export const CUSTOMER_AGING_SUMMARY_DETAILS_REPORT: ReportDefinition = {
   title: "Aging Summary Details",
   description: "Open invoices for the selected customer.",
   category: "Receivables",
-  filters: { asOfDate: true, store: true },
+  filters: { asOfDate: true, store: true, salesman: true },
   rpc: "get_erp_customer_aging_summary_customer_details",
   rowsKey: "rows",
   columns: [

@@ -20,13 +20,24 @@ import { Input } from "@/components/ui/input";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
-export type SalaryPaymentFormViewProps = ErpFormViewBaseProps;
+export type SalaryPaymentPrefill = {
+  employeeId: string;
+  amount: number;
+  paymentDate: string;
+  payslipNumber: string;
+  periodLabel: string;
+};
+
+export type SalaryPaymentFormViewProps = ErpFormViewBaseProps & {
+  prefill?: SalaryPaymentPrefill | null;
+};
 
 export function SalaryPaymentFormView({
   variant = "page",
   open = true,
   onOpenChange,
   onSuccess,
+  prefill = null,
 }: SalaryPaymentFormViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -43,13 +54,21 @@ export function SalaryPaymentFormView({
   const [amountPaid, setAmountPaid] = useState("");
   const [paymentMode, setPaymentMode] = useState<string>(ERP_SALARY_PAYMENT_MODES[0]);
   const [accountId, setAccountId] = useState("");
+  const [notes, setNotes] = useState("");
 
   const selectedEmployee = employees.find((e) => e.id === employeeId);
 
   useEffect(() => {
+    if (prefill) {
+      setEmployeeId(prefill.employeeId);
+      setAmountPaid(String(prefill.amount));
+      setPaymentDate(prefill.paymentDate);
+      setNotes(`Pay slip ${prefill.payslipNumber} (${prefill.periodLabel})`);
+      return;
+    }
     const preselected = searchParams.get("employeeId");
     if (preselected) setEmployeeId(preselected);
-  }, [searchParams]);
+  }, [searchParams, prefill]);
 
   useEffect(() => {
     const q = activeStoreId ? `?view=options&storeId=${encodeURIComponent(activeStoreId)}` : "?view=options";
@@ -104,6 +123,7 @@ export function SalaryPaymentFormView({
           totalPaid: amount,
           paymentMode,
           paidThroughAccountId: accountId || undefined,
+          notes: notes.trim() || undefined,
         });
         handleSuccessNavigate();
       } catch (err) {
@@ -114,7 +134,7 @@ export function SalaryPaymentFormView({
 
   if (isModal && !open) return null;
 
-  const title = "Add salary payment";
+  const title = prefill ? "Pay pay slip" : "Add salary payment";
   const footer = isModal ? (
     <AdminFormActions
       formId={formId}
@@ -168,9 +188,10 @@ export function SalaryPaymentFormView({
             <AdminFormField label="Employee" htmlFor="employeeId" required className="sm:col-span-2">
               <select
                 id="employeeId"
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm disabled:opacity-60"
                 value={employeeId}
                 onChange={(e) => setEmployeeId(e.target.value)}
+                disabled={Boolean(prefill)}
               >
                 <option value="">Select employee…</option>
                 {employees.map((emp) => (

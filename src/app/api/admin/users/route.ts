@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireAdminApiPageRead } from "@/lib/api/admin-api-auth";
 import { recordAuthAudit } from "@/modules/auth/services/auth-audit.service";
+import { createErpSalesman } from "@/modules/users/services/erp-salesmen.service";
 import {
   createStaffPortalUserBySuperAdmin,
   getPortalUserPurgeEligibility,
@@ -63,7 +64,23 @@ export async function POST(request: Request) {
     roleId?: string;
     storeIds?: string[];
     defaultStoreId?: string | null;
+    pin?: string;
   };
+
+  if (body.action === "create_salesman") {
+    try {
+      const salesmanId = await createErpSalesman({
+        name: body.name ?? "",
+        pin: body.pin ?? "",
+        email: body.email,
+        phone: body.phone,
+      });
+      return NextResponse.json({ ok: true, salesmanId });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Request failed.";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+  }
 
   if (body.action === "purge") {
     const userId = (body as { userId?: string }).userId;

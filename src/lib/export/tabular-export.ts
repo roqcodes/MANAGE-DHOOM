@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 
 import { rowsToCsv, downloadCsvFile } from "@/lib/csv/csv-utils";
-import { downloadElementAsPdf } from "@/lib/html2pdf-download";
+import { saveTabularPdf } from "@/lib/export/tabular-pdf";
 
 export type TabularData = {
   headers: string[];
@@ -57,77 +57,11 @@ export async function downloadTabularXlsx(options: TabularExportOptions): Promis
   XLSX.writeFile(workbook, datedFilename(options.baseFilename, "xlsx"));
 }
 
-function buildPdfTableElement(options: TabularExportOptions): HTMLDivElement {
-  const { title, subtitle, headers, rows } = options;
-  const root = document.createElement("div");
-  root.setAttribute("data-tabular-export", "true");
-  root.style.cssText =
-    "font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; line-height: 1.4; color: #111827; background: #ffffff; padding: 20px;";
-
-  if (title) {
-    const h1 = document.createElement("h1");
-    h1.textContent = title;
-    h1.style.cssText = "margin: 0 0 6px; font-size: 18px; font-weight: 600;";
-    root.appendChild(h1);
-  }
-  if (subtitle) {
-    const meta = document.createElement("p");
-    meta.textContent = subtitle;
-    meta.style.cssText = "margin: 0 0 14px; font-size: 11px; color: #4b5563;";
-    root.appendChild(meta);
-  }
-
-  const table = document.createElement("table");
-  table.style.cssText = "border-collapse: collapse; width: 100%;";
-
-  const thead = document.createElement("thead");
-  const headRow = document.createElement("tr");
-  for (const header of headers) {
-    const th = document.createElement("th");
-    th.textContent = header;
-    th.style.cssText =
-      "border: 1px solid #d1d5db; padding: 6px 8px; text-align: left; background: #f3f4f6; font-weight: 600;";
-    headRow.appendChild(th);
-  }
-  thead.appendChild(headRow);
-  table.appendChild(thead);
-
-  const tbody = document.createElement("tbody");
-  for (const row of rows) {
-    const tr = document.createElement("tr");
-    for (const cell of row) {
-      const td = document.createElement("td");
-      td.textContent = cell;
-      td.style.cssText = "border: 1px solid #e5e7eb; padding: 5px 8px; vertical-align: top;";
-      tr.appendChild(td);
-    }
-    tbody.appendChild(tr);
-  }
-  table.appendChild(tbody);
-  root.appendChild(table);
-  return root;
-}
-
 export async function downloadTabularPdf(options: TabularExportOptions): Promise<void> {
   const { headers, rows } = options;
   if (rows.length === 0) return;
-  const element = buildPdfTableElement(options);
   const orientation = headers.length > 6 ? "landscape" : "portrait";
-  element.setAttribute("data-tabular-orientation", orientation);
-  element.style.position = "fixed";
-  element.style.left = "0";
-  element.style.top = "0";
-  element.style.zIndex = "-1";
-  element.style.pointerEvents = "none";
-  document.body.appendChild(element);
-  try {
-    await downloadElementAsPdf(element, datedFilename(options.baseFilename, "pdf"), {
-      orientation,
-      margin: 10,
-    });
-  } finally {
-    document.body.removeChild(element);
-  }
+  await saveTabularPdf(datedFilename(options.baseFilename, "pdf"), options, orientation);
 }
 
 export async function exportTabular(

@@ -7,6 +7,10 @@ import {
   executeIdempotentOperation,
   idempotentOperationErrorResponse,
 } from "@/lib/erp/client-operations/execute-idempotent-operation";
+import {
+  salesPersonIdFromPayload,
+  withSalesmanDocumentAudit,
+} from "@/modules/erp/lib/log-sales-document-audit";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import {
   idempotentSalesOrderUpdateBodySchema,
@@ -62,13 +66,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
 
       if (!outcome.idempotentReplay && outcome.result?.orderId) {
-        await logAuditEvent({
-          action: "update",
-          entityType: "sales_order",
-          entityId: outcome.result.orderId,
-          description: `Sales order ${outcome.result.salesOrderNumber ?? outcome.result.orderId} updated`,
-          storeId: idempotent.data.storeId,
-        });
+        const salesPersonId = salesPersonIdFromPayload(idempotent.data.payload);
+        await logAuditEvent(
+          withSalesmanDocumentAudit("sales_order", salesPersonId, {
+            action: "update",
+            entityType: "sales_order",
+            entityId: outcome.result.orderId,
+            description: `Sales order ${outcome.result.salesOrderNumber ?? outcome.result.orderId} updated`,
+            storeId: idempotent.data.storeId,
+          }),
+        );
       }
 
       return NextResponse.json(

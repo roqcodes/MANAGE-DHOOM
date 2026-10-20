@@ -154,8 +154,9 @@ export function AdminErpFinancialSummaryView() {
           ["Accounts Payable", data?.accounts_payable],
           ["Net Income YTD", data?.net_income_ytd],
           ["Net Profit YTD", data?.net_profit_ytd],
-          ["COGS YTD", data?.cogs_ytd],
-          ["Expenses YTD", data?.expenses_ytd],
+          ["COGS (recognized)", data?.cogs_ytd],
+          ["Purchases (bills)", data?.purchases_ytd],
+          ["Operating expenses", data?.expenses_ytd],
           ["Low Stock Items", data?.low_stock_count],
         ].map(([label, value]) => (
           <div key={label as string} className="rounded-lg border p-3">

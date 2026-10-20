@@ -30,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminDateRange, useDebouncedValue } from "@/modules/admin/ui";
 import { useErpReportFetch } from "@/modules/admin/views/reports/business-overview/use-erp-report-fetch";
+import { useSalesmanReportFilter } from "@/modules/admin/views/reports/business-overview/use-salesman-report-filter";
 import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -182,6 +183,7 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
     ? debouncedVendorSearch
     : debouncedCustomerSearch;
 
+  const { salesmanId } = useSalesmanReportFilter(report);
   const { loading, error, rawData, reload } = useErpReportFetch(report, {
     dateFrom,
     dateTo,
@@ -193,6 +195,7 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
       report.filters.customerSearch || report.filters.vendorSearch
         ? serverSearch
         : undefined,
+    salesmanId,
   });
 
   const rows = useMemo(

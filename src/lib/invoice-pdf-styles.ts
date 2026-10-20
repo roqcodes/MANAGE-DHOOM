@@ -182,6 +182,57 @@ export function injectInvoicePdfStyles(clonedDoc: Document): void {
   clonedDoc.head.appendChild(style);
 }
 
+/** Injected into html2pdf clone for report/table exports after stylesheet strip. */
+export const TABULAR_PDF_CAPTURE_CSS = `
+[data-tabular-export] {
+  box-sizing: border-box !important;
+  background: #ffffff !important;
+  color: #111827 !important;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 11px !important;
+  line-height: 1.4 !important;
+  position: relative !important;
+  left: 0 !important;
+  top: 0 !important;
+  z-index: auto !important;
+  margin: 0 !important;
+}
+[data-tabular-export] h1 {
+  margin: 0 0 6px !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+}
+[data-tabular-export] p {
+  margin: 0 0 14px !important;
+  font-size: 11px !important;
+  color: #4b5563 !important;
+}
+[data-tabular-export] table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  display: table !important;
+}
+[data-tabular-export] thead {
+  display: table-header-group !important;
+}
+[data-tabular-export] tbody {
+  display: table-row-group !important;
+}
+[data-tabular-export] tr {
+  display: table-row !important;
+}
+[data-tabular-export] th,
+[data-tabular-export] td {
+  display: table-cell !important;
+}
+`;
+
+export function injectTabularPdfStyles(clonedDoc: Document): void {
+  const style = clonedDoc.createElement("style");
+  style.textContent = TABULAR_PDF_CAPTURE_CSS;
+  clonedDoc.head.appendChild(style);
+}
+
 export function preparePrintDocumentForPdfCapture(root: HTMLElement): void {
   root.style.width = "794px";
   root.style.maxWidth = "794px";

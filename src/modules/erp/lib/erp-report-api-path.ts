@@ -22,6 +22,7 @@ export type ErpReportFetchParams = {
   vendorId?: string;
   ageMinDays?: number;
   ageMaxDays?: number;
+  salesmanId?: string;
 };
 
 /** Stable admin API path for TanStack Query cache keys and fetch. */
@@ -69,6 +70,9 @@ export function buildErpReportApiPath(
   if (report.filters.ageRange || report.filters.expiredDaysRange) {
     if (params.ageMinDays != null) q.set("ageMinDays", String(params.ageMinDays));
     if (params.ageMaxDays != null) q.set("ageMaxDays", String(params.ageMaxDays));
+  }
+  if (report.filters.salesman && params.salesmanId) {
+    q.set("salesmanId", params.salesmanId);
   }
   return `erp/reports?${q.toString()}`;
 }

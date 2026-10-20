@@ -11,6 +11,10 @@ import {
   SALES_INVOICE_AUDIT_FIELD_LABELS,
   salesInvoiceAuditSnapshotFromDetail,
 } from "@/modules/erp/lib/document-audit-snapshots";
+import {
+  salesPersonIdFromPayload,
+  withSalesmanDocumentAudit,
+} from "@/modules/erp/lib/log-sales-document-audit";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import {
   idempotentSalesInvoiceUpdateBodySchema,
@@ -91,18 +95,23 @@ export async function PATCH(
       if (!outcome.idempotentReplay && outcome.result?.invoiceId) {
         const afterDetail = await fetchErpInvoiceDetail(outcome.result.invoiceId);
         const afterSnapshot = invoiceAuditSnapshotFromFetched(afterDetail);
+        const salesPersonId = salesPersonIdFromPayload(idempotent.data.payload);
         await logAuditEvent(
-          buildAuditUpdateEvent({
-            action: "update",
-            entityType: "invoice",
-            entityId: outcome.result.invoiceId,
-            storeId: idempotent.data.storeId,
-            headline: "ERP invoice updated",
-            syncNote: "(durable sync)",
-            before: beforeSnapshot,
-            after: afterSnapshot,
-            fieldLabels: SALES_INVOICE_AUDIT_FIELD_LABELS,
-          }),
+          withSalesmanDocumentAudit(
+            "invoice",
+            salesPersonId,
+            buildAuditUpdateEvent({
+              action: "update",
+              entityType: "invoice",
+              entityId: outcome.result.invoiceId,
+              storeId: idempotent.data.storeId,
+              headline: "ERP invoice updated",
+              syncNote: "(durable sync)",
+              before: beforeSnapshot,
+              after: afterSnapshot,
+              fieldLabels: SALES_INVOICE_AUDIT_FIELD_LABELS,
+            }),
+          ),
         );
       }
 

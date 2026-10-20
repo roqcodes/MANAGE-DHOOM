@@ -11,7 +11,7 @@ export type SalesInvoiceCreatePayload = {
   taxInclusive?: boolean;
   reference?: string;
   notes?: string;
-  salesPersonId?: string;
+  salesPersonId: string;
   estimateId?: string;
   finalize?: boolean;
 };
@@ -25,10 +25,12 @@ export type SalesInvoiceUpdatePayload = {
   taxInclusive?: boolean;
   reference?: string;
   notes?: string;
+  salesPersonId: string;
 };
 
 export type SalesInvoiceIssuePayload = {
   invoiceId: string;
+  salesPersonId: string;
 };
 
 export type SalesInvoiceCancelPayload = {

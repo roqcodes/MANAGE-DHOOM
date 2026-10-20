@@ -319,9 +319,15 @@ export type ErpFinancialDashboard = {
   accounts_receivable: number;
   accounts_payable: number;
   net_income_ytd: number;
+  /** Recognized COGS from posted journals (not purchase bills). */
   cogs_ytd: number;
+  /** Purchase bill totals in the period (inventory purchases, not COGS). */
+  purchases_ytd?: number;
+  gross_profit_ytd?: number;
   expenses_ytd: number;
   net_profit_ytd: number;
+  date_from?: string;
+  date_to?: string;
   low_stock_count: number;
   daily_sales: Array<{ day: string; total: number }>;
   invoice_status_ytd: Array<{ status: string; count: number; total: number }>;

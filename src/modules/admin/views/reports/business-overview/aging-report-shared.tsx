@@ -27,6 +27,7 @@ export function useAgingSummaryReportQuery(
     search: serverSearch ? filters.debouncedSearch : undefined,
     ageMinDays: age.ageMinDays,
     ageMaxDays: age.ageMaxDays,
+    salesmanId: filters.salesmanId,
   };
 
   const ageToolbar: ReactNode = age.enabled ? (

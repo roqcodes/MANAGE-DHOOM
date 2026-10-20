@@ -50,8 +50,15 @@ export function BalanceSheetReport({ report }: { report: ReportDefinition }) {
     [rows, filters.debouncedSearch],
   );
 
-  const { assets, liabilities, equity, totalAssets, totalLiabilities, totalEquity } =
-    useMemo(() => partitionBalanceSheetRows(filtered), [filtered]);
+  const {
+    totalAssets: fullTotalAssets,
+    totalLiabilities: fullTotalLiabilities,
+    totalEquity: fullTotalEquity,
+  } = useMemo(() => partitionBalanceSheetRows(rows), [rows]);
+  const { assets, liabilities, equity } = useMemo(
+    () => partitionBalanceSheetRows(filtered),
+    [filtered],
+  );
 
   const assetGroups = useMemo(() => groupRowsByTypeName(assets), [assets]);
   const liabilityGroups = useMemo(() => groupRowsByTypeName(liabilities), [liabilities]);
@@ -97,7 +104,7 @@ export function BalanceSheetReport({ report }: { report: ReportDefinition }) {
               {assetGroups.map(([typeName, groupRows]) => (
                 <TypeGroup key={typeName} title={typeName} rows={groupRows} />
               ))}
-              <StatementTotalRow label="Total assets" amount={totalAssets} emphasis />
+              <StatementTotalRow label="Total assets" amount={fullTotalAssets} emphasis />
             </StatementTable>
           </div>
           <div>
@@ -106,13 +113,13 @@ export function BalanceSheetReport({ report }: { report: ReportDefinition }) {
               {liabilityGroups.map(([typeName, groupRows]) => (
                 <TypeGroup key={`l-${typeName}`} title={typeName} rows={groupRows} />
               ))}
-              <StatementTotalRow label="Total liabilities" amount={totalLiabilities} />
+              <StatementTotalRow label="Total liabilities" amount={fullTotalLiabilities} />
               {equityGroups.map(([typeName, groupRows]) => (
                 <TypeGroup key={`e-${typeName}`} title={typeName} rows={groupRows} />
               ))}
               <StatementTotalRow
                 label="Total liabilities & equity"
-                amount={totalLiabilities + totalEquity}
+                amount={fullTotalLiabilities + fullTotalEquity}
                 emphasis
               />
             </StatementTable>
@@ -121,8 +128,8 @@ export function BalanceSheetReport({ report }: { report: ReportDefinition }) {
       )}
       {!loading && !isEmpty ? (
         <p className="border-t px-4 py-2 text-xs text-muted-foreground">
-          Assets {formatCurrencyAmount(totalAssets)} · Liabilities & equity{" "}
-          {formatCurrencyAmount(totalLiabilities + totalEquity)}
+          Assets {formatCurrencyAmount(fullTotalAssets)} · Liabilities & equity{" "}
+          {formatCurrencyAmount(fullTotalLiabilities + fullTotalEquity)}
         </p>
       ) : null}
     </BusinessReportLayout>

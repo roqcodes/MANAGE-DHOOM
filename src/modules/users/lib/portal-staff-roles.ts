@@ -10,7 +10,7 @@ export type AssignableErpStaffRole = {
 };
 
 export const ASSIGNABLE_ERP_STAFF_ROLES: readonly AssignableErpStaffRole[] = [
-  { slug: UserRole.Salesman, label: "Salesman", rbacSlug: "salesman" },
+  { slug: UserRole.Salesman, label: "Sales Counter", rbacSlug: "salesman" },
   { slug: UserRole.SalesManager, label: "Sales Manager", rbacSlug: "sales_manager" },
   { slug: UserRole.Accountant, label: "Accountant", rbacSlug: "accountant" },
   { slug: UserRole.StoreKeeper, label: "Store Keeper", rbacSlug: "store_keeper" },

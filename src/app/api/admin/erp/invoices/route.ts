@@ -6,6 +6,10 @@ import {
   executeIdempotentOperation,
   idempotentOperationErrorResponse,
 } from "@/lib/erp/client-operations/execute-idempotent-operation";
+import {
+  salesPersonIdFromPayload,
+  withSalesmanDocumentAudit,
+} from "@/modules/erp/lib/log-sales-document-audit";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import {
   idempotentSalesInvoiceCreateBodySchema,
@@ -70,13 +74,16 @@ export async function POST(request: Request) {
       });
 
       if (!outcome.idempotentReplay && outcome.result?.invoiceId) {
-        await logAuditEvent({
-          action: "create_invoice",
-          entityType: "invoice",
-          entityId: outcome.result.invoiceId,
-          description: "ERP invoice created (durable sync)",
-          storeId: idempotent.data.storeId,
-        });
+        const salesPersonId = salesPersonIdFromPayload(idempotent.data.payload);
+        await logAuditEvent(
+          withSalesmanDocumentAudit("invoice", salesPersonId, {
+            action: "create_invoice",
+            entityType: "invoice",
+            entityId: outcome.result.invoiceId,
+            description: "ERP invoice created (durable sync)",
+            storeId: idempotent.data.storeId,
+          }),
+        );
       }
 
       return NextResponse.json(

@@ -24,7 +24,10 @@ const MONTH_LABELS = [
 
 type ProfitAndLossResult = {
   total_income?: number;
+  total_cogs?: number;
+  total_operating_expenses?: number;
   total_expenses?: number;
+  gross_profit?: number;
   net_profit?: number;
 };
 
@@ -170,18 +173,26 @@ export async function buildStorePlSeries(
         : rpc.data;
     if (Array.isArray(rows)) {
       const byKey = new Map(
-        (rows as Array<{ period_key: string; income: number; expenses: number; net_profit: number }>).map(
-          (row) => [row.period_key, row],
-        ),
+        (
+          rows as Array<{
+            period_key: string;
+            income: number;
+            cogs?: number;
+            expenses: number;
+            net_profit: number;
+          }>
+        ).map((row) => [row.period_key, row]),
       );
       for (const bucket of buckets) {
         const key = bucket.monthKey ?? `${bucket.monthNum}`;
         const row = byKey.get(key);
         if (!row) continue;
         bucket.income = Number(row.income ?? 0);
+        bucket.cogs = Number(row.cogs ?? 0);
         bucket.expenses = Number(row.expenses ?? 0);
-        bucket.cogs = 0;
-        bucket.netProfit = Number(row.net_profit ?? bucket.income - bucket.expenses);
+        bucket.netProfit = Number(
+          row.net_profit ?? bucket.income - bucket.cogs - bucket.expenses,
+        );
       }
       return buckets;
     }
@@ -283,16 +294,24 @@ export async function getStoreFinancialDashboard(
         status: string;
       }>;
     };
-    const plPeriod = await callProfitAndLoss(supabase, from, to, storeId);
-    const totalIncome = Number(plPeriod.total_income ?? 0);
-    const totalExpenses = Number(plPeriod.total_expenses ?? 0);
+    const dashRes = await supabase.rpc("get_erp_financial_dashboard", {
+      p_date_from: from,
+      p_date_to: to,
+      p_store_id: storeId,
+    });
+    if (dashRes.error) throw new Error(dashRes.error.message);
+    const dash = (dashRes.data ?? {}) as ErpFinancialDashboard;
     return {
-      accounts_receivable: Number(snap.accounts_receivable ?? 0),
-      accounts_payable: Number(snap.accounts_payable ?? 0),
-      net_income_ytd: totalIncome,
-      cogs_ytd: 0,
-      expenses_ytd: totalExpenses,
-      net_profit_ytd: Number(plPeriod.net_profit ?? 0),
+      accounts_receivable: Number(snap.accounts_receivable ?? dash.accounts_receivable ?? 0),
+      accounts_payable: Number(snap.accounts_payable ?? dash.accounts_payable ?? 0),
+      net_income_ytd: Number(dash.net_income_ytd ?? 0),
+      cogs_ytd: Number(dash.cogs_ytd ?? 0),
+      purchases_ytd: Number(dash.purchases_ytd ?? 0),
+      gross_profit_ytd: Number(dash.gross_profit_ytd ?? 0),
+      expenses_ytd: Number(dash.expenses_ytd ?? 0),
+      net_profit_ytd: Number(dash.net_profit_ytd ?? 0),
+      date_from: dash.date_from,
+      date_to: dash.date_to,
       low_stock_count: 0,
       daily_sales: (snap.daily_sales ?? []).map((row) => ({
         day: row.day,
@@ -316,9 +335,8 @@ export async function getStoreFinancialDashboard(
     };
   }
 
-  const [plPeriod, arResult, apResult, lowStockResult, invoiceStatusResult, dailySalesResult] =
+  const [arResult, apResult, lowStockResult, invoiceStatusResult, dailySalesResult] =
     await Promise.all([
-      callProfitAndLoss(supabase, from, to, storeId),
       supabase
         .from("invoices")
         .select("balance_due")
@@ -386,16 +404,25 @@ export async function getStoreFinancialDashboard(
     .map(([day, total]) => ({ day, total }))
     .sort((a, b) => a.day.localeCompare(b.day));
 
-  const totalIncome = Number(plPeriod.total_income ?? 0);
-  const totalExpenses = Number(plPeriod.total_expenses ?? 0);
+  const dashRes = await supabase.rpc("get_erp_financial_dashboard", {
+    p_date_from: from,
+    p_date_to: to,
+    p_store_id: storeId,
+  });
+  if (dashRes.error) throw new Error(dashRes.error.message);
+  const dash = (dashRes.data ?? {}) as ErpFinancialDashboard;
 
   return {
     accounts_receivable: accountsReceivable,
     accounts_payable: accountsPayable,
-    net_income_ytd: totalIncome,
-    cogs_ytd: 0,
-    expenses_ytd: totalExpenses,
-    net_profit_ytd: Number(plPeriod.net_profit ?? 0),
+    net_income_ytd: Number(dash.net_income_ytd ?? 0),
+    cogs_ytd: Number(dash.cogs_ytd ?? 0),
+    purchases_ytd: Number(dash.purchases_ytd ?? 0),
+    gross_profit_ytd: Number(dash.gross_profit_ytd ?? 0),
+    expenses_ytd: Number(dash.expenses_ytd ?? 0),
+    net_profit_ytd: Number(dash.net_profit_ytd ?? 0),
+    date_from: dash.date_from,
+    date_to: dash.date_to,
     low_stock_count: lowStockCount,
     daily_sales: dailySales,
     invoice_status_ytd: [...statusAgg.entries()].map(([status, v]) => ({
@@ -406,10 +433,18 @@ export async function getStoreFinancialDashboard(
   };
 }
 
-export async function getFinancialDashboard(): Promise<ErpFinancialDashboard> {
+export async function getFinancialDashboard(
+  dateFrom?: string,
+  dateTo?: string,
+): Promise<ErpFinancialDashboard> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("get_erp_financial_dashboard");
+  const range = defaultDashboardDateRange();
+  const { data, error } = await supabase.rpc("get_erp_financial_dashboard", {
+    p_date_from: dateFrom ?? range.dateFrom,
+    p_date_to: dateTo ?? range.dateTo,
+    p_store_id: null,
+  });
   if (error) throw new Error(error.message);
   return data as ErpFinancialDashboard;
 }

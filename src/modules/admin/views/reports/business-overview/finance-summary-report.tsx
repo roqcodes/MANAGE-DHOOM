@@ -140,12 +140,18 @@ export function FinanceSummaryReport({ report }: { report: ReportDefinition }) {
         <AdminTableBodySkeleton rows={8} />
       ) : (
         <div className="space-y-6 p-3">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <MetricCard label="Accounts receivable" value={Number(metrics.accounts_receivable ?? 0)} />
             <MetricCard label="Accounts payable" value={Number(metrics.accounts_payable ?? 0)} />
+            <MetricCard label="Revenue (period)" value={Number(metrics.net_income_ytd ?? 0)} />
+            <MetricCard label="COGS (recognized)" value={Number(metrics.cogs_ytd ?? 0)} />
+            <MetricCard label="Purchases (bills)" value={Number(metrics.purchases_ytd ?? 0)} />
             <MetricCard label="Net profit (period)" value={Number(metrics.net_profit_ytd ?? 0)} />
-            <MetricCard label="Low stock items" value={Number(metrics.low_stock_count ?? 0)} isCount />
           </div>
+          <p className="text-xs text-muted-foreground px-1">
+            Profit and COGS follow posted journals (same basis as Profit &amp; Loss). Purchase bills are
+            inventory purchases, not period COGS. Low stock: {Number(metrics.low_stock_count ?? 0)} items.
+          </p>
 
           <div className="grid gap-6 lg:grid-cols-2">
             <PositionColumn

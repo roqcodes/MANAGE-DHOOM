@@ -242,6 +242,10 @@ export async function convertEstimateToInvoice(estimateId: string): Promise<stri
 
   const { createErpInvoice } = await import("@/modules/erp/services/erp-invoices.service");
 
+  if (!estimate.sales_person_id) {
+    throw new Error("Assign a salesman on the estimate before converting to an invoice.");
+  }
+
   const invoiceId = await createErpInvoice({
     userId: estimate.user_id,
     storeId: estimate.store_id,
@@ -252,7 +256,7 @@ export async function convertEstimateToInvoice(estimateId: string): Promise<stri
     taxInclusive: estimate.tax_inclusive,
     reference: estimate.reference ?? undefined,
     notes: estimate.notes ?? undefined,
-    salesPersonId: estimate.sales_person_id ?? undefined,
+    salesPersonId: estimate.sales_person_id,
     estimateId,
     finalize: true,
   });
