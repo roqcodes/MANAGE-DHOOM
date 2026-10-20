@@ -109,13 +109,29 @@ function isColorProp(prop: (typeof INLINE_PROPS)[number]): prop is (typeof COLOR
   return (COLOR_PROPS as readonly string[]).includes(prop);
 }
 
+function isTabularExportRoot(root: HTMLElement): boolean {
+  return root.hasAttribute("data-tabular-export");
+}
+
+function tabularCaptureWidthPx(root: HTMLElement): number {
+  return root.getAttribute("data-tabular-orientation") === "landscape" ? 1123 : 794;
+}
+
+export function prepareTabularExportForPdfCapture(root: HTMLElement): void {
+  const width = tabularCaptureWidthPx(root);
+  root.style.width = `${width}px`;
+  root.style.maxWidth = `${width}px`;
+  root.style.boxSizing = "border-box";
+}
+
 export function inlineStylesForHtml2Canvas(
   clonedRoot: HTMLElement,
   sourceRoot: HTMLElement,
 ): void {
   const documentCapture =
     sourceRoot.hasAttribute("data-print-document") ||
-    sourceRoot.hasAttribute("data-invoice-document");
+    sourceRoot.hasAttribute("data-invoice-document") ||
+    isTabularExportRoot(sourceRoot);
 
   const sourceNodes = [sourceRoot, ...sourceRoot.querySelectorAll("*")];
   const clonedNodes = [clonedRoot, ...clonedRoot.querySelectorAll("*")];
@@ -154,15 +170,27 @@ export function buildHtml2CanvasOptions(sourceRoot: HTMLElement) {
   const isPrintDocument =
     sourceRoot.hasAttribute("data-print-document") ||
     sourceRoot.hasAttribute("data-invoice-document");
+  const isTabularExport = isTabularExportRoot(sourceRoot);
+  const captureWidth = isPrintDocument
+    ? 794
+    : isTabularExport
+      ? tabularCaptureWidthPx(sourceRoot)
+      : undefined;
 
   return {
     scale: 2,
     useCORS: true,
-    width: isPrintDocument ? 794 : undefined,
-    windowWidth: isPrintDocument ? 794 : undefined,
+    width: captureWidth,
+    windowWidth: captureWidth,
     onclone: (clonedDoc: Document, clonedElement: HTMLElement) => {
       inlineStylesForHtml2Canvas(clonedElement, sourceRoot);
       stripUnsupportedStylesheets(clonedDoc);
+      if (isTabularExport) {
+        clonedElement.style.setProperty("position", "relative", "important");
+        clonedElement.style.setProperty("left", "0", "important");
+        clonedElement.style.setProperty("top", "0", "important");
+        clonedElement.style.setProperty("margin", "0", "important");
+      }
       if (isPrintDocument) {
         injectInvoicePdfStyles(clonedDoc);
       }
@@ -185,6 +213,8 @@ export async function downloadElementAsPdf(
     element.hasAttribute("data-invoice-document")
   ) {
     preparePrintDocumentForPdfCapture(element);
+  } else if (element.hasAttribute("data-tabular-export")) {
+    prepareTabularExportForPdfCapture(element);
   }
 
   const html2pdf = (await import("html2pdf.js")).default;

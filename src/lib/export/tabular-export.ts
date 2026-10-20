@@ -60,8 +60,9 @@ export async function downloadTabularXlsx(options: TabularExportOptions): Promis
 function buildPdfTableElement(options: TabularExportOptions): HTMLDivElement {
   const { title, subtitle, headers, rows } = options;
   const root = document.createElement("div");
+  root.setAttribute("data-tabular-export", "true");
   root.style.cssText =
-    "font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; line-height: 1.4; color: #111827; background: #ffffff; padding: 20px; width: max-content; max-width: 100%;";
+    "font-family: ui-sans-serif, system-ui, sans-serif; font-size: 11px; line-height: 1.4; color: #111827; background: #ffffff; padding: 20px;";
 
   if (title) {
     const h1 = document.createElement("h1");
@@ -111,13 +112,17 @@ export async function downloadTabularPdf(options: TabularExportOptions): Promise
   const { headers, rows } = options;
   if (rows.length === 0) return;
   const element = buildPdfTableElement(options);
+  const orientation = headers.length > 6 ? "landscape" : "portrait";
+  element.setAttribute("data-tabular-orientation", orientation);
   element.style.position = "fixed";
-  element.style.left = "-10000px";
+  element.style.left = "0";
   element.style.top = "0";
+  element.style.zIndex = "-1";
+  element.style.pointerEvents = "none";
   document.body.appendChild(element);
   try {
     await downloadElementAsPdf(element, datedFilename(options.baseFilename, "pdf"), {
-      orientation: headers.length > 6 ? "landscape" : "portrait",
+      orientation,
       margin: 10,
     });
   } finally {
