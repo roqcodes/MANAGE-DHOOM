@@ -8,7 +8,7 @@ import {
   type AccountTypeRow,
 } from "@/common/erp/finance-types";
 import {
-  FormError,
+  ModalFormFooter,
   Modal,
   PrimaryBtn,
   SecondaryBtn,
@@ -16,6 +16,7 @@ import {
   selectCls,
 } from "@/modules/admin/components/modal";
 import { adminDelete, adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -53,15 +54,21 @@ function AccountTypeFormModal({
   onSaved: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [accountCategory, setAccountCategory] = useState(row?.account_category ?? "Assets");
   const [name, setName] = useState(row?.name ?? "");
   const [description, setDescription] = useState(row?.description ?? "");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return setError("Name is required.");
-    if (!description.trim()) return setError("Description is required.");
+    const validationErrors: string[] = [];
+    if (!name.trim()) validationErrors.push("Name is required.");
+    if (!description.trim()) validationErrors.push("Description is required.");
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    setErrors([]);
 
     const payload = {
       accountCategory,
@@ -79,7 +86,7 @@ function AccountTypeFormModal({
         onSaved();
         onClose();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save.");
+        setErrors([actionErrorMessage(err, "Failed to save.")]);
       }
     });
   }
@@ -136,13 +143,12 @@ function AccountTypeFormModal({
           />
         </label>
 
-        <FormError message={error} />
-        <div className="flex justify-end gap-2">
+        <ModalFormFooter errors={errors}>
           <SecondaryBtn onClick={onClose}>Cancel</SecondaryBtn>
           <PrimaryBtn type="submit" disabled={isPending}>
             {isPending ? "Saving…" : "Save"}
           </PrimaryBtn>
-        </div>
+        </ModalFormFooter>
       </form>
     </Modal>
   );

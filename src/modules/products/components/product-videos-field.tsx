@@ -5,6 +5,7 @@ import { Trash2, UploadCloud, Loader2, Plus, Film } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   ACCEPTED_VIDEO_MIME,
   CLOUDINARY_CONFIGURED,
@@ -185,7 +186,7 @@ export function ProductVideosField({
         </Button>
       </div>
 
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
     </div>
   );
 }

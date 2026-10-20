@@ -18,6 +18,7 @@ import {
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export type SalaryPaymentFormViewProps = ErpFormViewBaseProps;
 
@@ -160,7 +161,7 @@ export function SalaryPaymentFormView({
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         <AdminFormSection title="Payment details">
           <AdminFormGrid>
@@ -234,3 +235,4 @@ export function SalaryPaymentFormView({
     </AdminFormShell>
   );
 }
+

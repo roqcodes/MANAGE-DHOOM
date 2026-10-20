@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -28,6 +28,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -36,6 +37,17 @@ import {
   ActiveStoreFormField,
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
+import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
+import {
+  usePaymentFormAddLineBlocked,
+  usePaymentFormSubmitBlocked,
+} from "@/modules/erp/hooks/use-payment-form-submit-blocked";
+import {
+  validateFifoAllocationAmount,
+  validatePaymentLinesBalance,
+  validateSingleDocumentPaymentAmount,
+} from "@/modules/erp/lib/payment-balance-validation";
 
 type PendingLine = {
   invoiceId: string;
@@ -76,8 +88,9 @@ export function CustomerBulkPaymentFormView({
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
   const [isAddingLine, setIsAddingLine] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const isModal = variant === "modal";
+  const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
+    useErpPaymentFormErrors(isModal);
 
   const [accounts, setAccounts] = useState<PaidThroughAccountOption[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<PaidThroughAccountOption[]>([]);
@@ -107,8 +120,36 @@ export function CustomerBulkPaymentFormView({
     ).then((res) => setExpenseAccounts(res.data ?? []));
   }, [effectiveStoreId]);
 
-  const total = lines.reduce((s, l) => s + l.amount, 0);
+  const lineTotals = useMemo(
+    () =>
+      lines.reduce(
+        (acc, l) => ({
+          due: acc.due + l.balanceDue,
+          paying: acc.paying + l.amount,
+          remaining: acc.remaining + Math.max(0, l.balanceDue - l.amount),
+        }),
+        { due: 0, paying: 0, remaining: 0 },
+      ),
+    [lines],
+  );
+  const total = lineTotals.paying;
   const bankChargesAmount = parseFloat(bankCharges) || 0;
+
+  const amountGuardInput = {
+    inlineError,
+    lineAmount,
+    documentKind: "invoice" as const,
+    selectedDocumentId: selectedInvoiceId,
+    selectedDocumentBalance: selectedInvoiceBalance,
+    selectedDocumentLabel: invoiceLabel,
+    lines: lines.map((l) => ({
+      amount: l.amount,
+      balanceDue: l.balanceDue,
+      label: l.invoiceNumber,
+    })),
+  };
+  const submitBlocked = usePaymentFormSubmitBlocked(amountGuardInput);
+  const addLineBlocked = usePaymentFormAddLineBlocked(amountGuardInput);
 
   function handleCancel() {
     if (isModal) {
@@ -169,36 +210,47 @@ export function CustomerBulkPaymentFormView({
   }
 
   async function addLine() {
-    setError(null);
+    clearFormError();
     const amt = parseFloat(lineAmount);
-    if (!amt || amt <= 0) return setError("Enter a positive amount.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+    if (!amt || amt <= 0) return setFormError("Enter a positive amount.");
+    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
     setIsAddingLine(true);
     try {
       if (!userId) {
-        setError("Select a customer before applying FIFO or adding an invoice.");
+        setFormError("Select a customer before applying FIFO or adding an invoice.");
         return;
       }
 
       if (!selectedInvoiceId) {
         const fifoLines = await buildFifoLines(amt, lines.map((l) => l.invoiceId));
         if (fifoLines.length === 0) {
-          setError("No open invoices available for FIFO allocation.");
+          setFormError("No open invoices available for FIFO allocation.");
+          return;
+        }
+        const fifoErr = validateFifoAllocationAmount(amt, fifoLines, "invoice");
+        if (fifoErr) {
+          notifyAmountIssue(fifoErr);
           return;
         }
         setLines((prev) => mergePendingLines(prev, fifoLines));
         setLineAmount("");
-        setError(null);
+        setFormError(null);
         return;
       }
 
       if (lines.some((l) => l.invoiceId === selectedInvoiceId)) {
-        setError("Invoice already added.");
+        setFormError("Invoice already added.");
         return;
       }
-      if (amt > selectedInvoiceBalance) {
-        setError("Amount exceeds invoice balance.");
+      const exceedsMsg = validateSingleDocumentPaymentAmount(
+        amt,
+        selectedInvoiceBalance,
+        "invoice",
+        invoiceLabel,
+      );
+      if (exceedsMsg) {
+        notifyAmountIssue(exceedsMsg);
         return;
       }
       setLines((prev) =>
@@ -219,9 +271,9 @@ export function CustomerBulkPaymentFormView({
       setInvoiceLabel("");
       setSelectedInvoiceBalance(0);
       setSelectedInvoiceCustomer(null);
-      setError(null);
+      setFormError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add invoice payment.");
+      setFormError(err instanceof Error ? err.message : "Failed to add invoice payment.");
     } finally {
       setIsAddingLine(false);
     }
@@ -233,12 +285,24 @@ export function CustomerBulkPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (lines.length === 0) return setError("Add at least one invoice payment.");
-    if (!accountId) return setError("Deposit account is required.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (bankChargesAmount >= total) return setError("Bank charges must be less than total payment.");
+    if (lines.length === 0) return setFormError("Add at least one invoice payment.");
+    const linesBalanceErr = validatePaymentLinesBalance(
+      lines.map((l) => ({
+        amount: l.amount,
+        balanceDue: l.balanceDue,
+        label: l.invoiceNumber,
+      })),
+      "invoice",
+    );
+    if (linesBalanceErr) {
+      notifyAmountIssue(linesBalanceErr);
+      return;
+    }
+    if (!accountId) return setFormError("Deposit account is required.");
+    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
+    if (bankChargesAmount >= total) return setFormError("Bank charges must be less than total payment.");
     if (bankChargesAmount > 0 && !bankChargesAccountId) {
-      return setError("Expense account is required for bank charges.");
+      return setFormError("Expense account is required for bank charges.");
     }
 
     startTransition(async () => {
@@ -259,7 +323,7 @@ export function CustomerBulkPaymentFormView({
         });
         handleSuccessNavigate(res.batchId);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save bulk payment.");
+        setFormError(err instanceof Error ? err.message : "Failed to save bulk payment.");
       }
     });
   }
@@ -273,6 +337,7 @@ export function CustomerBulkPaymentFormView({
       onCancel={handleCancel}
       submitLabel="Save bulk payment"
       pending={isPending}
+      submitDisabled={submitBlocked}
     />
   ) : undefined;
 
@@ -374,21 +439,28 @@ export function CustomerBulkPaymentFormView({
               <AdminFormField
                 label="Customer"
                 required
-                hint="Invoice search and FIFO apply only to this customer's open invoices."
+                hint="Switch customer to add another account's invoices — added lines stay in the table below."
               >
                 <CustomerSearchSelect
                   value={userId || null}
                   selectedLabel={customerLabel || undefined}
                   disabled={!effectiveStoreId}
                   onChange={(id, option) => {
-                    setUserId(id ?? "");
-                    setCustomerLabel(option?.label ?? "");
-                    setLines([]);
-                    setSelectedInvoiceId("");
-                    setInvoiceLabel("");
-                    setSelectedInvoiceBalance(0);
-                    setSelectedInvoiceCustomer(null);
-                    setLineAmount("");
+                    const prevUserId = userId;
+                    const nextUserId = id ?? "";
+                    setUserId(nextUserId);
+                    if (option?.label !== undefined) {
+                      setCustomerLabel(option.label);
+                    } else if (!nextUserId) {
+                      setCustomerLabel("");
+                    }
+                    if (nextUserId !== prevUserId) {
+                      setSelectedInvoiceId("");
+                      setInvoiceLabel("");
+                      setSelectedInvoiceBalance(0);
+                      setSelectedInvoiceCustomer(null);
+                      setLineAmount("");
+                    }
                   }}
                 />
               </AdminFormField>
@@ -434,7 +506,21 @@ export function CustomerBulkPaymentFormView({
                     type="number"
                     placeholder="Amount"
                     value={lineAmount}
-                    onChange={(e) => setLineAmount(e.target.value)}
+                    onChange={(e) => {
+                      setLineAmount(e.target.value);
+                      clearFormError();
+                    }}
+                    onBlur={() => {
+                      if (!selectedInvoiceId) return;
+                      const amt = parseFloat(lineAmount);
+                      const msg = validateSingleDocumentPaymentAmount(
+                        amt,
+                        selectedInvoiceBalance,
+                        "invoice",
+                        invoiceLabel,
+                      );
+                      if (msg) notifyAmountIssue(msg);
+                    }}
                     className="min-w-0 flex-1"
                     disabled={isAddingLine}
                   />
@@ -442,7 +528,9 @@ export function CustomerBulkPaymentFormView({
                     type="button"
                     variant="outline"
                     className="shrink-0 min-w-[6.5rem] justify-center"
-                    disabled={isAddingLine || !effectiveStoreId}
+                    disabled={
+                      isAddingLine || !effectiveStoreId || addLineBlocked
+                    }
                     onClick={() => void addLine()}
                   >
                     {isAddingLine ? (
@@ -504,13 +592,27 @@ export function CustomerBulkPaymentFormView({
                     </TableRow>
                   ))}
                 </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={3} className="font-medium">Total</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {formatCurrencyAmount(lineTotals.due)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold tabular-nums">
+                      {formatCurrencyAmount(lineTotals.paying)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums text-muted-foreground">
+                      {formatCurrencyAmount(lineTotals.remaining)}
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableFooter>
               </Table>
-              <p className="mt-3 text-sm font-medium">Total: {formatCurrencyAmount(total)}</p>
             </CardContent>
           </Card>
         ) : null}
 
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (
           <div className="flex gap-2">
@@ -520,7 +622,7 @@ export function CustomerBulkPaymentFormView({
             >
               Cancel
             </Link>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending || submitBlocked}>
               {isPending ? "Saving…" : "Save bulk payment"}
             </Button>
           </div>

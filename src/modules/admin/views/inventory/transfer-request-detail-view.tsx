@@ -13,6 +13,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type RequestDetail = {
   id: string;
@@ -163,7 +164,7 @@ export function TransferRequestDetailView({
         }
       />
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
 
       <ErpDocumentTabsLayout
         detailsLabel="Request details"
@@ -231,3 +232,4 @@ export function TransferRequestDetailView({
     </AdminPageLayout>
   );
 }
+

@@ -36,6 +36,7 @@ import { OrderLineItemsList } from "@/modules/orders/components/order-line-items
 import { AddressMapEmbed } from "@/modules/admin/components/address-map-embed";
 import { textareaCls } from "@/modules/admin/components/modal";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
 import { dispatchOutboxChanged } from "@/lib/sync/outbox-browser-events";
@@ -398,9 +399,7 @@ function MerchantNoteSection({
             <p className="text-[11px] text-muted-foreground">
               {draft.length}/500 characters
             </p>
-            {error ? (
-              <p className="text-sm text-rose-600">{error}</p>
-            ) : null}
+            <ErrorsFeedbackBridge errors={error} />
             <div className="flex justify-end gap-2">
               <Button
                 type="button"
@@ -529,7 +528,7 @@ function ExpectedDeliverySection({
               onChange={(e) => setDraft(e.target.value)}
               disabled={isPending}
             />
-            {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+            <ErrorsFeedbackBridge errors={error} />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" size="sm" onClick={cancelEdit} disabled={isPending}>
                 Cancel

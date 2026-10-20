@@ -24,6 +24,7 @@ import { NumericInput } from "@/components/ui/numeric-input";
 import { coalesceNumber } from "@/lib/numeric-input";
 import { StoreSelect, useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type TransferLine = {
   key: string;
@@ -398,7 +399,7 @@ export function StoreTransferFormView({
     >
       <div className="space-y-4">
         {sections}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
             <Link href="/admin/erp/store-transfers" className={buttonVariants({ variant: "outline" })}>
@@ -413,3 +414,4 @@ export function StoreTransferFormView({
     </AdminFormShell>
   );
 }
+

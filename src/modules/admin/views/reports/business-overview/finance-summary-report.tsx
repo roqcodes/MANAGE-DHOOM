@@ -25,6 +25,7 @@ import {
 } from "./report-format";
 import { useBusinessReportFilters } from "./use-business-report-filters";
 import { useErpReportFetch } from "./use-erp-report-fetch";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type PositionRow = {
   id: string;
@@ -134,7 +135,7 @@ export function FinanceSummaryReport({ report }: { report: ReportDefinition }) {
       }}
       showDateRange
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {busy ? (
         <AdminTableBodySkeleton rows={8} />
       ) : (

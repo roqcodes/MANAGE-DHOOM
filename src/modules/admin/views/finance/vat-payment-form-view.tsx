@@ -24,6 +24,8 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { validateVatPaymentAmount } from "@/modules/erp/lib/payment-balance-validation";
 import {
   Table,
   TableBody,
@@ -111,6 +113,10 @@ export function VatPaymentFormView({
     if (!paidFromAccountId) return setError("Paid from account is required.");
     const amt = parseFloat(amount);
     if (!amt || amt === 0) return setError("Amount is required.");
+    if (vatReturn) {
+      const vatErr = validateVatPaymentAmount(amt, vatReturn.balance_due);
+      if (vatErr) return setError(vatErr);
+    }
 
     startTransition(async () => {
       try {
@@ -284,6 +290,12 @@ export function VatPaymentFormView({
                 step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                onBlur={() => {
+                  if (!vatReturn) return;
+                  const amt = parseFloat(amount);
+                  const vatErr = validateVatPaymentAmount(amt, vatReturn.balance_due);
+                  if (vatErr) setError(vatErr);
+                }}
                 required
               />
             </AdminFormField>
@@ -298,7 +310,7 @@ export function VatPaymentFormView({
           </AdminFormGrid>
         </AdminFormSection>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
@@ -314,3 +326,4 @@ export function VatPaymentFormView({
     </AdminFormShell>
   );
 }
+

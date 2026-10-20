@@ -35,6 +35,7 @@ import {
 } from "../business-overview/report-format";
 import { useBusinessReportFilters } from "../business-overview/use-business-report-filters";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type LineItem = {
   product_name?: string;
@@ -98,7 +99,7 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
       searchPlaceholder="Search invoice #, customer, or user name…"
       metrics={!loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null}
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <AdminDataTable>
           <AdminDataTableRowsSkeleton rows={8} columns={11} />

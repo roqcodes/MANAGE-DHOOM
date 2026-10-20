@@ -39,6 +39,7 @@ type AlertState = {
   variant: AlertVariant;
   title: string;
   message: string;
+  bulletPoints?: string[];
   troubleshoot?: string[];
   showContactDeveloper?: boolean;
   technicalHint?: string;
@@ -69,6 +70,8 @@ type AppFeedbackContextValue = {
   showSuccess: (message: string, title?: string) => void;
   showInfo: (message: string, title?: string) => void;
   showWarning: (message: string, title?: string) => void;
+  /** Form validation — lists every issue in one modal. */
+  showValidationErrors: (errors: string[], title?: string) => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   prompt: (options: PromptOptions) => Promise<string | null>;
 };
@@ -181,6 +184,20 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const showValidationErrors = useCallback((errors: string[], title?: string) => {
+    const lines = errors.map((e) => e.trim()).filter(Boolean);
+    if (lines.length === 0) return;
+    setAlert({
+      variant: "warning",
+      title: title ?? "Check the form",
+      message:
+        lines.length === 1
+          ? lines[0]
+          : "Please fix the following before saving:",
+      bulletPoints: lines.length > 1 ? lines : undefined,
+    });
+  }, []);
+
   const confirm = useCallback((options: ConfirmOptions) => {
     return new Promise<boolean>((resolve) => {
       confirmResolveRef.current = resolve;
@@ -212,8 +229,16 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ showError, showSuccess, showInfo, showWarning, confirm, prompt }),
-    [showError, showSuccess, showInfo, showWarning, confirm, prompt],
+    () => ({
+      showError,
+      showSuccess,
+      showInfo,
+      showWarning,
+      showValidationErrors,
+      confirm,
+      prompt,
+    }),
+    [showError, showSuccess, showInfo, showWarning, showValidationErrors, confirm, prompt],
   );
 
   const variantMeta = alert ? VARIANT_META[alert.variant] : null;
@@ -234,7 +259,12 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
       {children}
 
       <Dialog open={alert != null} onOpenChange={(open) => !open && closeAlert()}>
-        <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogContent
+          showCloseButton={false}
+          elevated
+          instant
+          className="gap-0 overflow-hidden p-0 sm:max-w-md"
+        >
           {alert && variantMeta ? (
             <>
               <DialogHeader className="gap-3 border-b border-border px-5 py-4 text-left">
@@ -264,6 +294,13 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
                     <DialogDescription className="text-sm leading-relaxed text-foreground/85">
                       {alert.message}
                     </DialogDescription>
+                    {alert.bulletPoints && alert.bulletPoints.length > 0 ? (
+                      <ul className="list-disc space-y-1 pl-4 text-sm leading-relaxed text-foreground/85">
+                        {alert.bulletPoints.map((line) => (
+                          <li key={line}>{line}</li>
+                        ))}
+                      </ul>
+                    ) : null}
                     {alert.troubleshoot && alert.troubleshoot.length > 0 ? (
                       <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-muted-foreground">
                         {alert.troubleshoot.map((line) => (
@@ -300,7 +337,12 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
         open={confirmState != null}
         onOpenChange={(open) => !open && resolveConfirm(false)}
       >
-        <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogContent
+          showCloseButton={false}
+          elevated
+          instant
+          className="gap-0 overflow-hidden p-0 sm:max-w-md"
+        >
           {confirmState ? (
             <>
               <DialogHeader className="gap-2 border-b border-border px-5 py-4 text-left">
@@ -331,7 +373,12 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
       </Dialog>
 
       <Dialog open={promptState != null} onOpenChange={(open) => !open && resolvePrompt(null)}>
-        <DialogContent showCloseButton={false} className="gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogContent
+          showCloseButton={false}
+          elevated
+          instant
+          className="gap-0 overflow-hidden p-0 sm:max-w-md"
+        >
           {promptState ? (
             <>
               <DialogHeader className="gap-2 border-b border-border px-5 py-4 text-left">

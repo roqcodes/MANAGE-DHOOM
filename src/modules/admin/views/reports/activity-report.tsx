@@ -43,6 +43,7 @@ import {
 import { useBusinessReportFilters } from "./business-overview/use-business-report-filters";
 import { useErpReportFetch } from "./business-overview/use-erp-report-fetch";
 import { DeletedInvoicesReport } from "./activity/deleted-invoices-report";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type StaffOption = { id: string; name: string };
 
@@ -195,7 +196,7 @@ function ActivityLogReport({ report }: { report: ReportDefinition }) {
         !loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <AdminDataTable>
           <AdminDataTableRowsSkeleton rows={10} columns={report.columns.length} />

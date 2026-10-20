@@ -7,6 +7,7 @@ import type { ComponentType, ReactNode } from "react";
 import { Eye, MoreHorizontal, Pencil, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +68,7 @@ export function ErpListRowActions({
   /** Icon actions inline on md+; collapse to ⋯ menu below md. */
   responsiveIcons?: boolean;
 }) {
+  const { showError } = useAppFeedback();
   const dropdownItems: ErpListMenuItem[] = responsiveIcons
     ? [...iconActions.map(iconActionToMenuItem), ...menuItems]
     : menuItems;
@@ -174,9 +176,7 @@ export function ErpListRowActions({
           onClick={() => {
             void directPrintFromAdminPath(printHref).catch((err) => {
               console.error(err);
-              window.alert(
-                err instanceof Error ? err.message : "Could not print this document.",
-              );
+              showError(err, "Couldn't print");
             });
           }}
         >

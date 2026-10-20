@@ -27,6 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   ActiveStoreFormField,
   useActiveStoreFormField,
@@ -190,7 +191,7 @@ export function SalaryBulkPaymentFormView({
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         <AdminFormSection title="Batch details">
           <AdminFormGrid>
@@ -326,3 +327,4 @@ export function SalaryBulkPaymentFormView({
     </AdminFormShell>
   );
 }
+

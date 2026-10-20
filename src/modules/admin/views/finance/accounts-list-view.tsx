@@ -6,7 +6,7 @@ import { Lock, Plus, Trash2 } from "lucide-react";
 
 import type { AccountListRow, AccountTypeRow } from "@/common/erp/finance-types";
 import {
-  FormError,
+  ModalFormFooter,
   Modal,
   PrimaryBtn,
   SecondaryBtn,
@@ -15,6 +15,7 @@ import {
 } from "@/modules/admin/components/modal";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { adminDelete, adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -58,7 +59,7 @@ function AccountFormModal({
   onSaved: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [accountTypeId, setAccountTypeId] = useState(row?.account_type_id ?? "");
   const [code, setCode] = useState(row?.code ?? "");
   const [name, setName] = useState(row?.name ?? "");
@@ -66,9 +67,15 @@ function AccountFormModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!accountTypeId) return setError("Account type is required.");
-    if (!code.trim()) return setError("Code is required.");
-    if (!name.trim()) return setError("Name is required.");
+    const validationErrors: string[] = [];
+    if (!accountTypeId) validationErrors.push("Account type is required.");
+    if (!code.trim()) validationErrors.push("Code is required.");
+    if (!name.trim()) validationErrors.push("Name is required.");
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    setErrors([]);
 
     const payload = {
       accountTypeId,
@@ -88,7 +95,7 @@ function AccountFormModal({
         onSaved();
         onClose();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save.");
+        setErrors([actionErrorMessage(err, "Failed to save.")]);
       }
     });
   }
@@ -159,13 +166,12 @@ function AccountFormModal({
           />
         </label>
 
-        <FormError message={error} />
-        <div className="flex justify-end gap-2">
+        <ModalFormFooter errors={errors}>
           <SecondaryBtn onClick={onClose}>Cancel</SecondaryBtn>
           <PrimaryBtn type="submit" disabled={isPending}>
             {isPending ? "Saving…" : "Save"}
           </PrimaryBtn>
-        </div>
+        </ModalFormFooter>
       </form>
     </Modal>
   );

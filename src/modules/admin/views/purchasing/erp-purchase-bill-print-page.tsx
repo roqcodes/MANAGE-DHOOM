@@ -13,6 +13,7 @@ import {
   PurchaseBillPrintDocument,
   type PurchaseBillPrintData,
 } from "@/modules/purchasing/components/purchase-bill-print-document";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function ErpPurchaseBillPrintPage() {
   const searchParams = useSearchParams();
@@ -58,7 +59,13 @@ export function ErpPurchaseBillPrintPage() {
   }
 
   if (error || !bill) {
-    return <p className="p-6 text-sm text-destructive">{error ?? "Purchase bill not found."}</p>;
+    return (
+      <ErrorsFeedbackBridge
+        errors={error ?? "Purchase bill not found."}
+        asError
+        title="Couldn't load purchase bill"
+      />
+    );
   }
 
   return (

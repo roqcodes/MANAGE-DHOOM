@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { STORE_TYPES } from "@/common/erp/inventory-types";
 import type { Store } from "@/common/erp/types";
 import { adminGet, adminPost, adminPut } from "@/modules/admin/lib/admin-api-client";
+import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
   AdminFormActions,
@@ -17,7 +17,6 @@ import {
   AdminFormShell,
   type ErpFormViewBaseProps,
 } from "@/modules/admin/ui";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { coalesceNumber } from "@/lib/numeric-input";
@@ -38,7 +37,7 @@ export function StoreFormView({
   const formId = useId();
   const [pending, startTransition] = useTransition();
   const [loading, setLoading] = useState(Boolean(storeId));
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const isModal = variant === "modal";
 
   const [name, setName] = useState("");
@@ -102,7 +101,7 @@ export function StoreFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setErrors([]);
     const payload = {
       name,
       code: code || null,
@@ -130,7 +129,7 @@ export function StoreFormView({
           handleSuccessNavigate(res.id);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Save failed");
+        setErrors([actionErrorMessage(err, "Save failed.")]);
       }
     });
   }
@@ -159,6 +158,7 @@ export function StoreFormView({
       onCancel={handleCancel}
       submitLabel="Save store"
       pending={pending}
+      errors={errors}
     />
   ) : undefined;
 
@@ -252,17 +252,14 @@ export function StoreFormView({
           </AdminFormColumns>
         </AdminFormSection>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
         {!isModal ? (
-          <div className="flex flex-wrap justify-end gap-2">
-            <Link href="/admin/erp/stores" className={buttonVariants({ variant: "outline" })}>
-              Cancel
-            </Link>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : "Save store"}
-            </Button>
-          </div>
+          <AdminFormActions
+            formId={formId}
+            onCancel={handleCancel}
+            submitLabel="Save store"
+            pending={pending}
+            errors={errors}
+          />
         ) : null}
       </form>
     </AdminFormShell>

@@ -27,6 +27,7 @@ import {
 } from "@/modules/erp/components/use-active-store-form-field";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { draftFinalizeUserMessage } from "@/common/erp/document-create-outcome";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type AdjLine = {
   key: string;
@@ -341,7 +342,7 @@ export function StockAdjustmentFormView({
     >
       <div className="space-y-4">
         {sections}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
             <Link
@@ -362,3 +363,4 @@ export function StockAdjustmentFormView({
     </AdminFormShell>
   );
 }
+

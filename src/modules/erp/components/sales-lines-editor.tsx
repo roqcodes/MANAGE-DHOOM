@@ -52,7 +52,7 @@ export function salesLinesToApiInput(lines: SalesLineFormRow[]) {
     .filter((l) => l.productName.trim() && l.quantity > 0)
     .map((l) => ({
       productId: l.productId,
-      variantId: null,
+      variantId: l.variantId ?? null,
       productName: l.productName,
       description: l.description || null,
       quantity: l.quantity,

@@ -36,6 +36,17 @@ import {
   ActiveStoreFormField,
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
+import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
+import {
+  usePaymentFormAddLineBlocked,
+  usePaymentFormSubmitBlocked,
+} from "@/modules/erp/hooks/use-payment-form-submit-blocked";
+import {
+  validateFifoAllocationAmount,
+  validatePaymentLinesBalance,
+  validateSingleDocumentPaymentAmount,
+} from "@/modules/erp/lib/payment-balance-validation";
 
 type PendingLine = {
   invoiceId: string;
@@ -92,8 +103,9 @@ export function PaymentFormView({
     useActiveStoreFormField({ mode: "create" });
   const [pending, startTransition] = useTransition();
   const [isAddingLine, setIsAddingLine] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const isModal = variant === "modal";
+  const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
+    useErpPaymentFormErrors(isModal);
 
   const [depositAccounts, setDepositAccounts] = useState<PaidThroughAccountOption[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<PaidThroughAccountOption[]>([]);
@@ -147,6 +159,22 @@ export function PaymentFormView({
 
   const total = lines.reduce((s, l) => s + l.amount, 0);
   const bankChargesAmount = parseFloat(bankCharges) || 0;
+
+  const amountGuardInput = {
+    inlineError,
+    lineAmount,
+    documentKind: "invoice" as const,
+    selectedDocumentId: selectedInvoiceId,
+    selectedDocumentBalance: selectedInvoiceBalance,
+    selectedDocumentLabel: invoiceLabel,
+    lines: lines.map((l) => ({
+      amount: l.amount,
+      balanceDue: l.balanceDue,
+      label: l.invoiceNumber,
+    })),
+  };
+  const submitBlocked = usePaymentFormSubmitBlocked(amountGuardInput);
+  const addLineBlocked = usePaymentFormAddLineBlocked(amountGuardInput);
 
   function handleCancel() {
     if (isModal) {
@@ -213,15 +241,15 @@ export function PaymentFormView({
   }
 
   async function addLine() {
-    setError(null);
+    clearFormError();
     const amt = parseFloat(lineAmount);
-    if (!userId) return setError("Select a customer.");
-    if (!amt || amt <= 0) return setError("Enter a positive amount.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+    if (!userId) return setFormError("Select a customer.");
+    if (!amt || amt <= 0) return setFormError("Enter a positive amount.");
+    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
     const firstUser = lines[0]?.userId;
     if (firstUser && firstUser !== userId) {
-      return setError("All invoices must belong to the same customer on a single payment.");
+      return setFormError("All invoices must belong to the same customer on a single payment.");
     }
 
     setIsAddingLine(true);
@@ -229,21 +257,32 @@ export function PaymentFormView({
       if (!selectedInvoiceId) {
         const fifoLines = await buildFifoLines(amt, lines.map((l) => l.invoiceId), userId);
         if (fifoLines.length === 0) {
-          setError("No open invoices available for FIFO allocation.");
+          setFormError("No open invoices available for FIFO allocation.");
+          return;
+        }
+        const fifoErr = validateFifoAllocationAmount(amt, fifoLines, "invoice");
+        if (fifoErr) {
+          notifyAmountIssue(fifoErr);
           return;
         }
         setLines((prev) => mergePendingLines(prev, fifoLines));
         setLineAmount("");
-        setError(null);
+        setFormError(null);
         return;
       }
 
       if (lines.some((l) => l.invoiceId === selectedInvoiceId)) {
-        setError("Invoice already added.");
+        setFormError("Invoice already added.");
         return;
       }
-      if (amt > selectedInvoiceBalance) {
-        setError("Amount exceeds invoice balance.");
+      const exceedsMsg = validateSingleDocumentPaymentAmount(
+        amt,
+        selectedInvoiceBalance,
+        "invoice",
+        invoiceLabel,
+      );
+      if (exceedsMsg) {
+        notifyAmountIssue(exceedsMsg);
         return;
       }
 
@@ -252,11 +291,11 @@ export function PaymentFormView({
         const detail = await adminGet<InvoiceDetail>(`erp/invoices/${selectedInvoiceId}`);
         resolvedUserId = detail.user_id;
         if (resolvedUserId !== userId) {
-          setError("Invoice does not belong to the selected customer.");
+          setFormError("Invoice does not belong to the selected customer.");
           return;
         }
       } catch {
-        setError("Could not load invoice details.");
+        setFormError("Could not load invoice details.");
         return;
       }
 
@@ -279,9 +318,9 @@ export function PaymentFormView({
       setInvoiceLabel("");
       setSelectedInvoiceBalance(0);
       setSelectedInvoiceCustomer(null);
-      setError(null);
+      setFormError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add invoice payment.");
+      setFormError(err instanceof Error ? err.message : "Failed to add invoice payment.");
     } finally {
       setIsAddingLine(false);
     }
@@ -293,31 +332,53 @@ export function PaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (!accountId) return setError("Deposit account is required.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+    setFormError(null);
+    if (!accountId) return setFormError("Deposit account is required.");
+    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
     const fifoOnlyAmount = parseFloat(lineAmount);
     const useFifoAutoAllocate = lines.length === 0 && userId && fifoOnlyAmount > 0;
     const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
 
     if (!useFifoAutoAllocate && lines.length === 0) {
-      return setError(
+      return setFormError(
         "Add at least one invoice payment, or select a customer and amount to allocate FIFO.",
       );
     }
-    if (bankChargesAmount >= paymentTotal) return setError("Bank charges must be less than total payment.");
+    if (bankChargesAmount >= paymentTotal) return setFormError("Bank charges must be less than total payment.");
     if (bankChargesAmount > 0 && !bankChargesAccountId) {
-      return setError("Expense account is required for bank charges.");
+      return setFormError("Expense account is required for bank charges.");
     }
 
     const paymentUserId = useFifoAutoAllocate ? userId : lines[0].userId;
     if (!useFifoAutoAllocate && lines.some((l) => l.userId !== paymentUserId)) {
-      return setError("All invoices must belong to the same customer.");
+      return setFormError("All invoices must belong to the same customer.");
+    }
+
+    const linesBalanceErr = validatePaymentLinesBalance(
+      lines.map((l) => ({
+        amount: l.amount,
+        balanceDue: l.balanceDue,
+        label: l.invoiceNumber,
+      })),
+      "invoice",
+    );
+    if (!useFifoAutoAllocate && linesBalanceErr) {
+      notifyAmountIssue(linesBalanceErr);
+      return;
     }
 
     startTransition(async () => {
       try {
+        if (useFifoAutoAllocate) {
+          const fifoLines = await buildFifoLines(fifoOnlyAmount, [], paymentUserId);
+          const fifoErr = validateFifoAllocationAmount(fifoOnlyAmount, fifoLines, "invoice");
+          if (fifoErr) {
+            notifyAmountIssue(fifoErr);
+            return;
+          }
+        }
+
         const res = await adminPost<{ id: string }>("erp/payments", {
           userId: paymentUserId,
           storeId: effectiveStoreId,
@@ -339,7 +400,7 @@ export function PaymentFormView({
         });
         handleSuccessNavigate(res.id);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to record payment");
+        setFormError(err instanceof Error ? err.message : "Failed to record payment");
       }
     });
   }
@@ -353,6 +414,7 @@ export function PaymentFormView({
       onCancel={handleCancel}
       submitLabel="Record payment"
       pending={pending}
+      submitDisabled={submitBlocked}
     />
   ) : undefined;
 
@@ -527,7 +589,21 @@ export function PaymentFormView({
                     step="0.01"
                     placeholder="Amount"
                     value={lineAmount}
-                    onChange={(e) => setLineAmount(e.target.value)}
+                    onChange={(e) => {
+                      setLineAmount(e.target.value);
+                      clearFormError();
+                    }}
+                    onBlur={() => {
+                      if (!selectedInvoiceId) return;
+                      const amt = parseFloat(lineAmount);
+                      const msg = validateSingleDocumentPaymentAmount(
+                        amt,
+                        selectedInvoiceBalance,
+                        "invoice",
+                        invoiceLabel,
+                      );
+                      if (msg) notifyAmountIssue(msg);
+                    }}
                     className="min-w-0 flex-1"
                     disabled={isAddingLine}
                   />
@@ -535,7 +611,9 @@ export function PaymentFormView({
                     type="button"
                     variant="outline"
                     className="shrink-0 min-w-[6.5rem] justify-center"
-                    disabled={isAddingLine || !effectiveStoreId}
+                    disabled={
+                      isAddingLine || !effectiveStoreId || addLineBlocked
+                    }
                     onClick={() => void addLine()}
                   >
                     {isAddingLine ? (
@@ -603,14 +681,14 @@ export function PaymentFormView({
           </Card>
         ) : null}
 
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
             <Link href="/admin/erp/payments" className={buttonVariants({ variant: "outline" })}>
               Cancel
             </Link>
-            <Button type="submit" disabled={pending}>
+            <Button type="submit" disabled={pending || submitBlocked}>
               {pending ? "Saving…" : "Record payment"}
             </Button>
           </div>

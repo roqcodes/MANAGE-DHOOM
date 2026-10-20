@@ -27,6 +27,7 @@ import {
 } from "./report-format";
 import { useBusinessReportFilters } from "./use-business-report-filters";
 import { useErpReportFetch } from "./use-erp-report-fetch";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function DayBookReport({ report }: { report: ReportDefinition }) {
   const filters = useBusinessReportFilters(report);
@@ -88,7 +89,7 @@ export function DayBookReport({ report }: { report: ReportDefinition }) {
         !loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <AdminDataTable>
           <AdminDataTableRowsSkeleton rows={10} columns={report.columns.length} />

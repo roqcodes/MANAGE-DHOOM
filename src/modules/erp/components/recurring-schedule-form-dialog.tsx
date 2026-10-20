@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { StoreSelect, useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 const FREQUENCY_OPTIONS: { value: RecurringScheduleRow["frequency"]; label: string }[] = [
   { value: "weekly", label: "Weekly" },
@@ -328,7 +329,7 @@ export function RecurringScheduleFormDialog({
             </AdminFormGrid>
           </AdminFormSection>
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <ErrorsFeedbackBridge errors={error} />
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -343,3 +344,4 @@ export function RecurringScheduleFormDialog({
     </Dialog>
   );
 }
+

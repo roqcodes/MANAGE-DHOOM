@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
+import { ModalFormFooter } from "@/modules/admin/lib/form-footer-errors";
+
 import {
   AdminFormLayout,
   AdminPageHeader,
@@ -89,7 +91,7 @@ export function AdminFormModal({
         {footer ? (
           <div
             data-form-enter-footer
-            className="flex shrink-0 flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-border bg-muted/50 px-5 pb-4 pt-3"
+            className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-border bg-muted/50 px-5 pb-4 pt-3"
           >
             {footer}
           </div>
@@ -192,7 +194,10 @@ export function AdminFormShell({
           {children}
         </div>
         {footer && variant === "page" ? (
-          <div data-form-enter-footer className="mt-4 flex flex-wrap justify-end gap-2">
+          <div
+            data-form-enter-footer
+            className="mt-4 flex w-full flex-wrap items-center justify-end gap-2 rounded-xl border border-border bg-muted/50 px-4 py-3"
+          >
             {footer}
           </div>
         ) : null}
@@ -266,6 +271,7 @@ export function AdminFormActions({
   submitDisabled = false,
   formId,
   loadingLabel = "Saving…",
+  errors,
 }: {
   onCancel: () => void;
   submitLabel: string;
@@ -274,9 +280,10 @@ export function AdminFormActions({
   submitDisabled?: boolean;
   formId?: string;
   loadingLabel?: string;
+  errors?: string | string[] | null;
 }) {
   return (
-    <>
+    <ModalFormFooter errors={errors} className="w-full">
       <Button
         type="button"
         variant="outline"
@@ -296,6 +303,6 @@ export function AdminFormActions({
       >
         {submitLabel}
       </LoadingButton>
-    </>
+    </ModalFormFooter>
   );
 }

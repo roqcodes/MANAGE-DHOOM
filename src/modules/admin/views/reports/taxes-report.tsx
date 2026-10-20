@@ -8,6 +8,7 @@ import { ReportKpiStrip } from "./business-overview/report-kpi-strip";
 import { buildReportExportSource, reportFiltersSubtitle } from "./business-overview/report-format";
 import { useBusinessReportFilters } from "./business-overview/use-business-report-filters";
 import { useErpReportFetch } from "./business-overview/use-erp-report-fetch";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   buildNetVatKpis,
   buildVatDetailsKpis,
@@ -103,7 +104,7 @@ function VatReturnSummaryReport({ report }: { report: ReportDefinition }) {
         ) : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <VatReportTableSkeleton columns={4} />
       ) : (
@@ -188,7 +189,7 @@ function VatReturnDetailsReport({ report }: { report: ReportDefinition }) {
       searchPlaceholder="Search customer, vendor, TRN, or transaction #…"
       metrics={!loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null}
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <VatReportTableSkeleton columns={8} />
       ) : (

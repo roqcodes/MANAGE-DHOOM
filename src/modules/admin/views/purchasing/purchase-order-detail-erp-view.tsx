@@ -37,6 +37,7 @@ import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { PoStatusPill } from "@/modules/purchase-orders/components/purchase-orders-ui";
 import { cn } from "@/lib/utils";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 function lineProductName(
   line: ErpPurchaseOrderDetail["purchase_order_items"][number],
@@ -371,7 +372,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
         </div>
       </div>
 
-      {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
 
       {po.status === "delivered" && !po.delivery.deliverySubmitted ? (
         <Card className="border-amber-200 bg-amber-50">

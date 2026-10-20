@@ -27,6 +27,7 @@ import {
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
 import { AttachmentField } from "@/modules/erp/components/attachment-field";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type ExpenseAccount = { id: string; name: string; code: string };
 
@@ -338,7 +339,7 @@ export function ExpenseFormView({
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
         {sections}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
             <Link href="/admin/erp/expenses" className={buttonVariants({ variant: "outline" })}>
@@ -353,3 +354,4 @@ export function ExpenseFormView({
     </AdminFormShell>
   );
 }
+

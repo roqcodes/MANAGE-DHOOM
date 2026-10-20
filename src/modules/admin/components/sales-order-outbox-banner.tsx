@@ -6,6 +6,7 @@ import { CloudOff, Loader2, AlertCircle } from "lucide-react";
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
 import { usePendingSalesOrderCreates } from "@/lib/sync/hooks/use-pending-sales-order-creates";
 import { requeueOutboxOperations } from "@/lib/sync/outbox-requeue";
+import { discardOutboxOperations } from "@/lib/sync/outbox-user-actions";
 import type { OutboxOperationRecord } from "@/lib/sync/outbox-types";
 import { Button } from "@/components/ui/button";
 
@@ -40,8 +41,8 @@ function attentionSummary(ops: OutboxOperationRecord[]): string {
 
 export function SalesOrderOutboxBanner() {
   const { pending, syncing, needsAttention } = usePendingSalesOrderCreates();
-  const [retryError, setRetryError] = useState<string | null>(null);
-  const [isRetrying, startRetry] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isActing, startAction] = useTransition();
 
   if (needsAttention.length > 0) {
     return (
@@ -61,34 +62,63 @@ export function SalesOrderOutboxBanner() {
                 Apply Supabase migrations for ERP sales orders (through Phase 5+), then retry.
               </p>
             ) : null}
-            {retryError ? (
-              <p className="text-xs text-rose-800">{retryError}</p>
+            {actionError ? (
+              <p className="text-xs text-rose-800">{actionError}</p>
             ) : null}
+            <p className="text-xs text-amber-800/80">
+              Retry after fixing the issue, or discard to clear this from your device (server data
+              is unchanged).
+            </p>
           </div>
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="shrink-0 border-amber-300 bg-white/80"
-          disabled={isRetrying}
-          onClick={() => {
-            setRetryError(null);
-            startRetry(async () => {
-              try {
-                await requeueOutboxOperations(
-                  needsAttention.map((op) => op.operationId),
-                );
-              } catch (err) {
-                setRetryError(
-                  err instanceof Error ? err.message : "Could not queue retry",
-                );
-              }
-            });
-          }}
-        >
-          {isRetrying ? "Retrying…" : "Retry sync"}
-        </Button>
+        <div className="flex shrink-0 flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-amber-300 bg-white/80"
+            disabled={isActing}
+            onClick={() => {
+              setActionError(null);
+              startAction(async () => {
+                try {
+                  await requeueOutboxOperations(
+                    needsAttention.map((op) => op.operationId),
+                  );
+                } catch (err) {
+                  setActionError(
+                    err instanceof Error ? err.message : "Could not queue retry",
+                  );
+                }
+              });
+            }}
+          >
+            {isActing ? "Working…" : "Retry sync"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="border-amber-300 bg-white/80 text-destructive hover:text-destructive"
+            disabled={isActing}
+            onClick={() => {
+              setActionError(null);
+              startAction(async () => {
+                try {
+                  await discardOutboxOperations(
+                    needsAttention.map((op) => op.operationId),
+                  );
+                } catch (err) {
+                  setActionError(
+                    err instanceof Error ? err.message : "Could not discard",
+                  );
+                }
+              });
+            }}
+          >
+            Discard
+          </Button>
+        </div>
       </div>
     );
   }

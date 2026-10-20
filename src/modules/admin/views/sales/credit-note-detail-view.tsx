@@ -13,6 +13,7 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   Table,
   TableBody,
@@ -133,7 +134,7 @@ export function CreditNoteDetailView({ creditNoteId }: { creditNoteId: string })
         }
       />
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
 
       <ErpDocumentTabsLayout
         detailsLabel="Credit note details"
@@ -270,3 +271,4 @@ export function CreditNoteDetailView({ creditNoteId }: { creditNoteId: string })
     </AdminPageLayout>
   );
 }
+

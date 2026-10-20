@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { coalesceNumber } from "@/lib/numeric-input";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type LineRow = {
   key: string;
@@ -290,7 +291,7 @@ export function JournalEntryFormView({
           </CardContent>
         </Card>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
@@ -306,3 +307,4 @@ export function JournalEntryFormView({
     </AdminFormShell>
   );
 }
+

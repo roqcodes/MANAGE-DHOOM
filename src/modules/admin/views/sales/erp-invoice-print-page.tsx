@@ -13,6 +13,7 @@ import {
 import { downloadElementAsPdf } from "@/lib/html2pdf-download";
 import { printDocumentElement } from "@/lib/print-document";
 import { useAutoPrintOnLoad } from "@/lib/use-auto-print-on-load";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function ErpInvoicePrintPage() {
   const params = useParams();
@@ -70,7 +71,13 @@ export function ErpInvoicePrintPage() {
   }
 
   if (error || !invoice) {
-    return <p className="p-6 text-sm text-destructive">{error ?? "Invoice not found."}</p>;
+    return (
+      <ErrorsFeedbackBridge
+        errors={error ?? "Invoice not found."}
+        asError
+        title="Couldn't load invoice"
+      />
+    );
   }
 
   return (

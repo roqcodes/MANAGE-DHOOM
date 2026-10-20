@@ -34,6 +34,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type FormState = {
   storeId: string;
@@ -499,7 +500,7 @@ export function FixedAssetFormView({
           </AdminFormSection>
         </AdminFormColumns>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
@@ -515,3 +516,4 @@ export function FixedAssetFormView({
     </AdminFormShell>
   );
 }
+

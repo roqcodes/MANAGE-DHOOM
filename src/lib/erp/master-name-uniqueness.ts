@@ -1,6 +1,13 @@
 import "server-only";
 
 import type { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import {
+  duplicateMasterNameError,
+  rethrowUniqueNameViolation,
+  trimMasterName,
+} from "@/lib/erp/master-name-messages";
+
+export { duplicateMasterNameError, rethrowUniqueNameViolation, trimMasterName };
 
 type SupabaseServer = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
@@ -16,14 +23,6 @@ type MasterNameTable =
   | "erp_employees"
   | "accounts"
   | "account_types";
-
-export function trimMasterName(name: string): string {
-  return name.trim();
-}
-
-export function duplicateMasterNameError(entityLabel: string): string {
-  return `A ${entityLabel} with this name already exists.`;
-}
 
 function escapeIlikePattern(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_");
@@ -245,8 +244,3 @@ export async function assertUniqueAccountTypeName(
   }
 }
 
-export function rethrowUniqueNameViolation(error: { code?: string } | null, entityLabel: string): void {
-  if (error?.code === "23505") {
-    throw new Error(duplicateMasterNameError(entityLabel));
-  }
-}

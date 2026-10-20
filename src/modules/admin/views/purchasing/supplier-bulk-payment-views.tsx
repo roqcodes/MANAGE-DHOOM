@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -33,6 +33,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -41,6 +42,17 @@ import {
   ActiveStoreFormField,
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
+import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
+import {
+  usePaymentFormAddLineBlocked,
+  usePaymentFormSubmitBlocked,
+} from "@/modules/erp/hooks/use-payment-form-submit-blocked";
+import {
+  validateFifoAllocationAmount,
+  validatePaymentLinesBalance,
+  validateSingleDocumentPaymentAmount,
+} from "@/modules/erp/lib/payment-balance-validation";
 
 type PendingLine = {
   purchaseBillId: string;
@@ -80,8 +92,9 @@ export function SupplierBulkPaymentFormView({
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
   const [isAddingLine, setIsAddingLine] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const isModal = variant === "modal";
+  const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
+    useErpPaymentFormErrors(isModal);
 
   const [accounts, setAccounts] = useState<PaidThroughAccountOption[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<PaidThroughAccountOption[]>([]);
@@ -109,8 +122,36 @@ export function SupplierBulkPaymentFormView({
     ).then((res) => setExpenseAccounts(res.data ?? []));
   }, [effectiveStoreId]);
 
-  const total = lines.reduce((s, l) => s + l.amount, 0);
+  const lineTotals = useMemo(
+    () =>
+      lines.reduce(
+        (acc, l) => ({
+          due: acc.due + l.balanceDue,
+          paying: acc.paying + l.amount,
+          remaining: acc.remaining + Math.max(0, l.balanceDue - l.amount),
+        }),
+        { due: 0, paying: 0, remaining: 0 },
+      ),
+    [lines],
+  );
+  const total = lineTotals.paying;
   const bankChargesAmount = parseFloat(bankCharges) || 0;
+
+  const amountGuardInput = {
+    inlineError,
+    lineAmount,
+    documentKind: "bill" as const,
+    selectedDocumentId: selectedBillId,
+    selectedDocumentBalance: selectedBillBalance,
+    selectedDocumentLabel: billLabel,
+    lines: lines.map((l) => ({
+      amount: l.amount,
+      balanceDue: l.balanceDue,
+      label: l.billNumber,
+    })),
+  };
+  const submitBlocked = usePaymentFormSubmitBlocked(amountGuardInput);
+  const addLineBlocked = usePaymentFormAddLineBlocked(amountGuardInput);
 
   function handleCancel() {
     if (isModal) {
@@ -179,12 +220,12 @@ export function SupplierBulkPaymentFormView({
   }
 
   async function addLine() {
-    setError(null);
+    clearFormError();
     const amt = parseFloat(lineAmount);
-    if (!amt || amt <= 0) return setError("Enter a positive amount.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+    if (!amt || amt <= 0) return setFormError("Enter a positive amount.");
+    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
     if (!vendorId) {
-      setError("Select a vendor before applying FIFO or adding a bill.");
+      setFormError("Select a vendor before applying FIFO or adding a bill.");
       return;
     }
 
@@ -193,21 +234,32 @@ export function SupplierBulkPaymentFormView({
       if (!selectedBillId) {
         const fifoLines = await buildFifoLines(amt, lines.map((l) => l.purchaseBillId));
         if (fifoLines.length === 0) {
-          setError("No open bills available for FIFO allocation.");
+          setFormError("No open bills available for FIFO allocation.");
+          return;
+        }
+        const fifoErr = validateFifoAllocationAmount(amt, fifoLines, "bill");
+        if (fifoErr) {
+          notifyAmountIssue(fifoErr);
           return;
         }
         setLines((prev) => mergePendingLines(prev, fifoLines));
         setLineAmount("");
-        setError(null);
+        setFormError(null);
         return;
       }
 
       if (lines.some((l) => l.purchaseBillId === selectedBillId)) {
-        setError("Bill already added.");
+        setFormError("Bill already added.");
         return;
       }
-      if (amt > selectedBillBalance) {
-        setError("Amount exceeds bill balance.");
+      const exceedsMsg = validateSingleDocumentPaymentAmount(
+        amt,
+        selectedBillBalance,
+        "bill",
+        billLabel,
+      );
+      if (exceedsMsg) {
+        notifyAmountIssue(exceedsMsg);
         return;
       }
       setLines((prev) =>
@@ -225,9 +277,9 @@ export function SupplierBulkPaymentFormView({
       setSelectedBillId("");
       setBillLabel("");
       setSelectedBillBalance(0);
-      setError(null);
+      setFormError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add bill payment.");
+      setFormError(err instanceof Error ? err.message : "Failed to add bill payment.");
     } finally {
       setIsAddingLine(false);
     }
@@ -239,12 +291,24 @@ export function SupplierBulkPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (lines.length === 0) return setError("Add at least one bill payment.");
-    if (!accountId) return setError("Paid through account is required.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (bankChargesAmount >= total) return setError("Bank charges must be less than total payment.");
+    if (lines.length === 0) return setFormError("Add at least one bill payment.");
+    const linesBalanceErr = validatePaymentLinesBalance(
+      lines.map((l) => ({
+        amount: l.amount,
+        balanceDue: l.balanceDue,
+        label: l.billNumber,
+      })),
+      "bill",
+    );
+    if (linesBalanceErr) {
+      notifyAmountIssue(linesBalanceErr);
+      return;
+    }
+    if (!accountId) return setFormError("Paid through account is required.");
+    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
+    if (bankChargesAmount >= total) return setFormError("Bank charges must be less than total payment.");
     if (bankChargesAmount > 0 && !bankChargesAccountId) {
-      return setError("Expense account is required for bank charges.");
+      return setFormError("Expense account is required for bank charges.");
     }
 
     startTransition(async () => {
@@ -265,7 +329,7 @@ export function SupplierBulkPaymentFormView({
         });
         handleSuccessNavigate(res.batchId);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save bulk payment.");
+        setFormError(err instanceof Error ? err.message : "Failed to save bulk payment.");
       }
     });
   }
@@ -279,6 +343,7 @@ export function SupplierBulkPaymentFormView({
       onCancel={handleCancel}
       submitLabel="Save bulk payment"
       pending={isPending}
+      submitDisabled={submitBlocked}
     />
   ) : undefined;
 
@@ -389,7 +454,6 @@ export function SupplierBulkPaymentFormView({
                   onChange={(id, option) => {
                     setVendorId(id ?? "");
                     setVendorLabel(option?.label ?? "");
-                    setLines([]);
                     setSelectedBillId("");
                     setBillLabel("");
                     setSelectedBillBalance(0);
@@ -429,7 +493,21 @@ export function SupplierBulkPaymentFormView({
                     type="number"
                     placeholder="Amount"
                     value={lineAmount}
-                    onChange={(e) => setLineAmount(e.target.value)}
+                    onChange={(e) => {
+                      setLineAmount(e.target.value);
+                      clearFormError();
+                    }}
+                    onBlur={() => {
+                      if (!selectedBillId) return;
+                      const amt = parseFloat(lineAmount);
+                      const msg = validateSingleDocumentPaymentAmount(
+                        amt,
+                        selectedBillBalance,
+                        "bill",
+                        billLabel,
+                      );
+                      if (msg) notifyAmountIssue(msg);
+                    }}
                     className="min-w-0 flex-1"
                     disabled={isAddingLine}
                   />
@@ -437,7 +515,9 @@ export function SupplierBulkPaymentFormView({
                     type="button"
                     variant="outline"
                     className="shrink-0 min-w-[6.5rem] justify-center"
-                    disabled={isAddingLine || !effectiveStoreId}
+                    disabled={
+                      isAddingLine || !effectiveStoreId || addLineBlocked
+                    }
                     onClick={() => void addLine()}
                   >
                     {isAddingLine ? (
@@ -497,13 +577,27 @@ export function SupplierBulkPaymentFormView({
                     </TableRow>
                   ))}
                 </TableBody>
+                <TableFooter>
+                  <TableRow>
+                    <TableCell colSpan={2} className="font-medium">Total</TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {formatCurrencyAmount(lineTotals.due)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold tabular-nums">
+                      {formatCurrencyAmount(lineTotals.paying)}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums text-muted-foreground">
+                      {formatCurrencyAmount(lineTotals.remaining)}
+                    </TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableFooter>
               </Table>
-              <p className="mt-3 text-sm font-medium">Total: {formatCurrencyAmount(total)}</p>
             </CardContent>
           </Card>
         ) : null}
 
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (
           <div className="flex gap-2">
@@ -513,7 +607,7 @@ export function SupplierBulkPaymentFormView({
             >
               Cancel
             </Link>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending || submitBlocked}>
               {isPending ? "Saving…" : "Save bulk payment"}
             </Button>
           </div>

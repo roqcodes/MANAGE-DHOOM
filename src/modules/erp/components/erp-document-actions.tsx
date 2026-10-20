@@ -22,6 +22,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { adminPost } from "@/modules/admin/lib/admin-api-client";
 import type { ErpEmailDocumentType } from "@/common/erp/types";
+import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export type ErpDocumentEmailConfig = {
   documentType: ErpEmailDocumentType;
@@ -66,6 +68,7 @@ export function ErpDocumentActions({
   layout = "inline",
   showView = true,
 }: ErpDocumentActionsProps) {
+  const { showError } = useAppFeedback();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
@@ -183,9 +186,7 @@ export function ErpDocumentActions({
               onClick={() => {
                 void directPrintFromAdminPath(printHref!).catch((err) => {
                   console.error(err);
-                  window.alert(
-                    err instanceof Error ? err.message : "Could not print this document.",
-                  );
+                  showError(err, "Couldn't print");
                 });
               }}
             >
@@ -211,10 +212,8 @@ export function ErpDocumentActions({
               onClick={() => {
                 void directPrintFromAdminPath(documentPrintUrl(printHref!, "download")).catch(
                   (err) => {
-                  console.error(err);
-                    window.alert(
-                      err instanceof Error ? err.message : "Could not download this document.",
-                    );
+                    console.error(err);
+                    showError(err, "Couldn't download");
                   },
                 );
               }}
@@ -296,7 +295,7 @@ export function ErpDocumentActions({
               <DialogTitle>{deleteLabel}?</DialogTitle>
               <DialogDescription>{deleteDescription}</DialogDescription>
             </DialogHeader>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            <ErrorsFeedbackBridge errors={error} />
             <DialogFooter>
               <DialogClose render={<Button variant="outline" />}>Keep</DialogClose>
               <Button variant="destructive" onClick={handleDelete} disabled={pending}>

@@ -47,6 +47,35 @@ function normalizeAgeRange(
   };
 }
 
+function trimDateParam(value?: string): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+/** Empty strings mean “all dates” (header preset); omitted params use calendar defaults. */
+function resolveReportDateBounds(query: Pick<ReportQuery, "dateFrom" | "dateTo">): {
+  from: string;
+  to: string;
+} {
+  const hasFromKey = query.dateFrom !== undefined;
+  const hasToKey = query.dateTo !== undefined;
+  const fromTrim = trimDateParam(query.dateFrom);
+  const toTrim = trimDateParam(query.dateTo);
+
+  if ((hasFromKey || hasToKey) && !fromTrim && !toTrim) {
+    return {
+      from: "2000-01-01",
+      to: new Date().toISOString().slice(0, 10),
+    };
+  }
+
+  const { dateFrom, dateTo } = defaultDateRange();
+  return {
+    from: fromTrim ?? dateFrom,
+    to: toTrim ?? dateTo,
+  };
+}
+
 function defaultDateRange() {
   const to = new Date();
   const from = new Date();
@@ -100,9 +129,7 @@ export async function runErpReport(
   const report = getReportBySlug(query.slug);
   if (!report) throw new Error("Unknown report");
 
-  const { dateFrom, dateTo } = defaultDateRange();
-  const from = query.dateFrom ?? dateFrom;
-  const to = query.dateTo ?? dateTo;
+  const { from, to } = resolveReportDateBounds(query);
   const asOf = query.asOf ?? to;
   const storeId = query.storeId ?? undefined;
   const channel = query.channel ?? "all";

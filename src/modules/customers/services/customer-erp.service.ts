@@ -17,16 +17,19 @@ import {
   assertUniqueCustomerCompanyName,
   rethrowUniqueNameViolation,
 } from "@/lib/erp/master-name-uniqueness";
+import { staffCustomerCreditLimitsClient } from "@/lib/erp/customer-credit-limits-db";
+import { assertCreditLimitAtLeastExposure } from "@/modules/credit/services/credit-limits.service";
 
-async function upsertCustomerCreditLimit(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  userId: string,
-  creditLimit: number,
-) {
-  const { error } = await supabase.from("customer_credit_limits").upsert({
-    user_id: userId,
-    credit_limit: creditLimit,
-  });
+async function upsertCustomerCreditLimit(userId: string, creditLimit: number) {
+  await assertCreditLimitAtLeastExposure(userId, creditLimit);
+  const supabase = await staffCustomerCreditLimitsClient();
+  const { error } = await supabase.from("customer_credit_limits").upsert(
+    {
+      user_id: userId,
+      credit_limit: creditLimit,
+    },
+    { onConflict: "user_id" },
+  );
   if (error) throw new Error(error.message);
 }
 
@@ -135,7 +138,7 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
   }
 
   if (input.creditLimit != null && input.creditLimit > 0) {
-    await upsertCustomerCreditLimit(supabase, id, input.creditLimit);
+    await upsertCustomerCreditLimit(id, input.creditLimit);
   }
 
   await logAuditEvent({
@@ -161,7 +164,7 @@ export async function getCustomerProfile(userId: string): Promise<CustomerErpPro
     .single();
   if (error) throw new Error(error.message);
 
-  const [{ data: creditRow }, { data: addressRow }] = await Promise.all([
+  const [{ data: creditRow }, { data: addressRow }, exposure] = await Promise.all([
     supabase
       .from("customer_credit_limits")
       .select("credit_limit")
@@ -173,7 +176,12 @@ export async function getCustomerProfile(userId: string): Promise<CustomerErpPro
       .eq("user_id", userId)
       .eq("is_default", true)
       .maybeSingle(),
+    supabase.rpc("get_customer_ar_exposure", {
+      p_user_id: userId,
+      p_exclude_invoice_id: null,
+    }),
   ]);
+  if (exposure.error) throw new Error(exposure.error.message);
 
   const addressParts = addressRow
     ? [addressRow.line1, addressRow.line2, addressRow.city, addressRow.state, addressRow.pincode]
@@ -197,6 +205,7 @@ export async function getCustomerProfile(userId: string): Promise<CustomerErpPro
     openingBalance: Number(user.opening_balance ?? 0),
     openingBalanceDate: user.opening_balance_date,
     creditLimit: creditRow?.credit_limit != null ? Number(creditRow.credit_limit) : null,
+    outstandingBalance: Number(exposure.data ?? 0),
     address: addressParts || null,
     isVerified: user.is_verified !== false,
     createdAt: user.created_at,
@@ -269,12 +278,13 @@ export async function updateCustomerProfile(
 
     if (input.address?.trim()) {
       if (existing?.id) {
-        await supabase
+        const { error: addressUpdateError } = await supabase
           .from("addresses")
           .update({ line1: input.address.trim(), label: "Primary" })
           .eq("id", existing.id);
+        if (addressUpdateError) throw new Error(addressUpdateError.message);
       } else {
-        await supabase.from("addresses").insert({
+        const { error: addressInsertError } = await supabase.from("addresses").insert({
           user_id: userId,
           label: "Primary",
           line1: input.address.trim(),
@@ -284,15 +294,21 @@ export async function updateCustomerProfile(
           phone: input.phone?.trim() || input.landline?.trim() || "—",
           is_default: true,
         });
+        if (addressInsertError) throw new Error(addressInsertError.message);
       }
     }
   }
 
   if (input.creditLimit !== undefined) {
+    const creditClient = await staffCustomerCreditLimitsClient();
     if (input.creditLimit == null || input.creditLimit <= 0) {
-      await supabase.from("customer_credit_limits").delete().eq("user_id", userId);
+      const { error: creditDeleteError } = await creditClient
+        .from("customer_credit_limits")
+        .delete()
+        .eq("user_id", userId);
+      if (creditDeleteError) throw new Error(creditDeleteError.message);
     } else {
-      await upsertCustomerCreditLimit(supabase, userId, input.creditLimit);
+      await upsertCustomerCreditLimit(userId, input.creditLimit);
     }
   }
 

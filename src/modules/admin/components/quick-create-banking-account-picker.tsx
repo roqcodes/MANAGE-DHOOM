@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function QuickCreateBankingAccountPicker({
   open,
@@ -99,7 +100,7 @@ export function QuickCreateBankingAccountPicker({
               No cash accounts found. Add one from Cash Accounts first.
             </p>
           ) : null}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <ErrorsFeedbackBridge errors={error} />
         </div>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -113,3 +114,4 @@ export function QuickCreateBankingAccountPicker({
     </Dialog>
   );
 }
+

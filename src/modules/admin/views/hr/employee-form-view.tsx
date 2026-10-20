@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import type { ErpEmployeeDetail } from "@/common/erp/hr-types";
 import { adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import {
   AdminFormActions,
   AdminFormField,
@@ -40,7 +41,7 @@ export function EmployeeFormView({
     useActiveStoreFormField({ mode });
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(mode === "edit");
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const isModal = variant === "modal";
 
   const [fullName, setFullName] = useState("");
@@ -91,10 +92,15 @@ export function EmployeeFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (!fullName.trim()) return setError("Full name is required.");
-    if (!mobile.trim()) return setError("Mobile is required.");
+    const validationErrors: string[] = [];
+    if (!effectiveStoreId) validationErrors.push(storeRequiredMessage ?? "Store is required.");
+    if (!fullName.trim()) validationErrors.push("Full name is required.");
+    if (!mobile.trim()) validationErrors.push("Mobile is required.");
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    setErrors([]);
 
     const payload = {
       storeId: effectiveStoreId,
@@ -121,7 +127,7 @@ export function EmployeeFormView({
           handleSuccessNavigate(employeeId);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save employee.");
+        setErrors([actionErrorMessage(err, "Failed to save employee.")]);
       }
     });
   }
@@ -135,6 +141,7 @@ export function EmployeeFormView({
       onCancel={handleCancel}
       submitLabel="Save employee"
       pending={isPending}
+      errors={errors}
     />
   ) : undefined;
 
@@ -171,8 +178,6 @@ export function EmployeeFormView({
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
         <AdminFormSection title="Employee details">
           <AdminFormGrid>
             <ActiveStoreFormField
@@ -230,6 +235,7 @@ export function EmployeeFormView({
             onCancel={handleCancel}
             submitLabel="Save employee"
             pending={isPending}
+            errors={errors}
           />
         ) : null}
       </form>

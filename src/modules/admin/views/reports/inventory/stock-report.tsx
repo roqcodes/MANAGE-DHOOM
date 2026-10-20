@@ -27,6 +27,7 @@ import {
 } from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useInventoryReportFilters } from "./use-inventory-report-filters";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type StockRow = Record<string, unknown> & {
   purchase_price?: number;
@@ -111,7 +112,7 @@ export function StockReport({ report }: { report: ReportDefinition }) {
         !loading && sorted.length > 0 ? <ReportKpiStrip items={kpiItems} /> : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
         <span>
           Total items: <strong className="text-foreground">{sorted.length.toLocaleString()}</strong>

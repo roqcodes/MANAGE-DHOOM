@@ -44,6 +44,7 @@ import {
 } from "@/modules/erp/components/sales-module-ui";
 import { SortableTableHead, AdminTableDateTime, useSortableData } from "@/modules/admin/ui";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   BalanceBadge,
   formatBankingType,
@@ -487,7 +488,7 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
               <Label>Description</Label>
               <Textarea name="description" rows={3} />
             </div>
-            {error ? <p className="text-sm text-destructive sm:col-span-2">{error}</p> : null}
+            <ErrorsFeedbackBridge errors={error} />
             <div className="flex justify-end gap-2 sm:col-span-2">
               <Button type="button" variant="outline" onClick={() => setTxOpen(false)}>
                 Close

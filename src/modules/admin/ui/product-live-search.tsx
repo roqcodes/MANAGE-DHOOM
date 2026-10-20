@@ -17,6 +17,7 @@ import type { ErpSalesProductSearchRow } from "@/common/erp/sales-types";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useSearchListKeyboard } from "@/modules/admin/ui/use-search-list-keyboard";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   ERP_PRODUCT_SEARCH_GC_MS,
   ERP_PRODUCT_SEARCH_STALE_MS,
@@ -178,6 +179,7 @@ export function ProductLiveSearch({
       data-enter-nav={open ? "off" : undefined}
       className={cn("relative w-full", className)}
     >
+      <ErrorsFeedbackBridge errors={fetchError} title="Search failed" />
       <div className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -219,7 +221,9 @@ export function ProductLiveSearch({
               Searching…
             </div>
           ) : fetchError ? (
-            <p className="px-3 py-6 text-center text-xs text-destructive">{fetchError}</p>
+            <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+              Couldn&apos;t load results
+            </p>
           ) : trimmedQuery.length < minChars ? (
             canCreate ? (
               <button

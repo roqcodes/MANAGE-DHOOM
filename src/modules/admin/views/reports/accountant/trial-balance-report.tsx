@@ -17,6 +17,7 @@ import {
 } from "../business-overview/report-format";
 import { useBusinessReportFilters } from "../business-overview/use-business-report-filters";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
   const filters = useBusinessReportFilters(report);
@@ -98,7 +99,7 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
         !loading && filtered.length > 0 ? <ReportKpiStrip items={kpiItems} /> : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <AdminTableBodySkeleton rows={16} />
       ) : (

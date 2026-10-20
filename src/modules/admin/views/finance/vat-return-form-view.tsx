@@ -23,6 +23,7 @@ import {
   ActiveStoreFormField,
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   resolveVatPeriodPreset,
   VAT_FROM_LAST_FILED_PRESET,
@@ -294,7 +295,7 @@ export function VatReturnFormView({
           </AdminFormSection>
         ) : null}
 
-        {error ? <p className={cn("text-sm text-destructive")}>{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">

@@ -29,6 +29,7 @@ import {
 } from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useAccountantReportFilters } from "./use-accountant-report-filters";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 const DETAIL_COLUMNS = [
   { key: "transaction_date", label: "Date", format: "date" as const },
@@ -111,7 +112,7 @@ export function GeneralLedgerReport({ report }: { report: ReportDefinition }) {
         !loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {detailMode && openingBalance != null ? (
         <p className="border-b px-4 py-2 text-sm text-muted-foreground">
           Opening balance:{" "}

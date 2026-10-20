@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import type { CustomerErpProfile } from "@/common/erp/sales-types";
 import { adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import {
   AdminFormActions,
   AdminFormColumns,
@@ -15,10 +15,10 @@ import {
   type ErpFormViewBaseProps,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomerPhotoField } from "@/modules/customers/components/customer-photo-field";
+import { formatCurrencyAmount } from "@/lib/format-currency";
 import { cn } from "@/lib/utils";
 
 function splitName(name: string | null | undefined) {
@@ -79,7 +79,7 @@ export function CustomerFormView({
   const isModal = variant === "modal";
 
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [profile, setProfile] = useState<CustomerErpProfile | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -117,9 +117,10 @@ export function CustomerFormView({
     const fd = new FormData(e.currentTarget);
     const companyName = (fd.get("companyName") as string).trim();
     if (!companyName) {
-      setError("Company name is required");
+      setErrors(["Company name is required."]);
       return;
     }
+    setErrors([]);
 
     const payload = {
       firstName: (fd.get("firstName") as string).trim() || undefined,
@@ -150,7 +151,7 @@ export function CustomerFormView({
           handleSuccessNavigate(customerId);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save customer");
+        setErrors([actionErrorMessage(err, "Failed to save customer.")]);
       }
     });
   }
@@ -210,6 +211,7 @@ export function CustomerFormView({
       onCancel={handleCancel}
       submitLabel="Save"
       pending={saving}
+      errors={errors}
     />
   ) : undefined;
 
@@ -334,7 +336,14 @@ export function CustomerFormView({
         description="Credit and opening balance used on statements."
       >
         <FieldGrid cols={3}>
-          <AdminFormField label="Credit limit">
+          <AdminFormField
+            label="Credit limit"
+            hint={
+              mode === "edit" && (profile?.outstandingBalance ?? 0) > 0
+                ? `Current balance: ${formatCurrencyAmount(profile!.outstandingBalance!)} — limit must be at least this amount.`
+                : undefined
+            }
+          >
             <Input
               name="creditLimit"
               type="number"
@@ -396,16 +405,14 @@ export function CustomerFormView({
     >
       <form id={formId} key={profile?.id ?? "new"} onSubmit={handleSubmit} className="space-y-5">
         {sections}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
         {!isModal ? (
-          <div className="flex flex-wrap justify-end gap-2">
-            <Link href="/admin/customers" className={buttonVariants({ variant: "outline" })}>
-              Cancel
-            </Link>
-            <Button type="submit" disabled={saving}>
-              {pending ? "Saving…" : "Save"}
-            </Button>
-          </div>
+          <AdminFormActions
+            formId={formId}
+            onCancel={handleCancel}
+            submitLabel="Save"
+            pending={saving}
+            errors={errors}
+          />
         ) : null}
       </form>
     </AdminFormShell>

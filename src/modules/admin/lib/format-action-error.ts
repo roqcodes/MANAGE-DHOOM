@@ -1,3 +1,38 @@
+import { duplicateMasterNameError } from "@/lib/erp/master-name-messages";
+
+const UNIQUE_INDEX_ENTITY: Record<string, string> = {
+  vendors_name_ci_unique_idx: "vendor",
+  products_name_ci_unique_idx: "product",
+  brands_name_ci_unique_idx: "brand",
+  stores_name_ci_unique_idx: "store",
+  users_customer_company_name_ci_unique_idx: "customer",
+  categories_name_parent_ci_unique_idx: "category",
+  product_variants_name_product_ci_unique_idx: "variant",
+  variant_groups_name_product_ci_unique_idx: "variant group",
+  erp_employees_full_name_ci_unique_idx: "employee",
+  accounts_name_ci_unique_idx: "account",
+  account_types_category_name_ci_unique_idx: "account type",
+};
+
+function mapDuplicateNameFromDatabase(msg: string): string | null {
+  const lower = msg.toLowerCase();
+  for (const [indexName, entity] of Object.entries(UNIQUE_INDEX_ENTITY)) {
+    if (lower.includes(indexName.toLowerCase())) {
+      return duplicateMasterNameError(entity);
+    }
+  }
+  if (
+    lower.includes("an employee with this name already exists") ||
+    lower.includes("an account with this name already exists")
+  ) {
+    return msg.length <= 200 ? msg : duplicateMasterNameError("account");
+  }
+  if (lower.includes("with this name already exists") || lower.includes("this name is already in use")) {
+    return msg.length <= 200 ? msg : "This name is already in use. Choose a different name.";
+  }
+  return null;
+}
+
 /**
  * Maps thrown errors (server actions, Supabase, network) to short user-facing text.
  */
@@ -22,7 +57,11 @@ export function formatActionError(error: unknown): string {
     msg.includes("cannot be updated") ||
     msg.includes("cannot be deleted") ||
     msg.includes("opening balance") ||
-    msg.includes("walk-in customer")
+    msg.includes("walk-in customer") ||
+    msg.includes("Credit limit cannot be less than") ||
+    msg.includes("Customer credit limit exceeded") ||
+    msg.includes("over the customer's available credit") ||
+    msg.includes("Reduce the invoice total or raise")
   ) {
     return msg.length <= 140 ? msg : msg.slice(0, 137) + "…";
   }
@@ -60,16 +99,15 @@ export function formatActionError(error: unknown): string {
     return "Linked to other records — can't remove.";
   }
 
-  if (lower.includes("with this name already exists")) {
-    return msg.length <= 160 ? msg : msg.slice(0, 157) + "…";
-  }
+  const duplicateName = mapDuplicateNameFromDatabase(msg);
+  if (duplicateName) return duplicateName;
 
   if (
     lower.includes("duplicate key") ||
     lower.includes("unique constraint") ||
-    lower.includes("already exists")
+    (lower.includes("already exists") && !lower.includes("invoice"))
   ) {
-    return "This already exists.";
+    return "This name is already in use. Choose a different name.";
   }
 
   if (
@@ -85,6 +123,9 @@ export function formatActionError(error: unknown): string {
     lower.includes("row-level security") ||
     lower.includes("rls policy")
   ) {
+    if (lower.includes("customer_credit_limits")) {
+      return "Could not save credit limit (database access). Apply latest Supabase migrations or contact support.";
+    }
     return "You don't have permission for this.";
   }
 

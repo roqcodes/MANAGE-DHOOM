@@ -24,6 +24,17 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
+import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
+import {
+  usePaymentFormAddLineBlocked,
+  usePaymentFormSubmitBlocked,
+} from "@/modules/erp/hooks/use-payment-form-submit-blocked";
+import {
+  validateFifoAllocationAmount,
+  validatePaymentLinesBalance,
+  validateSingleDocumentPaymentAmount,
+} from "@/modules/erp/lib/payment-balance-validation";
 import {
   Table,
   TableBody,
@@ -78,8 +89,9 @@ export function SupplierPaymentFormView({
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
   const [isAddingLine, setIsAddingLine] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const isModal = variant === "modal";
+  const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
+    useErpPaymentFormErrors(isModal);
 
   const [accounts, setAccounts] = useState<PaidThroughAccountOption[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<PaidThroughAccountOption[]>([]);
@@ -139,6 +151,22 @@ export function SupplierPaymentFormView({
 
   const total = lines.reduce((s, l) => s + l.amount, 0);
   const bankChargesAmount = parseFloat(bankCharges) || 0;
+
+  const amountGuardInput = {
+    inlineError,
+    lineAmount,
+    documentKind: "bill" as const,
+    selectedDocumentId: selectedBillId,
+    selectedDocumentBalance: selectedBillBalance,
+    selectedDocumentLabel: billLabel,
+    lines: lines.map((l) => ({
+      amount: l.amount,
+      balanceDue: l.balanceDue,
+      label: l.billNumber,
+    })),
+  };
+  const submitBlocked = usePaymentFormSubmitBlocked(amountGuardInput);
+  const addLineBlocked = usePaymentFormAddLineBlocked(amountGuardInput);
 
   function handleCancel() {
     if (isModal) {
@@ -203,15 +231,15 @@ export function SupplierPaymentFormView({
   }
 
   async function addLine() {
-    setError(null);
+    clearFormError();
     const amt = parseFloat(lineAmount);
-    if (!vendorId) return setError("Select a vendor.");
-    if (!amt || amt <= 0) return setError("Enter a positive amount.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+    if (!vendorId) return setFormError("Select a vendor.");
+    if (!amt || amt <= 0) return setFormError("Enter a positive amount.");
+    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
     const firstVendor = lines[0]?.vendorId;
     if (firstVendor && firstVendor !== vendorId) {
-      return setError("All bills must belong to the same vendor on a single payment.");
+      return setFormError("All bills must belong to the same vendor on a single payment.");
     }
 
     setIsAddingLine(true);
@@ -222,21 +250,32 @@ export function SupplierPaymentFormView({
           lines.map((l) => l.purchaseBillId),
         );
         if (fifoLines.length === 0) {
-          setError("No open bills available for FIFO allocation.");
+          setFormError("No open bills available for FIFO allocation.");
+          return;
+        }
+        const fifoErr = validateFifoAllocationAmount(amt, fifoLines, "bill");
+        if (fifoErr) {
+          notifyAmountIssue(fifoErr);
           return;
         }
         setLines((prev) => mergePendingLines(prev, fifoLines));
         setLineAmount("");
-        setError(null);
+        setFormError(null);
         return;
       }
 
       if (lines.some((l) => l.purchaseBillId === selectedBillId)) {
-        setError("Bill already added.");
+        setFormError("Bill already added.");
         return;
       }
-      if (amt > selectedBillBalance) {
-        setError("Amount exceeds bill balance.");
+      const exceedsMsg = validateSingleDocumentPaymentAmount(
+        amt,
+        selectedBillBalance,
+        "bill",
+        billLabel,
+      );
+      if (exceedsMsg) {
+        notifyAmountIssue(exceedsMsg);
         return;
       }
       setLines((prev) =>
@@ -255,9 +294,9 @@ export function SupplierPaymentFormView({
       setSelectedBillId("");
       setBillLabel("");
       setSelectedBillBalance(0);
-      setError(null);
+      setFormError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add bill payment.");
+      setFormError(err instanceof Error ? err.message : "Failed to add bill payment.");
     } finally {
       setIsAddingLine(false);
     }
@@ -269,33 +308,55 @@ export function SupplierPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (!accountId) return setError("Paid through account is required.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
+    setFormError(null);
+    if (!accountId) return setFormError("Paid through account is required.");
+    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
     const fifoOnlyAmount = parseFloat(lineAmount);
     const useFifoAutoAllocate = lines.length === 0 && vendorId && fifoOnlyAmount > 0;
     const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
 
     if (!useFifoAutoAllocate && lines.length === 0) {
-      return setError(
+      return setFormError(
         "Add at least one bill payment, or select a vendor and amount to allocate FIFO.",
       );
     }
     if (bankChargesAmount >= paymentTotal) {
-      return setError("Bank charges must be less than total payment.");
+      return setFormError("Bank charges must be less than total payment.");
     }
     if (bankChargesAmount > 0 && !bankChargesAccountId) {
-      return setError("Expense account is required for bank charges.");
+      return setFormError("Expense account is required for bank charges.");
     }
 
     const paymentVendorId = useFifoAutoAllocate ? vendorId : lines[0].vendorId;
     if (!useFifoAutoAllocate && lines.some((l) => l.vendorId !== paymentVendorId)) {
-      return setError("All bills must belong to the same vendor.");
+      return setFormError("All bills must belong to the same vendor.");
+    }
+
+    const linesBalanceErr = validatePaymentLinesBalance(
+      lines.map((l) => ({
+        amount: l.amount,
+        balanceDue: l.balanceDue,
+        label: l.billNumber,
+      })),
+      "bill",
+    );
+    if (!useFifoAutoAllocate && linesBalanceErr) {
+      notifyAmountIssue(linesBalanceErr);
+      return;
     }
 
     startTransition(async () => {
       try {
+        if (useFifoAutoAllocate) {
+          const fifoLines = await buildFifoLines(fifoOnlyAmount, []);
+          const fifoErr = validateFifoAllocationAmount(fifoOnlyAmount, fifoLines, "bill");
+          if (fifoErr) {
+            notifyAmountIssue(fifoErr);
+            return;
+          }
+        }
+
         const res = await adminPost<{ id: string }>("erp/supplier-payments", {
           vendorId: paymentVendorId,
           storeId: effectiveStoreId,
@@ -318,7 +379,7 @@ export function SupplierPaymentFormView({
         });
         handleSuccessNavigate(res.id);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save payment.");
+        setFormError(err instanceof Error ? err.message : "Failed to save payment.");
       }
     });
   }
@@ -332,6 +393,7 @@ export function SupplierPaymentFormView({
       onCancel={handleCancel}
       submitLabel="Save payment"
       pending={isPending}
+      submitDisabled={submitBlocked}
     />
   ) : undefined;
 
@@ -481,7 +543,21 @@ export function SupplierPaymentFormView({
                     type="number"
                     placeholder="Amount"
                     value={lineAmount}
-                    onChange={(e) => setLineAmount(e.target.value)}
+                    onChange={(e) => {
+                      setLineAmount(e.target.value);
+                      clearFormError();
+                    }}
+                    onBlur={() => {
+                      if (!selectedBillId) return;
+                      const amt = parseFloat(lineAmount);
+                      const msg = validateSingleDocumentPaymentAmount(
+                        amt,
+                        selectedBillBalance,
+                        "bill",
+                        billLabel,
+                      );
+                      if (msg) notifyAmountIssue(msg);
+                    }}
                     className="min-w-0 flex-1"
                     disabled={isAddingLine}
                   />
@@ -489,7 +565,9 @@ export function SupplierPaymentFormView({
                     type="button"
                     variant="outline"
                     className="shrink-0 min-w-[6.5rem] justify-center"
-                    disabled={isAddingLine || !effectiveStoreId}
+                    disabled={
+                      isAddingLine || !effectiveStoreId || addLineBlocked
+                    }
                     onClick={() => void addLine()}
                   >
                     {isAddingLine ? (
@@ -555,7 +633,7 @@ export function SupplierPaymentFormView({
           </Card>
         ) : null}
 
-        {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+        <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (
           <div className="flex gap-2">
@@ -565,7 +643,7 @@ export function SupplierPaymentFormView({
             >
               Cancel
             </Link>
-            <Button type="submit" disabled={isPending}>
+            <Button type="submit" disabled={isPending || submitBlocked}>
               {isPending ? "Saving…" : "Save payment"}
             </Button>
           </div>

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { INTERACTIVE_CHROME_ICON_BUTTON } from "@/lib/ui/interactive-styles";
 import { Button } from "@/components/ui/button";
 import { useAdminLoadDebugPreference } from "@/modules/navigation/context/AdminLoadDebugPreferenceContext";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   buildAsyncProgressDebugExport,
   clearAsyncProgressDebugTrace,
@@ -80,7 +81,7 @@ function DebugActivityRow({
           {op.method ?? "GET"} {op.path}
         </p>
       ) : null}
-      {op.error ? <p className="mt-0.5 text-rose-600">{op.error}</p> : null}
+      <ErrorsFeedbackBridge errors={op.error} />
     </li>
   );
 }

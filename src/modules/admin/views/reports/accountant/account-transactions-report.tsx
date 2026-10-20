@@ -28,6 +28,7 @@ import {
 } from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useAccountantReportFilters } from "./use-accountant-report-filters";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function AccountTransactionsReport({ report }: { report: ReportDefinition }) {
   const filters = useAccountantReportFilters(report);
@@ -94,7 +95,7 @@ export function AccountTransactionsReport({ report }: { report: ReportDefinition
         !loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <AdminDataTable>
           <AdminDataTableRowsSkeleton rows={12} columns={report.columns.length} />

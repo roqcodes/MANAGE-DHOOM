@@ -30,6 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   ActiveStoreFormField,
   useActiveStoreFormField,
@@ -433,8 +434,9 @@ export function ErpSettlementFormView({
           </AdminFormSection>
         </AdminFormColumns>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
       </form>
     </AdminFormShell>
   );
 }
+

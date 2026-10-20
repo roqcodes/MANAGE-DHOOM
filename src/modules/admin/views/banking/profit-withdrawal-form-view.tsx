@@ -20,6 +20,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export type ProfitWithdrawalFormViewProps = ErpFormViewBaseProps;
 
@@ -195,7 +196,7 @@ export function ProfitWithdrawalFormView({
           </AdminFormColumns>
         </AdminFormSection>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
@@ -214,3 +215,4 @@ export function ProfitWithdrawalFormView({
     </AdminFormShell>
   );
 }
+

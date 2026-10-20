@@ -32,8 +32,8 @@ export function buildErpReportApiPath(
   const q = new URLSearchParams();
   q.set("slug", report.slug);
   if (report.filters.dateRange) {
-    q.set("dateFrom", params.dateFrom);
-    q.set("dateTo", params.dateTo);
+    q.set("dateFrom", params.dateFrom?.trim() ?? "");
+    q.set("dateTo", params.dateTo?.trim() ?? "");
   }
   if (report.filters.asOfDate) q.set("asOf", params.asOf);
   if (report.filters.store && params.storeId) q.set("storeId", params.storeId);

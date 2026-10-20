@@ -136,6 +136,8 @@ export interface CustomerErpProfile {
   openingBalance: number;
   openingBalanceDate: string | null;
   creditLimit: number | null;
+  /** Opening balance + open invoice balances (matches credit enforcement). */
+  outstandingBalance?: number;
   address: string | null;
   isVerified: boolean;
   createdAt: string | null;

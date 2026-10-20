@@ -29,6 +29,7 @@ import {
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   CLOUDINARY_CONFIGURED,
   uploadImageToCloudinary,
@@ -475,7 +476,7 @@ export function CreditNoteFormView({
             />
           </AdminFormSection>
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <ErrorsFeedbackBridge errors={error} />
 
           {!isModal ? (
             <div className="flex flex-wrap justify-end gap-2">
@@ -499,3 +500,4 @@ export function CreditNoteFormView({
     </AdminFormShell>
   );
 }
+

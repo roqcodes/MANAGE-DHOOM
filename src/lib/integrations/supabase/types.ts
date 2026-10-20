@@ -6328,6 +6328,18 @@ export type Database = {
         Returns: Json
       }
       get_available_credit: { Args: { p_user_id: string }; Returns: number }
+      get_customer_ar_exposure: {
+        Args: { p_user_id: string; p_exclude_invoice_id?: string | null }
+        Returns: number
+      }
+      assert_customer_credit_headroom: {
+        Args: {
+          p_user_id: string
+          p_new_balance: number
+          p_replace_invoice_id?: string | null
+        }
+        Returns: undefined
+      }
       get_cart_with_items: { Args: { p_user_id: string }; Returns: Json }
       get_default_store_id: { Args: never; Returns: string }
       get_store_stock_shortages: {

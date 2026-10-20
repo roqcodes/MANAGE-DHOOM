@@ -11,8 +11,8 @@ import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { formatActionError } from "@/modules/admin/lib/format-action-error";
 import {
   FieldLabel,
-  FormError,
   Modal,
+  ModalFormFooter,
   PrimaryBtn,
   SecondaryBtn,
   inputCls,
@@ -208,14 +208,12 @@ export function QuickProductCreateModal({
             </select>
           </FieldLabel>
 
-          <FormError message={error} />
-
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
+          <ModalFormFooter errors={error} className="border-t border-border pt-3">
             <SecondaryBtn onClick={onClose}>Cancel</SecondaryBtn>
             <PrimaryBtn type="submit" disabled={isPending}>
               {isPending ? "Creating…" : "Create & add line"}
             </PrimaryBtn>
-          </div>
+          </ModalFormFooter>
         </form>
       </Modal>
     </AnimatePresence>

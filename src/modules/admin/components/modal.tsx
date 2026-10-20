@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel as UiFieldLabel } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
-import { AppErrorCallout } from "@/modules/feedback/components/app-error-callout";
+import { ModalFormFooter } from "@/modules/admin/lib/form-footer-errors";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import { RequiredFieldMark, showRequiredMark } from "@/lib/required-field-label";
 
 interface ModalProps {
@@ -111,10 +112,15 @@ export function FieldLabel({
   );
 }
 
-export function FormError({ message }: { message: string | null }) {
+export function FormError({ message }: { message: string | string[] | null }) {
   if (!message) return null;
-  return <AppErrorCallout error={message} compact className="p-3 sm:p-4" />;
+  if (Array.isArray(message)) {
+    return <ErrorsFeedbackBridge errors={message} />;
+  }
+  return <ErrorsFeedbackBridge errors={message} asError />;
 }
+
+export { ModalFormFooter };
 
 export function PrimaryBtn({
   children,

@@ -34,6 +34,7 @@ import {
   useSortableData,
 } from "@/modules/admin/ui";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   AccountTypeBadge,
   BalanceBadge,
@@ -253,7 +254,7 @@ export function CashAccountsListView() {
               <Label>Opening balance</Label>
               <Input name="openingBalance" type="number" step="0.01" defaultValue={0} />
             </div>
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            <ErrorsFeedbackBridge errors={error} />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
                 Cancel
@@ -268,3 +269,4 @@ export function CashAccountsListView() {
     </AdminPageLayout>
   );
 }
+

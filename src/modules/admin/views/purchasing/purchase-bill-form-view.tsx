@@ -63,6 +63,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   commitResolvedLandedAllocationsToLines,
   inferLandedAllocationMethod,
@@ -749,7 +750,7 @@ export function PurchaseBillFormView({
               Allocate landed costs across line items so the total matches before saving.
             </p>
           ) : null}
-          {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+          <ErrorsFeedbackBridge errors={error} />
 
           {!isModal ? (
             <div className="flex flex-wrap justify-end gap-2">

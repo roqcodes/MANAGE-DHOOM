@@ -11,6 +11,7 @@ import {
   CloudUpload,
   Loader2,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 
 import { useOutboxQueueActivity } from "@/lib/sync/hooks/use-outbox-queue-activity";
@@ -22,29 +23,28 @@ import {
 import { formatEstimatedDuration } from "@/lib/sync/outbox-queue-estimate";
 import { requeueOutboxOperations } from "@/lib/sync/outbox-requeue";
 import {
+  discardOutboxOperations,
+  isOutboxOpUserDiscardable,
+  isOutboxOpUserRetryable,
+} from "@/lib/sync/outbox-user-actions";
+import {
   OUTBOX_OPERATION_STATES,
   type OutboxOperationRecord,
 } from "@/lib/sync/outbox-types";
+import { Button } from "@/components/ui/button";
 import { useOutboxActivityPreference } from "@/modules/pwa/context/OutboxActivityPreferenceContext";
 import { cn } from "@/lib/utils";
-
-function canManualRetry(op: OutboxOperationRecord): boolean {
-  return (
-    op.state === OUTBOX_OPERATION_STATES.NEEDS_ATTENTION ||
-    op.state === OUTBOX_OPERATION_STATES.DEAD_LETTER ||
-    op.state === OUTBOX_OPERATION_STATES.STOCK_CONFLICT ||
-    op.state === OUTBOX_OPERATION_STATES.UNCERTAIN
-  );
-}
 
 function QueueRow({
   op,
   onRetry,
-  retrying,
+  onDiscard,
+  busy,
 }: {
   op: OutboxOperationRecord;
   onRetry: (id: string) => void;
-  retrying: boolean;
+  onDiscard: (id: string) => void;
+  busy: boolean;
 }) {
   const failed =
     op.state === OUTBOX_OPERATION_STATES.NEEDS_ATTENTION ||
@@ -95,18 +95,32 @@ function QueueRow({
           </p>
         ) : null}
       </div>
-      {canManualRetry(op) ? (
-        <button
-          type="button"
-          disabled={retrying}
-          onClick={() => onRetry(op.operationId)}
-          className="flex size-7 shrink-0 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-slate-800 disabled:opacity-50 dark:hover:bg-white/10"
-          title="Retry sync"
-          aria-label="Retry sync"
-        >
-          <RefreshCw className={cn("size-3.5", retrying && "animate-spin")} />
-        </button>
-      ) : null}
+      <div className="flex shrink-0 items-center gap-0.5">
+        {isOutboxOpUserRetryable(op) ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onRetry(op.operationId)}
+            className="flex size-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-slate-800 disabled:opacity-50 dark:hover:bg-white/10"
+            title="Retry sync"
+            aria-label="Retry sync"
+          >
+            <RefreshCw className={cn("size-3.5", busy && "animate-spin")} />
+          </button>
+        ) : null}
+        {isOutboxOpUserDiscardable(op) ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onDiscard(op.operationId)}
+            className="flex size-7 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-rose-500/10 hover:text-rose-700 disabled:opacity-50 dark:hover:text-rose-300"
+            title="Discard local change"
+            aria-label="Discard local change"
+          >
+            <Trash2 className="size-3.5" />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -158,8 +172,10 @@ export function OutboxActivityDock() {
     refresh,
   } = useOutboxQueueActivity();
   const [expanded, setExpanded] = useState(false);
-  const [retryError, setRetryError] = useState<string | null>(null);
-  const [isRetrying, startRetry] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [isActing, startAction] = useTransition();
+
+  const blockedOps = operations.filter(isOutboxOpUserDiscardable);
 
   const visibleCount = operations.length;
   const showSavedFlash = Boolean(saveFeedback);
@@ -184,13 +200,52 @@ export function OutboxActivityDock() {
   const canExpand = operations.length > 0;
 
   function retryOne(operationId: string) {
-    setRetryError(null);
-    startRetry(async () => {
+    setActionError(null);
+    startAction(async () => {
       try {
         await requeueOutboxOperations([operationId]);
         await refresh();
       } catch (err) {
-        setRetryError(err instanceof Error ? err.message : "Retry failed");
+        setActionError(err instanceof Error ? err.message : "Retry failed");
+      }
+    });
+  }
+
+  function discardOne(operationId: string) {
+    setActionError(null);
+    startAction(async () => {
+      try {
+        await discardOutboxOperations([operationId]);
+        await refresh();
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "Discard failed");
+      }
+    });
+  }
+
+  function retryAllBlocked() {
+    setActionError(null);
+    startAction(async () => {
+      try {
+        const ids = blockedOps.filter(isOutboxOpUserRetryable).map((op) => op.operationId);
+        if (ids.length === 0) return;
+        await requeueOutboxOperations(ids);
+        await refresh();
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "Retry failed");
+      }
+    });
+  }
+
+  function discardAllBlocked() {
+    setActionError(null);
+    startAction(async () => {
+      try {
+        if (blockedOps.length === 0) return;
+        await discardOutboxOperations(blockedOps.map((op) => op.operationId));
+        await refresh();
+      } catch (err) {
+        setActionError(err instanceof Error ? err.message : "Discard failed");
       }
     });
   }
@@ -274,14 +329,38 @@ export function OutboxActivityDock() {
                         <QueueRow
                           op={op}
                           onRetry={retryOne}
-                          retrying={isRetrying}
+                          onDiscard={discardOne}
+                          busy={isActing}
                         />
                       </li>
                     ))}
                   </ul>
-                  {retryError ? (
+                  {blockedOps.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 border-t border-slate-200/60 px-2 py-2 dark:border-white/10">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        disabled={isActing}
+                        onClick={retryAllBlocked}
+                      >
+                        Retry all
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        disabled={isActing}
+                        className="text-destructive hover:text-destructive"
+                        onClick={discardAllBlocked}
+                      >
+                        Discard all
+                      </Button>
+                    </div>
+                  ) : null}
+                  {actionError ? (
                     <p className="border-t border-slate-200/60 px-3 py-1.5 text-[10px] text-rose-600 dark:border-white/10 dark:text-rose-300">
-                      {retryError}
+                      {actionError}
                     </p>
                   ) : null}
                 </motion.div>

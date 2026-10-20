@@ -8,6 +8,11 @@ import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
 import { requeueOutboxOperations } from "@/lib/sync/outbox-requeue";
 import {
+  discardOutboxOperations,
+  isOutboxOpUserDiscardable,
+  isOutboxOpUserRetryable,
+} from "@/lib/sync/outbox-user-actions";
+import {
   OUTBOX_OPERATION_STATES,
   type OutboxOperationRecord,
 } from "@/lib/sync/outbox-types";
@@ -58,15 +63,6 @@ function syncStatusLabel(op: OutboxOperationRecord): string {
     default:
       return op.state;
   }
-}
-
-function canManualRetry(op: OutboxOperationRecord): boolean {
-  return (
-    op.state === OUTBOX_OPERATION_STATES.NEEDS_ATTENTION ||
-    op.state === OUTBOX_OPERATION_STATES.DEAD_LETTER ||
-    op.state === OUTBOX_OPERATION_STATES.STOCK_CONFLICT ||
-    op.state === OUTBOX_OPERATION_STATES.UNCERTAIN
-  );
 }
 
 function isFailedLike(op: OutboxOperationRecord): boolean {
@@ -197,7 +193,7 @@ export function SalesOrderOutboxTableRows({
                 {retryError ? (
                   <p className="text-[10px] text-rose-700">{retryError}</p>
                 ) : null}
-                {canManualRetry(op) ? (
+                {isOutboxOpUserRetryable(op) ? (
                   <Button
                     type="button"
                     variant="outline"
@@ -227,7 +223,39 @@ export function SalesOrderOutboxTableRows({
                     }}
                   >
                     <RefreshCw data-icon="inline-start" className="size-3" />
-                    {retryingId === op.operationId ? "Retrying…" : "Retry sync"}
+                    {retryingId === op.operationId ? "Retrying…" : "Retry"}
+                  </Button>
+                ) : null}
+                {isOutboxOpUserDiscardable(op) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    className="border-orange-300/80 bg-white/90 text-destructive hover:text-destructive"
+                    disabled={retryingId === op.operationId}
+                    onClick={() => {
+                      setRetryErrorById((prev) => {
+                        const next = { ...prev };
+                        delete next[op.operationId];
+                        return next;
+                      });
+                      setRetryingId(op.operationId);
+                      startTransition(async () => {
+                        try {
+                          await discardOutboxOperations([op.operationId]);
+                        } catch (err) {
+                          setRetryErrorById((prev) => ({
+                            ...prev,
+                            [op.operationId]:
+                              err instanceof Error ? err.message : "Discard failed",
+                          }));
+                        } finally {
+                          setRetryingId(null);
+                        }
+                      });
+                    }}
+                  >
+                    {retryingId === op.operationId ? "…" : "Discard"}
                   </Button>
                 ) : null}
               </div>

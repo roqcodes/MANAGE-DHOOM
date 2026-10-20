@@ -3,6 +3,84 @@ import "server-only";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { getCurrentSessionProfile } from "@/modules/auth/services/auth.service";
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
+import {
+  formatInvoiceCreditExceededMessage,
+  type InvoiceCreditHeadroom,
+} from "@/common/erp/invoice-credit-messages";
+import { roundMoney } from "@/common/erp/purchasing-types";
+import { staffCustomerCreditLimitsClient } from "@/lib/erp/customer-credit-limits-db";
+
+export type { InvoiceCreditHeadroom } from "@/common/erp/invoice-credit-messages";
+
+export async function getCustomerArExposure(
+  userId: string,
+  excludeInvoiceId?: string | null,
+): Promise<number> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("get_customer_ar_exposure", {
+    p_user_id: userId,
+    p_exclude_invoice_id: excludeInvoiceId ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return Number(data ?? 0);
+}
+
+export async function getInvoiceCreditHeadroom(
+  userId: string,
+  excludeInvoiceId?: string | null,
+): Promise<InvoiceCreditHeadroom> {
+  const supabase = await createSupabaseServerClient();
+  const creditLimit = await loadCreditLimitRow(supabase, userId);
+  const outstanding = await getCustomerArExposure(userId, excludeInvoiceId);
+  if (creditLimit == null) {
+    return { hasLimit: false, creditLimit: null, outstanding, available: null };
+  }
+  return {
+    hasLimit: true,
+    creditLimit,
+    outstanding,
+    available: roundMoney(creditLimit - outstanding),
+  };
+}
+
+/** Same rules as assert_customer_credit_headroom on create/update invoice. */
+export async function assertInvoiceCreditHeadroom(
+  userId: string,
+  invoiceTotal: number,
+  excludeInvoiceId?: string | null,
+): Promise<void> {
+  if (!userId || invoiceTotal <= 0) return;
+
+  const headroom = await getInvoiceCreditHeadroom(userId, excludeInvoiceId);
+  if (!headroom.hasLimit || headroom.creditLimit == null || headroom.available == null) {
+    return;
+  }
+
+  if (headroom.outstanding + invoiceTotal > headroom.creditLimit + 0.0001) {
+    throw new Error(
+      formatInvoiceCreditExceededMessage(
+        headroom.creditLimit,
+        headroom.outstanding,
+        headroom.available,
+        invoiceTotal,
+      ),
+    );
+  }
+}
+
+/** Credit limit must cover opening balance + open invoice balance (same as invoice enforcement). */
+export async function assertCreditLimitAtLeastExposure(
+  userId: string,
+  creditLimit: number,
+): Promise<void> {
+  if (creditLimit <= 0) return;
+  const exposure = await getCustomerArExposure(userId);
+  if (creditLimit + 0.0001 < exposure) {
+    throw new Error(
+      `Credit limit cannot be less than the customer's current balance (${roundMoney(exposure)}). Raise the limit or clear receivables first.`,
+    );
+  }
+}
 
 export interface CreditLimitInfo {
   userId: string;
@@ -20,37 +98,43 @@ export interface LedgerEntry {
   created_at: string;
 }
 
-export async function getCreditLimit(userId: string): Promise<CreditLimitInfo | null> {
-  const supabase = await createSupabaseServerClient();
-
-  // Get credit limit
-  const { data: creditData } = await supabase
+async function loadCreditLimitRow(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+): Promise<number | null> {
+  const { data, error } = await supabase
     .from("customer_credit_limits")
     .select("credit_limit")
     .eq("user_id", userId)
     .maybeSingle();
-
-  const creditLimit = creditData?.credit_limit ?? 0;
-
-  // Calculate outstanding balance from invoices
-  const { data: invoices } = await supabase
-    .from("invoices")
-    .select("total_amount, status")
-    .eq("user_id", userId)
-    .in("status", ["pending", "partial"]);
-
-  const outstandingBalance =
-    invoices?.reduce((sum, inv) => sum + (inv.total_amount ?? 0), 0) ?? 0;
-
-  if (creditLimit === 0) {
+  if (error) throw new Error(error.message);
+  if (data?.credit_limit == null || Number(data.credit_limit) <= 0) {
     return null;
   }
+  return Number(data.credit_limit);
+}
+
+export async function getCreditLimit(userId: string): Promise<CreditLimitInfo | null> {
+  const supabase = await createSupabaseServerClient();
+  const creditLimit = await loadCreditLimitRow(supabase, userId);
+  if (creditLimit == null) {
+    return null;
+  }
+
+  const { data: exposure, error: exposureErr } = await supabase.rpc(
+    "get_customer_ar_exposure",
+    { p_user_id: userId, p_exclude_invoice_id: null },
+  );
+  if (exposureErr) throw new Error(exposureErr.message);
+
+  const outstandingBalance = Number(exposure ?? 0);
+  const availableCredit = creditLimit - outstandingBalance;
 
   return {
     userId,
     creditLimit,
     outstandingBalance,
-    availableCredit: creditLimit - outstandingBalance,
+    availableCredit,
   };
 }
 
@@ -74,15 +158,26 @@ export async function setCreditLimit(
     throw new Error("Credit limit cannot be negative");
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await staffCustomerCreditLimitsClient();
 
-  const { error } = await supabase
-    .from("customer_credit_limits")
-    .upsert({
+  if (creditLimit <= 0) {
+    const { error } = await supabase
+      .from("customer_credit_limits")
+      .delete()
+      .eq("user_id", userId);
+    if (error) throw new Error(error.message);
+    return;
+  }
+
+  await assertCreditLimitAtLeastExposure(userId, creditLimit);
+
+  const { error } = await supabase.from("customer_credit_limits").upsert(
+    {
       user_id: userId,
       credit_limit: creditLimit,
-    })
-    .eq("user_id", userId);
+    },
+    { onConflict: "user_id" },
+  );
 
   if (error) throw new Error(error.message);
 }
@@ -91,19 +186,21 @@ export async function checkCreditLimit(
   userId: string,
   orderAmount: number,
 ): Promise<{ ok: boolean; available: number; required: number }> {
-  const creditInfo = await getCreditLimit(userId);
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("check_credit_limit", {
+    p_user_id: userId,
+    p_order_amount: orderAmount,
+  });
+  if (error) throw new Error(error.message);
 
+  const creditInfo = await getCreditLimit(userId);
   if (!creditInfo) {
-    // No credit limit set - order can proceed without credit check
     return { ok: true, available: 0, required: orderAmount };
   }
 
-  const available = creditInfo.availableCredit;
-  const wouldExceed = available < orderAmount;
-
   return {
-    ok: !wouldExceed,
-    available,
+    ok: Boolean(data),
+    available: creditInfo.availableCredit,
     required: orderAmount,
   };
 }
@@ -121,7 +218,6 @@ export async function getMyLedger(
   const supabase = await createSupabaseServerClient();
   const from = page * limit;
 
-  // Get transactions
   const { data: transactions, count: txCount } = await supabase
     .from("transactions")
     .select("id, type, amount, reference, created_at", { count: "exact" })
@@ -129,7 +225,6 @@ export async function getMyLedger(
     .order("created_at", { ascending: false })
     .range(from, from + limit - 1);
 
-  // Get wallet balance
   const { data: wallet } = await supabase
     .from("wallet")
     .select("balance")

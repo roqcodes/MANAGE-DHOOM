@@ -26,6 +26,7 @@ import {
 } from "@/modules/admin/ui";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function TransferApprovalsListView() {
   const { stores, activeStoreId, loading: erpContextLoading } = useErpStores();
@@ -102,7 +103,7 @@ export function TransferApprovalsListView() {
         description="Approve requests from other stores. Stock moves immediately on approval."
       />
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
 
       <AdminListCard isLoading={initialLoading}
         search=""
@@ -203,3 +204,4 @@ export function TransferApprovalsListView() {
     </AdminPageLayout>
   );
 }
+

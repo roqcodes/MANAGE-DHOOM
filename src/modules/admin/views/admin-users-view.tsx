@@ -16,6 +16,7 @@ import type { TeamCatalogStats } from "@/modules/users/services/users.service";
 import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
 import { ROLES_HREF } from "@/modules/rbac/lib/permission-catalog";
 import { cn } from "@/lib/utils";
+import { AdminPageLoadError } from "@/modules/feedback/components/admin-page-load-error";
 
 type UsersApiContent = { kind: "team"; data: DBUser[]; total: number };
 
@@ -43,21 +44,7 @@ export function AdminUsersView() {
   const initialLoading = isPending && !data;
 
   if (isError) {
-    return (
-      <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
-        <div className="flex items-start gap-3 rounded-xl border border-rose-200/60 bg-rose-50/40 p-5">
-          <AlertTriangle className="size-5 shrink-0 text-rose-600" />
-          <div>
-            <p className="text-sm font-semibold text-rose-900">
-              Failed to load users.
-            </p>
-            <p className="mt-1 text-sm text-rose-700">
-              {error instanceof Error ? error.message : "Unknown error."}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AdminPageLoadError title="Failed to load users." error={error} />;
   }
   const stats = data?.stats ?? EMPTY_TEAM_CATALOG_STATS;
   const content = data?.content ?? { kind: "team" as const, data: [], total: 0 };

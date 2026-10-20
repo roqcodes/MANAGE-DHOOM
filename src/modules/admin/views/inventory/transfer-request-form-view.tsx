@@ -21,6 +21,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { StoreSelect, useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type RequestLine = {
   key: string;
@@ -310,7 +311,7 @@ export function TransferRequestFormView({
     >
       <div className="space-y-4">
         {sections}
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
             <Link
@@ -331,3 +332,4 @@ export function TransferRequestFormView({
     </AdminFormShell>
   );
 }
+

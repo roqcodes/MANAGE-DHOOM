@@ -49,11 +49,19 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
+import {
+  buildInvoiceCreditExceededDetails,
+  invoiceTotalExceedsCreditHeadroom,
+  type InvoiceCreditHeadroom,
+} from "@/common/erp/invoice-credit-messages";
+import { InvoiceCreditLimitExceededAlert } from "@/modules/erp/components/invoice-credit-limit-alert";
+import { formatCurrencyAmount } from "@/lib/format-currency";
 import { coalesceNumber } from "@/lib/numeric-input";
 import { Label } from "@/components/ui/label";
 import { AdminCustomerFormView } from "@/modules/admin/views/admin-customer-form-view";
 import { invalidateAdminCustomerSearchQueries } from "@/modules/erp/lib/entity-live-search.client";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 function customerSelectLabel(profile: CustomerErpProfile): string {
   return (
@@ -103,6 +111,34 @@ export function InvoiceFormView({
   const [taxInclusive, setTaxInclusive] = useState(true);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<SalesLineFormRow[]>([]);
+  const [creditHeadroom, setCreditHeadroom] = useState<InvoiceCreditHeadroom | null>(null);
+  const [creditHeadroomLoading, setCreditHeadroomLoading] = useState(false);
+
+  useEffect(() => {
+    if (!customerId) {
+      setCreditHeadroom(null);
+      return;
+    }
+    let cancelled = false;
+    setCreditHeadroomLoading(true);
+    const params = new URLSearchParams({ userId: customerId });
+    if (invoiceId) params.set("invoiceId", invoiceId);
+    adminGet<{ headroom: InvoiceCreditHeadroom }>(
+      `erp/invoices/credit-headroom?${params.toString()}`,
+    )
+      .then((res) => {
+        if (!cancelled) setCreditHeadroom(res.headroom);
+      })
+      .catch(() => {
+        if (!cancelled) setCreditHeadroom(null);
+      })
+      .finally(() => {
+        if (!cancelled) setCreditHeadroomLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [customerId, invoiceId]);
 
   useEffect(() => {
     const preselected = searchParams.get("customerId");
@@ -184,6 +220,12 @@ export function InvoiceFormView({
     return { subtotal: roundSalesMoney(subtotal), tax: roundSalesMoney(tax), total: net };
   }, [lines, taxInclusive, discount]);
 
+  const creditLimitBlocked = invoiceTotalExceedsCreditHeadroom(totals.total, creditHeadroom);
+  const creditExceededDetails =
+    creditLimitBlocked && creditHeadroom
+      ? buildInvoiceCreditExceededDetails(creditHeadroom, totals.total)
+      : null;
+
   function handleCancel() {
     if (isModal) {
       onOpenChange?.(false);
@@ -232,6 +274,7 @@ export function InvoiceFormView({
 
   function handleSubmit(finalize: boolean) {
     setError(null);
+    if (creditLimitBlocked) return;
     if (!customerId) {
       setError("Customer is required");
       return;
@@ -257,6 +300,23 @@ export function InvoiceFormView({
 
     startTransition(async () => {
       try {
+        if (totals.total > 0) {
+          try {
+            await adminPost<{ ok: true }>("erp/invoices/validate-credit", {
+              userId: customerId,
+              total: totals.total,
+              ...(invoiceId ? { invoiceId } : {}),
+            });
+          } catch (creditErr) {
+            setError(
+              creditErr instanceof Error
+                ? creditErr.message
+                : "Customer credit limit exceeded.",
+            );
+            return;
+          }
+        }
+
         const supabase = createSupabaseBrowserClient();
         const staffUserId = await resolveOutboxUserId(supabase);
         if (!staffUserId) {
@@ -354,34 +414,52 @@ export function InvoiceFormView({
   const showDraftActions = mode === "create" || isDraftEdit;
 
   const totalsSidebar = (
-    <Card className="h-fit">
-      <CardHeader>
-        <CardTitle>Total</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Sub total</span>
-          <span className="tabular-nums font-medium">{totals.subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Tax</span>
-          <span className="tabular-nums font-medium">{totals.tax.toFixed(2)}</span>
-        </div>
-        <div className="space-y-1">
-          <Label>Discount</Label>
-          <NumericInput
-            min={0}
-            step="0.01"
-            value={discount}
-            onValueChange={setDiscount}
-          />
-        </div>
-        <div className="flex justify-between border-t pt-3 text-base font-semibold">
-          <span>Total</span>
-          <span className="tabular-nums">{totals.total.toFixed(2)}</span>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-2">
+      <Card className="h-fit">
+        <CardHeader>
+          <CardTitle>Total</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Sub total</span>
+            <span className="tabular-nums font-medium">{totals.subtotal.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Tax</span>
+            <span className="tabular-nums font-medium">{totals.tax.toFixed(2)}</span>
+          </div>
+          <div className="space-y-1">
+            <Label>Discount</Label>
+            <NumericInput
+              min={0}
+              step="0.01"
+              value={discount}
+              onValueChange={setDiscount}
+            />
+          </div>
+          {customerId && creditHeadroom?.hasLimit && creditHeadroom.available != null ? (
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Available credit</span>
+              <span className="tabular-nums">
+                {creditHeadroomLoading
+                  ? "…"
+                  : formatCurrencyAmount(Math.max(creditHeadroom.available, 0))}
+              </span>
+            </div>
+          ) : null}
+          <div className="flex justify-between border-t pt-3 text-base font-semibold">
+            <span>Total</span>
+            <span className="tabular-nums">{totals.total.toFixed(2)}</span>
+          </div>
+        </CardContent>
+      </Card>
+      {creditExceededDetails && customerId ? (
+        <InvoiceCreditLimitExceededAlert
+          customerId={customerId}
+          details={creditExceededDetails}
+        />
+      ) : null}
+    </div>
   );
 
   const footer = isModal ? (
@@ -390,16 +468,20 @@ export function InvoiceFormView({
         Cancel
       </Button>
       {showDraftActions ? (
-        <Button variant="outline" disabled={pending} onClick={() => handleSubmit(false)}>
+        <Button
+          variant="outline"
+          disabled={pending || creditLimitBlocked}
+          onClick={() => handleSubmit(false)}
+        >
           {ERP_DOCUMENT_UI.saveDraft}
         </Button>
       ) : null}
       {showDraftActions ? (
-        <Button disabled={pending} onClick={() => handleSubmit(true)}>
+        <Button disabled={pending || creditLimitBlocked} onClick={() => handleSubmit(true)}>
           {pending ? "Saving…" : ERP_DOCUMENT_UI.saveAndFinalize}
         </Button>
       ) : (
-        <Button disabled={pending} onClick={() => handleSubmit(false)}>
+        <Button disabled={pending || creditLimitBlocked} onClick={() => handleSubmit(false)}>
           {pending ? "Saving…" : "Update invoice"}
         </Button>
       )}
@@ -512,7 +594,7 @@ export function InvoiceFormView({
             />
           </AdminFormSection>
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <ErrorsFeedbackBridge errors={error} />
 
           {!isModal ? (
             <div className="flex flex-wrap justify-end gap-2">
@@ -520,16 +602,20 @@ export function InvoiceFormView({
                 Cancel
               </Link>
               {showDraftActions ? (
-                <Button variant="outline" disabled={pending} onClick={() => handleSubmit(false)}>
+                <Button
+                  variant="outline"
+                  disabled={pending || creditLimitBlocked}
+                  onClick={() => handleSubmit(false)}
+                >
                   {ERP_DOCUMENT_UI.saveDraft}
                 </Button>
               ) : null}
               {showDraftActions ? (
-                <Button disabled={pending} onClick={() => handleSubmit(true)}>
+                <Button disabled={pending || creditLimitBlocked} onClick={() => handleSubmit(true)}>
                   {pending ? "Saving…" : ERP_DOCUMENT_UI.saveAndFinalize}
                 </Button>
               ) : (
-                <Button disabled={pending} onClick={() => handleSubmit(false)}>
+                <Button disabled={pending || creditLimitBlocked} onClick={() => handleSubmit(false)}>
                   {pending ? "Saving…" : "Update invoice"}
                 </Button>
               )}
@@ -552,3 +638,4 @@ export function InvoiceFormView({
     </>
   );
 }
+

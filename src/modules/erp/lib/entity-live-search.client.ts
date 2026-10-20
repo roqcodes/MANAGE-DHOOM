@@ -38,6 +38,7 @@ type CustomerSearchRow = {
   phone: string | null;
   customer_number: string | null;
   avatar_url?: string | null;
+  current_balance?: number | null;
 };
 
 type VendorSearchRow = {
@@ -47,14 +48,20 @@ type VendorSearchRow = {
   phone: string | null;
   contact?: string | null;
   trn?: string | null;
+  current_balance?: number | null;
 };
+
+function mapPartyBalance(value: number | null | undefined): number {
+  const n = Number(value ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
 
 function mapCustomerRows(rows: CustomerSearchRow[]): EntitySearchOption[] {
   return rows.map((c) => ({
     id: c.id,
     label: c.name?.trim() || c.email || c.phone || "Unnamed customer",
     sublabel: [c.email, c.phone].filter(Boolean).join(" · ") || undefined,
-    meta: c.customer_number ? `Customer #${c.customer_number}` : undefined,
+    amount: mapPartyBalance(c.current_balance),
     imageUrl: c.avatar_url?.trim() || undefined,
   }));
 }
@@ -67,7 +74,7 @@ function mapVendorRows(rows: VendorSearchRow[]): EntitySearchOption[] {
       id: v.id,
       label: v.name?.trim() || "Unnamed vendor",
       sublabel,
-      meta: v.trn ? `TRN ${v.trn}` : undefined,
+      amount: mapPartyBalance(v.current_balance),
     };
   });
 }
@@ -114,6 +121,7 @@ export async function resolveVendorPickerOption(
     phone: string | null;
     trn: string | null;
     is_active: boolean;
+    balanceDue?: number;
   }>(`erp/vendors/${vendorId}?view=profile`);
 
   if (!profile.is_active) {
@@ -125,7 +133,7 @@ export async function resolveVendorPickerOption(
     id: profile.id,
     label: profile.name?.trim() || "Unnamed vendor",
     sublabel,
-    meta: profile.trn ? `TRN ${profile.trn}` : undefined,
+    amount: mapPartyBalance(profile.balanceDue),
   };
 }
 
@@ -141,6 +149,7 @@ export async function resolveCustomerPickerOption(
       phone: string | null;
       customerNumber: string | null;
       avatarUrl: string | null;
+      outstandingBalance?: number;
     };
   }>(`customers/${customerId}/erp`);
 
@@ -149,7 +158,7 @@ export async function resolveCustomerPickerOption(
     id: profile.id,
     label: profile.name?.trim() || profile.email || profile.phone || "Unnamed customer",
     sublabel: [profile.email, profile.phone].filter(Boolean).join(" · ") || undefined,
-    meta: profile.customerNumber ? `Customer #${profile.customerNumber}` : undefined,
+    amount: mapPartyBalance(profile.outstandingBalance),
     imageUrl: profile.avatarUrl?.trim() || undefined,
   };
 }

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { downloadCsvFile, rowsToCsv } from "@/lib/csv/csv-utils";
 import { adminPost } from "@/modules/admin/lib/admin-api-client";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   CSV_IMPORT_CONFIGS,
   type CsvImportEntity,
@@ -102,7 +103,7 @@ export function CsvImportDialog({
             </p>
           </div>
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <ErrorsFeedbackBridge errors={error} />
 
           {result ? (
             <div className="rounded-md border bg-muted/40 p-3 text-sm">
@@ -127,3 +128,4 @@ export function CsvImportDialog({
     </Dialog>
   );
 }
+

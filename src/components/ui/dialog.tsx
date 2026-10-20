@@ -44,16 +44,19 @@ function DialogContent({
   children,
   showCloseButton = true,
   stacked = false,
+  elevated = false,
   instant = false,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
   /** Raise z-index when opening above another dialog (e.g. quick-create inside ERP forms). */
   stacked?: boolean
+  /** Above stacked ERP modals — use for global alerts on top of form dialogs. */
+  elevated?: boolean
   /** Skip enter/exit motion (ERP modals). */
   instant?: boolean
 }) {
-  const stackZ = stacked ? "z-[60]" : "z-50";
+  const stackZ = elevated ? "z-[70]" : stacked ? "z-[60]" : "z-50";
   return (
     <DialogPortal>
       <DialogOverlay

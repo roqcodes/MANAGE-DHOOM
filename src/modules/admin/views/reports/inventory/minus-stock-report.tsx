@@ -29,6 +29,7 @@ import {
 } from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useInventoryReportFilters } from "./use-inventory-report-filters";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type MinusStockRow = Record<string, unknown> & {
   stock?: number;
@@ -117,7 +118,7 @@ export function MinusStockReport({ report }: { report: ReportDefinition }) {
         !loading && sorted.length > 0 ? <ReportKpiStrip items={kpiItems} /> : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       <div className="border-b bg-amber-50/80 px-4 py-2 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
         Lists store SKUs where on-hand quantity is below zero. Use{" "}
         <Link href="/admin/erp/stock-adjustments" className="font-medium text-primary hover:underline">

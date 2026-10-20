@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { CustomerAvatar } from "@/modules/customers/components/customers-ui";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { useSearchListKeyboard } from "@/modules/admin/ui/use-search-list-keyboard";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export type { EntitySearchOption } from "@/modules/erp/lib/entity-live-search.client";
 
@@ -251,7 +252,9 @@ export function EntitySearchSelect({
             Searching…
           </div>
         ) : fetchError ? (
-          <p className="px-3 py-6 text-center text-xs text-destructive">{fetchError}</p>
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            Couldn&apos;t load results
+          </p>
         ) : debouncedQuery.trim().length < minChars && !loadOnFocus ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             Type at least {minChars} characters
@@ -271,7 +274,7 @@ export function EntitySearchSelect({
               onMouseEnter={() => setActiveIndex(index)}
               onClick={() => selectOptionAt(index)}
               className={cn(
-                "flex w-full items-start gap-2 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-muted",
+                "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-muted",
                 value === option.id && "bg-primary/5",
                 activeIndex === index && "bg-muted ring-1 ring-ring",
               )}
@@ -281,7 +284,7 @@ export function EntitySearchSelect({
                   name={option.label}
                   avatarUrl={option.imageUrl}
                   size="sm"
-                  className="mt-0.5 shrink-0"
+                  className="shrink-0"
                 />
               ) : null}
               <div className="min-w-0 flex-1">
@@ -294,7 +297,7 @@ export function EntitySearchSelect({
                 ) : null}
               </div>
               {option.amount != null ? (
-                <span className="shrink-0 text-xs font-semibold tabular-nums">
+                <span className="ml-auto shrink-0 pl-2 text-right text-xs font-semibold tabular-nums">
                   {formatCurrencyAmount(option.amount)}
                 </span>
               ) : null}
@@ -310,6 +313,7 @@ export function EntitySearchSelect({
       data-enter-nav={open ? "off" : undefined}
       className={cn("relative w-full", className)}
     >
+      <ErrorsFeedbackBridge errors={fetchError} title="Search failed" />
       <div ref={anchorRef} className="relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input

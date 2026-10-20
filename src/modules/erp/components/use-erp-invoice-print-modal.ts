@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import { documentPrintUrl } from "@/lib/print-document";
 import { directPrintErpInvoice } from "@/lib/direct-document-print";
+import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
 
 export type ErpInvoicePrintModalOpenOptions = {
   autoDownload?: boolean;
@@ -20,6 +21,7 @@ export function erpInvoicePrintUrl(
 
 /** Fetches the invoice and opens the system print dialog (or PDF download) on the current page. */
 export function useErpInvoicePrintModal() {
+  const { showError } = useAppFeedback();
   const [printPending, setPrintPending] = useState(false);
 
   const openInvoicePrint = useCallback(
@@ -29,13 +31,11 @@ export function useErpInvoicePrintModal() {
       void directPrintErpInvoice(id, mode)
         .catch((err) => {
           console.error(err);
-          window.alert(
-            err instanceof Error ? err.message : "Could not print this invoice.",
-          );
+          showError(err, "Couldn't print");
         })
         .finally(() => setPrintPending(false));
     },
-    [],
+    [showError],
   );
 
   return {

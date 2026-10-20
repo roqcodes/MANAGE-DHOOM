@@ -23,6 +23,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type StoreRow = { id: string; name: string };
 
@@ -184,9 +185,7 @@ export function UsersStaffAccessModal({
           </div>
         ) : null}
 
-        {error ? (
-          <p className="text-xs font-medium text-destructive">{error}</p>
-        ) : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         <div className="flex justify-end gap-2">
           <SecondaryBtn onClick={onClose}>Cancel</SecondaryBtn>

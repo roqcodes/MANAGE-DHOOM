@@ -45,6 +45,7 @@ import {
 } from "@/components/ui/table";
 import { SortableTableHead, useSortableData } from "@/modules/admin/ui";
 import { cn } from "@/lib/utils";
+import { AdminPageLoadError } from "@/modules/feedback/components/admin-page-load-error";
 
 type ModalState =
   | { mode: "create" }
@@ -220,21 +221,7 @@ export function AdminItemUnitsView() {
 
   const initialLoading = isPending && !data;
   if (isError) {
-    return (
-      <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
-        <div className="flex items-start gap-3 rounded-xl border border-rose-200/60 bg-rose-50/40 p-5">
-          <AlertTriangle className="size-5 shrink-0 text-rose-600" />
-          <div>
-            <p className="text-sm font-semibold text-rose-900">
-              Failed to load item units.
-            </p>
-            <p className="mt-1 text-sm text-rose-700">
-              {error instanceof Error ? error.message : "Unknown error."}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AdminPageLoadError title="Failed to load item units." error={error} />;
   }
 
   async function handleDelete(unit: ItemUnit) {

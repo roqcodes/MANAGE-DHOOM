@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import {
   Modal,
   FormError,
+  ModalFormFooter,
   PrimaryBtn,
   SecondaryBtn,
 } from "@/modules/admin/components/modal";
@@ -2157,20 +2158,15 @@ export function ProductManageModal({
               />
             ) : null}
 
-            {(activeTab === "variants" && isCreate && error) ? (
-              <div className="shrink-0 border-t border-border bg-background px-6 py-3">
-                <FormError message={error} />
-              </div>
-            ) : null}
           </motion.div>
         </AnimatePresence>
       </div>
 
       <div
         data-form-enter-footer
-        className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-border bg-background px-2.5 py-2.5 sm:gap-3 sm:px-4 sm:py-3 min-[1100px]:px-6 min-[1100px]:py-4"
+        className="shrink-0 border-t border-border bg-background px-2.5 py-2.5 sm:px-4 sm:py-3 min-[1100px]:px-6 min-[1100px]:py-4"
       >
-        <div className="flex items-center gap-2">
+        <ModalFormFooter errors={error}>
           <SecondaryBtn onClick={onClose} disabled={isPending}>
             Cancel
           </SecondaryBtn>
@@ -2204,7 +2200,7 @@ export function ProductManageModal({
               {isPending ? "Saving…" : "Save changes"}
             </PrimaryBtn>
           ) : null}
-        </div>
+        </ModalFormFooter>
       </div>
     </Modal>
   );

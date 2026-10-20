@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import { Label } from "@/components/ui/label";
 import {
   forgotPasswordAction,
@@ -76,9 +77,7 @@ export function SecuritySettingsCard() {
               type="password"
             />
           </div>
-          {updateState.errorMessage ? (
-            <p className="text-sm text-destructive">{updateState.errorMessage}</p>
-          ) : null}
+          <ErrorsFeedbackBridge errors={updateState.errorMessage} asError />
           {updateState.successMessage ? (
             <p className="text-sm text-emerald-700">{updateState.successMessage}</p>
           ) : null}
@@ -95,9 +94,7 @@ export function SecuritySettingsCard() {
             We will send a secure reset link to your account email. Use this if you
             prefer not to set a password in the browser right now.
           </p>
-          {resetState.errorMessage ? (
-            <p className="text-sm text-destructive">{resetState.errorMessage}</p>
-          ) : null}
+          <ErrorsFeedbackBridge errors={resetState.errorMessage} asError />
           {resetState.successMessage ? (
             <p className="text-sm text-emerald-700">{resetState.successMessage}</p>
           ) : null}

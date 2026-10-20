@@ -1,7 +1,7 @@
 -- Sales reports: collections, salesman, enriched customer/item summaries.
 
 BEGIN;
-image.png
+
 CREATE OR REPLACE FUNCTION public.get_erp_payment_mode_bucket(p_mode text)
 RETURNS text
 LANGUAGE sql

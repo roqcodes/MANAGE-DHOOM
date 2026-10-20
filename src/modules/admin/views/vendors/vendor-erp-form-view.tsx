@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 
 import type { VendorErpProfile } from "@/common/erp/purchasing-types";
 import { VENDOR_TYPE_OPTIONS } from "@/common/erp/purchasing-types";
 import { adminGet, adminPost, adminPut } from "@/modules/admin/lib/admin-api-client";
+import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
   AdminFormActions,
@@ -17,7 +17,6 @@ import {
   AdminFormShell,
   type ErpFormViewBaseProps,
 } from "@/modules/admin/ui";
-import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -39,7 +38,7 @@ export function VendorErpFormView({
   const formId = useId();
   const id = vendorIdProp ?? (mode === "edit" ? (params.id as string) : "");
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[]>([]);
   const [profile, setProfile] = useState<VendorErpProfile | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const isModal = variant === "modal";
@@ -75,9 +74,15 @@ export function VendorErpFormView({
     const name = (fd.get("name") as string).trim();
     const address = (fd.get("address") as string).trim();
     const vendorType = fd.get("vendorType") as string;
-    if (!name) return setError("Name is required.");
-    if (!address) return setError("Address is required.");
-    if (!vendorType) return setError("Vendor type is required.");
+    const validationErrors: string[] = [];
+    if (!name) validationErrors.push("Name is required.");
+    if (!address) validationErrors.push("Address is required.");
+    if (!vendorType) validationErrors.push("Vendor type is required.");
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+    setErrors([]);
 
     const payload = {
       name,
@@ -104,7 +109,7 @@ export function VendorErpFormView({
           handleSuccessNavigate(id);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save vendor.");
+        setErrors([actionErrorMessage(err, "Failed to save vendor.")]);
       }
     });
   }
@@ -133,6 +138,7 @@ export function VendorErpFormView({
       onCancel={handleCancel}
       submitLabel="Save"
       pending={isPending}
+      errors={errors}
     />
   ) : undefined;
 
@@ -220,17 +226,14 @@ export function VendorErpFormView({
           </AdminFormColumns>
         </AdminFormSection>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
         {!isModal ? (
-          <div className="flex flex-wrap justify-end gap-2">
-            <Link href="/admin/vendors" className={buttonVariants({ variant: "outline" })}>
-              Cancel
-            </Link>
-            <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : "Save"}
-            </Button>
-          </div>
+          <AdminFormActions
+            formId={formId}
+            onCancel={handleCancel}
+            submitLabel="Save"
+            pending={isPending}
+            errors={errors}
+          />
         ) : null}
       </form>
     </AdminFormShell>

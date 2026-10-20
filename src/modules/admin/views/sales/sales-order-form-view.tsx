@@ -45,6 +45,7 @@ import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { coalesceNumber } from "@/lib/numeric-input";
 import { Label } from "@/components/ui/label";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   AdminFormSkeleton,
   AdminPageSkeleton,
@@ -447,7 +448,7 @@ export function SalesOrderFormView({
             />
           </AdminFormSection>
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <ErrorsFeedbackBridge errors={error} />
 
           {!isModal ? (
             <div className="flex flex-wrap justify-end gap-2">
@@ -467,3 +468,4 @@ export function SalesOrderFormView({
     </AdminFormShell>
   );
 }
+

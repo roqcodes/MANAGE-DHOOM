@@ -18,6 +18,7 @@ import {
 } from "./statement-section";
 import { useBusinessReportFilters } from "./use-business-report-filters";
 import { useErpReportFetch } from "./use-erp-report-fetch";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type CfLine = {
   account_code?: string;
@@ -146,7 +147,7 @@ export function CashFlowReport({ report }: { report: ReportDefinition }) {
         </div>
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <AdminTableBodySkeleton rows={14} />
       ) : (

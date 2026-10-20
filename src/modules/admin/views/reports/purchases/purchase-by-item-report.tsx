@@ -29,6 +29,7 @@ import {
 } from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useInventoryReportFilters } from "../inventory/use-inventory-report-filters";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function PurchaseByItemReport({ report }: { report: ReportDefinition }) {
   const filters = useInventoryReportFilters(report);
@@ -94,7 +95,7 @@ export function PurchaseByItemReport({ report }: { report: ReportDefinition }) {
         !loading && kpis.length > 0 ? <ReportKpiStrip items={kpis} /> : null
       }
     >
-      {error ? <p className="px-4 py-3 text-sm text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {loading ? (
         <AdminDataTable>
           <AdminDataTableRowsSkeleton rows={10} columns={report.columns.length} />

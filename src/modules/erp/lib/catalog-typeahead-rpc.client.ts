@@ -26,6 +26,7 @@ type CustomerRpcRow = {
   phone: string | null;
   customer_number: string | null;
   avatar_url: string | null;
+  current_balance?: number | null;
 };
 
 type VendorRpcRow = {
@@ -35,6 +36,7 @@ type VendorRpcRow = {
   phone: string | null;
   contact: string | null;
   trn: string | null;
+  current_balance?: number | null;
 };
 
 function mapCatalogToSalesRow(row: CatalogRpcRow): ErpSalesProductSearchRow {

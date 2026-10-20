@@ -11,6 +11,7 @@ import {
   type ErpEstimatePrintData,
 } from "@/modules/erp/components/erp-estimate-print-document";
 import { downloadElementAsPdf } from "@/lib/html2pdf-download";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function ErpEstimatePrintPage() {
   const params = useParams();
@@ -59,7 +60,13 @@ export function ErpEstimatePrintPage() {
   }
 
   if (error || !estimate) {
-    return <p className="p-6 text-sm text-destructive">{error ?? "Estimate not found."}</p>;
+    return (
+      <ErrorsFeedbackBridge
+        errors={error ?? "Estimate not found."}
+        asError
+        title="Couldn't load estimate"
+      />
+    );
   }
 
   return (

@@ -48,6 +48,7 @@ import {
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 function formatDisplayDate(value: string) {
   try {
@@ -324,7 +325,7 @@ export function EmployeeOpeningBalanceFormView({
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         <AdminFormSection title="Batch details">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -407,3 +408,4 @@ export function EmployeeOpeningBalanceFormView({
     </AdminFormShell>
   );
 }
+

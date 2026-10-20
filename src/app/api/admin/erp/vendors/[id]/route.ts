@@ -25,7 +25,8 @@ export async function GET(request: Request, context: RouteContext) {
     if (view === "profile") {
       const profile = await getVendorErpProfile(id);
       if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
-      return NextResponse.json(profile);
+      const summary = await getVendorErpSummary(id, undefined);
+      return NextResponse.json({ ...profile, balanceDue: summary.balanceDue });
     }
     if (view === "statement") {
       const lines = await getVendorStatement(id, storeId);

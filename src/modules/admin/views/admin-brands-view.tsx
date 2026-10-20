@@ -16,12 +16,13 @@ import { getBrandLogo } from "@/modules/products/lib/brands.utils";
 import { AdminDataTableRowsSkeleton } from "@/modules/admin/ui";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import {
-  FormError,
+  ModalFormFooter,
   Modal,
   PrimaryBtn,
   SecondaryBtn,
 } from "@/modules/admin/components/modal";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import {
   createBrandAction,
   deleteBrandAction,
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/table";
 import { SortableTableHead, useSortableData } from "@/modules/admin/ui";
 import { Card, CardContent } from "@/components/ui/card";
+import { AdminPageLoadError } from "@/modules/feedback/components/admin-page-load-error";
 
 interface BrandsPayload {
   brands: Brand[];
@@ -119,7 +121,7 @@ function BrandFormModal({
         await queryClient.invalidateQueries({ queryKey: ["admin", "brands"] });
         onClose();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save.");
+        setError(actionErrorMessage(err, "Failed to save."));
       }
     });
   }
@@ -209,13 +211,12 @@ function BrandFormModal({
           </span>
         </label>
 
-        <FormError message={error} />
-        <div className="flex justify-end gap-2">
+        <ModalFormFooter errors={error}>
           <SecondaryBtn onClick={onClose}>Cancel</SecondaryBtn>
           <PrimaryBtn type="submit" disabled={isPending || uploading}>
             {uploading ? "Uploading…" : isPending ? "Saving…" : "Save"}
           </PrimaryBtn>
-        </div>
+        </ModalFormFooter>
       </form>
     </Modal>
   );
@@ -246,21 +247,7 @@ export function AdminBrandsView() {
 
   const initialLoading = isPending && !data;
   if (isError) {
-    return (
-      <div className="mx-auto w-full max-w-7xl px-3 py-6 sm:px-4">
-        <div className="flex items-start gap-3 rounded-xl border border-rose-200/60 bg-rose-50/40 p-5">
-          <AlertTriangle className="size-5 shrink-0 text-rose-600" />
-          <div>
-            <p className="text-sm font-semibold text-rose-900">
-              Failed to load brands.
-            </p>
-            <p className="mt-1 text-sm text-rose-700">
-              {error instanceof Error ? error.message : "Unknown error."}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
+    return <AdminPageLoadError title="Failed to load brands." error={error} />;
   }
 
   async function handleDelete(brand: Brand) {

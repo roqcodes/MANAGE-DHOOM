@@ -65,6 +65,7 @@ import {
   type ErpFormViewBaseProps,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export type PurchaseOrderFormViewProps = ErpFormViewBaseProps & {
   mode: "create" | "edit";
@@ -514,7 +515,7 @@ export function PurchaseOrderFormView({
               Allocate landed costs across line items so the total matches before saving.
             </p>
           ) : null}
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <ErrorsFeedbackBridge errors={error} />
 
           {!isModal ? (
             <div className="flex flex-wrap justify-end gap-2">
@@ -531,3 +532,4 @@ export function PurchaseOrderFormView({
     </AdminFormShell>
   );
 }
+

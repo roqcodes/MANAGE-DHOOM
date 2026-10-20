@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { Input } from "@/components/ui/input";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   CLOUDINARY_CONFIGURED,
   uploadImageToCloudinary,
@@ -54,7 +55,7 @@ export function AttachmentField({
         onChange={(e) => void handleFile(e.target.files?.[0] ?? null)}
       />
       {uploading ? <p className="text-xs text-muted-foreground">Uploading…</p> : null}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      <ErrorsFeedbackBridge errors={error} />
       {value ? (
         <a href={value} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
           View attachment

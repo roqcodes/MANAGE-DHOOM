@@ -32,6 +32,8 @@ import {
   type ErpFormViewBaseProps,
 } from "@/modules/admin/ui";
 import { StoreSelect, useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { validateTransferAllocationAmount } from "@/modules/erp/lib/payment-balance-validation";
 
 export function TransferBulkPaymentsListView() {
   const { isOpen, modalProps, openNew } = useErpFormModal("/admin/erp/transfer-bulk-payments");
@@ -203,6 +205,20 @@ export function TransferBulkPaymentFormView({
       return;
     }
 
+    for (const item of items) {
+      const row = pendingRows.find((r) => r.transfer_id === item.transferId);
+      if (!row) continue;
+      const allocErr = validateTransferAllocationAmount(
+        item.amount,
+        row.balance_due,
+        row.transfer_number,
+      );
+      if (allocErr) {
+        setError(allocErr);
+        return;
+      }
+    }
+
     startTransition(async () => {
       try {
         await adminPost("erp/transfer-payments", {
@@ -324,12 +340,22 @@ export function TransferBulkPaymentFormView({
                             max={row.balance_due}
                             step="0.01"
                             value={allocations[row.transfer_id] ?? Number.NaN}
-                            onValueChange={(amount) =>
+                            onValueChange={(amount) => {
+                              const allocErr = validateTransferAllocationAmount(
+                                amount,
+                                row.balance_due,
+                                row.transfer_number,
+                              );
+                              if (allocErr) {
+                                setError(allocErr);
+                                return;
+                              }
+                              setError(null);
                               setAllocations({
                                 ...allocations,
                                 [row.transfer_id]: amount,
-                              })
-                            }
+                              });
+                            }}
                             className="w-28"
                           />
                         </td>
@@ -342,7 +368,7 @@ export function TransferBulkPaymentFormView({
           </AdminFormSection>
         </AdminFormColumns>
 
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <ErrorsFeedbackBridge errors={error} />
 
         {!isModal ? (
           <div className="flex gap-2">
