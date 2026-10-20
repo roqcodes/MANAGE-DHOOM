@@ -321,11 +321,23 @@ export async function listAuditLogsForEntity(
   limit = 20,
 ): Promise<AuditLogEntry[]> {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
+  const trimmed = entityId.trim();
+  const { entityId: lookupId } = normalizeAuditEntityId(trimmed);
+
+  let query = supabase
     .from("audit_logs")
     .select(AUDIT_LOG_SELECT)
-    .eq("entity_type", entityType)
-    .eq("entity_id", entityId)
+    .eq("entity_type", entityType);
+
+  if (lookupId) {
+    query = query.eq("entity_id", lookupId);
+  } else {
+    query = query.or(
+      `metadata->>batch_ref.eq.${trimmed},metadata->>reference.eq.${trimmed}`,
+    );
+  }
+
+  const { data, error } = await query
     .order("created_at", { ascending: false })
     .limit(limit);
 
