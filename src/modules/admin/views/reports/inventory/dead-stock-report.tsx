@@ -127,12 +127,13 @@ export function DeadStockReport({ report }: { report: ReportDefinition }) {
         age.enabled ? (
           <div className="flex flex-col gap-2">
             <AgingReportAgeFilter
+              fieldLabel="Days since expiry"
+              unitLabel="days"
               ageMin={age.ageMin}
               ageMax={age.ageMax}
               onAgeMinChange={age.setAgeMin}
               onAgeMaxChange={age.setAgeMax}
-              minLabel="Min days expired"
-              maxLabel="Max days expired"
+              onClear={age.clear}
               idPrefix="dead-stock-expired"
             />
             <div className="flex flex-wrap items-center gap-1.5">
@@ -142,26 +143,11 @@ export function DeadStockReport({ report }: { report: ReportDefinition }) {
                   key={preset.label}
                   type="button"
                   className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-foreground hover:bg-muted"
-                  onClick={() => {
-                    age.setAgeMin(preset.min);
-                    age.setAgeMax(preset.max);
-                  }}
+                  onClick={() => age.setAgeMinMax(preset.min, preset.max)}
                 >
                   {preset.label}
                 </button>
               ))}
-              {(age.ageMin || age.ageMax) && (
-                <button
-                  type="button"
-                  className="text-xs text-primary hover:underline"
-                  onClick={() => {
-                    age.setAgeMin("");
-                    age.setAgeMax("");
-                  }}
-                >
-                  Clear
-                </button>
-              )}
             </div>
           </div>
         ) : null

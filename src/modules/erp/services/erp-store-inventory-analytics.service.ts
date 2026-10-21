@@ -16,6 +16,10 @@ import type {
   VendorReturnHistoryRow,
 } from "@/common/erp/store-inventory-types";
 import { roundCalc } from "@/lib/decimal-precision";
+import {
+  catalogPricingFromProductAndVariants,
+  storeInventoryOverridePrice,
+} from "@/modules/erp/lib/resolve-store-product-pricing";
 import { calcUnitLoadedCostFromAlloc } from "@/modules/purchasing/lib/purchase-landed-allocation";
 
 type BillLineRow = {
@@ -374,6 +378,69 @@ function salesGlanceFromRpc(block: ProductAnalyticsRpc["sales"]): StoreProductSa
   };
 }
 
+/** Use legacy queries when RPC is missing, times out, or the HTTP client cannot reach Supabase. */
+function shouldUseLegacyProductAnalytics(errorMessage: string): boolean {
+  const m = errorMessage.toLowerCase();
+  return (
+    m.includes("could not find the function") ||
+    m.includes("fetch failed") ||
+    m.includes("network") ||
+    m.includes("econnreset") ||
+    m.includes("etimedout") ||
+    m.includes("timeout") ||
+    m.includes("aborted") ||
+    m.includes("statement timeout") ||
+    m.includes("canceling statement")
+  );
+}
+
+const PRODUCT_ANALYTICS_RPC_TIMEOUT_MS = 12_000;
+
+async function invokeProductAnalyticsRpc(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  productId: string,
+  storeId: string,
+  recentLimit: number,
+  movementLimit: number,
+): Promise<ProductAnalyticsRpc | null> {
+  try {
+    const { data, error } = await (
+      supabase as unknown as {
+        rpc: (
+          fn: string,
+          args: Record<string, unknown>,
+        ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      }
+    ).rpc("erp_store_inventory_product_analytics", {
+      p_product_id: productId,
+      p_store_id: storeId,
+      p_recent_limit: recentLimit,
+      p_movement_limit: movementLimit,
+    });
+    if (error) {
+      if (shouldUseLegacyProductAnalytics(error.message)) {
+        console.warn(
+          "erp_store_inventory_product_analytics unavailable, using legacy detail:",
+          error.message,
+        );
+        return null;
+      }
+      throw new Error(error.message);
+    }
+    return data as ProductAnalyticsRpc;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (shouldUseLegacyProductAnalytics(message)) {
+      console.warn(
+        "erp_store_inventory_product_analytics unavailable, using legacy detail:",
+        message,
+      );
+      return null;
+    }
+    throw err;
+  }
+}
+
 async function loadProductAnalyticsRpc(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   productId: string,
@@ -381,26 +448,26 @@ async function loadProductAnalyticsRpc(
   recentLimit: number,
   movementLimit: number,
 ): Promise<ProductAnalyticsRpc | null> {
-  const { data, error } = await (
-    supabase as unknown as {
-      rpc: (
-        fn: string,
-        args: Record<string, unknown>,
-      ) => Promise<{ data: unknown; error: { message: string } | null }>;
-    }
-  ).rpc("erp_store_inventory_product_analytics", {
-    p_product_id: productId,
-    p_store_id: storeId,
-    p_recent_limit: recentLimit,
-    p_movement_limit: movementLimit,
-  });
-  if (error) {
-    if (error.message.includes("Could not find the function")) {
-      return null;
-    }
-    throw new Error(error.message);
+  const raced = await Promise.race([
+    invokeProductAnalyticsRpc(
+      supabase,
+      productId,
+      storeId,
+      recentLimit,
+      movementLimit,
+    ).then((value) => ({ kind: "result" as const, value })),
+    new Promise<{ kind: "timeout" }>((resolve) => {
+      setTimeout(() => resolve({ kind: "timeout" }), PRODUCT_ANALYTICS_RPC_TIMEOUT_MS);
+    }),
+  ]);
+
+  if (raced.kind === "timeout") {
+    console.warn(
+      "erp_store_inventory_product_analytics timed out, using legacy detail",
+    );
+    return null;
   }
-  return data as ProductAnalyticsRpc;
+  return raced.value;
 }
 
 async function loadBillLinesForProducts(storeId: string, productIds: string[]) {
@@ -598,6 +665,7 @@ export async function getStoreInventoryProductDetail(
   const [
     { data: storeRow },
     { data: product },
+    { data: variants },
     { data: spi },
     analytics,
     creditNoteLines,
@@ -609,6 +677,10 @@ export async function getStoreInventoryProductDetail(
       .select("id, name, barcode, price, purchase_price")
       .eq("id", productId)
       .single(),
+    supabase
+      .from("product_variants")
+      .select("price, purchase_price")
+      .eq("product_id", productId),
     supabase
       .from("store_product_inventory")
       .select("stock, purchase_price, sales_price")
@@ -622,7 +694,10 @@ export async function getStoreInventoryProductDetail(
 
   if (!product) throw new Error("Product not found");
 
+  const catalog = catalogPricingFromProductAndVariants(product, variants ?? []);
   const wac = spi?.purchase_price != null ? Number(spi.purchase_price) : null;
+  const storeSales =
+    spi?.sales_price != null ? Number(spi.sales_price) : null;
 
   const salesReturns = buildSalesReturnGlance(creditNoteLines, 15);
   const vendorReturns = buildVendorReturnGlance(vendorCreditLines, 15);
@@ -642,20 +717,14 @@ export async function getStoreInventoryProductDetail(
     productId: product.id,
     productName: product.name ?? "Product",
     barcode: product.barcode,
-    catalogPurchasePrice:
-      product.purchase_price != null ? Number(product.purchase_price) : null,
-    catalogSalesPrice: product.price != null ? Number(product.price) : null,
+    catalogPurchasePrice: catalog.purchasePrice,
+    catalogSalesPrice: catalog.salesPrice,
     storeId: activeStoreId,
     storeName: storeRow?.name ?? "Store",
     onHandStock: Number(spi?.stock ?? 0),
     centralStock: heavy.centralStock,
-    storeSalesPrice:
-      spi?.sales_price != null
-        ? Number(spi.sales_price)
-        : product.price != null
-          ? Number(product.price)
-          : null,
-    storeWac: wac,
+    storeSalesPrice: storeInventoryOverridePrice(storeSales),
+    storeWac: storeInventoryOverridePrice(wac),
     purchase: heavy.purchase,
     sales: heavy.sales,
     salesReturns: heavy.salesReturns,

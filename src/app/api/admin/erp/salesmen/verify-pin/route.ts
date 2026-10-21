@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
+import { requireStaffErpApiSession } from "@/lib/api/admin-api-auth";
 import { verifyErpSalesmanPin } from "@/modules/users/services/erp-salesmen.service";
 
 export async function GET(request: Request) {
-  const auth = await requireAdminApiProfile();
+  const auth = await requireStaffErpApiSession();
   if (!auth.ok) return auth.response;
 
   const pin = new URL(request.url).searchParams.get("pin")?.trim() ?? "";

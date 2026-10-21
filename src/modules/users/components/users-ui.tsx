@@ -87,6 +87,52 @@ export function UserRoleBadge({ role }: { role: string | null }) {
   );
 }
 
+export function matchesErpSalesmanSearch(
+  salesman: {
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    id: string;
+    pin?: string | null;
+  },
+  query: string,
+) {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  const name = salesman.name.toLowerCase();
+  const email = (salesman.email ?? "").toLowerCase();
+  const phone = (salesman.phone ?? "").toLowerCase();
+  const pin = (salesman.pin ?? "").toLowerCase();
+  const idShort = salesman.id.slice(0, 8).toLowerCase();
+  return (
+    name.includes(q) ||
+    email.includes(q) ||
+    phone.includes(q) ||
+    pin.includes(q) ||
+    idShort.includes(q) ||
+    "erp salesman".includes(q) ||
+    (q.length >= 4 && "salesman".includes(q))
+  );
+}
+
+export function formatSalesmanId(salesman: { id: string }) {
+  const shortId = salesman.id.split("-")[0]?.slice(0, 4).toUpperCase() ?? "0000";
+  return `SLM-${shortId}`;
+}
+
+export function ErpSalesmanRoleBadge() {
+  return (
+    <span
+      className={cn(
+        "inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium",
+        "bg-teal-100 text-teal-900 dark:bg-teal-950 dark:text-teal-200",
+      )}
+    >
+      ERP Salesman
+    </span>
+  );
+}
+
 export function matchesUserSearch(user: DBUser | AdminUser, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;

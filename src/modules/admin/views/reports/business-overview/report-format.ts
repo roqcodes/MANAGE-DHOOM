@@ -37,41 +37,50 @@ export function reportFiltersSubtitle(
 export function formatAgingDaysRange(ageMinDays?: number, ageMaxDays?: number) {
   if (ageMinDays == null && ageMaxDays == null) return "";
   if (ageMinDays != null && ageMaxDays != null) {
-    if (ageMinDays === ageMaxDays) return `Age ${ageMinDays} days`;
-    return `Age ${ageMinDays}–${ageMaxDays} days`;
+    if (ageMinDays === ageMaxDays) return `${ageMinDays} days`;
+    return `${ageMinDays}–${ageMaxDays} days`;
   }
-  if (ageMinDays != null) return `Age ≥ ${ageMinDays} days`;
-  return `Age ≤ ${ageMaxDays} days`;
+  if (ageMinDays != null) return `≥ ${ageMinDays} days`;
+  return `≤ ${ageMaxDays} days`;
 }
 
 export function formatAgingReportSubtitle(filters: {
   asOf: string;
   ageMinDays?: number;
   ageMaxDays?: number;
+  ageFilterDescription?: string;
 }) {
   const parts = [`As of ${formatReportAsOf(filters.asOf)}`];
-  const ageLabel = formatAgingDaysRange(filters.ageMinDays, filters.ageMaxDays);
+  const ageLabel =
+    filters.ageFilterDescription?.trim() ||
+    formatAgingDaysRange(filters.ageMinDays, filters.ageMaxDays);
   if (ageLabel) parts.push(ageLabel);
   return parts.join(" · ");
 }
 
 export function formatExpiredDaysRange(expiredMinDays?: number, expiredMaxDays?: number) {
   if (expiredMinDays == null && expiredMaxDays == null) return "";
+  const suffix = " since expiry";
   if (expiredMinDays != null && expiredMaxDays != null) {
-    if (expiredMinDays === expiredMaxDays) return `Expired ${expiredMinDays} days`;
-    return `Expired ${expiredMinDays}–${expiredMaxDays} days`;
+    if (expiredMinDays === expiredMaxDays) {
+      return `${expiredMinDays} days${suffix}`;
+    }
+    return `${expiredMinDays}–${expiredMaxDays} days${suffix}`;
   }
-  if (expiredMinDays != null) return `Expired ≥ ${expiredMinDays} days`;
-  return `Expired ≤ ${expiredMaxDays} days`;
+  if (expiredMinDays != null) return `≥ ${expiredMinDays} days${suffix}`;
+  return `≤ ${expiredMaxDays} days${suffix}`;
 }
 
 export function formatDeadStockReportSubtitle(filters: {
   asOf: string;
   ageMinDays?: number;
   ageMaxDays?: number;
+  expiredFilterDescription?: string;
 }) {
   const parts = [`As of ${formatReportAsOf(filters.asOf)}`];
-  const range = formatExpiredDaysRange(filters.ageMinDays, filters.ageMaxDays);
+  const range =
+    filters.expiredFilterDescription?.trim() ||
+    formatExpiredDaysRange(filters.ageMinDays, filters.ageMaxDays);
   if (range) parts.push(range);
   return parts.join(" · ");
 }

@@ -349,6 +349,7 @@ const ERP_INVOICE_DETAIL_SELECT = `
   order_id,
   user_id,
   store_id,
+  sales_person_id,
   gst_number,
   reference,
   stores(name, logo_url, address_line1, city, country, phone, trn),

@@ -11,6 +11,7 @@ import { salesInvoiceResourceScope } from "@/modules/erp/types/sales-invoice-pay
 export async function enqueueSalesInvoiceIssue(params: {
   invoiceId: string;
   storeId: string;
+  salesPersonId?: string;
 }): Promise<void> {
   const supabase = createSupabaseBrowserClient();
   const staffUserId = await resolveOutboxUserId(supabase);
@@ -18,12 +19,29 @@ export async function enqueueSalesInvoiceIssue(params: {
     throw new Error("You must be signed in to issue this invoice.");
   }
 
+  let salesPersonId = params.salesPersonId;
+  if (!salesPersonId) {
+    const { data, error } = await supabase
+      .from("invoices")
+      .select("sales_person_id")
+      .eq("id", params.invoiceId)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    salesPersonId = data?.sales_person_id ?? undefined;
+  }
+
+  if (!salesPersonId) {
+    throw new Error(
+      "This invoice has no salesman. Open it, enter a valid salesman PIN, save, then issue.",
+    );
+  }
+
   const store = createOutboxStore();
   try {
     await store.enqueue({
       operationType: ERP_CLIENT_OPERATION_TYPES.salesInvoice.issue,
       schemaVersion: 1,
-      payload: { invoiceId: params.invoiceId },
+      payload: { invoiceId: params.invoiceId, salesPersonId },
       userId: staffUserId,
       storeId: params.storeId,
       terminalId: getOrCreateErpTerminalId(),

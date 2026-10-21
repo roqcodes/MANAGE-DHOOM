@@ -8,12 +8,14 @@
 --   products, variants, categories, brands, media, vendors, customers (users),
 --   companies, stores, staff/RBAC, chart of accounts (accounts, account_types),
 --   erp_posting_rules, erp_landed_cost_items, erp_employees (profiles),
+--   erp_salesmen (PIN sellers; not transactional),
 --   item_units, tax_rates, pricing_rules, app_settings, erp_purchasing_settings,
 --   push_templates, customer_credit_limits (limits only), addresses (optional).
 --
 -- CLEARS:
---   sales & purchase documents, payments, journals, VAT, inventory movements,
---   stock levels (zeroed), storefront carts/orders, HR payroll runs, sync ops,
+--   sales & purchase documents, payments, journals, VAT, deferred COGS postings,
+--   inventory movements, stock levels (zeroed; store WAC/sales overrides cleared),
+--   storefront carts/orders, HR payroll runs, sync ops,
 --   audit trail, analytics reach tables, idempotency rows, document counters.
 --
 -- MAINTENANCE: When a migration adds/changes transactional tables, append them
@@ -24,7 +26,9 @@
 --   - purchase_po_delivery_operations (20261002170000)
 --   - purchase_order_landed_costs (20261001140000)
 --   - erp_purchase_receives / lines (20260907130000)
--- Last reviewed: 2026-10-19
+--   - catalog_product_create_operations (20261019210000)
+--   - erp_invoice_deferred_cogs_postings (20261020160000)
+-- Last reviewed: 2026-10-21
 --
 -- ⚠️  Destructive. Backup before running in any shared environment.
 -- =============================================================================
@@ -49,6 +53,11 @@ BEGIN
   IF to_regclass('public.erp_account_transactions') IS NOT NULL THEN
     UPDATE public.erp_account_transactions SET journal_entry_id = NULL WHERE journal_entry_id IS NOT NULL;
   END IF;
+  IF to_regclass('public.erp_invoice_deferred_cogs_postings') IS NOT NULL THEN
+    UPDATE public.erp_invoice_deferred_cogs_postings
+    SET journal_entry_id = NULL
+    WHERE journal_entry_id IS NOT NULL;
+  END IF;
 END $$;
 
 -- ─── Truncate operational tables (children before parents) ─────────────────
@@ -65,7 +74,9 @@ DECLARE
     'erp_client_operations',
     'pos_checkout_operations',
     'purchase_po_delivery_operations',
+    'catalog_product_create_operations',
     -- AR allocations & payments
+    'erp_invoice_deferred_cogs_postings',
     'erp_payment_allocations',
     'erp_customer_payments',
     'erp_credit_note_applications',
@@ -164,11 +175,21 @@ DO $$
 BEGIN
   IF to_regclass('public.store_product_inventory') IS NOT NULL THEN
     UPDATE public.store_product_inventory
-    SET stock = 0, opening_stock = 0, updated_at = now();
+    SET
+      stock = 0,
+      opening_stock = 0,
+      purchase_price = NULL,
+      sales_price = NULL,
+      updated_at = now();
   END IF;
   IF to_regclass('public.store_inventory') IS NOT NULL THEN
     UPDATE public.store_inventory
-    SET stock = 0, opening_stock = 0, updated_at = now();
+    SET
+      stock = 0,
+      opening_stock = 0,
+      purchase_price = NULL,
+      sales_price = NULL,
+      updated_at = now();
   END IF;
   IF to_regclass('public.inventory') IS NOT NULL THEN
     UPDATE public.inventory SET stock = 0, reserved_stock = 0;

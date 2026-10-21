@@ -3,6 +3,11 @@ import "server-only";
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { StockDetailRow } from "@/common/erp/inventory-types";
+import {
+  catalogPricingFromProductAndVariants,
+  resolveStorePurchasePrice,
+  resolveStoreSalesPrice,
+} from "@/modules/erp/lib/resolve-store-product-pricing";
 import { resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 
 /** Per-store physical stock (product-level) + online variant stock summary. */
@@ -31,12 +36,15 @@ export async function getStockDetails(input?: {
   if (error) throw new Error(error.message);
 
   const productIds = (spiRows ?? []).map((r) => r.product_id);
-  const productMap = new Map<string, {
-    name: string | null;
-    barcode: string | null;
-    price: number | null;
-    purchase_price: number | null;
-  }>();
+  const productMap = new Map<
+    string,
+    {
+      name: string | null;
+      barcode: string | null;
+      product: { price: unknown; purchase_price: unknown };
+      variants: { price: unknown; purchase_price: unknown }[];
+    }
+  >();
   const onlineStockMap = new Map<string, number>();
 
   if (productIds.length > 0) {
@@ -47,7 +55,7 @@ export async function getStockDetails(input?: {
         .in("id", productIds),
       supabase
         .from("product_variants")
-        .select("id, product_id")
+        .select("id, product_id, price, purchase_price")
         .in("product_id", productIds),
     ]);
 
@@ -55,8 +63,17 @@ export async function getStockDetails(input?: {
       productMap.set(p.id, {
         name: p.name,
         barcode: p.barcode,
-        price: p.price != null ? Number(p.price) : null,
-        purchase_price: p.purchase_price != null ? Number(p.purchase_price) : null,
+        product: { price: p.price, purchase_price: p.purchase_price },
+        variants: [],
+      });
+    }
+
+    for (const v of variants ?? []) {
+      const entry = productMap.get(v.product_id);
+      if (!entry) continue;
+      entry.variants.push({
+        price: v.price,
+        purchase_price: v.purchase_price,
       });
     }
 
@@ -85,6 +102,13 @@ export async function getStockDetails(input?: {
 
   const data: StockDetailRow[] = (spiRows ?? []).map((row) => {
     const product = productMap.get(row.product_id);
+    const catalog = catalogPricingFromProductAndVariants(
+      product?.product,
+      product?.variants ?? [],
+    );
+    const storePurchase =
+      row.purchase_price != null ? Number(row.purchase_price) : null;
+    const storeSales = row.sales_price != null ? Number(row.sales_price) : null;
     return {
       product_id: row.product_id,
       variant_id: null,
@@ -92,12 +116,8 @@ export async function getStockDetails(input?: {
       variant_name: null,
       central_stock: onlineStockMap.get(row.product_id) ?? 0,
       store_stock: Number(row.stock ?? 0),
-      purchase_price:
-        row.purchase_price != null
-          ? Number(row.purchase_price)
-          : product?.purchase_price ?? null,
-      sales_price:
-        row.sales_price != null ? Number(row.sales_price) : product?.price ?? null,
+      purchase_price: resolveStorePurchasePrice(storePurchase, catalog),
+      sales_price: resolveStoreSalesPrice(storeSales, catalog),
       barcode: product?.barcode ?? null,
     };
   });

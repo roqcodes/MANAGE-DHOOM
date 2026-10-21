@@ -26,7 +26,8 @@ export async function POST(request: Request, context: RouteContext) {
 
     const idempotent = idempotentSalesInvoiceIssueBodySchema.safeParse(body);
     if (!idempotent.success) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+      const detail = idempotent.error.issues[0]?.message ?? "Invalid request";
+      return NextResponse.json({ error: detail, code: "VALIDATION" }, { status: 400 });
     }
 
     if (idempotent.data.payload.invoiceId !== routeInvoiceId) {
@@ -78,9 +79,18 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json(mapped.body, { status: mapped.status });
     }
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+      const detail = error.issues[0]?.message ?? "Invalid request";
+      return NextResponse.json({ error: detail, code: "VALIDATION" }, { status: 400 });
     }
     const msg = error instanceof Error ? error.message : "Failed to issue invoice";
-    return NextResponse.json({ error: msg }, { status: 400 });
+    const code =
+      /salesman|sales person|pin/i.test(msg)
+        ? "SALESMAN_REQUIRED"
+        : /stock|inventory/i.test(msg)
+          ? "STOCK"
+          : /payment|credit note/i.test(msg)
+            ? "PAYMENTS"
+            : "ISSUE_FAILED";
+    return NextResponse.json({ error: msg, code }, { status: 400 });
   }
 }

@@ -41,6 +41,7 @@ export function UsersCreateSalesmanModal({
           pin: pinDigits,
         });
         void queryClient.invalidateQueries({ queryKey: ["admin", "erp-salesmen"] });
+        void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
         onCreated?.();
         onClose();
       } catch (e) {

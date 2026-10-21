@@ -36,6 +36,7 @@ export function useErpReportFetch(
       report.filters.accountType,
       report.filters.ageRange,
       report.filters.expiredDaysRange,
+      report.filters.salesman,
       params.dateFrom,
       params.dateTo,
       params.asOf,
@@ -57,6 +58,7 @@ export function useErpReportFetch(
       params.vendorId,
       params.ageMinDays,
       params.ageMaxDays,
+      params.salesmanId,
     ],
   );
 

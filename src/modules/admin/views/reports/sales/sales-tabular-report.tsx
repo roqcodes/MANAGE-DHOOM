@@ -156,6 +156,7 @@ export function SalesTabularReport({
             ageMax={age.ageMax}
             onAgeMinChange={age.setAgeMin}
             onAgeMaxChange={age.setAgeMax}
+            onClear={age.clear}
           />
         ) : null
       }

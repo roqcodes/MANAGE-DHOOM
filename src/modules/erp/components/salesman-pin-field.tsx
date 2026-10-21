@@ -2,11 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { verifySalesmanPinClient } from "@/modules/users/lib/verify-salesman-pin.client";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-
-type VerifyResponse = { salesman: { id: string; name: string } | null };
 
 export type SalesmanPinFieldProps = {
   value: string;
@@ -28,6 +26,8 @@ export function SalesmanPinField({
   const [status, setStatus] = useState<"idle" | "verifying" | "valid" | "invalid">("idle");
   const [salesmanName, setSalesmanName] = useState<string | null>(null);
   const requestSeq = useRef(0);
+  const onSalesmanChangeRef = useRef(onSalesmanChange);
+  onSalesmanChangeRef.current = onSalesmanChange;
 
   useEffect(() => {
     const digits = value.replace(/\D/g, "").slice(0, 3);
@@ -39,36 +39,36 @@ export function SalesmanPinField({
     if (digits.length !== 3) {
       setStatus(digits.length === 0 ? "idle" : "invalid");
       setSalesmanName(null);
-      onSalesmanChange(null);
+      onSalesmanChangeRef.current(null);
       return;
     }
 
     const seq = ++requestSeq.current;
     setStatus("verifying");
     const timer = window.setTimeout(() => {
-      adminGet<VerifyResponse>(`erp/salesmen/verify-pin?pin=${encodeURIComponent(digits)}`)
-        .then((res) => {
+      void verifySalesmanPinClient(digits)
+        .then((salesman) => {
           if (seq !== requestSeq.current) return;
-          if (res.salesman) {
+          if (salesman) {
             setStatus("valid");
-            setSalesmanName(res.salesman.name);
-            onSalesmanChange(res.salesman);
+            setSalesmanName(salesman.name);
+            onSalesmanChangeRef.current(salesman);
           } else {
             setStatus("invalid");
             setSalesmanName(null);
-            onSalesmanChange(null);
+            onSalesmanChangeRef.current(null);
           }
         })
         .catch(() => {
           if (seq !== requestSeq.current) return;
           setStatus("invalid");
           setSalesmanName(null);
-          onSalesmanChange(null);
+          onSalesmanChangeRef.current(null);
         });
-    }, 200);
+    }, 280);
 
     return () => window.clearTimeout(timer);
-  }, [value, onChange, onSalesmanChange]);
+  }, [value, onChange]);
 
   return (
     <div className={cn("space-y-1", className)}>

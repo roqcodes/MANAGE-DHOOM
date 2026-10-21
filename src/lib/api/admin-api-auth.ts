@@ -6,7 +6,11 @@ import type { UserProfile } from "@/common/auth/types";
 import { canAccessRolePath } from "@/modules/auth/access.control";
 import { AUTH_ROUTES } from "@/modules/auth/services/auth-route.service";
 import { getCurrentSessionProfile } from "@/modules/auth/services/auth.service";
-import { SupabaseConnectivityError } from "@/lib/integrations/supabase/connectivity-error";
+import {
+  isSupabaseConnectivityError,
+  SupabaseConnectivityError,
+} from "@/lib/integrations/supabase/connectivity-error";
+import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { isAdminAreaRole } from "@/modules/rbac/lib/admin-area";
 import { canReadAdminPath } from "@/modules/rbac/lib/permission-catalog";
 
@@ -59,6 +63,54 @@ export async function requireAdminApiProfile(): Promise<
   }
 
   return { ok: true, profile, user };
+}
+
+/**
+ * Fast staff gate for hot paths (e.g. PIN verify). Skips RBAC catalog load.
+ * RPCs such as `verify_erp_salesman_pin` enforce staff again server-side.
+ */
+export async function requireStaffErpApiSession(): Promise<
+  | { ok: true; user: User }
+  | { ok: false; response: NextResponse }
+> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError && isSupabaseConnectivityError(authError)) {
+      return { ok: false, response: adminServiceUnavailable() };
+    }
+    if (!user) {
+      return { ok: false, response: adminUnauthorized() };
+    }
+
+    const { data, error } = await supabase
+      .from("users")
+      .select("role,is_verified")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (error) {
+      if (isSupabaseConnectivityError(error)) {
+        return { ok: false, response: adminServiceUnavailable() };
+      }
+      throw new Error(error.message);
+    }
+
+    if (!data?.is_verified || !data.role || !isAdminAreaRole(data.role)) {
+      return { ok: false, response: adminForbidden() };
+    }
+
+    return { ok: true, user };
+  } catch (error) {
+    if (error instanceof SupabaseConnectivityError) {
+      return { ok: false, response: adminServiceUnavailable(error.message) };
+    }
+    throw error;
+  }
 }
 
 /** Optional path check for admin API routes tied to a nav page. */

@@ -30,7 +30,7 @@ export type SalesInvoiceUpdatePayload = {
 
 export type SalesInvoiceIssuePayload = {
   invoiceId: string;
-  salesPersonId: string;
+  salesPersonId?: string;
 };
 
 export type SalesInvoiceCancelPayload = {

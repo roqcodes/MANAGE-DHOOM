@@ -5,42 +5,31 @@ import { useMemo, useState } from "react";
 import type { ReportDefinition } from "@/common/erp/report-types";
 import { useDebouncedValue } from "@/modules/admin/ui";
 
-function parseAgeDaysInput(raw: string): number | undefined {
-  const trimmed = raw.trim();
-  if (!trimmed) return undefined;
-  const n = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(n) || n < 0) return undefined;
-  return n;
-}
+import { resolveAgingAgeBoundsFromMinMax } from "./aging-age-filter-model";
 
-/** Age (days past due) filter; safe to call on every report — no-op when `ageRange` is off. */
+/** Age (days) filter; no-op when `ageRange` / `expiredDaysRange` is off. */
 export function useAgingReportAgeExtras(report: ReportDefinition) {
   const enabled = Boolean(report.filters.ageRange || report.filters.expiredDaysRange);
   const [ageMin, setAgeMin] = useState("");
   const [ageMax, setAgeMax] = useState("");
-  const debouncedAgeMin = useDebouncedValue(ageMin, 300);
-  const debouncedAgeMax = useDebouncedValue(ageMax, 300);
 
-  const ageMinDays = useMemo(() => {
-    if (!enabled) return undefined;
-    return parseAgeDaysInput(debouncedAgeMin);
-  }, [debouncedAgeMin, enabled]);
+  const debouncedMin = useDebouncedValue(ageMin, 300);
+  const debouncedMax = useDebouncedValue(ageMax, 300);
 
-  const ageMaxDays = useMemo(() => {
-    if (!enabled) return undefined;
-    return parseAgeDaysInput(debouncedAgeMax);
-  }, [debouncedAgeMax, enabled]);
-
-  const normalizedAge = useMemo(() => {
+  const bounds = useMemo(() => {
     if (!enabled) return { ageMinDays: undefined, ageMaxDays: undefined };
-    if (ageMinDays == null || ageMaxDays == null) {
-      return { ageMinDays, ageMaxDays };
-    }
-    if (ageMinDays > ageMaxDays) {
-      return { ageMinDays: ageMaxDays, ageMaxDays: ageMinDays };
-    }
-    return { ageMinDays, ageMaxDays };
-  }, [ageMinDays, ageMaxDays, enabled]);
+    return resolveAgingAgeBoundsFromMinMax(debouncedMin, debouncedMax);
+  }, [debouncedMin, debouncedMax, enabled]);
+
+  const setAgeMinMax = (min: string, max: string) => {
+    setAgeMin(min);
+    setAgeMax(max);
+  };
+
+  const clear = () => {
+    setAgeMin("");
+    setAgeMax("");
+  };
 
   return {
     enabled,
@@ -48,7 +37,9 @@ export function useAgingReportAgeExtras(report: ReportDefinition) {
     ageMax,
     setAgeMin,
     setAgeMax,
-    ageMinDays: normalizedAge.ageMinDays,
-    ageMaxDays: normalizedAge.ageMaxDays,
+    setAgeMinMax,
+    clear,
+    ageMinDays: bounds.ageMinDays,
+    ageMaxDays: bounds.ageMaxDays,
   };
 }

@@ -37,7 +37,8 @@ export const salesInvoiceUpdatePayloadSchema = salesInvoiceCreatePayloadSchema
 
 export const salesInvoiceIssuePayloadSchema = z.object({
   invoiceId: z.string().uuid(),
-  salesPersonId: z.string().uuid(),
+  /** Omitted when invoice already has sales_person_id (e.g. saved from form). */
+  salesPersonId: z.string().uuid().optional(),
 });
 
 export const salesInvoiceCancelPayloadSchema = z.object({

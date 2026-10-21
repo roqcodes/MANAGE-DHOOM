@@ -1,5 +1,6 @@
 import "server-only";
 
+import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 
 export type ErpSalesmanRow = {
@@ -9,13 +10,21 @@ export type ErpSalesmanRow = {
   phone: string | null;
   is_active: boolean;
   created_at: string;
+  /** Present only for super-admin directory views. */
+  pin?: string | null;
 };
 
-export async function listErpSalesmen(): Promise<ErpSalesmanRow[]> {
+export async function listErpSalesmen(options?: {
+  includePin?: boolean;
+}): Promise<ErpSalesmanRow[]> {
+  await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const columns = options?.includePin
+    ? "id, name, email, phone, pin, is_active, created_at"
+    : "id, name, email, phone, is_active, created_at";
   const { data, error } = await supabase
     .from("erp_salesmen")
-    .select("id, name, email, phone, is_active, created_at")
+    .select(columns)
     .order("name", { ascending: true });
 
   if (error) throw new Error(error.message);
@@ -49,4 +58,31 @@ export async function createErpSalesman(input: {
   });
   if (error) throw new Error(error.message);
   return data as string;
+}
+
+export async function updateErpSalesman(input: {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  isActive: boolean;
+}): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_erp_salesman", {
+    p_id: input.id,
+    p_name: input.name,
+    p_email: input.email ?? undefined,
+    p_phone: input.phone ?? undefined,
+    p_is_active: input.isActive,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function updateErpSalesmanPin(id: string, pin: string): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc("update_erp_salesman_pin", {
+    p_id: id,
+    p_pin: pin,
+  });
+  if (error) throw new Error(error.message);
 }

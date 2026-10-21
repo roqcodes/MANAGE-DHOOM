@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 
 import { requireAdminApiPageRead } from "@/lib/api/admin-api-auth";
 import { recordAuthAudit } from "@/modules/auth/services/auth-audit.service";
-import { createErpSalesman } from "@/modules/users/services/erp-salesmen.service";
+import {
+  createErpSalesman,
+  listErpSalesmen,
+  updateErpSalesman,
+  updateErpSalesmanPin,
+} from "@/modules/users/services/erp-salesmen.service";
 import {
   createStaffPortalUserBySuperAdmin,
   getPortalUserPurgeEligibility,
@@ -34,15 +39,18 @@ export async function GET(request: Request) {
 
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
 
-  const [stats, team] = await Promise.all([
+  const includeSalesmanPins = Boolean(auth.profile.rbac?.canManageRoles);
+  const [stats, team, salesmen] = await Promise.all([
     getTeamCatalogStats(),
     getVerifiedPortalTeamUsers(page),
+    listErpSalesmen({ includePin: includeSalesmanPins }),
   ]);
 
   return NextResponse.json({
     primary: "users" as const,
     page,
     stats,
+    salesmen,
     content: { kind: "team" as const, ...team },
   });
 }
@@ -65,7 +73,35 @@ export async function POST(request: Request) {
     storeIds?: string[];
     defaultStoreId?: string | null;
     pin?: string;
+    salesmanId?: string;
+    isActive?: boolean;
   };
+
+  if (body.action === "update_salesman") {
+    try {
+      await updateErpSalesman({
+        id: body.salesmanId ?? "",
+        name: body.name ?? "",
+        email: body.email,
+        phone: body.phone,
+        isActive: body.isActive ?? true,
+      });
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Request failed.";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+  }
+
+  if (body.action === "change_salesman_pin") {
+    try {
+      await updateErpSalesmanPin(body.salesmanId ?? "", body.pin ?? "");
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Request failed.";
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+  }
 
   if (body.action === "create_salesman") {
     try {

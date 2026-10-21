@@ -36,6 +36,7 @@ export function useAgingSummaryReportQuery(
       ageMax={age.ageMax}
       onAgeMinChange={age.setAgeMin}
       onAgeMaxChange={age.setAgeMax}
+      onClear={age.clear}
     />
   ) : null;
 
