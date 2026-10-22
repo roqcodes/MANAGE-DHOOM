@@ -73,7 +73,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const result = await submitPoDeliveryAndFinalize({
       poId: routePoId,
-      receiveDate: direct.data.receiveDate,
+      receiveDate: direct.data.receiveDate ?? undefined,
       notes: direct.data.notes ?? null,
       lines: direct.data.lines,
     });
