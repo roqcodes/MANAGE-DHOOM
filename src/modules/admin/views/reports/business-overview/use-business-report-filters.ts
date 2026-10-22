@@ -28,15 +28,13 @@ export function useBusinessReportFilters(report: ReportDefinition) {
         : "ytd";
   const dateRange = useAdminDateRange({ defaultPreset });
   const [asOf, setAsOf] = useState(today);
-  const [storeId, setStoreId] = useState("");
+  const [storeId, setStoreId] = useState(activeStoreId ?? "");
   const [channel, setChannel] = useState<ReportChannel>("all");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);
   const salesman = useSalesmanReportFilter(report);
 
   useEffect(() => {
-    // Receivables + activity log: default to all stores (recent activity is global).
-    if (report.category === "Receivables" || report.slug === "activity-logs") return;
     if (activeStoreId) setStoreId(activeStoreId);
   }, [activeStoreId, report.category, report.slug]);
 
@@ -51,23 +49,12 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   }, [dateRange.to, report.filters.asOfDate]);
 
   const storeLabel =
-    storeId ? stores.find((s) => s.id === storeId)?.name ?? "Selected store" : "All stores";
+    storeId ? stores.find((s) => s.id === storeId)?.name ?? "Selected store" : "Selected store";
 
   const periodLabel =
     report.filters.asOfDate && !report.filters.dateRange
       ? `As of ${formatReportAsOf(asOf)}`
       : formatReportPeriodRange(dateRange.from, dateRange.to);
-
-  const storeFilter: AdminListFilter = {
-    id: "store",
-    label: "Store",
-    value: storeId || "all",
-    options: [
-      { value: "all", label: "All stores" },
-      ...stores.map((s) => ({ value: s.id, label: s.name })),
-    ],
-    onChange: (v) => setStoreId(v === "all" ? "" : v),
-  };
 
   const channelFilter: AdminListFilter = {
     id: "channel",
@@ -82,7 +69,6 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   };
 
   const listFilters: AdminListFilter[] = [];
-  if (report.filters.store) listFilters.push(storeFilter);
   if (report.filters.channel) listFilters.push(channelFilter);
   if (salesman.listFilter) listFilters.push(salesman.listFilter);
   return {
@@ -104,7 +90,6 @@ export function useBusinessReportFilters(report: ReportDefinition) {
       to: dateRange.to,
     },
     setDateRange: dateRange.setDateRange,
-    storeFilter,
     channel,
     channelFilter,
     listFilters,

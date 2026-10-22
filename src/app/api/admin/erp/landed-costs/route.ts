@@ -32,13 +32,32 @@ export async function POST(request: Request) {
   }
 }
 
+async function handleUpdate(request: Request) {
+  const body = await request.json();
+  const id = String(body.id ?? "");
+  if (!id) {
+    return NextResponse.json({ error: "id is required" }, { status: 400 });
+  }
+  await updateLandedCostItem(id, body);
+  return NextResponse.json({ ok: true });
+}
+
 export async function PATCH(request: Request) {
   const auth = await requireAdminApiProfile();
   if (!auth.ok) return auth.response;
   try {
-    const body = await request.json();
-    await updateLandedCostItem(body.id, body);
-    return NextResponse.json({ ok: true });
+    return await handleUpdate(request);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to update landed cost item";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}
+
+export async function PUT(request: Request) {
+  const auth = await requireAdminApiProfile();
+  if (!auth.ok) return auth.response;
+  try {
+    return await handleUpdate(request);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to update landed cost item";
     return NextResponse.json({ error: msg }, { status: 400 });

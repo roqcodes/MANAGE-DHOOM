@@ -3,6 +3,7 @@ import "server-only";
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import { nullIfEmptyDate } from "@/lib/format-date";
 import type {
   ErpPurchaseBillListRow,
   VendorErpProfile,
@@ -33,30 +34,26 @@ export interface VendorErpProfileUpdate {
   isActive?: boolean;
 }
 
-/** Authoritative vendor outstanding payable for a store context. */
-export async function getVendorPayables(
-  vendorId: string,
-  storeId?: string,
-): Promise<number> {
-  const summary = await getVendorErpSummary(vendorId, storeId);
-  return summary.balanceDue;
-}
+const VENDOR_PROFILE_SELECT =
+  "id, name, contact, vendor_type, trn, phone, fax, email, address, po_box, notes, opening_balance, opening_balance_date, is_active, created_at";
 
-export async function getVendorErpProfile(vendorId: string): Promise<VendorErpProfile | null> {
-  await requireAdminOrManagerProfile();
-  const supabase = await createSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from("vendors")
-    .select(
-      "id, name, contact, vendor_type, trn, phone, fax, email, address, po_box, notes, opening_balance, opening_balance_date, is_active, created_at",
-    )
-    .eq("id", vendorId)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-
+function mapVendorProfile(data: {
+  id: string;
+  name: string | null;
+  contact: string | null;
+  vendor_type: string | null;
+  trn: string | null;
+  phone: string | null;
+  fax: string | null;
+  email: string | null;
+  address: string | null;
+  po_box: string | null;
+  notes: string | null;
+  opening_balance: number | null;
+  opening_balance_date: string | null;
+  is_active: boolean | null;
+  created_at: string;
+}): VendorErpProfile {
   return {
     id: data.id,
     name: data.name,
@@ -74,6 +71,31 @@ export async function getVendorErpProfile(vendorId: string): Promise<VendorErpPr
     is_active: data.is_active,
     created_at: data.created_at,
   };
+}
+
+/** Authoritative vendor outstanding payable for a store context. */
+export async function getVendorPayables(
+  vendorId: string,
+  storeId?: string,
+): Promise<number> {
+  const summary = await getVendorErpSummary(vendorId, storeId);
+  return summary.balanceDue;
+}
+
+export async function getVendorErpProfile(vendorId: string): Promise<VendorErpProfile | null> {
+  await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+
+  const { data, error } = await supabase
+    .from("vendors")
+    .select(VENDOR_PROFILE_SELECT)
+    .eq("id", vendorId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  return mapVendorProfile(data);
 }
 
 export async function updateVendorErpProfile(
@@ -116,7 +138,7 @@ export async function updateVendorErpProfile(
         ? { opening_balance: input.openingBalance }
         : {}),
       ...(input.openingBalanceDate !== undefined
-        ? { opening_balance_date: input.openingBalanceDate }
+        ? { opening_balance_date: nullIfEmptyDate(input.openingBalanceDate) }
         : {}),
       updated_at: new Date().toISOString(),
     })
@@ -168,12 +190,6 @@ export async function getVendorErpSummary(
     .in("status", ["finalized", "partial", "paid"]);
   if (storeId) billsQuery = billsQuery.eq("store_id", storeId);
 
-  const { data: bills } = await billsQuery;
-
-  const billTotal = (bills ?? []).reduce((s, b) => s + Number(b.total_amount ?? 0), 0);
-  const payables = (bills ?? []).reduce((s, b) => s + Number(b.balance_due ?? 0), 0);
-  const paymentMade = (bills ?? []).reduce((s, b) => s + Number(b.amount_paid ?? 0), 0);
-
   let creditsQuery = supabase
     .from("erp_vendor_credits")
     .select("total_amount, balance_remaining")
@@ -181,8 +197,11 @@ export async function getVendorErpSummary(
     .in("status", ["issued", "applied"]);
   if (storeId) creditsQuery = creditsQuery.eq("store_id", storeId);
 
-  const { data: credits } = await creditsQuery;
+  const [{ data: bills }, { data: credits }] = await Promise.all([billsQuery, creditsQuery]);
 
+  const billTotal = (bills ?? []).reduce((s, b) => s + Number(b.total_amount ?? 0), 0);
+  const payables = (bills ?? []).reduce((s, b) => s + Number(b.balance_due ?? 0), 0);
+  const paymentMade = (bills ?? []).reduce((s, b) => s + Number(b.amount_paid ?? 0), 0);
   const creditTotal = (credits ?? []).reduce((s, c) => s + Number(c.total_amount ?? 0), 0);
   const creditBalance = (credits ?? []).reduce(
     (s, c) => s + Number(c.balance_remaining ?? 0),
@@ -247,7 +266,24 @@ export async function getVendorStatement(
     .in("status", ["finalized", "partial", "paid"]);
   if (storeId) billsQuery = billsQuery.eq("store_id", storeId);
 
-  const { data: bills } = await billsQuery;
+  let paymentsQuery = supabase
+    .from("erp_supplier_payments")
+    .select("payment_date, payment_number, total_amount, stores(name)")
+    .eq("vendor_id", vendorId);
+  if (storeId) paymentsQuery = paymentsQuery.eq("store_id", storeId);
+
+  let creditsQuery = supabase
+    .from("erp_vendor_credits")
+    .select("credit_date, credit_number, total_amount, stores(name)")
+    .eq("vendor_id", vendorId)
+    .in("status", ["issued", "applied"]);
+  if (storeId) creditsQuery = creditsQuery.eq("store_id", storeId);
+
+  const [{ data: bills }, { data: payments }, { data: creditRows }] = await Promise.all([
+    billsQuery,
+    paymentsQuery,
+    creditsQuery,
+  ]);
 
   for (const bill of bills ?? []) {
     const store = bill.stores as { name: string } | null;
@@ -261,14 +297,6 @@ export async function getVendorStatement(
     });
   }
 
-  let paymentsQuery = supabase
-    .from("erp_supplier_payments")
-    .select("payment_date, payment_number, total_amount, stores(name)")
-    .eq("vendor_id", vendorId);
-  if (storeId) paymentsQuery = paymentsQuery.eq("store_id", storeId);
-
-  const { data: payments } = await paymentsQuery;
-
   for (const pay of payments ?? []) {
     const store = pay.stores as { name: string } | null;
     events.push({
@@ -280,15 +308,6 @@ export async function getVendorStatement(
       payments: Number(pay.total_amount ?? 0),
     });
   }
-
-  let creditsQuery = supabase
-    .from("erp_vendor_credits")
-    .select("credit_date, credit_number, total_amount, stores(name)")
-    .eq("vendor_id", vendorId)
-    .in("status", ["issued", "applied"]);
-  if (storeId) creditsQuery = creditsQuery.eq("store_id", storeId);
-
-  const { data: creditRows } = await creditsQuery;
 
   for (const credit of creditRows ?? []) {
     const store = credit.stores as { name: string } | null;
@@ -382,5 +401,156 @@ export async function getVendorPurchaseBills(
       };
     }),
     total: count ?? 0,
+  };
+}
+
+export async function getVendorErpDetailBundle(
+  vendorId: string,
+  storeId?: string,
+): Promise<{
+  profile: VendorErpProfile;
+  summary: VendorErpSummary;
+  statement: { lines: VendorStatementLine[] };
+  purchases: { data: ErpPurchaseBillListRow[]; total: number };
+} | null> {
+  await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: vendor, error: vendorErr } = await supabase
+    .from("vendors")
+    .select(VENDOR_PROFILE_SELECT)
+    .eq("id", vendorId)
+    .maybeSingle();
+  if (vendorErr) throw new Error(vendorErr.message);
+  if (!vendor) return null;
+
+  let billsQuery = supabase
+    .from("erp_purchase_bills")
+    .select(
+      "total_amount, balance_due, amount_paid, purchase_date, purchase_bill_number, stores(name)",
+    )
+    .eq("vendor_id", vendorId)
+    .in("status", ["finalized", "partial", "paid"]);
+  if (storeId) billsQuery = billsQuery.eq("store_id", storeId);
+
+  let creditsQuery = supabase
+    .from("erp_vendor_credits")
+    .select("total_amount, balance_remaining, credit_date, credit_number, stores(name)")
+    .eq("vendor_id", vendorId)
+    .in("status", ["issued", "applied"]);
+  if (storeId) creditsQuery = creditsQuery.eq("store_id", storeId);
+
+  let paymentsQuery = supabase
+    .from("erp_supplier_payments")
+    .select("payment_date, payment_number, total_amount, stores(name)")
+    .eq("vendor_id", vendorId);
+  if (storeId) paymentsQuery = paymentsQuery.eq("store_id", storeId);
+
+  const [billsRes, creditsRes, paymentsRes, purchases] = await Promise.all([
+    billsQuery,
+    creditsQuery,
+    paymentsQuery,
+    getVendorPurchaseBills(vendorId, storeId, 0),
+  ]);
+  if (billsRes.error) throw new Error(billsRes.error.message);
+  if (creditsRes.error) throw new Error(creditsRes.error.message);
+  if (paymentsRes.error) throw new Error(paymentsRes.error.message);
+
+  const bills = billsRes.data ?? [];
+  const credits = creditsRes.data ?? [];
+  const payments = paymentsRes.data ?? [];
+
+  const billTotal = bills.reduce((s, b) => s + Number(b.total_amount ?? 0), 0);
+  const payables = bills.reduce((s, b) => s + Number(b.balance_due ?? 0), 0);
+  const paymentMade = bills.reduce((s, b) => s + Number(b.amount_paid ?? 0), 0);
+  const creditTotal = credits.reduce((s, c) => s + Number(c.total_amount ?? 0), 0);
+  const creditBalance = credits.reduce((s, c) => s + Number(c.balance_remaining ?? 0), 0);
+  const openingBalance = Number(vendor.opening_balance ?? 0);
+
+  const summary: VendorErpSummary = {
+    openingBalance,
+    openingBalanceDate: vendor.opening_balance_date,
+    billTotal,
+    paymentMade,
+    creditTotal,
+    creditBalance,
+    refundTotal: 0,
+    balanceDue: openingBalance + payables - creditBalance,
+    payables,
+  };
+
+  type StmtEvent = {
+    date: string;
+    storeName: string | null;
+    transactionType: string;
+    details: string;
+    amount: number;
+    payments: number;
+  };
+  const events: StmtEvent[] = [];
+  if (vendor.opening_balance_date) {
+    events.push({
+      date: vendor.opening_balance_date,
+      storeName: null,
+      transactionType: "Opening Balance",
+      details: "Opening balance",
+      amount: openingBalance,
+      payments: 0,
+    });
+  }
+  for (const bill of bills) {
+    const store = bill.stores as { name: string } | null;
+    events.push({
+      date: bill.purchase_date,
+      storeName: store?.name ?? null,
+      transactionType: "Purchase",
+      details: bill.purchase_bill_number,
+      amount: Number(bill.total_amount ?? 0),
+      payments: 0,
+    });
+  }
+  for (const pay of payments) {
+    const store = pay.stores as { name: string } | null;
+    events.push({
+      date: pay.payment_date,
+      storeName: store?.name ?? null,
+      transactionType: "Payment",
+      details: pay.payment_number,
+      amount: 0,
+      payments: Number(pay.total_amount ?? 0),
+    });
+  }
+  for (const credit of credits) {
+    const store = credit.stores as { name: string } | null;
+    events.push({
+      date: credit.credit_date,
+      storeName: store?.name ?? null,
+      transactionType: "Credit",
+      details: credit.credit_number,
+      amount: 0,
+      payments: Number(credit.total_amount ?? 0),
+    });
+  }
+  events.sort((a, b) => a.date.localeCompare(b.date));
+  let running = 0;
+  const lines: VendorStatementLine[] = [];
+  for (const ev of events) {
+    running += ev.amount - ev.payments;
+    lines.push({
+      date: ev.date,
+      storeName: ev.storeName,
+      transactionType: ev.transactionType,
+      details: ev.details,
+      amount: ev.amount,
+      payments: ev.payments,
+      balance: running,
+    });
+  }
+
+  return {
+    profile: mapVendorProfile(vendor),
+    summary,
+    statement: { lines },
+    purchases,
   };
 }

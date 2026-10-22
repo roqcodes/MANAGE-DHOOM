@@ -50,7 +50,8 @@ function VatReturnSummaryReport({ report }: { report: ReportDefinition }) {
     !loading &&
     salesRows.length === 0 &&
     purchaseRows.length === 0 &&
-    Number(net.due_tax ?? 0) === 0;
+    Number(net.due_tax ?? 0) === 0 &&
+    Number(net.net_reclaimable ?? 0) === 0;
 
   const kpis = useMemo(
     () => buildVatSummaryKpis(salesRows, purchaseRows, net),

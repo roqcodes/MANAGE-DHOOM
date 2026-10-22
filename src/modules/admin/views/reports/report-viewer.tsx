@@ -155,7 +155,6 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
   const today = new Date().toISOString().slice(0, 10);
   const { from: dateFrom, to: dateTo } = useAdminDateRange({ defaultPreset: "this_month" });
   const [asOf, setAsOf] = useState(today);
-  const [storeId, setStoreId] = useState("");
   const [channel, setChannel] = useState<ReportChannel>("all");
   const [accountId, setAccountId] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
@@ -163,12 +162,7 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
   const debouncedCustomerSearch = useDebouncedValue(customerSearch, 250);
   const debouncedVendorSearch = useDebouncedValue(vendorSearch, 250);
 
-  const effectiveStoreId =
-    storeId || (report.filters.store && activeStoreId ? activeStoreId : "");
-
-  useEffect(() => {
-    if (activeStoreId) setStoreId(activeStoreId);
-  }, [activeStoreId]);
+  const effectiveStoreId = activeStoreId || "";
 
   useEffect(() => {
     if (!report.filters.account) return;
@@ -266,23 +260,6 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
             <div className="space-y-1">
               <Label>As of</Label>
               <Input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
-            </div>
-          ) : null}
-          {report.filters.store ? (
-            <div className="space-y-1">
-              <Label>Store</Label>
-              <select
-                className="h-9 min-w-[180px] rounded-md border border-input bg-background px-3 text-sm"
-                value={storeId}
-                onChange={(e) => setStoreId(e.target.value)}
-              >
-                <option value="">All stores</option>
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
             </div>
           ) : null}
           {report.filters.channel ? (

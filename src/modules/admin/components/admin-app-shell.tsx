@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 
 import { isAdminInvoicePrintPath } from "@/modules/admin/lib/admin-invoice-route";
@@ -13,12 +13,16 @@ import { AdminGlobalSearchProvider } from "@/modules/admin/components/admin-glob
 import { AdminDateRangeProvider } from "@/modules/admin/providers/admin-date-range-provider";
 import { AdminSidebar } from "@/modules/admin/components/sidebar";
 import { useIsMdUp } from "@/modules/admin/hooks/use-is-md-up";
+import { ChunkLoadRecovery } from "@/modules/admin/components/chunk-load-recovery";
 import { AdminBootstrapProvider } from "@/modules/admin/providers/admin-bootstrap-provider";
 import { AdminSessionProvider } from "@/modules/admin/providers/admin-session-provider";
 import { CurrencySettingsProvider } from "@/modules/settings/providers/currency-settings-provider";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
-import { erpContextQueryOptions, useErpStores } from "@/modules/erp/components/use-erp-stores";
+import {
+  erpContextQueryOptions,
+  type ErpContextQueryData,
+} from "@/modules/erp/components/use-erp-stores";
 import {
   canReadAdminPath,
   firstAllowedAdminHref,
@@ -42,23 +46,37 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const invoicePrintLayout = isAdminInvoicePrintPath(pathname);
-  const { activeStoreId } = useErpStores();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (isMd) setMobileNavOpen(false);
   }, [isMd]);
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, isSuccess } = useQuery({
     queryKey: adminQueryKeys.session(),
-    queryFn: () => adminGet<{ profile: UserProfile }>("session"),
+    queryFn: async () => {
+      const includeContext = !invoicePrintLayout;
+      const res = await adminGet<{
+        profile: UserProfile;
+        context?: ErpContextQueryData["context"];
+        stores?: ErpContextQueryData["stores"];
+      }>(includeContext ? "bootstrap" : "bootstrap?includeContext=0");
+      if (includeContext) {
+        queryClient.setQueryData(adminQueryKeys.erpContext(), {
+          context: res.context ?? null,
+          stores: res.stores ?? [],
+        } satisfies ErpContextQueryData);
+      }
+      return { profile: res.profile };
+    },
     retry: false,
     staleTime: 60_000,
   });
-  /** Start with session so ERP context is not gated behind the shell paint. */
-  useQuery({
+  const { data: erpContextData } = useQuery({
     ...erpContextQueryOptions,
     retry: false,
-    enabled: !invoicePrintLayout,
+    enabled: !invoicePrintLayout && isSuccess,
   });
+  const activeStoreId = erpContextData?.context?.store_id ?? "";
   const [storeViewKey, setStoreViewKey] = useState("init");
 
   useEffect(() => {
@@ -112,6 +130,7 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AdminSessionProvider profile={data.profile}>
+      <ChunkLoadRecovery />
       <AdminBootstrapProvider>
       <CurrencySettingsProvider>
       <AdminGlobalSearchProvider>

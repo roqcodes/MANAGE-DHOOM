@@ -2,28 +2,26 @@ import { NextResponse } from "next/server";
 
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
 import {
-  getCustomerErpSummary,
-  getCustomerInvoices,
+  getCustomerErpBundle,
   getCustomerProfile,
-  getCustomerStatement,
   updateCustomerProfile,
 } from "@/modules/customers/services/customer-erp.service";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const auth = await requireAdminApiProfile();
   if (!auth.ok) return auth.response;
   const { id } = await params;
+  const view = new URL(request.url).searchParams.get("view");
   try {
-    const [profile, summary, statement, invoices] = await Promise.all([
-      getCustomerProfile(id),
-      getCustomerErpSummary(id),
-      getCustomerStatement(id),
-      getCustomerInvoices(id),
-    ]);
-    return NextResponse.json({ profile, summary, statement, invoices });
+    if (view === "profile") {
+      const profile = await getCustomerProfile(id);
+      return NextResponse.json({ profile });
+    }
+    const bundle = await getCustomerErpBundle(id);
+    return NextResponse.json(bundle);
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to load ERP data";
     return NextResponse.json({ error: msg }, { status: 400 });

@@ -13,6 +13,8 @@ import {
   reportFiltersSubtitle,
   matchesReportSearch,
   partitionTrialBalanceSections,
+  trialBalanceCredit,
+  trialBalanceDebit,
   type TrialBalanceRow,
 } from "../business-overview/report-format";
 import { useBusinessReportFilters } from "../business-overview/use-business-report-filters";
@@ -50,8 +52,8 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
     if (meta && typeof meta.total_debit === "number" && typeof meta.total_credit === "number") {
       return { debit: meta.total_debit, credit: meta.total_credit };
     }
-    const debit = rows.reduce((acc, r) => acc + Number(r.period_debit ?? 0), 0);
-    const credit = rows.reduce((acc, r) => acc + Number(r.period_credit ?? 0), 0);
+    const debit = rows.reduce((acc, r) => acc + trialBalanceDebit(r), 0);
+    const credit = rows.reduce((acc, r) => acc + trialBalanceCredit(r), 0);
     return { debit, credit };
   }, [rawData, rows]);
 
@@ -61,8 +63,8 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
         ? []
         : [
             { label: "Accounts", value: filtered.length.toLocaleString() },
-            { label: "Net debit", value: formatCurrencyAmount(totals.debit) },
-            { label: "Net credit", value: formatCurrencyAmount(totals.credit) },
+            { label: "Debit", value: formatCurrencyAmount(totals.debit) },
+            { label: "Credit", value: formatCurrencyAmount(totals.credit) },
           ],
     [filtered.length, totals],
   );
@@ -72,8 +74,8 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
   const trialColumns = [
     { key: "account_category", label: "Category" },
     { key: "account_name", label: "Account" },
-    { key: "period_debit", label: "Net debit", format: "currency" },
-    { key: "period_credit", label: "Net credit", format: "currency" },
+    { key: "period_debit", label: "Debit", format: "currency" },
+    { key: "period_credit", label: "Credit", format: "currency" },
   ];
 
   const exportSource = buildReportExportSource({
@@ -108,8 +110,8 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
             <thead>
               <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
                 <th className="px-4 py-3 text-left font-medium">Account</th>
-                <th className="px-4 py-3 text-right font-medium">Net debit</th>
-                <th className="px-4 py-3 text-right font-medium">Net credit</th>
+                <th className="px-4 py-3 text-right font-medium">Debit</th>
+                <th className="px-4 py-3 text-right font-medium">Credit</th>
               </tr>
             </thead>
             <tbody>
@@ -130,10 +132,10 @@ export function TrialBalanceReport({ report }: { report: ReportDefinition }) {
                     >
                       <td className="px-4 py-2 pl-6">{row.account_name}</td>
                       <td className="px-4 py-2 text-right tabular-nums">
-                        {formatCurrencyAmount(Number(row.period_debit ?? 0))}
+                        {formatCurrencyAmount(trialBalanceDebit(row))}
                       </td>
                       <td className="px-4 py-2 text-right tabular-nums">
-                        {formatCurrencyAmount(Number(row.period_credit ?? 0))}
+                        {formatCurrencyAmount(trialBalanceCredit(row))}
                       </td>
                     </tr>
                   ))}

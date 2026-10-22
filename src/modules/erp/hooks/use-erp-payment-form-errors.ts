@@ -2,45 +2,24 @@
 
 import { useCallback, useState } from "react";
 
-import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
-
 /**
- * ERP payment forms: in modal mode, show validation on the form (no second dialog).
- * On full page, use the global feedback modal.
+ * ERP payment forms: always use inline alert on the form (modal + page).
+ * Avoids global validation modals that re-open on focus/blur after dismiss.
  */
-export function useErpPaymentFormErrors(isModal: boolean) {
-  const { showValidationErrors } = useAppFeedback();
+export function useErpPaymentFormErrors(_isModal: boolean) {
   const [inlineError, setInlineError] = useState<string | null>(null);
 
   const clearFormError = useCallback(() => {
     setInlineError(null);
   }, []);
 
-  const setFormError = useCallback(
-    (message: string | null) => {
-      if (!message) {
-        setInlineError(null);
-        return;
-      }
-      if (isModal) {
-        setInlineError(message);
-        return;
-      }
-      showValidationErrors([message], "Check the form");
-    },
-    [isModal, showValidationErrors],
-  );
+  const setFormError = useCallback((message: string | null) => {
+    setInlineError(message);
+  }, []);
 
-  const notifyAmountIssue = useCallback(
-    (message: string, title = "Check the amount") => {
-      if (isModal) {
-        setInlineError(message);
-        return;
-      }
-      showValidationErrors([message], title);
-    },
-    [isModal, showValidationErrors],
-  );
+  const notifyAmountIssue = useCallback((message: string) => {
+    setInlineError(message);
+  }, []);
 
   return { inlineError, setFormError, notifyAmountIssue, clearFormError };
 }

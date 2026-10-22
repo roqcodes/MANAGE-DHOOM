@@ -1,15 +1,21 @@
 "use client";
 
-import { useMemo } from "react";
-import { Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { BadgePercent, Plus, Scale } from "lucide-react";
+
+import { DataExportMenu } from "@/components/export/data-export-menu";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getCreditNotesExportTabular } from "@/lib/export/erp-sales-list-export";
 
 import type { ErpCreditNoteListRow } from "@/common/erp/sales-types";
 import { PAGE_SIZE } from "@/common/admin/types";
+import { prefetchErpCreditNoteDetail } from "@/modules/admin/lib/admin-prefetch-nav";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { formatCurrencyAmount } from "@/lib/format-currency";
-import { formatErpDocRef } from "@/lib/erp-document-ref";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TableHead } from "@/components/ui/table";
 import {
@@ -18,6 +24,7 @@ import {
   AdminListCard,
   AdminListFooter,
   AdminPrimaryAction,
+  AdminSecondaryIconAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -33,7 +40,10 @@ import {
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
+import { creditKindLabel, formatCustomerCreditNoteRef } from "@/common/erp/commercial-discount";
 import { CreditNoteFormView } from "@/modules/admin/views/sales/credit-note-form-view";
+import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
+import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
 import { useErpListState } from "@/modules/admin/ui/use-erp-list-state";
 
 const STATUS_OPTIONS = [
@@ -44,8 +54,26 @@ const STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+const KIND_OPTIONS = [
+  { value: "all", label: "All types" },
+  { value: "return", label: "Returns (CN)" },
+  { value: "discount", label: "Discounts (DC)" },
+];
+
+function creditNoteGlanceLabels(row: ErpCreditNoteListRow) {
+  const isDiscount = row.credit_kind === "discount";
+  return {
+    shellLabel: isDiscount ? "Discount credit" : "Credit note",
+    viewLabel: isDiscount ? "View discount →" : "View credit note →",
+  };
+}
+
 export function CreditNotesListView() {
+  const queryClient = useQueryClient();
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/credit-notes");
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [settlementOpen, setSettlementOpen] = useState(false);
+  const [creditKind, setCreditKind] = useState("all");
   const {
     search,
     setSearch,
@@ -53,15 +81,25 @@ export function CreditNotesListView() {
     status,
     setStatus,
     storeId,
-    setStoreId,
     page,
     listParams,
-    isFiltering,
+    dateFrom,
+    dateTo,
+    isFiltering: baseFiltering,
     clearFilters,
-    activeStoreId,
     erpContextLoading,
   } = useErpListState();
-  const listPath = adminListPath("erp/credit-notes", { page, ...listParams });
+
+  const kindFilterActive = creditKind !== "all";
+  const isFiltering = baseFiltering || kindFilterActive;
+
+  const queryListParams = useMemo(() => {
+    const params = { ...listParams };
+    if (creditKind !== "all") params.creditKind = creditKind;
+    return params;
+  }, [listParams, creditKind]);
+
+  const listPath = adminListPath("erp/credit-notes", { page, ...queryListParams });
   const { data, isPending, refetch } = useAdminGetQuery<{
     data: ErpCreditNoteListRow[];
     total: number;
@@ -77,28 +115,74 @@ export function CreditNotesListView() {
     "credit_note_date",
     "desc",
   );
+
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "credit-notes-export",
+        title: "Credit notes",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search: debouncedSearch,
+            status,
+            storeLabel: storeId ? "Selected store" : undefined,
+            dateFrom,
+            dateTo,
+          }),
+        getTabular: () => {
+          const tabular = getCreditNotesExportTabular(sorted);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [sorted, debouncedSearch, status, storeId, dateFrom, dateTo],
+  );
+
+  function handleClearFilters() {
+    clearFilters();
+    setCreditKind("all");
+  }
+
   return (
     <AdminPageLayout>
       <AdminPageHeader
         title="Credit notes"
         breadcrumb={[{ label: "Credit notes", href: "/admin/erp/credit-notes" }]}
-        description="Credit notes reduce invoice balances. Filter by status, store, or date."
+        description="Customer returns (CN) and post-invoice discounts (DC). Filter by store, status, type, or date. Unapplied balance is available in account settlement."
         actions={
-          <AdminPrimaryAction onClick={() => openNew()}>
-            <Plus data-icon="inline-start" />
-            Create credit note
-          </AdminPrimaryAction>
+          <>
+            <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
+            <AdminSecondaryIconAction
+              onClick={() => setSettlementOpen(true)}
+              aria-label="Settle account"
+            >
+              <Scale />
+            </AdminSecondaryIconAction>
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              onClick={() => setDiscountOpen(true)}
+            >
+              <BadgePercent data-icon="inline-start" />
+              Record discount
+            </Button>
+            <AdminPrimaryAction onClick={() => openNew()}>
+              <Plus data-icon="inline-start" />
+              Create return
+            </AdminPrimaryAction>
+          </>
         }
       />
 
-      <AdminListCard isLoading={initialLoading}
+      <AdminListCard
+        isLoading={initialLoading}
         search={search}
         onSearchChange={setSearch}
-        searchPlaceholder="Search credit note number…"
-        isEmpty={!initialLoading && (sorted.length === 0)}
+        searchPlaceholder="CN/DC number or customer…"
+        isEmpty={!initialLoading && sorted.length === 0}
         emptyMessage="No credit notes found."
         isFiltering={isFiltering}
-        onClearFilters={clearFilters}
+        onClearFilters={handleClearFilters}
         filters={[
           {
             id: "status",
@@ -106,6 +190,13 @@ export function CreditNotesListView() {
             value: status,
             options: STATUS_OPTIONS,
             onChange: setStatus,
+          },
+          {
+            id: "creditKind",
+            label: "Type",
+            value: creditKind,
+            options: KIND_OPTIONS,
+            onChange: setCreditKind,
           },
         ]}
         footer={
@@ -127,6 +218,14 @@ export function CreditNotesListView() {
               activeKey={sortKey}
               direction={sortDirection}
               onSort={toggleSort}
+            />
+            <SortableTableHead
+              label="Type"
+              sortKey="credit_kind"
+              activeKey={sortKey}
+              direction={sortDirection}
+              onSort={toggleSort}
+              className="hidden sm:table-cell"
             />
             <SortableTableHead
               label="Store"
@@ -169,57 +268,68 @@ export function CreditNotesListView() {
             <TableHead className="w-28 text-right" />
           </AdminTableHeader>
           {initialLoading ? (
-            <AdminDataTableRowsSkeleton rows={8} columns={6} />
+            <AdminDataTableRowsSkeleton rows={8} columns={8} />
           ) : (
-          <AdminTableBody>
-            {sorted.map((row) => (
-              <AdminTableRow key={row.id}>
-                <AdminTableCell className="text-muted-foreground">
-                  <AdminTableDateTime documentDate={row.credit_note_date} activity={row} />
-                </AdminTableCell>
-                <AdminTableCell>
-                  <ErpDocumentTableGlance
-                    triggerLabel={formatErpDocRef("CN", row.id)}
-                    shellLabel="Credit note"
-                    title={row.credit_note_number?.trim() || formatErpDocRef("CN", row.id)}
-                    subtitle={row.customer_name ?? undefined}
-                    viewHref={`/admin/erp/credit-notes/${row.id}`}
-                    viewLabel="View credit note →"
-                    stats={[
-                      { label: "Total", value: formatCurrencyAmount(row.total_amount) },
-                      { label: "Remaining", value: formatCurrencyAmount(row.balance_remaining) },
-                    ]}
-                  />
-                </AdminTableCell>
-                <AdminTableCell className="hidden md:table-cell">
-                  <ErpStoreTableGlance storeId={row.store_id} name={row.store_name} />
-                </AdminTableCell>
-                <AdminTableCell className="max-w-[180px]">
-                  <ErpCustomerTableGlance userId={row.user_id} name={row.customer_name} />
-                </AdminTableCell>
-                <AdminTableCell>
-                  <StatusBadge status={row.status} />
-                </AdminTableCell>
-                <AdminTableCell align="right" className="font-semibold tabular-nums">
-                  {formatCurrencyAmount(row.total_amount)}
-                </AdminTableCell>
-                <AdminTableCell align="right" className="tabular-nums">
-                  {formatCurrencyAmount(row.balance_remaining)}
-                </AdminTableCell>
-                <AdminTableCell align="right">
-                  <ErpListRowActions
-                    viewHref={`/admin/erp/credit-notes/${row.id}`}
-                    editHref={
-                      row.status === "draft"
-                        ? `/admin/erp/credit-notes?form=edit&id=${row.id}`
-                        : undefined
-                    }
-                    printHref={`/admin/erp/credit-notes/${row.id}/print`}
-                  />
-                </AdminTableCell>
-              </AdminTableRow>
-            ))}
-          </AdminTableBody>
+            <AdminTableBody>
+              {sorted.map((row) => {
+                const glance = creditNoteGlanceLabels(row);
+                return (
+                  <AdminTableRow
+                    key={row.id}
+                    onMouseEnter={() => void prefetchErpCreditNoteDetail(queryClient, row.id)}
+                  >
+                    <AdminTableCell className="text-muted-foreground">
+                      <AdminTableDateTime documentDate={row.credit_note_date} activity={row} />
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <ErpDocumentTableGlance
+                        triggerLabel={formatCustomerCreditNoteRef(row)}
+                        shellLabel={glance.shellLabel}
+                        title={formatCustomerCreditNoteRef(row)}
+                        subtitle={row.customer_name ?? undefined}
+                        viewHref={`/admin/erp/credit-notes/${row.id}`}
+                        viewLabel={glance.viewLabel}
+                        stats={[
+                          { label: "Total", value: formatCurrencyAmount(row.total_amount) },
+                          { label: "Remaining", value: formatCurrencyAmount(row.balance_remaining) },
+                        ]}
+                      />
+                    </AdminTableCell>
+                    <AdminTableCell className="hidden sm:table-cell">
+                      <Badge variant={row.credit_kind === "discount" ? "secondary" : "outline"}>
+                        {creditKindLabel(row.credit_kind)}
+                      </Badge>
+                    </AdminTableCell>
+                    <AdminTableCell className="hidden max-w-[140px] md:table-cell">
+                      <ErpStoreTableGlance storeId={row.store_id} name={row.store_name} />
+                    </AdminTableCell>
+                    <AdminTableCell className="max-w-[180px]">
+                      <ErpCustomerTableGlance userId={row.user_id} name={row.customer_name} />
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <StatusBadge status={row.status} />
+                    </AdminTableCell>
+                    <AdminTableCell align="right" className="font-semibold tabular-nums">
+                      {formatCurrencyAmount(row.total_amount)}
+                    </AdminTableCell>
+                    <AdminTableCell align="right" className="tabular-nums">
+                      {formatCurrencyAmount(row.balance_remaining)}
+                    </AdminTableCell>
+                    <AdminTableCell align="right">
+                      <ErpListRowActions
+                        viewHref={`/admin/erp/credit-notes/${row.id}`}
+                        editHref={
+                          row.status === "draft"
+                            ? `/admin/erp/credit-notes?form=edit&id=${row.id}`
+                            : undefined
+                        }
+                        printHref={`/admin/erp/credit-notes/${row.id}/print`}
+                      />
+                    </AdminTableCell>
+                  </AdminTableRow>
+                );
+              })}
+            </AdminTableBody>
           )}
         </AdminDataTable>
       </AdminListCard>
@@ -228,7 +338,7 @@ export function CreditNotesListView() {
         total={total}
         page={page}
         basePath="/admin/erp/credit-notes"
-        listParams={listParams}
+        listParams={queryListParams}
       />
 
       {isOpen ? (
@@ -238,6 +348,26 @@ export function CreditNotesListView() {
           creditNoteId={editId ?? undefined}
           open={modalProps.open}
           onOpenChange={modalProps.onOpenChange}
+          onSuccess={() => void refetch()}
+        />
+      ) : null}
+
+      {discountOpen ? (
+        <ErpCommercialDiscountFormView
+          side="customer"
+          variant="modal"
+          open={discountOpen}
+          onOpenChange={setDiscountOpen}
+          onSuccess={() => void refetch()}
+        />
+      ) : null}
+
+      {settlementOpen ? (
+        <ErpSettlementFormView
+          side="customer"
+          variant="modal"
+          open={settlementOpen}
+          onOpenChange={setSettlementOpen}
           onSuccess={() => void refetch()}
         />
       ) : null}

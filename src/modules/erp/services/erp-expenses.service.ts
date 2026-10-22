@@ -9,6 +9,7 @@ import type {
 } from "@/common/erp/purchasing-types";
 import type { JournalEntryLineRow } from "@/common/erp/finance-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import { nullIfEmptyDate } from "@/lib/format-date";
 import { getJournalEntryDetail } from "@/modules/erp/services/erp-journal.service";
 import {
   requireErpStoreId,
@@ -210,21 +211,25 @@ export async function listExpenses(
   if (error) throw new Error(error.message);
 
   const rows = data ?? [];
-  const accountNames = await loadNameMap(
-    supabase,
-    "accounts",
-    rows.flatMap((r) => [r.account_id as string, r.paid_through_account_id as string | null].filter(Boolean) as string[]),
-  );
-  const vendorNames = await loadNameMap(
-    supabase,
-    "vendors",
-    rows.map((r) => r.vendor_id as string | null).filter(Boolean) as string[],
-  );
-  const customerNames = await loadNameMap(
-    supabase,
-    "users",
-    rows.map((r) => r.user_id as string | null).filter(Boolean) as string[],
-  );
+  const [accountNames, vendorNames, customerNames] = await Promise.all([
+    loadNameMap(
+      supabase,
+      "accounts",
+      rows.flatMap((r) =>
+        [r.account_id as string, r.paid_through_account_id as string | null].filter(Boolean) as string[],
+      ),
+    ),
+    loadNameMap(
+      supabase,
+      "vendors",
+      rows.map((r) => r.vendor_id as string | null).filter(Boolean) as string[],
+    ),
+    loadNameMap(
+      supabase,
+      "users",
+      rows.map((r) => r.user_id as string | null).filter(Boolean) as string[],
+    ),
+  ]);
 
   const mapped = rows.map((row) =>
     mapExpenseRow(
@@ -253,8 +258,6 @@ export async function createExpense(input: {
   userId?: string | null;
   reference?: string;
   notes?: string;
-  isBillable?: boolean;
-  billableCustomerId?: string | null;
   attachmentUrl?: string | null;
 }): Promise<string> {
   await requireAdminOrManagerProfile();
@@ -279,20 +282,10 @@ export async function createExpense(input: {
   if (error) throw new Error(error.message);
 
   const expenseId = data as string;
-  if (
-    input.isBillable !== undefined ||
-    input.billableCustomerId !== undefined ||
-    input.attachmentUrl !== undefined
-  ) {
+  if (input.attachmentUrl !== undefined) {
     const { error: patchError } = await supabase
       .from("erp_expenses")
-      .update({
-        ...(input.isBillable !== undefined ? { is_billable: input.isBillable } : {}),
-        ...(input.billableCustomerId !== undefined
-          ? { billable_customer_id: input.billableCustomerId }
-          : {}),
-        ...(input.attachmentUrl !== undefined ? { attachment_url: input.attachmentUrl } : {}),
-      } as never)
+      .update({ attachment_url: input.attachmentUrl } as never)
       .eq("id", expenseId);
     if (patchError) throw new Error(patchError.message);
   }
@@ -357,9 +350,6 @@ export async function getExpenseDetail(expenseId: string): Promise<ErpExpenseDet
     customer_name: data.user_id ? customerNames.get(data.user_id) ?? null : null,
     reference: data.reference,
     notes: data.notes,
-    is_billable: Boolean(data.is_billable),
-    billable_customer_id: data.billable_customer_id,
-    billed_invoice_id: data.billed_invoice_id,
     attachment_url: data.attachment_url,
     created_at: data.created_at,
   };
@@ -399,8 +389,6 @@ export async function updateExpense(
     userId?: string | null;
     reference?: string;
     notes?: string;
-    isBillable?: boolean;
-    billableCustomerId?: string | null;
     attachmentUrl?: string | null;
   },
 ): Promise<void> {
@@ -408,6 +396,7 @@ export async function updateExpense(
   const supabase = await createSupabaseServerClient();
 
   const existing = await getExpenseDetail(expenseId);
+
   const amount = input.amount ?? existing.amount;
   const taxMode = input.taxMode ?? existing.tax_mode;
   const taxPercent = input.taxPercent ?? existing.tax_percent;
@@ -417,7 +406,7 @@ export async function updateExpense(
     .from("erp_expenses")
     .update({
       store_id: input.storeId ?? existing.store_id,
-      expense_date: input.expenseDate ?? existing.expense_date,
+      expense_date: nullIfEmptyDate(input.expenseDate) ?? existing.expense_date,
       account_id: input.accountId ?? existing.account_id,
       amount,
       tax_mode: taxMode,
@@ -432,10 +421,6 @@ export async function updateExpense(
       user_id: input.userId !== undefined ? input.userId : existing.user_id,
       reference: input.reference !== undefined ? input.reference : existing.reference,
       notes: input.notes !== undefined ? input.notes : existing.notes,
-      ...(input.isBillable !== undefined ? { is_billable: input.isBillable } : {}),
-      ...(input.billableCustomerId !== undefined
-        ? { billable_customer_id: input.billableCustomerId }
-        : {}),
       ...(input.attachmentUrl !== undefined ? { attachment_url: input.attachmentUrl } : {}),
       updated_at: new Date().toISOString(),
     })

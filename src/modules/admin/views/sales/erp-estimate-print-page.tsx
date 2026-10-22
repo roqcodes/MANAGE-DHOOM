@@ -11,6 +11,8 @@ import {
   type ErpEstimatePrintData,
 } from "@/modules/erp/components/erp-estimate-print-document";
 import { downloadElementAsPdf } from "@/lib/html2pdf-download";
+import { printDocumentElement } from "@/lib/print-document";
+import { useAutoPrintOnLoad } from "@/lib/use-auto-print-on-load";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 export function ErpEstimatePrintPage() {
@@ -32,7 +34,7 @@ export function ErpEstimatePrintPage() {
   }, [id]);
 
   const handleDownloadPdf = useCallback(async () => {
-    const element = document.querySelector("[data-estimate-document]");
+    const element = document.querySelector("[data-print-document], [data-estimate-document]");
     if (!(element instanceof HTMLElement) || !estimate) return;
 
     setDownloading(true);
@@ -55,6 +57,14 @@ export function ErpEstimatePrintPage() {
     }
   }, [searchParams, estimate, downloading, handleDownloadPdf]);
 
+  useAutoPrintOnLoad(
+    Boolean(
+      estimate &&
+        searchParams.get("print") === "1" &&
+        searchParams.get("download") !== "1",
+    ),
+  );
+
   if (loading) {
     return <AdminPrintSkeleton />;
   }
@@ -76,6 +86,10 @@ export function ErpEstimatePrintPage() {
         title={`Estimate · ${estimate.estimate_number}`}
         onDownloadPdf={handleDownloadPdf}
         downloading={downloading}
+        onPrint={() => {
+          const element = document.querySelector("[data-print-document], [data-estimate-document]");
+          if (element instanceof HTMLElement) printDocumentElement(element);
+        }}
       />
       <div className="pb-10 pt-4 print:pb-0 print:pt-0">
         <ErpEstimatePrintDocument estimate={estimate} />

@@ -88,10 +88,11 @@ export function SalaryPaymentFormView({
 
   useEffect(() => {
     if (!employeeId || !selectedEmployee) return;
+    if (selectedEmployee.store_id === activeStoreId) return;
     adminGet<{ data: PaidThroughAccountOption[] }>(
       `erp/salary-payments?view=accounts&storeId=${encodeURIComponent(selectedEmployee.store_id)}`,
     ).then((res) => setAccounts(res.data ?? []));
-  }, [employeeId, selectedEmployee?.store_id]);
+  }, [employeeId, selectedEmployee, selectedEmployee?.store_id, activeStoreId]);
 
   function handleCancel() {
     if (isModal) onOpenChange?.(false);

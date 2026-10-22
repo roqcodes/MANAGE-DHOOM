@@ -37,6 +37,8 @@ export interface ErpVendorCreditLineInput {
 export interface SupplierPaymentAllocationInput {
   purchaseBillId: string;
   amount: number;
+  purchaseBillNumber?: string;
+  balanceDue?: number;
 }
 
 export interface ErpPurchaseBillListRow {
@@ -394,6 +396,7 @@ export interface ErpVendorCreditListRow {
   vendor_id: string;
   store_id: string;
   status: string;
+  credit_kind?: string;
   total_amount: number;
   balance_remaining: number;
   credit_date: string;
@@ -442,9 +445,6 @@ export interface ErpExpenseDetail {
   customer_name: string | null;
   reference: string | null;
   notes: string | null;
-  is_billable?: boolean;
-  billable_customer_id?: string | null;
-  billed_invoice_id?: string | null;
   attachment_url?: string | null;
   created_at: string;
 }

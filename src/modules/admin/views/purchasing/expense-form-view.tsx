@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import type { ErpExpenseDetail, PaidThroughAccountOption } from "@/common/erp/purchasing-types";
 import { adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import {
   AdminFormActions,
   AdminFormColumns,
@@ -30,6 +32,9 @@ import { AttachmentField } from "@/modules/erp/components/attachment-field";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type ExpenseAccount = { id: string; name: string; code: string };
+
+const SELECT_CLS =
+  "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs";
 
 export type ExpenseFormViewProps = ErpFormViewBaseProps & {
   mode: "create" | "edit";
@@ -62,34 +67,28 @@ export function ExpenseFormView({
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
 
-  const [expenseAccounts, setExpenseAccounts] = useState<ExpenseAccount[]>([]);
-  const [paidAccounts, setPaidAccounts] = useState<PaidThroughAccountOption[]>([]);
+  const { data: accountOptions } = useQuery({
+    queryKey: adminQueryKeys.expenseAccountOptions(effectiveStoreId),
+    queryFn: () => {
+      const storeQ = effectiveStoreId
+        ? `?view=account-options&storeId=${encodeURIComponent(effectiveStoreId)}`
+        : "?view=account-options";
+      return adminGet<{
+        expenseAccounts: ExpenseAccount[];
+        paidThrough: PaidThroughAccountOption[];
+      }>(`erp/expenses${storeQ}`);
+    },
+    enabled: Boolean(effectiveStoreId),
+    staleTime: 60_000,
+  });
+  const expenseAccounts = accountOptions?.expenseAccounts ?? [];
+  const paidAccounts = accountOptions?.paidThrough ?? [];
   const [vendorId, setVendorId] = useState("");
   const [vendorLabel, setVendorLabel] = useState("");
   const [userId, setUserId] = useState("");
   const [customerLabel, setCustomerLabel] = useState("");
-  const [isBillable, setIsBillable] = useState(false);
-  const [billableCustomerId, setBillableCustomerId] = useState("");
-  const [billableCustomerLabel, setBillableCustomerLabel] = useState("");
   const [attachmentUrl, setAttachmentUrl] = useState("");
-
-  useEffect(() => {
-    const q = effectiveStoreId
-      ? `?view=accounts&storeId=${encodeURIComponent(effectiveStoreId)}`
-      : "?view=accounts";
-    adminGet<{ data: ExpenseAccount[] }>(`erp/expenses${q}`).then((res) =>
-      setExpenseAccounts(res.data),
-    );
-  }, [effectiveStoreId]);
-
-  useEffect(() => {
-    const q = effectiveStoreId
-      ? `?view=paid-through&storeId=${encodeURIComponent(effectiveStoreId)}`
-      : "?view=paid-through";
-    adminGet<{ data: PaidThroughAccountOption[] }>(`erp/expenses${q}`).then((res) =>
-      setPaidAccounts(res.data),
-    );
-  }, [effectiveStoreId]);
+  const [expenseNumber, setExpenseNumber] = useState<string | null>(null);
 
   useEffect(() => {
     if (mode !== "edit" || !expenseId) return;
@@ -108,10 +107,8 @@ export function ExpenseFormView({
         setUserId(expense.user_id ?? "");
         setVendorLabel(expense.vendor_name ?? "");
         setCustomerLabel(expense.customer_name ?? "");
-        setIsBillable(Boolean(expense.is_billable));
-        setBillableCustomerId(expense.billable_customer_id ?? "");
-        setBillableCustomerLabel(expense.customer_name ?? "");
         setAttachmentUrl(expense.attachment_url ?? "");
+        setExpenseNumber(expense.expense_number ?? null);
       })
       .finally(() => setLoading(false));
   }, [mode, expenseId]);
@@ -151,8 +148,6 @@ export function ExpenseFormView({
       paidThroughAccountId: paidThroughId,
       vendorId: vendorId || null,
       userId: userId || null,
-      isBillable,
-      billableCustomerId: isBillable ? billableCustomerId || null : null,
       attachmentUrl: attachmentUrl || null,
       reference: reference.trim() || undefined,
       notes: notes.trim() || undefined,
@@ -181,7 +176,7 @@ export function ExpenseFormView({
         open={open}
         onOpenChange={onOpenChange}
         title={mode === "create" ? "New expense" : "Edit expense"}
-        size="xl"
+        size="landscape"
         loading
         loadingFallback={<AdminPageSkeleton />}
       >
@@ -195,130 +190,156 @@ export function ExpenseFormView({
     <AdminFormActions
       formId={formId}
       onCancel={handleCancel}
-      submitLabel="Save"
+      submitLabel={mode === "create" ? "Save expense" : "Save changes"}
       pending={isPending}
     />
   ) : undefined;
 
   const sections = (
-    <AdminFormColumns cols={2}>
-      <AdminFormSection title="Expense details">
-        <AdminFormGrid cols={3}>
-          <ErpDocumentNumberField kind="EXP" enabled={mode === "create"} />
-          <AdminFormField label="Expense date" required>
-            <Input type="date" value={expenseDate} onChange={(e) => setExpenseDate(e.target.value)} required />
-          </AdminFormField>
-          <AdminFormField label="Store" required>
-            <ActiveStoreFormField
-              mode={mode}
-              stores={stores}
-              activeStoreId={activeStoreId}
-              storeId={storeId}
-              onStoreIdChange={setStoreId}
-              label=""
+    <>
+      <AdminFormColumns cols={2} columnRatio="2:1">
+        <AdminFormSection title="Expense details">
+          <AdminFormGrid cols={3}>
+            <AdminFormField label="Store" required>
+              <ActiveStoreFormField
+                mode={mode}
+                stores={stores}
+                activeStoreId={activeStoreId}
+                storeId={storeId}
+                onStoreIdChange={setStoreId}
+                label=""
+              />
+            </AdminFormField>
+            <AdminFormField label="Expense date" required>
+              <Input
+                type="date"
+                value={expenseDate}
+                onChange={(e) => setExpenseDate(e.target.value)}
+                required
+              />
+            </AdminFormField>
+            <ErpDocumentNumberField
+              kind="EXP"
+              enabled={mode === "create"}
+              value={mode === "edit" ? expenseNumber : undefined}
             />
-          </AdminFormField>
-          <AdminFormField label="Expense account" required>
-            <select
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={accountId}
-              onChange={(e) => setAccountId(e.target.value)}
-              required
-            >
-              <option value="">Select expense account</option>
-              {expenseAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-          </AdminFormField>
-          <AdminFormField label="Amount" required>
-            <Input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required />
-          </AdminFormField>
-          <AdminFormField label="Tax %">
-            <Input type="number" min="0" step="0.01" value={taxPercent} onChange={(e) => setTaxPercent(e.target.value)} />
-          </AdminFormField>
-          <AdminFormField label="Paid through" required>
-            <select
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-              value={paidThroughId}
-              onChange={(e) => setPaidThroughId(e.target.value)}
-              required
-            >
-              <option value="">Select account</option>
-              {paidAccounts.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}</option>
-              ))}
-            </select>
-          </AdminFormField>
-          <AdminFormField label="Tax status" className="sm:col-span-2 lg:col-span-3">
-            <div className="flex flex-wrap gap-4 text-sm">
-              <label className="flex items-center gap-2">
-                <input type="radio" name="taxMode" checked={taxMode === "inclusive"} onChange={() => setTaxMode("inclusive")} />
-                Tax inclusive
-              </label>
-              <label className="flex items-center gap-2">
-                <input type="radio" name="taxMode" checked={taxMode === "exclusive"} onChange={() => setTaxMode("exclusive")} />
-                Tax exclusive
-              </label>
-            </div>
-          </AdminFormField>
-        </AdminFormGrid>
-      </AdminFormSection>
+            <AdminFormField label="Expense account" required className="sm:col-span-2 lg:col-span-1">
+              <select
+                className={SELECT_CLS}
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                required
+              >
+                <option value="">Select expense account</option>
+                {expenseAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                    {a.code ? ` (${a.code})` : ""}
+                  </option>
+                ))}
+              </select>
+            </AdminFormField>
+            <AdminFormField label="Amount" required>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                required
+              />
+            </AdminFormField>
+            <AdminFormField label="Tax rate %" optional>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                value={taxPercent}
+                onChange={(e) => setTaxPercent(e.target.value)}
+              />
+            </AdminFormField>
+            <AdminFormField label="Paid through" required>
+              <select
+                className={SELECT_CLS}
+                value={paidThroughId}
+                onChange={(e) => setPaidThroughId(e.target.value)}
+                required
+              >
+                <option value="">Select account</option>
+                {paidAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                    {a.code ? ` (${a.code})` : ""}
+                  </option>
+                ))}
+              </select>
+            </AdminFormField>
+            <AdminFormField label="Tax treatment" required>
+              <select
+                className={SELECT_CLS}
+                value={taxMode}
+                onChange={(e) =>
+                  setTaxMode(e.target.value === "inclusive" ? "inclusive" : "exclusive")
+                }
+              >
+                <option value="exclusive">Tax exclusive</option>
+                <option value="inclusive">Tax inclusive</option>
+              </select>
+            </AdminFormField>
+            <AdminFormField label="Reference #" optional className="sm:col-span-2 lg:col-span-1">
+              <Input
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Receipt or internal ref"
+              />
+            </AdminFormField>
+          </AdminFormGrid>
+        </AdminFormSection>
 
-      <AdminFormSection title="Additional info">
-        <AdminFormGrid cols={2}>
-          <AdminFormField label="Vendor">
-            <VendorSearchSelect
-              value={vendorId || null}
-              selectedLabel={vendorLabel || undefined}
-              onChange={(id, option) => {
-                setVendorId(id ?? "");
-                setVendorLabel(option?.label ?? "");
-              }}
-            />
-          </AdminFormField>
-          <AdminFormField label="Customer">
-            <CustomerSearchSelect
-              value={userId || null}
-              selectedLabel={customerLabel || undefined}
-              onChange={(id, option) => {
-                setUserId(id ?? "");
-                setCustomerLabel(option?.label ?? "");
-              }}
-            />
-          </AdminFormField>
-          <AdminFormField label="Reference">
-            <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Reference" />
-          </AdminFormField>
-          <AdminFormField label="Attachment">
-            <AttachmentField value={attachmentUrl} onChange={setAttachmentUrl} />
-          </AdminFormField>
-          <AdminFormField label="Note" className="sm:col-span-2">
-            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Note" />
-          </AdminFormField>
-          <label className="flex items-center gap-2 text-sm sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={isBillable}
-              onChange={(e) => setIsBillable(e.target.checked)}
-            />
-            Billable to customer
-          </label>
-          {isBillable ? (
-            <AdminFormField label="Billable customer" required className="sm:col-span-2">
-              <CustomerSearchSelect
-                value={billableCustomerId || null}
-                selectedLabel={billableCustomerLabel || undefined}
+        <AdminFormSection title="Party">
+          <AdminFormGrid cols={1}>
+            <AdminFormField label="Vendor" optional>
+              <VendorSearchSelect
+                value={vendorId || null}
+                selectedLabel={vendorLabel || undefined}
+                disabled={!effectiveStoreId}
                 onChange={(id, option) => {
-                  setBillableCustomerId(id ?? "");
-                  setBillableCustomerLabel(option?.label ?? "");
+                  setVendorId(id ?? "");
+                  setVendorLabel(option?.label ?? "");
                 }}
               />
             </AdminFormField>
-          ) : null}
-        </AdminFormGrid>
+            <AdminFormField label="Customer" optional>
+              <CustomerSearchSelect
+                value={userId || null}
+                selectedLabel={customerLabel || undefined}
+                onChange={(id, option) => {
+                  setUserId(id ?? "");
+                  setCustomerLabel(option?.label ?? "");
+                }}
+              />
+            </AdminFormField>
+            <AdminFormField label="Attachment" optional>
+              <AttachmentField value={attachmentUrl} onChange={setAttachmentUrl} />
+            </AdminFormField>
+          </AdminFormGrid>
+        </AdminFormSection>
+      </AdminFormColumns>
+
+      <AdminFormSection title="Notes">
+        <AdminFormField label="Internal note" optional>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            placeholder="Why this expense was recorded"
+            className="min-h-[5rem] resize-y"
+          />
+        </AdminFormField>
       </AdminFormSection>
-    </AdminFormColumns>
+    </>
   );
 
   return (
@@ -327,15 +348,16 @@ export function ExpenseFormView({
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      description="Record an expense with tax and paid-through account."
+      description="Record spend against an expense account and the bank or cash account paid from."
       backHref="/admin/erp/expenses"
       breadcrumb={[
         { label: "Expenses", href: "/admin/erp/expenses" },
         { label: title },
       ]}
-      size="xl"
+      size="landscape"
       formId={formId}
       footer={footer}
+      pending={isPending}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
         {sections}
@@ -346,7 +368,7 @@ export function ExpenseFormView({
               Cancel
             </Link>
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : "Save"}
+              {isPending ? "Saving…" : mode === "create" ? "Save expense" : "Save changes"}
             </Button>
           </div>
         ) : null}

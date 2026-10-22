@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import { BadgePercent, Plus } from "lucide-react";
 
 import type { ErpVendorCreditListRow } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
@@ -33,11 +33,14 @@ import {
   useErpFormModal,
   useSortableData,
 } from "@/modules/admin/ui";
+import { creditKindLabel } from "@/common/erp/commercial-discount";
 import { VendorCreditFormView } from "@/modules/admin/views/purchasing/vendor-credit-form-view";
+import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
 import { useErpListState } from "@/modules/admin/ui/use-erp-list-state";
 
 export function VendorCreditsListView() {
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/vendor-credits");
+  const [discountOpen, setDiscountOpen] = useState(false);
   const {
     search,
     setSearch,
@@ -81,12 +84,18 @@ export function VendorCreditsListView() {
       <AdminPageHeader
         title="Vendor credits"
         breadcrumb={[{ label: "Vendor credits", href: "/admin/erp/vendor-credits" }]}
-        description="Credits issued by vendors against purchase bills. Remaining balance can be applied to future bills."
+        description="Goods returns and purchase discounts against vendor bills. Unapplied balance is used in account settlement."
         actions={
-          <AdminPrimaryAction onClick={() => openNew()}>
-            <Plus data-icon="inline-start" />
-            Add vendor credit
-          </AdminPrimaryAction>
+          <>
+            <Button variant="outline" size="page" className="rounded-full" onClick={() => setDiscountOpen(true)}>
+              <BadgePercent data-icon="inline-start" />
+              Record discount
+            </Button>
+            <AdminPrimaryAction onClick={() => openNew()}>
+              <Plus data-icon="inline-start" />
+              Add vendor credit
+            </AdminPrimaryAction>
+          </>
         }
       />
 
@@ -182,7 +191,12 @@ export function VendorCreditsListView() {
                   <ErpStoreTableGlance storeId={r.store_id} name={r.store_name} />
                 </AdminTableCell>
                 <AdminTableCell>
-                  <StatusBadge status={r.status} />
+                  <div className="flex flex-col gap-0.5">
+                    <StatusBadge status={r.status} />
+                    {r.credit_kind === "discount" ? (
+                      <span className="text-xs text-muted-foreground">{creditKindLabel(r.credit_kind)}</span>
+                    ) : null}
+                  </div>
                 </AdminTableCell>
                 <AdminTableCell align="right" className="tabular-nums">
                   {formatCurrencyAmount(r.total_amount)}
@@ -224,6 +238,16 @@ export function VendorCreditsListView() {
           creditId={editId ?? undefined}
           open={modalProps.open}
           onOpenChange={modalProps.onOpenChange}
+          onSuccess={() => void refetch()}
+        />
+      ) : null}
+
+      {discountOpen ? (
+        <ErpCommercialDiscountFormView
+          side="supplier"
+          variant="modal"
+          open={discountOpen}
+          onOpenChange={setDiscountOpen}
           onSuccess={() => void refetch()}
         />
       ) : null}

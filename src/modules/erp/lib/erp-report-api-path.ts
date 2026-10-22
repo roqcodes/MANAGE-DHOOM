@@ -37,7 +37,7 @@ export function buildErpReportApiPath(
     q.set("dateTo", params.dateTo?.trim() ?? "");
   }
   if (report.filters.asOfDate) q.set("asOf", params.asOf);
-  if (report.filters.store && params.storeId) q.set("storeId", params.storeId);
+  if (params.storeId) q.set("storeId", params.storeId);
   if (report.filters.channel) q.set("channel", params.channel);
   if (report.filters.account && params.accountId) q.set("accountId", params.accountId);
   if (report.filters.brand && params.brandId) q.set("brandId", params.brandId);

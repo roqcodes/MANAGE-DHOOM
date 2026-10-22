@@ -52,6 +52,8 @@ export function CashFlowReport({ report }: { report: ReportDefinition }) {
   const endingCash = Number(data.ending_cash ?? 0);
   const netIncome = Number(data.net_income ?? 0);
   const netChange = Number(data.net_change ?? 0);
+  const cashMovement = Number(data.net_change_reconciled ?? endingCash - beginningCash);
+  const reconGap = Math.abs(netChange - cashMovement);
   const operating = (data.operating as CfSection | undefined) ?? {};
   const investing = (data.investing as CfSection | undefined) ?? {};
   const financing = (data.financing as CfSection | undefined) ?? {};
@@ -157,6 +159,12 @@ export function CashFlowReport({ report }: { report: ReportDefinition }) {
             <CashMetric label="Net change in cash" value={netChange} highlight />
             <CashMetric label="Ending cash" value={endingCash} />
           </div>
+          {reconGap > 0.01 ? (
+            <p className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Indirect cash flow ({formatCurrencyAmount(netChange)}) does not match cash movement{" "}
+              {formatCurrencyAmount(cashMovement)}. Check unmapped balance-sheet accounts.
+            </p>
+          ) : null}
 
           <StatementTable>
             <StatementTotalRow label="Beginning cash balance" amount={beginningCash} emphasis />

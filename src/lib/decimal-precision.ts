@@ -9,6 +9,9 @@ export const CALC_DECIMAL_PLACES = 4;
 /** Max fraction digits for important displayed amounts (currency, costs, rates). */
 export const DISPLAY_DECIMAL_PLACES = 3;
 
+/** User-entered and posted payment amounts (cash, allocations, payment totals). */
+export const PAYMENT_DECIMAL_PLACES = 3;
+
 /** Balance / tolerance checks on 4dp totals. */
 export const CALC_BALANCE_TOLERANCE = 0.0001;
 
@@ -26,6 +29,21 @@ export function roundCalc(n: number): number {
 export function roundMoney(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return roundCalc(n);
+}
+
+/** Canonical 3dp payment amount — use for entry, validation, and RPC payloads (not 4dp roundMoney). */
+export function quantizePaymentAmount(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return roundToPlaces(n, PAYMENT_DECIMAL_PLACES);
+}
+
+/** Parse payment input strings to a 3dp amount; returns NaN when empty/invalid. */
+export function parsePaymentAmount(raw: string): number {
+  const trimmed = raw.trim();
+  if (!trimmed) return NaN;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n)) return NaN;
+  return quantizePaymentAmount(n);
 }
 
 /** Round for display (max 3dp) after calc precision. */

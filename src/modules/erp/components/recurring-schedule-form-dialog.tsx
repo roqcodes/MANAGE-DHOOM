@@ -22,7 +22,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ProductLiveSearch, type ProductLiveSearchRow } from "@/modules/admin/ui";
+import { SalesmanPinField } from "@/modules/erp/components/salesman-pin-field";
 import { StoreSelect, useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { nullIfEmptyDate } from "@/lib/format-date";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 const FREQUENCY_OPTIONS: { value: RecurringScheduleRow["frequency"]; label: string }[] = [
@@ -35,8 +38,10 @@ const FREQUENCY_OPTIONS: { value: RecurringScheduleRow["frequency"]; label: stri
 function lineFromSchedule(schedule: RecurringScheduleRow) {
   const lines =
     (schedule.payload?.lines as Array<{
+      productId?: string;
       productName?: string;
       unitPrice?: number;
+      purchasePrice?: number;
       taxRatePercent?: number;
     }>) ?? [];
   return lines[0] ?? null;
@@ -71,10 +76,13 @@ export function RecurringScheduleFormDialog({
   const [vendorLabel, setVendorLabel] = useState("");
   const [frequency, setFrequency] = useState<RecurringScheduleRow["frequency"]>("monthly");
   const [nextRunDate, setNextRunDate] = useState(new Date().toISOString().slice(0, 10));
+  const [productId, setProductId] = useState("");
   const [productName, setProductName] = useState("");
   const [amount, setAmount] = useState("");
   const [taxPercent, setTaxPercent] = useState("5");
   const [notes, setNotes] = useState("");
+  const [salesmanPin, setSalesmanPin] = useState("");
+  const [salesPersonId, setSalesPersonId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -89,11 +97,19 @@ export function RecurringScheduleFormDialog({
       setVendorId(schedule.vendor_id ?? "");
       setVendorLabel(schedule.vendor_name ?? "");
       setFrequency(schedule.frequency);
-      setNextRunDate(schedule.next_run_date);
+      setNextRunDate(nullIfEmptyDate(schedule.next_run_date) ?? new Date().toISOString().slice(0, 10));
+      setProductId(line?.productId ?? "");
       setProductName(line?.productName ?? "");
-      setAmount(line?.unitPrice != null ? String(line.unitPrice) : "");
+      const lineAmount = line?.purchasePrice ?? line?.unitPrice;
+      setAmount(lineAmount != null ? String(lineAmount) : "");
       setTaxPercent(line?.taxRatePercent != null ? String(line.taxRatePercent) : "5");
       setNotes(String(schedule.payload?.notes ?? ""));
+      setSalesmanPin("");
+      setSalesPersonId(
+        typeof schedule.payload?.salesPersonId === "string"
+          ? schedule.payload.salesPersonId
+          : null,
+      );
     } else {
       setScheduleType(defaultScheduleType ?? "purchase_bill");
       if (activeStoreId) setStoreId(activeStoreId);
@@ -111,10 +127,13 @@ export function RecurringScheduleFormDialog({
     setVendorLabel("");
     setFrequency("monthly");
     setNextRunDate(new Date().toISOString().slice(0, 10));
+    setProductId("");
     setProductName("");
     setAmount("");
     setTaxPercent("5");
     setNotes("");
+    setSalesmanPin("");
+    setSalesPersonId(null);
     setError(null);
   }
 
@@ -123,14 +142,30 @@ export function RecurringScheduleFormDialog({
     setError(null);
 
     const unitPrice = parseFloat(amount);
+    const documentDate = nullIfEmptyDate(nextRunDate);
     if (!name.trim()) return setError("Schedule name is required.");
+    if (!documentDate) return setError("Next run date is required.");
     if (!productName.trim()) return setError("Line item description is required.");
     if (!unitPrice || unitPrice <= 0) return setError("Amount must be greater than zero.");
     if (scheduleType === "invoice" && !customerId) {
       return setError("Customer is required for recurring invoices.");
     }
+    if (scheduleType === "invoice" && !salesPersonId) {
+      return setError("Salesman PIN is required for recurring invoices.");
+    }
     if (scheduleType === "purchase_bill" && !vendorId) {
       return setError("Vendor is required for recurring bills.");
+    }
+
+    const linePayload: Record<string, unknown> = {
+      productName: productName.trim(),
+      quantity: 1,
+      unitPrice,
+      taxRatePercent: parseFloat(taxPercent) || 0,
+    };
+    if (scheduleType === "purchase_bill") {
+      linePayload.purchasePrice = unitPrice;
+      if (productId) linePayload.productId = productId;
     }
 
     const payload = {
@@ -140,17 +175,13 @@ export function RecurringScheduleFormDialog({
       customerId: scheduleType === "invoice" ? customerId : null,
       vendorId: scheduleType === "purchase_bill" ? vendorId : null,
       frequency,
-      nextRunDate,
+      nextRunDate: documentDate,
       payload: {
-        lines: [
-          {
-            productName: productName.trim(),
-            quantity: 1,
-            unitPrice,
-            taxRatePercent: parseFloat(taxPercent) || 0,
-          },
-        ],
+        lines: [linePayload],
         notes: notes.trim() || undefined,
+        ...(scheduleType === "invoice" && salesPersonId
+          ? { salesPersonId }
+          : {}),
       },
     };
 
@@ -264,16 +295,25 @@ export function RecurringScheduleFormDialog({
                 />
               </AdminFormField>
               {scheduleType === "invoice" ? (
-                <AdminFormField label="Customer" required className="sm:col-span-2">
-                  <CustomerSearchSelect
-                    value={customerId || null}
-                    selectedLabel={customerLabel || undefined}
-                    onChange={(id, option) => {
-                      setCustomerId(id ?? "");
-                      setCustomerLabel(option?.label ?? "");
-                    }}
-                  />
-                </AdminFormField>
+                <>
+                  <AdminFormField label="Customer" required className="sm:col-span-2">
+                    <CustomerSearchSelect
+                      value={customerId || null}
+                      selectedLabel={customerLabel || undefined}
+                      onChange={(id, option) => {
+                        setCustomerId(id ?? "");
+                        setCustomerLabel(option?.label ?? "");
+                      }}
+                    />
+                  </AdminFormField>
+                  <AdminFormField label="Salesman PIN" required className="sm:col-span-2">
+                    <SalesmanPinField
+                      value={salesmanPin}
+                      onChange={setSalesmanPin}
+                      onSalesmanChange={(s) => setSalesPersonId(s?.id ?? null)}
+                    />
+                  </AdminFormField>
+                </>
               ) : (
                 <AdminFormField label="Vendor" required className="sm:col-span-2">
                   <VendorSearchSelect
@@ -291,6 +331,45 @@ export function RecurringScheduleFormDialog({
 
           <AdminFormSection title="Line item">
             <AdminFormGrid cols={2}>
+              {scheduleType === "purchase_bill" ? (
+                <AdminFormField
+                  label="Link product (optional)"
+                  optional
+                  className="sm:col-span-2"
+                  hint="For rent, fees, or subscriptions leave blank — the bill will post without stock. Link a product only when each run should increase inventory."
+                >
+                  <ProductLiveSearch
+                    catalog="purchase"
+                    storeId={storeId || undefined}
+                    placeholder="Search product to receive stock on each run…"
+                    onSelect={(row: ProductLiveSearchRow) => {
+                      if ("product_name" in row) {
+                        setProductId(row.id);
+                        setProductName(row.product_name);
+                        const price = Number(row.purchase_price ?? 0);
+                        if (price > 0) setAmount(String(price));
+                        if (row.tax_rate_percent != null) {
+                          setTaxPercent(String(row.tax_rate_percent));
+                        }
+                      }
+                    }}
+                  />
+                  {productId ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Linked: {productName}{" "}
+                      <button
+                        type="button"
+                        className="text-primary underline-offset-2 hover:underline"
+                        onClick={() => {
+                          setProductId("");
+                        }}
+                      >
+                        Clear link
+                      </button>
+                    </p>
+                  ) : null}
+                </AdminFormField>
+              ) : null}
               <AdminFormField label="Description" required className="sm:col-span-2">
                 <Input
                   value={productName}

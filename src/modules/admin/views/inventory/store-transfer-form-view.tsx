@@ -120,20 +120,30 @@ export function StoreTransferFormView({
         if (request.note) setNote(request.note);
         setLinkedRequestId(request.id);
 
+        const requestLines = request.erp_transfer_request_lines ?? [];
+        const productIds = requestLines
+          .map((line) => line.product_id ?? line.variant_id)
+          .filter((id): id is string => Boolean(id));
+        let stocks: Record<string, number> = {};
+        try {
+          if (productIds.length > 0) {
+            const stockRes = await adminGet<{ stocks: Record<string, number> }>(
+              `erp/store-stock?storeId=${request.from_store_id}&productIds=${productIds.join(",")}`,
+            );
+            stocks = stockRes.stocks ?? {};
+          }
+        } catch {
+          // keep request snapshot if live stock lookup fails
+        }
+
         const transferLines: TransferLine[] = [];
-        for (const line of request.erp_transfer_request_lines ?? []) {
+        for (const line of requestLines) {
           const productId = line.product_id ?? line.variant_id;
           if (!productId) continue;
-
-          let available = Number(line.source_available ?? 0);
-          try {
-            const stockRes = await adminGet<{ stock: number }>(
-              `erp/store-stock?storeId=${request.from_store_id}&productId=${productId}`,
-            );
-            available = stockRes.stock;
-          } catch {
-            // keep request snapshot if live stock lookup fails
-          }
+          const available =
+            stocks[productId] != null
+              ? stocks[productId]
+              : Number(line.source_available ?? 0);
 
           transferLines.push({
             key: newKey(),

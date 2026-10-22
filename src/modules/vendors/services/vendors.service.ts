@@ -15,6 +15,7 @@ import type {
 import { PAGE_SIZE } from "@/common/admin/types";
 import type { VendorErpListRow } from "@/common/erp/purchasing-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import { nullIfEmptyDate } from "@/lib/format-date";
 import {
   assertUniqueVendorName,
   rethrowUniqueNameViolation,
@@ -232,7 +233,7 @@ export async function insertVendor(input: {
       po_box: input.poBox ?? null,
       notes: input.notes ?? null,
       opening_balance: input.openingBalance ?? 0,
-      opening_balance_date: input.openingBalanceDate ?? null,
+      opening_balance_date: nullIfEmptyDate(input.openingBalanceDate),
       is_active: input.isActive ?? true,
     })
     .select("id")

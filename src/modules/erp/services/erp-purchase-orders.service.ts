@@ -18,6 +18,7 @@ import {
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
+import { nullIfEmptyDate } from "@/lib/format-date";
 
 function calcPoTotals(lines: ErpPurchaseLineInput[], landedCosts: ErpLandedCostLineInput[], discount: number) {
   let subtotal = 0;
@@ -339,7 +340,7 @@ export async function createErpPurchaseOrder(input: {
     p_vendor_id: input.vendorId,
     p_store_id: storeId,
     p_po_date: input.poDate,
-    p_expected_delivery_date: input.expectedDeliveryDate ?? undefined,
+    p_expected_delivery_date: nullIfEmptyDate(input.expectedDeliveryDate) ?? undefined,
     p_reference: input.reference ?? undefined,
     p_notes: input.notes ?? undefined,
     p_lines: linesJson,
@@ -410,7 +411,7 @@ export async function updateErpPurchaseOrder(
       vendor_id: input.vendorId,
       store_id: input.storeId,
       po_date: input.poDate,
-      expected_delivery_date: input.expectedDeliveryDate ?? null,
+      expected_delivery_date: nullIfEmptyDate(input.expectedDeliveryDate),
       reference: input.reference ?? null,
       notes: input.notes ?? null,
       discount,

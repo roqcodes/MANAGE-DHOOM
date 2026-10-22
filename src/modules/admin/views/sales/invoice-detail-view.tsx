@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  BadgePercent,
   Banknote,
   Calendar,
   CalendarClock,
@@ -19,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { paymentModeLabel } from "@/common/erp/sales-types";
+import { creditKindLabel, formatCustomerCreditNoteRef } from "@/common/erp/commercial-discount";
 import {
   ERP_DOCUMENT_UI,
   isSalesInvoiceDraft,
@@ -51,6 +53,7 @@ import { formatDateOnly } from "@/lib/format-date";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
 import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -81,6 +84,7 @@ type InvoiceDetail = {
   source?: string | null;
   order_id?: string | null;
   store_id?: string | null;
+  user_id?: string | null;
   editable?: boolean;
   users: { name: string | null; email: string | null; company_name: string | null } | null;
   stores: { name: string } | null;
@@ -110,6 +114,7 @@ type InvoiceDetail = {
       id: string;
       credit_note_number: string;
       credit_note_date: string;
+      credit_kind?: string | null;
     } | null;
   }>;
 };
@@ -221,6 +226,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
   const queryClient = useQueryClient();
   const [issuePending, startIssueTransition] = useTransition();
   const [issueError, setIssueError] = useState<string | null>(null);
+  const [discountOpen, setDiscountOpen] = useState(false);
   const detailPath = `erp/invoices/${invoiceId}`;
   const { openInvoicePrint } = useErpInvoicePrintModal();
   const { data: detail, isPending } = useAdminGetQuery<InvoiceDetail>({ path: detailPath });
@@ -305,6 +311,10 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
     detail.status !== "cancelled" &&
     !isSalesInvoiceDraft(detail.status) &&
     detail.balance_due > 0;
+  const canDiscount =
+    detail.status !== "cancelled" &&
+    !isSalesInvoiceDraft(detail.status) &&
+    Boolean(detail.user_id);
 
   const collected = detail.amount_paid + detail.credits_applied;
   const collectedPercent =
@@ -360,6 +370,12 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                 <CreditCard data-icon="inline-start" />
                 Record payment
               </AdminPrimaryAction>
+            ) : null}
+            {canDiscount ? (
+              <Button variant="outline" size="page" className="rounded-full" onClick={() => setDiscountOpen(true)}>
+                <BadgePercent data-icon="inline-start" />
+                Record discount
+              </Button>
             ) : null}
             <ErpDocumentActions
               layout="bar"
@@ -736,6 +752,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                         <TableHeader>
                           <TableRow className="bg-muted/40 hover:bg-muted/40">
                             <TableHead>Credit note</TableHead>
+                            <TableHead>Kind</TableHead>
                             <TableHead>Date</TableHead>
                             <TableHead className="text-right">Applied</TableHead>
                           </TableRow>
@@ -751,12 +768,18 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                                       href={`/admin/erp/credit-notes/${credit.id}`}
                                       className="font-medium text-primary hover:underline"
                                     >
-                                      {credit.credit_note_number ||
-                                        formatErpDocRef("CN", credit.id)}
+                                      {formatCustomerCreditNoteRef({
+                                        id: credit.id,
+                                        credit_note_number: credit.credit_note_number,
+                                        credit_kind: credit.credit_kind,
+                                      })}
                                     </Link>
                                   ) : (
                                     "—"
                                   )}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground">
+                                  {creditKindLabel(credit?.credit_kind)}
                                 </TableCell>
                                 <TableCell className="text-muted-foreground">
                                   {credit?.credit_note_date
@@ -780,6 +803,27 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
         </div>
       </ErpDocumentTabsLayout>
 
+      {discountOpen && detail.user_id ? (
+        <ErpCommercialDiscountFormView
+          side="customer"
+          variant="modal"
+          open={discountOpen}
+          onOpenChange={setDiscountOpen}
+          initialPartyId={detail.user_id}
+          initialPartyLabel={buyerName}
+          initialSourceDocumentId={detail.id}
+          initialSourceDocumentLabel={detail.invoice_number}
+          lockParty
+          lockSource
+          onSuccess={async () => {
+            setDiscountOpen(false);
+            await queryClient.invalidateQueries({
+              queryKey: adminQueryKeys.erpGet(detailPath),
+            });
+            router.refresh();
+          }}
+        />
+      ) : null}
     </AdminPageLayout>
   );
 }

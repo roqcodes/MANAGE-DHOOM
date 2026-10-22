@@ -9,6 +9,9 @@ import {
 } from "@/modules/navigation/lib/async-progress";
 import { labelForAdminApiRequest } from "@/modules/navigation/lib/admin-api-progress-label";
 function parseAdminApiError(status: number, statusText: string, body: string): string {
+  if (status === 503 || status === 504) {
+    return "The server took too long to respond. Try again in a moment.";
+  }
   if (body.trimStart().startsWith("<!DOCTYPE") || body.trimStart().startsWith("<html")) {
     return `${status} ${statusText} — API route not found`;
   }

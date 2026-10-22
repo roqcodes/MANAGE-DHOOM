@@ -108,7 +108,7 @@ BEGIN
       ) AS total_invoices
     FROM public.users u
     LEFT JOIN public.invoices i ON i.user_id = u.id
-      AND i.status <> 'cancelled'
+      AND i.status IN ('issued', 'partial', 'paid', 'overdue')
       AND (p_store_id IS NULL OR i.store_id = p_store_id)
       AND public.erp_report_matches_salesman(p_salesman_id, i.sales_person_id)
     WHERE public.erp_report_is_customer_role(u.role)
@@ -229,7 +229,7 @@ BEGIN
       ), 0), 2) AS invoice_over_paid,
       ROUND(
         CASE
-          WHEN NOT v_age_filter THEN COALESCE(u.opening_balance, 0) + COALESCE(SUM(i.balance_due), 0)
+          WHEN NOT v_age_filter THEN COALESCE(u.opening_balance, 0) + COALESCE(SUM(i.balance_due), 0) - COALESCE(pay.unallocated, 0)
           ELSE COALESCE(SUM(i.balance_due) FILTER (
             WHERE i.id IS NOT NULL
               AND ABS(COALESCE(i.balance_due, 0)) > 0.001
@@ -244,7 +244,7 @@ BEGIN
       ) AS total_due
     FROM public.users u
     LEFT JOIN public.invoices i ON i.user_id = u.id
-      AND i.status <> 'cancelled'
+      AND i.status IN ('issued', 'partial', 'paid', 'overdue')
       AND (p_store_id IS NULL OR i.store_id = p_store_id)
       AND public.erp_report_matches_salesman(p_salesman_id, i.sales_person_id)
     LEFT JOIN LATERAL (
@@ -326,7 +326,7 @@ BEGIN
     LEFT JOIN public.stores s ON s.id = i.store_id
     LEFT JOIN public.erp_salesmen sp ON sp.id = i.sales_person_id
     WHERE public.erp_report_is_customer_role(u.role)
-      AND i.status <> 'cancelled'
+      AND i.status IN ('issued', 'partial', 'paid', 'overdue')
       AND ABS(COALESCE(i.balance_due, 0)) > 0.001
       AND (p_store_id IS NULL OR i.store_id = p_store_id)
       AND public.erp_report_matches_salesman(p_salesman_id, i.sales_person_id)
@@ -389,7 +389,7 @@ BEGIN
       COUNT(i.id) FILTER (WHERE ABS(COALESCE(i.balance_due, 0)) > 0.001) AS open_invoices
     FROM public.users u
     LEFT JOIN public.invoices i ON i.user_id = u.id
-      AND i.status <> 'cancelled'
+      AND i.status IN ('issued', 'partial', 'paid', 'overdue')
       AND (p_store_id IS NULL OR i.store_id = p_store_id)
       AND public.erp_report_matches_salesman(p_salesman_id, i.sales_person_id)
     WHERE public.erp_report_is_customer_role(u.role)
@@ -453,7 +453,7 @@ BEGIN
       ROUND(COALESCE(i.balance_due, 0), 2) AS payment_balance
     FROM public.invoices i
     WHERE i.user_id = p_customer_id
-      AND i.status <> 'cancelled'
+      AND i.status IN ('issued', 'partial', 'paid', 'overdue')
       AND ABS(COALESCE(i.balance_due, 0)) > 0.001
       AND (p_store_id IS NULL OR i.store_id = p_store_id)
       AND public.erp_report_matches_salesman(p_salesman_id, i.sales_person_id)

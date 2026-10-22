@@ -12,6 +12,10 @@ import {
   recordBulkSupplierPaymentBatch,
   recordSupplierPayment,
 } from "@/modules/erp/services/erp-supplier-payments.service";
+import {
+  getSupplierSettlementPreview,
+  recordAccountSettlement,
+} from "@/modules/erp/services/erp-settlement.service";
 
 function parseListOptions(url: string) {
   const sp = new URL(url).searchParams;
@@ -55,6 +59,18 @@ export async function GET(request: Request) {
         url.searchParams.get("storeId") ?? undefined,
       );
       return NextResponse.json({ data: accounts });
+    }
+
+    if (view === "settlement-preview") {
+      const vendorId = url.searchParams.get("vendorId");
+      if (!vendorId) {
+        return NextResponse.json({ error: "vendorId required" }, { status: 400 });
+      }
+      const preview = await getSupplierSettlementPreview(
+        vendorId,
+        url.searchParams.get("storeId") ?? undefined,
+      );
+      return NextResponse.json({ data: preview });
     }
 
     if (view === "payable-bills") {
@@ -157,6 +173,21 @@ export async function POST(request: Request) {
         billLines: body.billLines ?? [],
       });
       return NextResponse.json({ batchId }, { status: 201 });
+    }
+    if (body.accountSettlement === true) {
+      const id = await recordAccountSettlement({
+        side: "supplier",
+        partyId: body.vendorId,
+        storeId: body.storeId,
+        paymentDate: body.paymentDate,
+        paymentMode: body.paymentMode,
+        accountId: body.accountId,
+        settlementDiscount: body.settlementDiscount,
+        settlementDiscountAccountId: body.settlementDiscountAccountId,
+        reference: body.reference,
+        notes: body.notes,
+      });
+      return NextResponse.json({ id }, { status: 201 });
     }
     const id = await recordSupplierPayment(body);
     return NextResponse.json({ id }, { status: 201 });

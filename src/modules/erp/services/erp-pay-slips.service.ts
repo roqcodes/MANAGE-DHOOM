@@ -8,6 +8,7 @@ import {
   requireErpStoreId,
   resolveErpStoreId,
 } from "@/modules/erp/services/store-context.service";
+import { nullIfEmptyDate } from "@/lib/format-date";
 
 type PaySlipListFilters = {
   page?: number;
@@ -136,8 +137,8 @@ export async function generatePaySlips(input: {
     p_store_id: storeId,
     p_period_month: input.periodMonth,
     p_period_year: input.periodYear,
-    p_from_date: input.fromDate ?? null,
-    p_to_date: input.toDate ?? null,
+    p_from_date: nullIfEmptyDate(input.fromDate),
+    p_to_date: nullIfEmptyDate(input.toDate),
     p_employee_id: input.employeeId ?? null,
     p_created_by: profile.id,
   });

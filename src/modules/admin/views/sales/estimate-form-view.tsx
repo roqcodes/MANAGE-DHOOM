@@ -6,7 +6,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { SalesLineFormRow } from "@/common/erp/sales-types";
 import { calcSalesLine, roundSalesMoney } from "@/common/erp/sales-types";
+import { directPrintErpEstimate } from "@/lib/direct-document-print";
 import { adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
 import {
   AdminFormField,
   AdminFormGrid,
@@ -49,6 +51,7 @@ export function EstimateFormView({
 }: EstimateFormViewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { showError } = useAppFeedback();
   const formId = useId();
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode });
@@ -157,7 +160,14 @@ export function EstimateFormView({
   function handleSuccessNavigate(id?: string, print?: boolean) {
     if (print && id) {
       if (isModal) onOpenChange?.(false);
-      router.push(`/admin/erp/estimates/${id}/print`);
+      void directPrintErpEstimate(id, "print").catch((err) => {
+        showError(err, "Couldn't print");
+      });
+      if (isModal) {
+        onSuccess?.(id);
+        return;
+      }
+      router.push(`/admin/erp/estimates/${id}`);
       return;
     }
     if (isModal) {

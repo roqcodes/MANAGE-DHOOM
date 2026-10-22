@@ -57,7 +57,7 @@ export const adminQueryKeys = {
   orderDetail: (id: string) => ["admin", "order", id] as const,
   vendorDetail: (id: string) => ["admin", "vendor", id] as const,
   purchaseOrderDetail: (id: string) => ["admin", "purchase-order", id] as const,
-  customerDetail: (id: string, txPage: number) => ["admin", "customer", id, txPage] as const,
+  customerDetail: (id: string) => ["admin", "customer", id] as const,
   customersList: (page: number) => ["admin", "customers", "list", page] as const,
   searchIndex: () => ["admin", "search-index"] as const,
   recentActivity: () => ["admin", "recent-activity"] as const,
@@ -71,6 +71,10 @@ export const adminQueryKeys = {
     ["admin", "analytics", queryString] as const,
   accountsPicker: (storeId?: string | null) =>
     ["admin", "accounts", "picker", storeId ?? "active"] as const,
+  paymentAccountOptions: (storeId?: string | null) =>
+    ["admin", "payment-account-options", storeId ?? "active"] as const,
+  expenseAccountOptions: (storeId?: string | null) =>
+    ["admin", "expense-account-options", storeId ?? "active"] as const,
   erpProductLiveSearch: (
     catalog: "purchase" | "sales",
     storeId: string | undefined,

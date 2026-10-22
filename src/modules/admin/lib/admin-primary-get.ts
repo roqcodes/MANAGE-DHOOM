@@ -9,6 +9,7 @@
 
 const SHELL_GET_PATHS = new Set([
   "session",
+  "bootstrap",
   "erp/context",
   "nav-badges",
   "settings",

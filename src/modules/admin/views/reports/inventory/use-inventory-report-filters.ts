@@ -17,9 +17,10 @@ const STOCK_LEVEL_OPTIONS: { value: ReportStockLevel; label: string }[] = [
 const TRANSFER_STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
   { value: "draft", label: "Draft" },
-  { value: "pending", label: "Pending" },
+  { value: "submitted", label: "Submitted" },
+  { value: "linked", label: "Linked" },
   { value: "approved", label: "Approved" },
-  { value: "completed", label: "Completed" },
+  { value: "transfer_completed", label: "Transfer completed" },
   { value: "rejected", label: "Rejected" },
   { value: "cancelled", label: "Cancelled" },
 ];

@@ -1,5 +1,6 @@
 import type { ErpPurchaseLineInput } from "@/common/erp/purchasing-types";
 import { roundMoney } from "@/common/erp/purchasing-types";
+import { nullIfEmptyDate } from "@/lib/format-date";
 import type { ErpLineInput } from "@/common/erp/sales-types";
 
 export const PURCHASE_BILL_AUDIT_FIELD_LABELS: Record<string, string> = {
@@ -109,7 +110,7 @@ export function purchaseBillAuditSnapshotFromInput(input: {
   return {
     vendor: input.vendorName?.trim() || input.vendorId,
     purchase_date: input.purchaseDate,
-    due_date: input.dueDate ?? null,
+    due_date: nullIfEmptyDate(input.dueDate),
     vendor_bill_number: input.vendorBillNumber ?? null,
     reference: input.reference ?? null,
     notes: input.notes ?? null,

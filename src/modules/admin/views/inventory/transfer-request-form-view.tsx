@@ -60,19 +60,18 @@ export function TransferRequestFormView({
 
   useEffect(() => {
     if (!fromStoreId || lines.length === 0) return;
-    void Promise.all(
-      lines.map(async (line) => {
-        const stockRes = await adminGet<{ stock: number }>(
-          `erp/store-stock?storeId=${fromStoreId}&productId=${line.productId}`,
-        );
-        return { key: line.key, stock: stockRes.stock };
-      }),
-    ).then((updates) => {
+    const productIds = [...new Set(lines.map((line) => line.productId).filter(Boolean))];
+    if (productIds.length === 0) return;
+    void adminGet<{ stocks: Record<string, number> }>(
+      `erp/store-stock?storeId=${fromStoreId}&productIds=${productIds.join(",")}`,
+    ).then((stockRes) => {
+      const stocks = stockRes.stocks ?? {};
       setLines((prev) =>
-        prev.map((line) => {
-          const match = updates.find((u) => u.key === line.key);
-          return match ? { ...line, sourceAvailable: match.stock } : line;
-        }),
+        prev.map((line) =>
+          stocks[line.productId] != null
+            ? { ...line, sourceAvailable: stocks[line.productId] }
+            : line,
+        ),
       );
     });
   }, [fromStoreId]);

@@ -64,6 +64,8 @@ type EntitySearchSelectProps = {
   selectedLabel?: string;
   minChars?: number;
   loadOnFocus?: boolean;
+  /** Raise listbox above ERP modals (z-50). */
+  elevatedDropdown?: boolean;
 };
 
 export function EntitySearchSelect({
@@ -82,6 +84,7 @@ export function EntitySearchSelect({
   selectedLabel,
   minChars = 1,
   loadOnFocus = true,
+  elevatedDropdown = false,
 }: EntitySearchSelectProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -239,7 +242,10 @@ export function EntitySearchSelect({
         id={listboxId}
         role="listbox"
         aria-label="Search results"
-        className="fixed z-[100] max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md"
+        className={cn(
+          "fixed max-h-72 overflow-y-auto rounded-md border border-border bg-popover p-1 shadow-md",
+          elevatedDropdown ? "z-[250]" : "z-[100]",
+        )}
         style={{
           top: menuStyle.top,
           left: menuStyle.left,
@@ -549,6 +555,7 @@ export function InvoiceSearchSelect({
           data: Array<{
             id: string;
             invoice_number: string;
+            user_id: string;
             customer_name: string | null;
             total_amount: number;
             balance_due: number;
@@ -564,6 +571,7 @@ export function InvoiceSearchSelect({
             sublabel: inv.customer_name ?? undefined,
             meta: `${inv.status} · ${inv.created_at?.slice(0, 10) ?? ""}`,
             amount: Number(inv.balance_due ?? 0),
+            userId: inv.user_id,
           }));
       }}
     />
@@ -578,6 +586,8 @@ export function PurchaseBillSearchSelect({
   disabled,
   vendorId,
   storeId,
+  linkMode = "payment",
+  elevatedDropdown = false,
 }: {
   value: string | null;
   onChange: (id: string | null, option?: EntitySearchOption) => void;
@@ -586,7 +596,11 @@ export function PurchaseBillSearchSelect({
   disabled?: boolean;
   vendorId?: string;
   storeId?: string;
+  /** Payment forms: open balance only. Vendor credits: any finalized AP bill. */
+  linkMode?: "payment" | "vendorCredit";
+  elevatedDropdown?: boolean;
 }) {
+  const forPayment = linkMode === "payment";
   return (
     <EntitySearchSelect
       value={value}
@@ -594,15 +608,21 @@ export function PurchaseBillSearchSelect({
       selectedLabel={selectedLabel}
       className={className}
       disabled={disabled}
-      cacheScope={`purchase-bill-select:${vendorId ?? "all"}:${storeId ?? "all"}`}
+      elevatedDropdown={elevatedDropdown}
+      cacheScope={`purchase-bill-select:${linkMode}:${vendorId ?? "all"}:${storeId ?? "all"}`}
       staleTime={ENTITY_DOCUMENT_SEARCH_STALE_MS}
       placeholder="Select purchase bill"
       searchPlaceholder="Bill number or vendor bill #…"
       emptyText="No purchase bills found"
-      minChars={1}
+      minChars={0}
       loadOnFocus
       fetchOptions={async (q) => {
-        const params = new URLSearchParams({ page: "0", limit: "20", openOnly: "1" });
+        const params = new URLSearchParams({ page: "0", limit: "20" });
+        if (forPayment) {
+          params.set("openOnly", "1");
+        } else {
+          params.set("apDocumentsOnly", "1");
+        }
         if (q.trim()) params.set("search", q.trim());
         if (vendorId) params.set("vendorId", vendorId);
         if (storeId) params.set("storeId", storeId);
@@ -617,13 +637,15 @@ export function PurchaseBillSearchSelect({
           }>;
         }>(`erp/purchase-bills?${params.toString()}`);
         return (res.data ?? [])
-          .filter((bill) => Number(bill.balance_due ?? 0) > 0)
+          .filter((bill) => forPayment ? Number(bill.balance_due ?? 0) > 0 : true)
           .map((bill) => ({
             id: bill.id,
             label: bill.purchase_bill_number,
             sublabel: bill.vendor_name ?? undefined,
             meta: bill.purchase_date,
-            amount: Number(bill.balance_due ?? 0),
+            amount: forPayment
+              ? Number(bill.balance_due ?? 0)
+              : Number(bill.total_amount ?? 0),
           }));
       }}
     />

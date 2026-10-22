@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
-import type { PaidThroughAccountOption, ReceivableInvoiceRow } from "@/common/erp/sales-types";
 import { ERP_CUSTOMER_PAYMENT_MODES, paymentModeLabel } from "@/common/erp/sales-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { usePaymentAccountOptions } from "@/modules/erp/components/use-payment-account-options";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
   AdminFormActions,
@@ -92,8 +92,9 @@ export function CustomerBulkPaymentFormView({
   const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
     useErpPaymentFormErrors(isModal);
 
-  const [accounts, setAccounts] = useState<PaidThroughAccountOption[]>([]);
-  const [expenseAccounts, setExpenseAccounts] = useState<PaidThroughAccountOption[]>([]);
+  const { data: accountOptions } = usePaymentAccountOptions(effectiveStoreId);
+  const accounts = accountOptions?.depositAccounts ?? [];
+  const expenseAccounts = accountOptions?.expenseAccounts ?? [];
   const [userId, setUserId] = useState("");
   const [customerLabel, setCustomerLabel] = useState("");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
@@ -109,16 +110,6 @@ export function CustomerBulkPaymentFormView({
   const [bankCharges, setBankCharges] = useState("");
   const [bankChargesAccountId, setBankChargesAccountId] = useState("");
   const [notes, setNotes] = useState("");
-
-  useEffect(() => {
-    if (!effectiveStoreId) return;
-    adminGet<{ data: PaidThroughAccountOption[] }>(
-      `erp/customer-bulk-payments?view=accounts&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    ).then((res) => setAccounts(res.data ?? []));
-    adminGet<{ data: PaidThroughAccountOption[] }>(
-      `erp/customer-bulk-payments?view=expense-accounts&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    ).then((res) => setExpenseAccounts(res.data ?? []));
-  }, [effectiveStoreId]);
 
   const lineTotals = useMemo(
     () =>
@@ -180,27 +171,22 @@ export function CustomerBulkPaymentFormView({
         invoiceId?: string;
         invoice_id?: string;
         amount: number;
+        invoiceNumber?: string;
+        balanceDue?: number;
       }>;
     }>(
       `erp/customer-bulk-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&userId=${encodeURIComponent(userId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
     );
-
-    const receivable = await adminGet<{ data: ReceivableInvoiceRow[] }>(
-      `erp/payments?view=receivable-invoices&userId=${encodeURIComponent(userId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    );
-    const lookup = new Map((receivable.data ?? []).map((row) => [row.id, row]));
     const pending: PendingLine[] = [];
 
     for (const alloc of res.allocations) {
       const invoiceId = alloc.invoiceId ?? alloc.invoice_id;
       if (!invoiceId || excludeInvoiceIds.includes(invoiceId)) continue;
-      const invoice = lookup.get(invoiceId);
-      if (!invoice) continue;
       pending.push({
-        invoiceId: invoice.id,
-        invoiceNumber: invoice.invoice_number,
+        invoiceId,
+        invoiceNumber: alloc.invoiceNumber ?? invoiceId,
         customerName: customerLabel || null,
-        balanceDue: invoice.balance_due,
+        balanceDue: Number(alloc.balanceDue ?? alloc.amount),
         amount: alloc.amount,
         receiptRef: receiptRef.trim(),
       });

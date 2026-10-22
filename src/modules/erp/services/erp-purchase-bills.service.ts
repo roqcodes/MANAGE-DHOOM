@@ -21,6 +21,7 @@ import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
 import type { ErpDocumentCreateOutcome } from "@/common/erp/document-create-outcome";
+import { nullIfEmptyDate } from "@/lib/format-date";
 
 function linesToJson(lines: ErpPurchaseLineInput[], landedCostTotal = 0): Json {
   const includeLanded =
@@ -33,7 +34,7 @@ function linesToJson(lines: ErpPurchaseLineInput[], landedCostTotal = 0): Json {
     variant_id: null,
     product_name: l.productName,
     barcode: l.barcode ?? "",
-    expiry_date: l.expiryDate ?? "",
+    expiry_date: nullIfEmptyDate(l.expiryDate),
     quantity: l.quantity,
     purchase_price: l.purchasePrice,
     tax_rate_percent: l.taxRatePercent,
@@ -88,6 +89,8 @@ export async function listPurchaseBills(options: {
   dateFrom?: string;
   dateTo?: string;
   openOnly?: boolean;
+  /** Finalized AP bills (incl. paid) — for vendor credits / bill links, not payments. */
+  apDocumentsOnly?: boolean;
 } = {}): Promise<{
   data: ErpPurchaseBillListRow[];
   total: number;
@@ -111,6 +114,8 @@ export async function listPurchaseBills(options: {
 
   if (options.openOnly) {
     query = query.gt("balance_due", 0).in("status", ["finalized", "partial"]);
+  } else if (options.apDocumentsOnly) {
+    query = query.in("status", ["finalized", "partial", "paid"]);
   } else if (options.status && options.status !== "all") {
     if (options.status === "overdue") {
       query = query.gt("balance_due", 0).lt("due_date", new Date().toISOString().slice(0, 10));
@@ -219,7 +224,7 @@ export async function createPurchaseBill(input: {
     p_vendor_id: input.vendorId,
     p_store_id: storeId,
     p_purchase_date: input.purchaseDate,
-    p_due_date: input.dueDate ?? undefined,
+    p_due_date: nullIfEmptyDate(input.dueDate) ?? undefined,
     p_lines: linesToJson(input.lines, billTotals.landedTotal),
     p_landed_costs: landedCostsToJson(landedCosts),
     p_discount: input.discount ?? 0,
@@ -229,7 +234,7 @@ export async function createPurchaseBill(input: {
     p_batch_reference: input.batchReference ?? undefined,
     p_reference: input.reference ?? undefined,
     p_notes: input.notes ?? undefined,
-    p_expected_delivery_date: input.expectedDeliveryDate ?? undefined,
+    p_expected_delivery_date: nullIfEmptyDate(input.expectedDeliveryDate) ?? undefined,
     p_finalize: false,
     p_physical_receipt_on_bill: input.physicalReceiptOnBill ?? true,
   });
@@ -313,7 +318,7 @@ export async function getPurchaseBillDetail(billId: string) {
   const { data, error } = await supabase
     .from("erp_purchase_bills")
     .select(
-      "*, vendors(name, phone, address, trn), stores(name), purchase_orders(po_number), erp_purchase_bill_lines(*), erp_purchase_bill_landed_costs(*), erp_supplier_payment_allocations(*, erp_supplier_payments(payment_number, payment_date, total_amount))",
+      "*, vendors(name, phone, address, trn), stores(name), purchase_orders(po_number), erp_purchase_bill_lines(*), erp_purchase_bill_landed_costs(*), erp_supplier_payment_allocations(*, erp_supplier_payments(id, payment_number, payment_date, total_amount)), erp_vendor_credit_applications(*, erp_vendor_credits(id, credit_number, credit_date, credit_kind))",
     )
     .eq("id", billId)
     .single();
@@ -401,8 +406,8 @@ export async function updateDraftPurchaseBill(
       vendor_id: input.vendorId,
       store_id: input.storeId,
       purchase_date: input.purchaseDate,
-      due_date: input.dueDate ?? null,
-      expected_delivery_date: input.expectedDeliveryDate ?? null,
+      due_date: nullIfEmptyDate(input.dueDate),
+      expected_delivery_date: nullIfEmptyDate(input.expectedDeliveryDate),
       po_id: input.poId ?? null,
       vendor_bill_number: input.vendorBillNumber ?? null,
       grn_reference: input.grnReference ?? null,
@@ -445,7 +450,7 @@ export async function updateDraftPurchaseBill(
       variant_id: null,
       product_name: line.productName,
       barcode: line.barcode ?? null,
-      expiry_date: line.expiryDate ?? null,
+      expiry_date: nullIfEmptyDate(line.expiryDate),
       quantity: line.quantity,
       purchase_price: line.purchasePrice,
       tax_rate_percent: line.taxRatePercent,

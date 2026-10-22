@@ -193,6 +193,19 @@ export type VatDetailLine = {
   vat_percentage?: number | null;
 };
 
+function vatAdjustmentSign(transactionType?: string) {
+  const type = (transactionType ?? "").toLowerCase();
+  return type === "credit note" || type === "vendor credit" ? -1 : 1;
+}
+
+function signedVatAmount(row: VatDetailLine) {
+  return vatAdjustmentSign(row.transaction_type) * Number(row.vat_amount ?? 0);
+}
+
+function signedTaxableAmount(row: VatDetailLine) {
+  return vatAdjustmentSign(row.transaction_type) * Number(row.taxable_amount ?? 0);
+}
+
 export function buildVatSummaryKpis(
   salesRows: SummaryStoreRow[],
   purchaseRows: SummaryStoreRow[],
@@ -213,8 +226,8 @@ export function buildVatDetailsKpis(
   inputLines: VatDetailLine[],
   net: VatNetSummary,
 ): ReportKpiItem[] {
-  const outputVat = outputLines.reduce((s, r) => s + Number(r.vat_amount ?? 0), 0);
-  const inputVat = inputLines.reduce((s, r) => s + Number(r.vat_amount ?? 0), 0);
+  const outputVat = outputLines.reduce((s, r) => s + signedVatAmount(r), 0);
+  const inputVat = inputLines.reduce((s, r) => s + signedVatAmount(r), 0);
   const netTail = buildNetVatKpis(net).slice(2);
   return [
     { label: "Output lines", value: outputLines.length.toLocaleString() },
@@ -235,8 +248,8 @@ export function VatDetailsTable({
   rows: VatDetailLine[];
 }) {
   const totals = {
-    taxable: rows.reduce((s, r) => s + Number(r.taxable_amount ?? 0), 0),
-    vat: rows.reduce((s, r) => s + Number(r.vat_amount ?? 0), 0),
+    taxable: rows.reduce((s, r) => s + signedTaxableAmount(r), 0),
+    vat: rows.reduce((s, r) => s + signedVatAmount(r), 0),
   };
 
   return (
@@ -273,10 +286,10 @@ export function VatDetailsTable({
                 <AdminTableCell>{row.transaction_number ?? "—"}</AdminTableCell>
                 <AdminTableCell>{row.transaction_type ?? "—"}</AdminTableCell>
                 <AdminTableCell className="text-right tabular-nums">
-                  {formatCurrencyAmount(Number(row.taxable_amount ?? 0))}
+                  {formatCurrencyAmount(signedTaxableAmount(row))}
                 </AdminTableCell>
                 <AdminTableCell className="text-right tabular-nums">
-                  {formatCurrencyAmount(Number(row.vat_amount ?? 0))}
+                  {formatCurrencyAmount(signedVatAmount(row))}
                 </AdminTableCell>
                 <AdminTableCell className="text-right tabular-nums">
                   {row.vat_percentage != null ? `${row.vat_percentage}%` : "—"}

@@ -28,26 +28,6 @@ function linesToJson(lines: ErpLineInput[]): Json {
   })) as Json;
 }
 
-async function loadCustomerNames(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  userIds: string[],
-): Promise<Map<string, string | null>> {
-  const uniqueIds = [...new Set(userIds.filter(Boolean))];
-  const nameById = new Map<string, string | null>();
-  if (uniqueIds.length === 0) return nameById;
-
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, name")
-    .in("id", uniqueIds);
-  if (error) throw new Error(error.message);
-
-  for (const user of data ?? []) {
-    nameById.set(user.id, user.name);
-  }
-  return nameById;
-}
-
 export async function listErpInvoices(filters?: {
   storeId?: string;
   userId?: string;
@@ -69,7 +49,7 @@ export async function listErpInvoices(filters?: {
   let query = supabase
     .from("invoices")
     .select(
-      "id, invoice_number, user_id, store_id, status, total_amount, amount_paid, credits_applied, balance_due, created_at, due_date, source, stores(name)",
+      "id, invoice_number, user_id, store_id, status, total_amount, amount_paid, credits_applied, balance_due, created_at, due_date, source, users:users!invoices_user_id_fkey(name), stores(name)",
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
@@ -112,13 +92,9 @@ export async function listErpInvoices(filters?: {
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
 
-  const customerNames = await loadCustomerNames(
-    supabase,
-    (data ?? []).map((row) => row.user_id),
-  );
-
   const rows: ErpInvoiceListRow[] = (data ?? []).map((row) => {
     const store = row.stores as { name: string } | null;
+    const user = row.users as { name: string | null } | null;
     return {
       id: row.id,
       invoice_number: row.invoice_number,
@@ -132,7 +108,7 @@ export async function listErpInvoices(filters?: {
       created_at: row.created_at,
       due_date: row.due_date,
       source: row.source,
-      customer_name: customerNames.get(row.user_id) ?? null,
+      customer_name: user?.name ?? null,
       store_name: store?.name ?? null,
     };
   });
@@ -356,6 +332,9 @@ const ERP_INVOICE_DETAIL_SELECT = `
   users!invoices_user_id_fkey(name, email, phone, company_name, trn),
   invoice_items(
     id,
+    product_id,
+    variant_id,
+    unit_id,
     product_name,
     quantity,
     unit_price,
@@ -370,7 +349,7 @@ const ERP_INVOICE_DETAIL_SELECT = `
   ),
   erp_credit_note_applications(
     amount,
-    erp_credit_notes(id, credit_note_number, credit_note_date)
+    erp_credit_notes(id, credit_note_number, credit_note_date, credit_kind)
   )
 `;
 
@@ -392,8 +371,41 @@ export async function fetchErpInvoiceDetail(invoiceId: string) {
   const users = Array.isArray(usersRaw) ? usersRaw[0] ?? null : usersRaw;
 
   const { users: _usersEmbed, ...invoice } = data;
+  const rawItems = (invoice.invoice_items ?? []) as Array<{
+    product_id: string | null;
+    variant_id: string | null;
+  }>;
+
+  const variantIdsNeedingProduct = [
+    ...new Set(
+      rawItems
+        .filter((line) => !line.product_id && line.variant_id)
+        .map((line) => line.variant_id as string),
+    ),
+  ];
+
+  let variantToProduct = new Map<string, string>();
+  if (variantIdsNeedingProduct.length > 0) {
+    const { data: variants, error: variantError } = await supabase
+      .from("product_variants")
+      .select("id, product_id")
+      .in("id", variantIdsNeedingProduct);
+    if (variantError) throw new Error(variantError.message);
+    for (const row of variants ?? []) {
+      if (row.product_id) variantToProduct.set(row.id, row.product_id);
+    }
+  }
+
+  const invoice_items = rawItems.map((line) => ({
+    ...line,
+    product_id:
+      line.product_id ??
+      (line.variant_id ? variantToProduct.get(line.variant_id) ?? null : null),
+  }));
+
   return {
     ...invoice,
+    invoice_items,
     users,
     editable: computeErpInvoiceEditable(invoice),
   };

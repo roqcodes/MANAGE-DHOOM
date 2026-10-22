@@ -144,6 +144,7 @@ export function AdminFormField({
   label,
   htmlFor,
   required,
+  optional,
   hint,
   children,
   className,
@@ -151,6 +152,7 @@ export function AdminFormField({
   label: string;
   htmlFor?: string;
   required?: boolean;
+  optional?: boolean;
   hint?: string;
   children: ReactNode;
   className?: string;
@@ -159,9 +161,20 @@ export function AdminFormField({
 
   return (
     <div className={cn("space-y-1", className)}>
-      <label htmlFor={htmlFor} className="text-xs font-medium text-foreground">
-        {label}
-        {showRequired ? <RequiredFieldMark /> : null}
+      <label
+        htmlFor={htmlFor}
+        className={cn(
+          "text-xs font-medium text-foreground",
+          optional && "flex w-full items-center justify-between gap-2",
+        )}
+      >
+        <span>
+          {label}
+          {showRequired ? <RequiredFieldMark /> : null}
+        </span>
+        {optional ? (
+          <span className="shrink-0 text-[11px] font-normal text-muted-foreground">Optional</span>
+        ) : null}
       </label>
       <div className="[&_input]:h-10 [&_button]:h-10 [&_select]:h-10 [&_textarea]:min-h-[2.5rem]">
         {children}

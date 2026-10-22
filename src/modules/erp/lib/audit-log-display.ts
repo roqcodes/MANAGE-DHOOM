@@ -28,6 +28,7 @@ const ENTITY_LABELS: Record<string, string> = {
   salary_bulk_payment: "Salary bulk payment",
   supplier_payment: "Payment made",
   vendor_credit: "Vendor credit",
+  commercial_discount: "Discount",
   purchase_order: "Purchase order",
   order: "Online order",
   sales_order: "Sales order",
@@ -56,6 +57,7 @@ const ACTION_LABELS: Record<string, string> = {
   supplier_payment: "Payment made",
   create_bulk_customer_payment: "Bulk payment received",
   create_bulk_supplier_payment: "Bulk payment made",
+  record_commercial_discount: "Discount recorded",
 };
 
 export function formatAuditActionLabel(action: string): string {

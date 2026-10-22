@@ -58,7 +58,7 @@ export function FinanceSummaryReport({ report }: { report: ReportDefinition }) {
     });
   const positionQuery = useAdminGetQuery<{ data: unknown }>({
     path: balancePath ?? "erp/reports?slug=balance-sheet",
-    enabled: Boolean(balancePath),
+    enabled: Boolean(balancePath && filters.storeId),
   });
   const positionLoading = positionQuery.isLoading;
   const positionRows = useMemo(
@@ -142,7 +142,9 @@ export function FinanceSummaryReport({ report }: { report: ReportDefinition }) {
         <div className="space-y-6 p-3">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <MetricCard label="Accounts receivable" value={Number(metrics.accounts_receivable ?? 0)} />
+            <MetricCard label="AR (GL Control)" value={Number(metrics.ar_gl ?? 0)} />
             <MetricCard label="Accounts payable" value={Number(metrics.accounts_payable ?? 0)} />
+            <MetricCard label="AP (GL Control)" value={Number(metrics.ap_gl ?? 0)} />
             <MetricCard label="Revenue (period)" value={Number(metrics.net_income_ytd ?? 0)} />
             <MetricCard label="COGS (recognized)" value={Number(metrics.cogs_ytd ?? 0)} />
             <MetricCard label="Purchases (bills)" value={Number(metrics.purchases_ytd ?? 0)} />

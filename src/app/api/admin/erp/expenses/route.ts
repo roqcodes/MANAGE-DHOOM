@@ -15,6 +15,20 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const view = searchParams.get("view");
 
+  if (view === "account-options") {
+    try {
+      const storeId = searchParams.get("storeId") ?? undefined;
+      const [expenseAccounts, paidThrough] = await Promise.all([
+        listExpenseAccounts(storeId),
+        listExpensePaidThroughAccounts(storeId),
+      ]);
+      return NextResponse.json({ expenseAccounts, paidThrough });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to load accounts";
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
   if (view === "accounts") {
     try {
       const storeId = searchParams.get("storeId") ?? undefined;

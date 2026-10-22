@@ -98,6 +98,7 @@ export interface ErpCreditNoteListRow {
   user_id: string;
   store_id: string;
   status: string;
+  credit_kind?: string;
   total_amount: number;
   balance_remaining: number;
   credit_note_date: string;
@@ -113,6 +114,8 @@ export interface CustomerErpSummary {
   invoiceCount: number;
   creditNoteTotal: number;
   creditNoteCount: number;
+  /** Sum of unapplied credit note balances (store-scoped when storeId is passed). */
+  creditBalance: number;
   paymentReceived: number;
   balanceDue: number;
   receivables: number;
@@ -168,6 +171,8 @@ export interface CustomerStatementLine {
 export interface PaymentAllocationInput {
   invoiceId: string;
   amount: number;
+  invoiceNumber?: string;
+  balanceDue?: number;
 }
 
 export const ERP_CUSTOMER_PAYMENT_MODES = [

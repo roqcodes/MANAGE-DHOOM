@@ -2,6 +2,7 @@ import "server-only";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import { nullIfEmptyDate } from "@/lib/format-date";
 import type {
   ErpEmployeeDetail,
   ErpEmployeeLedgerRow,
@@ -173,17 +174,20 @@ export async function createEmployee(input: {
   if (!fullName) throw new Error("Full name is required");
   await assertUniqueEmployeeFullName(supabase, fullName);
 
+  const joiningDate = nullIfEmptyDate(input.joiningDate);
+  if (!joiningDate) throw new Error("Joining date is required");
+
   const { data, error } = await supabase.rpc("create_erp_employee", {
     p_store_id: storeId,
     p_full_name: fullName,
     p_mobile: input.mobile,
-    p_joining_date: input.joiningDate,
+    p_joining_date: joiningDate,
     p_basic_salary: input.basicSalary ?? 0,
     p_allowance: input.allowance ?? 0,
     p_employee_code: input.employeeCode ?? null,
     p_id_number: input.idNumber ?? null,
-    p_id_expiry_date: input.idExpiryDate ?? null,
-    p_date_of_birth: input.dateOfBirth ?? null,
+    p_id_expiry_date: nullIfEmptyDate(input.idExpiryDate),
+    p_date_of_birth: nullIfEmptyDate(input.dateOfBirth),
     p_is_active: input.isActive ?? true,
     p_notes: input.notes ?? null,
     p_created_by: profile.id,
@@ -233,15 +237,15 @@ export async function updateEmployee(
     p_store_id: input.storeId ?? null,
     p_full_name: input.fullName ?? null,
     p_mobile: input.mobile ?? null,
-    p_joining_date: input.joiningDate ?? null,
+    p_joining_date: nullIfEmptyDate(input.joiningDate),
     p_basic_salary: input.basicSalary ?? null,
     p_allowance: input.allowance ?? null,
     p_employee_code: input.employeeCode ?? null,
     p_id_number: input.idNumber ?? null,
-    p_id_expiry_date: input.idExpiryDate ?? null,
-    p_date_of_birth: input.dateOfBirth ?? null,
+    p_id_expiry_date: nullIfEmptyDate(input.idExpiryDate),
+    p_date_of_birth: nullIfEmptyDate(input.dateOfBirth),
     p_is_active: input.isActive ?? null,
-    p_discontinuation_date: input.discontinuationDate ?? null,
+    p_discontinuation_date: nullIfEmptyDate(input.discontinuationDate),
     p_notes: input.notes ?? null,
     p_actor: profile.id,
   });

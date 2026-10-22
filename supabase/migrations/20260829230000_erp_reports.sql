@@ -44,7 +44,7 @@ BEGIN
         WHERE je.id IS NOT NULL
           AND je.transaction_date <= p_as_of
           AND (p_store_id IS NULL OR je.store_id = p_store_id OR je.store_id IS NULL)
-      ), 0), 2) AS period_credit, 4
+      ), 0), 2) AS period_credit,
       ROUND(
         COALESCE(a.opening_balance, 0)
         + COALESCE(SUM(jel.debit_amount) FILTER (

@@ -16,6 +16,7 @@ export type EntitySearchOption = {
   meta?: string;
   amount?: number;
   imageUrl?: string;
+  userId?: string;
 };
 
 export const ENTITY_SEARCH_DEBOUNCE_MS = 200;
@@ -151,7 +152,7 @@ export async function resolveCustomerPickerOption(
       avatarUrl: string | null;
       outstandingBalance?: number;
     };
-  }>(`customers/${customerId}/erp`);
+  }>(`customers/${customerId}/erp?view=profile`);
 
   const profile = res.profile;
   return {

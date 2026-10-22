@@ -4,6 +4,7 @@ import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.serv
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { Json } from "@/lib/integrations/supabase/types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import { itemExpiryFromDocumentDate, nullIfEmptyDate } from "@/lib/format-date";
 import { createErpInvoice } from "@/modules/erp/services/erp-invoices.service";
 import { resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 
@@ -63,6 +64,9 @@ export async function createRecurringSchedule(input: {
 }): Promise<string> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+  const nextRunDate = nullIfEmptyDate(input.nextRunDate);
+  if (!nextRunDate) throw new Error("Next run date is required");
+
   const { data, error } = await supabase
     .from("erp_recurring_schedules")
     .insert({
@@ -72,7 +76,7 @@ export async function createRecurringSchedule(input: {
       customer_id: input.customerId ?? null,
       vendor_id: input.vendorId ?? null,
       frequency: input.frequency,
-      next_run_date: input.nextRunDate,
+      next_run_date: nextRunDate,
       payload: (input.payload ?? {}) as Json,
       is_active: true,
     })
@@ -98,6 +102,12 @@ export async function updateRecurringSchedule(
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
 
+  let nextRunDate: string | undefined;
+  if (input.nextRunDate !== undefined) {
+    nextRunDate = nullIfEmptyDate(input.nextRunDate) ?? undefined;
+    if (!nextRunDate) throw new Error("Next run date is required.");
+  }
+
   const { error } = await supabase
     .from("erp_recurring_schedules")
     .update({
@@ -107,7 +117,7 @@ export async function updateRecurringSchedule(
       ...(input.customerId !== undefined ? { customer_id: input.customerId } : {}),
       ...(input.vendorId !== undefined ? { vendor_id: input.vendorId } : {}),
       ...(input.frequency !== undefined ? { frequency: input.frequency } : {}),
-      ...(input.nextRunDate !== undefined ? { next_run_date: input.nextRunDate } : {}),
+      ...(nextRunDate !== undefined ? { next_run_date: nextRunDate } : {}),
       ...(input.payload !== undefined ? { payload: input.payload as Json } : {}),
       updated_at: new Date().toISOString(),
     })
@@ -150,6 +160,12 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
     .single();
   if (error || !schedule) throw new Error(error?.message ?? "Schedule not found");
 
+  const runDate = nullIfEmptyDate(schedule.next_run_date);
+  if (!runDate) {
+    throw new Error("Next run date is required. Edit the schedule and set a valid date.");
+  }
+  const dueDate = addFrequency(runDate, schedule.frequency as RecurringScheduleRow["frequency"]);
+
   const payload = (schedule.payload ?? {}) as Record<string, unknown>;
   let createdId = "";
 
@@ -164,7 +180,7 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
         productName: String(line.productName ?? "Recurring item"),
         description: line.description as string | undefined,
         quantity: Number(line.quantity ?? 1),
-        unitPrice: Number(line.unitPrice ?? 0),
+        unitPrice: Number(line.unitPrice ?? line.purchasePrice ?? 0),
         taxRatePercent: Number(line.taxRatePercent ?? 0),
       })),
     );
@@ -172,14 +188,14 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
     const salesPersonId =
       typeof payload.salesPersonId === "string" ? payload.salesPersonId.trim() : "";
     if (!salesPersonId) {
-      throw new Error("Recurring invoice schedules must include salesPersonId in the payload.");
+      throw new Error("Salesman PIN is required. Edit the schedule and enter a valid salesman PIN.");
     }
 
     createdId = await createErpInvoice({
       userId: schedule.customer_id,
       storeId: schedule.store_id ?? undefined,
-      invoiceDate: schedule.next_run_date,
-      dueDate: addFrequency(schedule.next_run_date, schedule.frequency as RecurringScheduleRow["frequency"]),
+      invoiceDate: runDate,
+      dueDate,
       lines: invoiceLines,
       discount: Number(payload.discount ?? 0),
       taxInclusive: Boolean(payload.taxInclusive),
@@ -195,25 +211,35 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
 
     const billLines = await Promise.all(
       lines.map(async (line) => {
+        const productId = await resolveRecurringProductId(supabase, line);
         const purchasePrice = Number(line.purchasePrice ?? line.unitPrice ?? 0);
+        const expiryFromPayload = nullIfEmptyDate(
+          typeof line.expiryDate === "string" ? line.expiryDate : null,
+        );
         return {
-          productId: await resolveRecurringProductId(supabase, line),
+          productId,
           productName: String(line.productName ?? "Recurring item"),
           quantity: Number(line.quantity ?? 1),
           purchasePrice,
           taxRatePercent: Number(line.taxRatePercent ?? 0),
+          ...(productId
+            ? { expiryDate: expiryFromPayload ?? itemExpiryFromDocumentDate(runDate) }
+            : {}),
         };
       }),
     );
 
+    const receiveStockOnBill = billLines.some((line) => Boolean(line.productId));
+
     const billOutcome = await createPurchaseBill({
       vendorId: schedule.vendor_id,
       storeId: schedule.store_id ?? undefined,
-      purchaseDate: schedule.next_run_date,
-      dueDate: addFrequency(schedule.next_run_date, schedule.frequency as RecurringScheduleRow["frequency"]),
+      purchaseDate: runDate,
+      dueDate,
       lines: billLines,
       notes: String(payload.notes ?? `Recurring: ${schedule.name}`),
       finalize: true,
+      physicalReceiptOnBill: receiveStockOnBill,
     });
     if (billOutcome.finalizeFailed) {
       throw new Error(
@@ -224,11 +250,11 @@ export async function runRecurringSchedule(scheduleId: string): Promise<string> 
     createdId = billOutcome.documentId;
   }
 
-  const nextRun = addFrequency(schedule.next_run_date, schedule.frequency as RecurringScheduleRow["frequency"]);
+  const nextRun = addFrequency(runDate, schedule.frequency as RecurringScheduleRow["frequency"]);
   await supabase
     .from("erp_recurring_schedules")
     .update({
-      last_run_date: schedule.next_run_date,
+      last_run_date: runDate,
       next_run_date: nextRun,
       updated_at: new Date().toISOString(),
     })

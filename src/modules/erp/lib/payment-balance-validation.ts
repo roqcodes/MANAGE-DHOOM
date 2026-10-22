@@ -1,11 +1,34 @@
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import {
+  PAYMENT_DECIMAL_PLACES,
+  quantizePaymentAmount,
+} from "@/lib/decimal-precision";
 
-const MONEY_EPS = 0.009;
+/** Float wiggle at payment precision (half of smallest 3dp unit). */
+export const PAYMENT_BALANCE_TOLERANCE = 10 ** -PAYMENT_DECIMAL_PLACES / 2;
 
 export type PaymentDocumentKind = "invoice" | "bill";
 
+export function paymentAmountExceedsBalance(amount: number, balanceDue: number): boolean {
+  if (!Number.isFinite(amount) || !Number.isFinite(balanceDue)) return false;
+  const a = quantizePaymentAmount(amount);
+  const b = quantizePaymentAmount(balanceDue);
+  return a > b + PAYMENT_BALANCE_TOLERANCE;
+}
+
+/** Cap to open balance when within tolerance; preserve 3dp (no 4dp roundMoney). */
+export function normalizePaymentAllocationAmount(amount: number, balanceDue: number): number {
+  const amountN = Number(amount);
+  const balanceN = Number(balanceDue);
+  if (paymentAmountExceedsBalance(amountN, balanceN)) {
+    return quantizePaymentAmount(amountN);
+  }
+  const applied = amountN <= balanceN ? amountN : balanceN;
+  return quantizePaymentAmount(applied);
+}
+
 export function moneyExceeds(amount: number, balanceDue: number): boolean {
-  return amount > balanceDue + MONEY_EPS;
+  return paymentAmountExceedsBalance(amount, balanceDue);
 }
 
 export function paymentExceedsDocumentBalanceMessage(
@@ -25,14 +48,15 @@ export function fifoPaymentExceedsOpenBalanceMessage(
   documentKind: PaymentDocumentKind,
 ): string {
   const plural = documentKind === "invoice" ? "invoices" : "bills";
-  if (allocatedTotal <= MONEY_EPS) {
+  if (allocatedTotal <= PAYMENT_BALANCE_TOLERANCE) {
     return `No open ${plural} to apply this payment to.`;
   }
   return `The payment ${formatCurrencyAmount(requestedAmount)} is more than the total open balance of ${formatCurrencyAmount(allocatedTotal)} across open ${plural}.`;
 }
 
 export function sumPaymentAmounts(lines: { amount: number }[]): number {
-  return lines.reduce((sum, line) => sum + line.amount, 0);
+  const sum = lines.reduce((acc, line) => acc + Number(line.amount), 0);
+  return quantizePaymentAmount(sum);
 }
 
 export function validatePaymentLinesBalance(

@@ -1,3 +1,10 @@
+/** Optional Postgres `date` / RPC args: never send `""` (invalid date literal). */
+export function nullIfEmptyDate(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 /** Normalize DB date/timestamptz values to YYYY-MM-DD for inputs and compact display. */
 export function toDateInputValue(value: string | null | undefined): string {
   if (!value) return "";

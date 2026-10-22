@@ -5,6 +5,7 @@ export type ErpDocKind =
   | "EST"
   | "SO"
   | "CN"
+  | "DC"
   | "PB"
   | "PO"
   | "VC"

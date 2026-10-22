@@ -526,7 +526,7 @@ BEGIN
         ), 0), 2) AS bill_over_paid,
         ROUND(
           CASE
-            WHEN NOT v_age_filter THEN COALESCE(v.opening_balance, 0) + COALESCE(SUM(b.balance_due), 0)
+            WHEN NOT v_age_filter THEN COALESCE(v.opening_balance, 0) + COALESCE(SUM(b.balance_due), 0) - COALESCE(pay.unallocated, 0)
             ELSE COALESCE(SUM(b.balance_due) FILTER (
               WHERE b.id IS NOT NULL
                 AND ABS(COALESCE(b.balance_due, 0)) > 0.001

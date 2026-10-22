@@ -30,7 +30,7 @@ export function BuyHubPwa({ children }: { children: React.ReactNode }) {
     requestPersistentStorage();
   }, []);
 
-  if (!enabled) {
+  if (!enabled || serwistDisabled) {
     return <>{children}</>;
   }
 
@@ -38,7 +38,6 @@ export function BuyHubPwa({ children }: { children: React.ReactNode }) {
     <>
       <SerwistProvider
         swUrl="/sw.js"
-        disable={serwistDisabled}
         register
         reloadOnOnline={false}
         cacheOnNavigation={false}
@@ -46,7 +45,7 @@ export function BuyHubPwa({ children }: { children: React.ReactNode }) {
         {children}
         <PwaUpdateReady />
       </SerwistProvider>
-      <PwaInstallHint swActive={!serwistDisabled} />
+      <PwaInstallHint swActive />
     </>
   );
 }

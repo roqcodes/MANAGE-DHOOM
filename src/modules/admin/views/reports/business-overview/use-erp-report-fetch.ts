@@ -68,6 +68,7 @@ export function useErpReportFetch(
       const res = await adminGet<{ data: unknown }>(path);
       return res.data;
     },
+    enabled: report.slug === "stock-transfer-report" || Boolean(params.storeId),
     placeholderData: keepPreviousData,
     staleTime: 45_000,
     gcTime: 10 * 60_000,

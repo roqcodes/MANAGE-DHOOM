@@ -1,4 +1,9 @@
-import type { ErpInvoiceListRow, ErpPaymentListRow } from "@/common/erp/sales-types";
+import type {
+  ErpCreditNoteListRow,
+  ErpInvoiceListRow,
+  ErpPaymentListRow,
+} from "@/common/erp/sales-types";
+import { creditKindLabel, formatCustomerCreditNoteRef } from "@/common/erp/commercial-discount";
 import { paymentModeLabel } from "@/common/erp/sales-types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatDateOnly } from "@/lib/format-date";
@@ -26,6 +31,30 @@ export function getInvoicesExportTabular(rows: ErpInvoiceListRow[]) {
     row.due_date ? formatDateOnly(row.due_date) : "",
     formatCurrencyAmount(row.total_amount),
     formatCurrencyAmount(row.balance_due),
+  ]);
+  return { headers, rows: body };
+}
+
+export function getCreditNotesExportTabular(rows: ErpCreditNoteListRow[]) {
+  const headers = [
+    "Date",
+    "Number",
+    "Type",
+    "Customer",
+    "Store",
+    "Status",
+    "Total",
+    "Balance",
+  ];
+  const body = rows.map((row) => [
+    row.credit_note_date ? formatDateOnly(row.credit_note_date) : "",
+    formatCustomerCreditNoteRef(row),
+    creditKindLabel(row.credit_kind),
+    row.customer_name ?? "",
+    row.store_name ?? "",
+    row.status ?? "",
+    formatCurrencyAmount(row.total_amount),
+    formatCurrencyAmount(row.balance_remaining),
   ]);
   return { headers, rows: body };
 }

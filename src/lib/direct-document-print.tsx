@@ -9,9 +9,22 @@ import { preparePrintDocumentForPdfCapture } from "@/lib/invoice-pdf-styles";
 import { printDocumentElement } from "@/lib/print-document";
 import { adminGet, adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import {
+  ErpCreditNotePrintDocument,
+  type ErpCreditNotePrintData,
+} from "@/modules/erp/components/erp-credit-note-print-document";
+import {
+  ErpEstimatePrintDocument,
+  type ErpEstimatePrintData,
+} from "@/modules/erp/components/erp-estimate-print-document";
+import {
   ErpInvoicePrintDocument,
   type ErpInvoicePrintData,
 } from "@/modules/erp/components/erp-invoice-print-document";
+import {
+  ErpPaymentPrintDocument,
+  type ErpPaymentPrintData,
+} from "@/modules/erp/components/erp-payment-print-document";
+import { formatCustomerCreditNoteRef } from "@/common/erp/commercial-discount";
 import { OrderInvoiceDocument } from "@/modules/orders/components/order-invoice-document";
 import { buildOrderInvoiceFilename } from "@/modules/orders/lib/invoice-filename";
 import { PurchaseOrderInvoiceDocument } from "@/modules/purchase-orders/components/purchase-order-invoice-document";
@@ -45,7 +58,9 @@ async function runWithMountedDocument(
   root.render(render());
   await waitForDocumentPaint();
 
-  const element = host.querySelector("[data-print-document]");
+  const element = host.querySelector(
+    "[data-print-document], [data-estimate-document], [data-invoice-document]",
+  );
   if (!(element instanceof HTMLElement)) {
     root.unmount();
     host.remove();
@@ -134,6 +149,47 @@ export async function directPrintPurchaseBill(
   );
 }
 
+export async function directPrintErpEstimate(
+  estimateId: string,
+  mode: PrintMode = "print",
+): Promise<void> {
+  const estimate = await adminGet<ErpEstimatePrintData>(`erp/estimates/${estimateId}`);
+  await runWithMountedDocument(
+    () => <ErpEstimatePrintDocument estimate={estimate} />,
+    mode,
+    `${estimate.estimate_number}.pdf`,
+  );
+}
+
+export async function directPrintErpPayment(
+  paymentId: string,
+  mode: PrintMode = "print",
+): Promise<void> {
+  const payment = await adminGet<ErpPaymentPrintData>(`erp/payments/${paymentId}`);
+  await runWithMountedDocument(
+    () => <ErpPaymentPrintDocument payment={payment} />,
+    mode,
+    `${payment.payment_number}.pdf`,
+  );
+}
+
+export async function directPrintErpCreditNote(
+  creditNoteId: string,
+  mode: PrintMode = "print",
+): Promise<void> {
+  const creditNote = await adminGet<ErpCreditNotePrintData>(`erp/credit-notes/${creditNoteId}`);
+  const ref = formatCustomerCreditNoteRef({
+    id: creditNote.id,
+    credit_note_number: creditNote.credit_note_number,
+    credit_kind: creditNote.credit_kind,
+  });
+  await runWithMountedDocument(
+    () => <ErpCreditNotePrintDocument creditNote={creditNote} />,
+    mode,
+    `${ref.replace(/[^\w.-]+/g, "-")}.pdf`,
+  );
+}
+
 function modeFromPath(pathname: string, pathWithQuery: string): PrintMode {
   try {
     const url = new URL(pathWithQuery, window.location.origin);
@@ -173,5 +229,23 @@ export async function directPrintFromAdminPath(pathWithQuery: string): Promise<v
     return;
   }
 
-  window.open(url.pathname + url.search, "_blank", "noopener,noreferrer");
+  const estimateMatch = p.match(/^\/admin\/erp\/estimates\/([^/]+)\/print$/);
+  if (estimateMatch) {
+    await directPrintErpEstimate(estimateMatch[1], mode);
+    return;
+  }
+
+  const paymentMatch = p.match(/^\/admin\/erp\/payments\/([^/]+)\/print$/);
+  if (paymentMatch) {
+    await directPrintErpPayment(paymentMatch[1], mode);
+    return;
+  }
+
+  const creditNoteMatch = p.match(/^\/admin\/erp\/credit-notes\/([^/]+)\/print$/);
+  if (creditNoteMatch) {
+    await directPrintErpCreditNote(creditNoteMatch[1], mode);
+    return;
+  }
+
+  throw new Error("Printing is not supported for this document.");
 }

@@ -40,6 +40,7 @@ export const ERP_DOC_FIELD_LABELS: Record<ErpDocKind, string> = {
   EST: "Estimate #",
   SO: "Order #",
   CN: "Credit note #",
+  DC: "Discount #",
   PB: "Bill #",
   PO: "PO #",
   VC: "Vendor credit #",

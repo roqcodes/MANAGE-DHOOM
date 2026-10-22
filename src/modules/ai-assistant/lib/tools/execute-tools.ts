@@ -3,6 +3,7 @@ import "server-only";
 import { ERP_REPORTS } from "@/common/erp/report-types";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { runErpReport } from "@/modules/erp/services/erp-reports.service";
+import { requireErpStoreId } from "@/modules/erp/services/store-context.service";
 
 import { formatSitemapContextBlock, rankSitemapPages } from "../app-sitemap";
 import { describeReadonlySchema } from "./schema-catalog";
@@ -103,6 +104,7 @@ async function salesRanking(args: JsonRecord) {
       dateFrom: range.from,
       dateTo: range.to,
       channel: "all",
+      storeId: await requireErpStoreId(),
     },
     { authenticated: true },
   );
@@ -482,6 +484,9 @@ export async function executeAssistantTool(
             args.channel === "erp" || args.channel === "online"
               ? args.channel
               : "all",
+          storeId: await requireErpStoreId(
+            args.store_id ? String(args.store_id) : undefined,
+          ),
         },
         { authenticated: true },
       );

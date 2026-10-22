@@ -15,7 +15,7 @@ function pickString(
 export default async function AdminErpPaymentNewPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const extra: Record<string, string> = {};
-  for (const key of ["invoiceId", "customerId", "advance"] as const) {
+  for (const key of ["invoiceId", "customerId"] as const) {
     const value = pickString(sp, key);
     if (value) extra[key] = value;
   }

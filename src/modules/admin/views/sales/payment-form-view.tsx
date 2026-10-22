@@ -5,10 +5,15 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
-import type { PaidThroughAccountOption } from "@/common/erp/sales-types";
 import { ERP_CUSTOMER_PAYMENT_MODES, paymentModeLabel } from "@/common/erp/sales-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { usePaymentAccountOptions } from "@/modules/erp/components/use-payment-account-options";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import {
+  formatDisplayDecimal,
+  parsePaymentAmount,
+  quantizePaymentAmount,
+} from "@/lib/decimal-precision";
 import {
   AdminFormActions,
   AdminFormColumns,
@@ -43,6 +48,7 @@ import {
   usePaymentFormSubmitBlocked,
 } from "@/modules/erp/hooks/use-payment-form-submit-blocked";
 import {
+  sumPaymentAmounts,
   validateFifoAllocationAmount,
   validatePaymentLinesBalance,
   validateSingleDocumentPaymentAmount,
@@ -67,7 +73,9 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
       byInvoiceId.set(line.invoiceId, line);
       continue;
     }
-    const amount = Math.min(existing.balanceDue, existing.amount + line.amount);
+    const amount = quantizePaymentAmount(
+      Math.min(existing.balanceDue, existing.amount + line.amount),
+    );
     byInvoiceId.set(line.invoiceId, { ...existing, amount });
   }
 
@@ -99,6 +107,7 @@ export function PaymentFormView({
   const formId = useId();
   const searchParams = useSearchParams();
   const preselectedInvoiceId = searchParams.get("invoiceId") ?? "";
+  const preselectedCustomerId = searchParams.get("customerId") ?? "";
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [pending, startTransition] = useTransition();
@@ -107,8 +116,9 @@ export function PaymentFormView({
   const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
     useErpPaymentFormErrors(isModal);
 
-  const [depositAccounts, setDepositAccounts] = useState<PaidThroughAccountOption[]>([]);
-  const [expenseAccounts, setExpenseAccounts] = useState<PaidThroughAccountOption[]>([]);
+  const { data: accountOptions } = usePaymentAccountOptions(effectiveStoreId);
+  const depositAccounts = accountOptions?.depositAccounts ?? [];
+  const expenseAccounts = accountOptions?.expenseAccounts ?? [];
   const [userId, setUserId] = useState("");
   const [customerLabel, setCustomerLabel] = useState("");
   const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
@@ -127,16 +137,6 @@ export function PaymentFormView({
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    if (!effectiveStoreId) return;
-    adminGet<{ data: PaidThroughAccountOption[] }>(
-      `erp/payments?view=accounts&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    ).then((res) => setDepositAccounts(res.data ?? []));
-    adminGet<{ data: PaidThroughAccountOption[] }>(
-      `erp/payments?view=expense-accounts&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    ).then((res) => setExpenseAccounts(res.data ?? []));
-  }, [effectiveStoreId]);
-
-  useEffect(() => {
     if (!preselectedInvoiceId || !effectiveStoreId) return;
     adminGet<InvoiceDetail>(`erp/invoices/${preselectedInvoiceId}`).then((detail) => {
       const balance = detail.balance_due ?? 0;
@@ -150,14 +150,19 @@ export function PaymentFormView({
           userId: detail.user_id,
           customerName: invoiceCustomerLabel(detail),
           balanceDue: balance,
-          amount: balance,
+          amount: quantizePaymentAmount(balance),
           receiptRef: "",
         },
       ]);
     });
   }, [preselectedInvoiceId, effectiveStoreId]);
 
-  const total = lines.reduce((s, l) => s + l.amount, 0);
+  useEffect(() => {
+    if (!preselectedCustomerId || preselectedInvoiceId) return;
+    setUserId(preselectedCustomerId);
+  }, [preselectedCustomerId, preselectedInvoiceId]);
+
+  const total = sumPaymentAmounts(lines);
   const bankChargesAmount = parseFloat(bankCharges) || 0;
 
   const amountGuardInput = {
@@ -205,33 +210,23 @@ export function PaymentFormView({
         invoiceId?: string;
         invoice_id?: string;
         amount: number;
+        invoiceNumber?: string;
+        balanceDue?: number;
       }>;
     }>(
       `erp/payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&userId=${encodeURIComponent(customerUserId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
     );
-    const invoicesRes = await adminGet<{
-      data: Array<{
-        id: string;
-        invoice_number: string;
-        balance_due: number;
-      }>;
-    }>(
-      `erp/payments?view=receivable-invoices&userId=${encodeURIComponent(customerUserId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    );
-    const lookup = new Map((invoicesRes.data ?? []).map((row) => [row.id, row]));
     const pending: PendingLine[] = [];
 
     for (const alloc of res.allocations) {
       const invoiceId = alloc.invoiceId ?? alloc.invoice_id;
       if (!invoiceId || excludeInvoiceIds.includes(invoiceId)) continue;
-      const invoice = lookup.get(invoiceId);
-      if (!invoice) continue;
       pending.push({
-        invoiceId: invoice.id,
-        invoiceNumber: invoice.invoice_number,
+        invoiceId,
+        invoiceNumber: alloc.invoiceNumber ?? invoiceId,
         userId: customerUserId,
         customerName: customerLabel || selectedInvoiceCustomer,
-        balanceDue: invoice.balance_due,
+        balanceDue: Number(alloc.balanceDue ?? alloc.amount),
         amount: alloc.amount,
         receiptRef: receiptRef.trim(),
       });
@@ -242,7 +237,7 @@ export function PaymentFormView({
 
   async function addLine() {
     clearFormError();
-    const amt = parseFloat(lineAmount);
+    const amt = parsePaymentAmount(lineAmount);
     if (!userId) return setFormError("Select a customer.");
     if (!amt || amt <= 0) return setFormError("Enter a positive amount.");
     if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
@@ -286,25 +281,12 @@ export function PaymentFormView({
         return;
       }
 
-      let resolvedUserId = userId;
-      try {
-        const detail = await adminGet<InvoiceDetail>(`erp/invoices/${selectedInvoiceId}`);
-        resolvedUserId = detail.user_id;
-        if (resolvedUserId !== userId) {
-          setFormError("Invoice does not belong to the selected customer.");
-          return;
-        }
-      } catch {
-        setFormError("Could not load invoice details.");
-        return;
-      }
-
       setLines((prev) =>
         mergePendingLines(prev, [
           {
             invoiceId: selectedInvoiceId,
             invoiceNumber: invoiceLabel,
-            userId: resolvedUserId,
+            userId,
             customerName: selectedInvoiceCustomer ?? (customerLabel || null),
             balanceDue: selectedInvoiceBalance,
             amount: amt,
@@ -336,7 +318,7 @@ export function PaymentFormView({
     if (!accountId) return setFormError("Deposit account is required.");
     if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
-    const fifoOnlyAmount = parseFloat(lineAmount);
+    const fifoOnlyAmount = parsePaymentAmount(lineAmount);
     const useFifoAutoAllocate = lines.length === 0 && userId && fifoOnlyAmount > 0;
     const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
 
@@ -385,7 +367,7 @@ export function PaymentFormView({
           paymentDate,
           paymentMode,
           accountId,
-          totalAmount: paymentTotal,
+          totalAmount: quantizePaymentAmount(paymentTotal),
           bankCharges: bankChargesAmount,
           bankChargesAccountId: bankChargesAmount > 0 ? bankChargesAccountId : undefined,
           reference: reference.trim() || undefined,
@@ -395,7 +377,7 @@ export function PaymentFormView({
             ? []
             : lines.map((l) => ({
                 invoiceId: l.invoiceId,
-                amount: l.amount,
+                amount: quantizePaymentAmount(l.amount),
               })),
         });
         handleSuccessNavigate(res.id);
@@ -563,7 +545,7 @@ export function PaymentFormView({
                     setSelectedInvoiceCustomer(option?.sublabel ?? null);
                     const balance = option?.amount ?? 0;
                     setSelectedInvoiceBalance(balance);
-                    if (id && balance > 0) setLineAmount(String(balance));
+                    if (id && balance > 0) setLineAmount(formatDisplayDecimal(balance));
                     if (!id) setLineAmount("");
                   }}
                 />
@@ -586,7 +568,7 @@ export function PaymentFormView({
                   <Input
                     type="number"
                     min="0"
-                    step="0.01"
+                    step="0.001"
                     placeholder="Amount"
                     value={lineAmount}
                     onChange={(e) => {
@@ -594,8 +576,12 @@ export function PaymentFormView({
                       clearFormError();
                     }}
                     onBlur={() => {
+                      const parsed = parsePaymentAmount(lineAmount);
+                      if (Number.isFinite(parsed) && parsed > 0) {
+                        setLineAmount(formatDisplayDecimal(parsed));
+                      }
                       if (!selectedInvoiceId) return;
-                      const amt = parseFloat(lineAmount);
+                      const amt = parsePaymentAmount(lineAmount);
                       const msg = validateSingleDocumentPaymentAmount(
                         amt,
                         selectedInvoiceBalance,

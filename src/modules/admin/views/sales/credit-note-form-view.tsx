@@ -293,7 +293,7 @@ export function CreditNoteFormView({
   const title = mode === "edit" ? "Edit credit note" : "Create credit note";
   const description = creditNoteNumber
     ? creditNoteNumber
-    : "Issue a credit note against a source invoice. Customer and line items load from the invoice.";
+    : "Issue a return or correction against a source invoice. For a price concession without returning stock, use Record discount instead.";
 
   const invoiceSidebar = sourceInvoice ? (
     <Card className="h-fit">

@@ -10,6 +10,7 @@ import type {
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
+import { nullIfEmptyDate } from "@/lib/format-date";
 
 function applyTransferStoreScope<T extends { or: (filter: string) => T; eq: (col: string, val: string) => T }>(
   query: T,
@@ -226,8 +227,8 @@ export async function getTransferStatement(input: {
   const { data, error } = await supabase.rpc("get_transfer_statement", {
     p_from_store_id: input.fromStoreId,
     p_to_store_id: input.toStoreId ?? undefined,
-    p_from_date: input.fromDate ?? undefined,
-    p_to_date: input.toDate ?? undefined,
+    p_from_date: nullIfEmptyDate(input.fromDate) ?? undefined,
+    p_to_date: nullIfEmptyDate(input.toDate) ?? undefined,
   });
 
   if (error) throw new Error(error.message);

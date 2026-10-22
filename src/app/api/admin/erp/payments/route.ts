@@ -6,10 +6,15 @@ import {
   listErpPayments,
   listExpenseAccounts,
   listPaidThroughAccounts,
+  listPaymentAccountOptions,
   listReceivableInvoicesForCustomer,
   peekPaymentDocumentNumber,
   recordCustomerPayment,
 } from "@/modules/erp/services/erp-payments.service";
+import {
+  getCustomerSettlementPreview,
+  recordAccountSettlement,
+} from "@/modules/erp/services/erp-settlement.service";
 
 export async function GET(request: Request) {
   const auth = await requireAdminApiProfile();
@@ -17,6 +22,17 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const view = searchParams.get("view");
+
+  if (view === "account-options") {
+    try {
+      const storeId = searchParams.get("storeId") ?? undefined;
+      const options = await listPaymentAccountOptions(storeId);
+      return NextResponse.json(options);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to load accounts";
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
 
   if (view === "accounts") {
     try {
@@ -50,6 +66,23 @@ export async function GET(request: Request) {
       const msg =
         error instanceof Error ? error.message : "Failed to load discount accounts";
       return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  if (view === "settlement-preview") {
+    try {
+      const userId = searchParams.get("userId");
+      if (!userId) {
+        return NextResponse.json({ error: "userId required" }, { status: 400 });
+      }
+      const preview = await getCustomerSettlementPreview(
+        userId,
+        searchParams.get("storeId") ?? undefined,
+      );
+      return NextResponse.json({ data: preview });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "Failed to load settlement preview";
+      return NextResponse.json({ error: msg }, { status: 400 });
     }
   }
 
@@ -132,6 +165,21 @@ export async function POST(request: Request) {
   if (!auth.ok) return auth.response;
   try {
     const body = await request.json();
+    if (body.accountSettlement === true) {
+      const id = await recordAccountSettlement({
+        side: "customer",
+        partyId: body.userId,
+        storeId: body.storeId,
+        paymentDate: body.paymentDate,
+        paymentMode: body.paymentMode,
+        accountId: body.accountId,
+        settlementDiscount: body.settlementDiscount,
+        settlementDiscountAccountId: body.settlementDiscountAccountId,
+        reference: body.reference,
+        notes: body.notes,
+      });
+      return NextResponse.json({ id }, { status: 201 });
+    }
     const id = await recordCustomerPayment(body);
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {

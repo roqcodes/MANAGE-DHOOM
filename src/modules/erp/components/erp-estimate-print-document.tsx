@@ -43,6 +43,7 @@ export function ErpEstimatePrintDocument({ estimate }: { estimate: ErpEstimatePr
 
   return (
     <article
+      data-print-document
       data-estimate-document
       className="mx-auto max-w-3xl bg-white px-6 py-8 text-slate-900 print:max-w-none print:px-4 print:py-6 print:text-black"
     >

@@ -65,6 +65,7 @@ export function BalanceSheetReport({ report }: { report: ReportDefinition }) {
   const equityGroups = useMemo(() => groupRowsByTypeName(equity), [equity]);
 
   const isEmpty = !loading && filtered.length === 0;
+  const sheetVariance = fullTotalAssets - (fullTotalLiabilities + fullTotalEquity);
 
   const balanceColumns = [
     { key: "account_category", label: "Category" },
@@ -130,6 +131,9 @@ export function BalanceSheetReport({ report }: { report: ReportDefinition }) {
         <p className="border-t px-4 py-2 text-xs text-muted-foreground">
           Assets {formatCurrencyAmount(fullTotalAssets)} · Liabilities & equity{" "}
           {formatCurrencyAmount(fullTotalLiabilities + fullTotalEquity)}
+          {Math.abs(sheetVariance) > 0.01
+            ? ` · Variance ${formatCurrencyAmount(sheetVariance)}`
+            : ""}
         </p>
       ) : null}
     </BusinessReportLayout>

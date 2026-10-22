@@ -34,6 +34,7 @@ import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedb
 type MinusStockRow = Record<string, unknown> & {
   stock?: number;
   shortage_qty?: number;
+  shortage_cost?: number;
   stock_purchase_value?: number;
   stock_sales_value?: number;
   purchase_price?: number;
@@ -74,6 +75,7 @@ export function MinusStockReport({ report }: { report: ReportDefinition }) {
     () => ({
       stock: sorted.reduce((s, r) => s + Number(r.stock ?? 0), 0),
       shortage: sorted.reduce((s, r) => s + Number(r.shortage_qty ?? 0), 0),
+      shortageCost: sorted.reduce((s, r) => s + Number(r.shortage_cost ?? 0), 0),
       purchaseValue: sorted.reduce((s, r) => s + Number(r.stock_purchase_value ?? 0), 0),
       salesValue: sorted.reduce((s, r) => s + Number(r.stock_sales_value ?? 0), 0),
     }),
@@ -90,6 +92,7 @@ export function MinusStockReport({ report }: { report: ReportDefinition }) {
             { label: "Lines", value: sorted.length.toLocaleString() },
             { label: "Net stock", value: totals.stock.toLocaleString() },
             { label: "Shortage qty", value: totals.shortage.toLocaleString() },
+            { label: "Shortage cost", value: formatCurrencyAmount(totals.shortageCost) },
             { label: "Purchase value", value: formatCurrencyAmount(totals.purchaseValue) },
           ],
     [sorted.length, totals],

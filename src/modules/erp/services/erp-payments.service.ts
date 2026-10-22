@@ -16,13 +16,22 @@ import type {
   PaymentAllocationInput,
   ReceivableInvoiceRow,
 } from "@/common/erp/sales-types";
-import { logAuditEventRequired } from "@/modules/erp/services/audit-log.service";
+import {
+  logAuditEvent,
+  logAuditEventRequired,
+} from "@/modules/erp/services/audit-log.service";
 import {
   requireErpStoreId,
   resolveErpStoreId,
   withAccountStoreScope,
 } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
+import { quantizePaymentAmount } from "@/lib/decimal-precision";
+import {
+  normalizePaymentAllocationAmount,
+  paymentAmountExceedsBalance,
+} from "@/modules/erp/lib/payment-balance-validation";
+
 const CUSTOMER_BULK_REF_PREFIX = "CBPB:";
 
 type PaymentListFilters = {
@@ -238,16 +247,18 @@ export async function recordCustomerPayment(input: {
   settlementDiscount?: number;
   settlementDiscountAccountId?: string | null;
 }): Promise<string> {
-  await requireAdminOrManagerProfile();
+  const actor = await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(input.storeId);
   if (!input.accountId) throw new Error("Deposit account is required");
+
+  const totalAmount = quantizePaymentAmount(input.totalAmount);
 
   let allocations = input.allocations;
   if (allocations.length === 0 && input.autoAllocate) {
     allocations = await buildAutoAllocationsForCustomer(
       input.userId,
-      input.totalAmount,
+      totalAmount,
       storeId,
     );
     if (allocations.length === 0) {
@@ -265,12 +276,12 @@ export async function recordCustomerPayment(input: {
     throw new Error("Discount account is required when settlement discount is recorded");
   }
 
-  const allocTotal = allocations.reduce((s, a) => s + a.amount, 0);
+  const allocTotal = quantizePaymentAmount(allocations.reduce((s, a) => s + a.amount, 0));
   if (settlementDiscount > 0) {
-    if (Math.abs(allocTotal - (input.totalAmount + settlementDiscount)) > 0.02) {
+    if (Math.abs(allocTotal - (totalAmount + settlementDiscount)) > 0.02) {
       throw new Error("Allocation total must equal payment amount plus settlement discount");
     }
-  } else if (allocTotal > input.totalAmount) {
+  } else if (allocTotal > totalAmount) {
     throw new Error("Allocation total exceeds payment amount");
   }
 
@@ -283,6 +294,7 @@ export async function recordCustomerPayment(input: {
     if (invoiceLookupError) throw new Error(invoiceLookupError.message);
 
     const invoiceById = new Map((invoiceRows ?? []).map((row) => [row.id, row]));
+    const normalized: PaymentAllocationInput[] = [];
     for (const alloc of allocations) {
       const invoice = invoiceById.get(alloc.invoiceId);
       if (!invoice) throw new Error("Invoice not found");
@@ -292,10 +304,17 @@ export async function recordCustomerPayment(input: {
       if (invoice.store_id !== storeId) {
         throw new Error(`Invoice ${invoice.invoice_number} belongs to a different store`);
       }
-      if (alloc.amount > Number(invoice.balance_due ?? 0)) {
+      const balance = Number(invoice.balance_due ?? 0);
+      const amount = quantizePaymentAmount(alloc.amount);
+      if (paymentAmountExceedsBalance(amount, balance)) {
         throw new Error(`Amount exceeds balance for invoice ${invoice.invoice_number}`);
       }
+      normalized.push({
+        invoiceId: alloc.invoiceId,
+        amount: normalizePaymentAllocationAmount(amount, balance),
+      });
     }
+    allocations = normalized;
   }
 
   const allocJson: Json = allocations.map((a) => ({
@@ -309,7 +328,7 @@ export async function recordCustomerPayment(input: {
     p_payment_date: input.paymentDate,
     p_payment_mode: input.paymentMode,
     p_account_id: input.accountId,
-    p_total_amount: input.totalAmount,
+    p_total_amount: totalAmount,
     p_reference: input.reference ?? undefined,
     p_notes: input.notes ?? undefined,
     p_is_bulk: input.isBulk ?? false,
@@ -335,24 +354,28 @@ export async function recordCustomerPayment(input: {
 
   const paymentNumber = paymentRow?.payment_number ?? null;
 
-  await logAuditEventRequired({
+  const auditId = await logAuditEvent({
     action: input.isBulk ? "create_bulk_customer_payment" : "payment_received",
     entityType: "erp_payment",
     entityId: paymentId,
     description: paymentNumber
-      ? `${input.isBulk ? "Bulk payment line" : "Payment"} ${paymentNumber}: ${input.totalAmount}${
+      ? `${input.isBulk ? "Bulk payment line" : "Payment"} ${paymentNumber}: ${totalAmount}${
           settlementDiscount > 0 ? ` (settlement discount ${settlementDiscount})` : ""
         }`
-      : `Payment recorded: ${input.totalAmount}`,
+      : `Payment recorded: ${totalAmount}`,
     metadata: {
       payment_number: paymentNumber,
       reference: paymentRow?.reference ?? input.reference ?? null,
-      total_amount: input.totalAmount,
+      total_amount: totalAmount,
       settlement_discount: settlementDiscount > 0 ? settlementDiscount : undefined,
       is_bulk: input.isBulk ?? false,
     },
     storeId,
+    userId: actor.id,
   });
+  if (!auditId) {
+    console.warn("Customer payment saved but activity log was not written", { paymentId });
+  }
 
   return paymentId;
 }
@@ -485,6 +508,17 @@ export async function listExpenseAccounts(
     });
 }
 
+export async function listPaymentAccountOptions(storeId?: string): Promise<{
+  depositAccounts: PaidThroughAccountOption[];
+  expenseAccounts: PaidThroughAccountOption[];
+}> {
+  const [depositAccounts, expenseAccounts] = await Promise.all([
+    listPaidThroughAccounts(storeId),
+    listExpenseAccounts(storeId),
+  ]);
+  return { depositAccounts, expenseAccounts };
+}
+
 /** Income accounts (supplier settlement discounts — credited on payment). */
 export async function listIncomeAccounts(
   storeId?: string,
@@ -587,7 +621,7 @@ export async function buildFifoAllocationsForAmount(
 
   let query = supabase
     .from("invoices")
-    .select("id, balance_due, due_date")
+    .select("id, invoice_number, balance_due, due_date")
     .eq("store_id", storeId)
     .gt("balance_due", 0)
     .neq("status", "cancelled")
@@ -612,7 +646,12 @@ export async function buildFifoAllocationsForAmount(
     const balance = Number(invoice.balance_due ?? 0);
     if (balance <= 0) continue;
     const alloc = Math.min(remaining, balance);
-    allocations.push({ invoiceId: invoice.id, amount: alloc });
+    allocations.push({
+      invoiceId: invoice.id,
+      amount: alloc,
+      invoiceNumber: invoice.invoice_number,
+      balanceDue: balance,
+    });
     remaining -= alloc;
   }
 
@@ -974,12 +1013,17 @@ export async function recordBulkCustomerPaymentBatch(input: {
     const invoice = invoiceById.get(line.invoiceId);
     if (!invoice) throw new Error("Invoice not found");
     if (invoice.store_id !== storeId) throw new Error("Invoice belongs to a different store");
-    if (line.amount > Number(invoice.balance_due ?? 0)) {
+    const balance = Number(invoice.balance_due ?? 0);
+    const amount = quantizePaymentAmount(line.amount);
+    if (paymentAmountExceedsBalance(amount, balance)) {
       throw new Error(`Amount exceeds balance for invoice ${invoice.invoice_number}`);
     }
 
     const existing = byCustomer.get(invoice.user_id) ?? [];
-    existing.push(line);
+    existing.push({
+      ...line,
+      amount: normalizePaymentAllocationAmount(amount, balance),
+    });
     byCustomer.set(invoice.user_id, existing);
   }
 

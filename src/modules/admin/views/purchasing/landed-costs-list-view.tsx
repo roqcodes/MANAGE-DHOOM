@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 
 import type { ErpLandedCostItem } from "@/common/erp/purchasing-types";
-import { adminGet, adminPost, adminPut } from "@/modules/admin/lib/admin-api-client";
+import { adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,13 +35,18 @@ export function LandedCostsListView() {
   const [tax, setTax] = useState("0");
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const debouncedSearch = useDebouncedValue(search, 350);
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(rows, "name", "asc");
 
   function reload() {
-    return adminGet<{ data: ErpLandedCostItem[] }>("erp/landed-costs").then((res) =>
-      setRows(res.data),
-    );
+    setError(null);
+    return adminGet<{ data: ErpLandedCostItem[] }>("erp/landed-costs")
+      .then((res) => setRows(res.data))
+      .catch((err: Error) => {
+        setRows([]);
+        setError(err.message || "Failed to load landed cost items");
+      });
   }
 
   useEffect(() => {
@@ -58,28 +63,45 @@ export function LandedCostsListView() {
 
   function saveItem(e: React.FormEvent) {
     e.preventDefault();
-    const r = parseFloat(rate);
-    if (!name.trim() || !r) return;
+    if (!name.trim()) {
+      setError("Name is required.");
+      return;
+    }
+    const rateValue = rate.trim() === "" ? 0 : parseFloat(rate);
+    const taxValue = tax.trim() === "" ? 0 : parseFloat(tax);
+    if (!Number.isFinite(rateValue) || rateValue < 0) {
+      setError("Default rate must be zero or a positive number.");
+      return;
+    }
+    if (!Number.isFinite(taxValue) || taxValue < 0) {
+      setError("Tax % must be zero or a positive number.");
+      return;
+    }
     startTransition(async () => {
-      if (editId) {
-        await adminPut("erp/landed-costs", {
-          id: editId,
-          name: name.trim(),
-          rate: r,
-          taxRatePercent: parseFloat(tax) || 0,
-        });
-      } else {
-        await adminPost("erp/landed-costs", {
-          name: name.trim(),
-          rate: r,
-          taxRatePercent: parseFloat(tax) || 0,
-        });
+      try {
+        setError(null);
+        if (editId) {
+          await adminPatch("erp/landed-costs", {
+            id: editId,
+            name: name.trim(),
+            rate: rateValue,
+            taxRatePercent: taxValue,
+          });
+        } else {
+          await adminPost("erp/landed-costs", {
+            name: name.trim(),
+            rate: rateValue,
+            taxRatePercent: taxValue,
+          });
+        }
+        setName("");
+        setRate("");
+        setTax("0");
+        setEditId(null);
+        await reload();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Save failed");
       }
-      setName("");
-      setRate("");
-      setTax("0");
-      setEditId(null);
-      await reload();
     });
   }
   return (
@@ -89,6 +111,12 @@ export function LandedCostsListView() {
         breadcrumb={[{ label: "Landed costs", href: "/admin/erp/landed-costs" }]}
         description="Reusable landed cost templates applied when recording purchase bills."
       />
+
+      {error ? (
+        <Card className="border-rose-200 bg-rose-50/50 ring-0">
+          <CardContent className="py-3 text-sm text-rose-800">{error}</CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardContent className="pt-6">
@@ -208,8 +236,16 @@ export function LandedCostsListView() {
                         label: r.is_active ? "Deactivate" : "Activate",
                         onClick: () => {
                           startTransition(async () => {
-                            await adminPut("erp/landed-costs", { id: r.id, isActive: !r.is_active });
-                            await reload();
+                            try {
+                              setError(null);
+                              await adminPatch("erp/landed-costs", {
+                                id: r.id,
+                                isActive: !r.is_active,
+                              });
+                              await reload();
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : "Update failed");
+                            }
                           });
                         },
                       },

@@ -783,8 +783,10 @@ export type Database = {
           balance_remaining: number
           created_at: string
           created_by: string | null
+          credit_kind: string
           credit_note_date: string
           credit_note_number: string
+          discount_account_id: string | null
           id: string
           inventory_committed: boolean
           notes: string | null
@@ -803,8 +805,10 @@ export type Database = {
           balance_remaining?: number
           created_at?: string
           created_by?: string | null
+          credit_kind?: string
           credit_note_date?: string
           credit_note_number: string
+          discount_account_id?: string | null
           id?: string
           inventory_committed?: boolean
           notes?: string | null
@@ -823,8 +827,10 @@ export type Database = {
           balance_remaining?: number
           created_at?: string
           created_by?: string | null
+          credit_kind?: string
           credit_note_date?: string
           credit_note_number?: string
+          discount_account_id?: string | null
           id?: string
           inventory_committed?: boolean
           notes?: string | null
@@ -3374,7 +3380,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           credit_date: string
+          credit_kind: string
           credit_number: string
+          discount_account_id: string | null
           id: string
           inventory_committed: boolean
           notes: string | null
@@ -3393,7 +3401,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           credit_date?: string
+          credit_kind?: string
           credit_number: string
+          discount_account_id?: string | null
           id?: string
           inventory_committed?: boolean
           notes?: string | null
@@ -3412,7 +3422,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           credit_date?: string
+          credit_kind?: string
           credit_number?: string
+          discount_account_id?: string | null
           id?: string
           inventory_committed?: boolean
           notes?: string | null
@@ -6652,6 +6664,22 @@ export type Database = {
           p_store_id: string
         }
         Returns: Json
+      }
+      record_erp_commercial_discount: {
+        Args: {
+          p_amount: number
+          p_discount_account_id?: string
+          p_discount_date: string
+          p_notes?: string
+          p_party_id: string
+          p_reference?: string
+          p_side: string
+          p_source_document_id?: string
+          p_store_id: string
+          p_tax_rate_percent?: number
+          p_actor?: string
+        }
+        Returns: string
       }
       record_erp_supplier_payment: {
         Args: {

@@ -98,11 +98,15 @@ function formatScheduleDate(value: string | null) {
 
 function scheduleAmount(row: RecurringScheduleRow): number {
   const lines =
-    (row.payload?.lines as Array<{ unitPrice?: number; quantity?: number }>) ?? [];
-  return lines.reduce(
-    (sum, line) => sum + Number(line.unitPrice ?? 0) * Number(line.quantity ?? 1),
-    0,
-  );
+    (row.payload?.lines as Array<{
+      unitPrice?: number;
+      purchasePrice?: number;
+      quantity?: number;
+    }>) ?? [];
+  return lines.reduce((sum, line) => {
+    const rate = Number(line.purchasePrice ?? line.unitPrice ?? 0);
+    return sum + rate * Number(line.quantity ?? 1);
+  }, 0);
 }
 
 function scheduleLineLabel(row: RecurringScheduleRow): string {

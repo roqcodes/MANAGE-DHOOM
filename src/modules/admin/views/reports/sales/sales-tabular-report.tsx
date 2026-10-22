@@ -47,6 +47,10 @@ function reportSearchPlaceholder(report: ReportDefinition) {
       return "Search vendor…";
     case "payments-received":
       return "Search customer, invoice, store, or payment type…";
+    case "customer-statement":
+      return "Search customer, phone, invoice, or payment…";
+    case "vendor-statement":
+      return "Search vendor, bill, or payment…";
     default:
       return "Search report…";
   }

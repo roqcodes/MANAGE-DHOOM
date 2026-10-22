@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
-import type { PaidThroughAccountOption } from "@/common/erp/purchasing-types";
 import { ERP_SUPPLIER_PAYMENT_MODES } from "@/common/erp/purchasing-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { usePaymentAccountOptions } from "@/modules/erp/components/use-payment-account-options";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import {
+  formatDisplayDecimal,
+  parsePaymentAmount,
+  quantizePaymentAmount,
+} from "@/lib/decimal-precision";
 import {
   AdminFormActions,
   AdminFormColumns,
@@ -31,6 +36,7 @@ import {
   usePaymentFormSubmitBlocked,
 } from "@/modules/erp/hooks/use-payment-form-submit-blocked";
 import {
+  sumPaymentAmounts,
   validateFifoAllocationAmount,
   validatePaymentLinesBalance,
   validateSingleDocumentPaymentAmount,
@@ -66,7 +72,9 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
       byBillId.set(line.purchaseBillId, line);
       continue;
     }
-    const amount = Math.min(existing.balanceDue, existing.amount + line.amount);
+    const amount = quantizePaymentAmount(
+      Math.min(existing.balanceDue, existing.amount + line.amount),
+    );
     byBillId.set(line.purchaseBillId, { ...existing, amount });
   }
 
@@ -88,13 +96,20 @@ export function SupplierPaymentFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
+  const submitInFlightRef = useRef(false);
+  const paymentIdempotencyRef = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? `idem:${crypto.randomUUID()}`
+      : `idem:${Date.now()}`,
+  );
   const [isAddingLine, setIsAddingLine] = useState(false);
   const isModal = variant === "modal";
   const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
     useErpPaymentFormErrors(isModal);
 
-  const [accounts, setAccounts] = useState<PaidThroughAccountOption[]>([]);
-  const [expenseAccounts, setExpenseAccounts] = useState<PaidThroughAccountOption[]>([]);
+  const { data: accountOptions } = usePaymentAccountOptions(effectiveStoreId);
+  const accounts = accountOptions?.depositAccounts ?? [];
+  const expenseAccounts = accountOptions?.expenseAccounts ?? [];
   const [vendorId, setVendorId] = useState("");
   const [vendorLabel, setVendorLabel] = useState("");
   const [selectedBillId, setSelectedBillId] = useState("");
@@ -111,14 +126,9 @@ export function SupplierPaymentFormView({
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
-    if (!effectiveStoreId) return;
-    adminGet<{ data: PaidThroughAccountOption[] }>(
-      `erp/supplier-payments?view=accounts&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    ).then((res) => setAccounts(res.data ?? []));
-    adminGet<{ data: PaidThroughAccountOption[] }>(
-      `erp/supplier-payments?view=expense-accounts&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    ).then((res) => setExpenseAccounts(res.data ?? []));
-  }, [effectiveStoreId]);
+    const preselected = searchParams.get("vendorId");
+    if (preselected) setVendorId(preselected);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!prefillBillId || !effectiveStoreId) return;
@@ -143,13 +153,13 @@ export function SupplierPaymentFormView({
           vendorId: bill.vendor_id,
           vendorName: bill.vendors?.name ?? null,
           balanceDue: balance,
-          amount: balance,
+          amount: quantizePaymentAmount(balance),
         },
       ]);
     });
   }, [prefillBillId, effectiveStoreId]);
 
-  const total = lines.reduce((s, l) => s + l.amount, 0);
+  const total = sumPaymentAmounts(lines);
   const bankChargesAmount = parseFloat(bankCharges) || 0;
 
   const amountGuardInput = {
@@ -196,33 +206,23 @@ export function SupplierPaymentFormView({
         purchaseBillId?: string;
         purchase_bill_id?: string;
         amount: number;
+        purchaseBillNumber?: string;
+        balanceDue?: number;
       }>;
     }>(
       `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&vendorId=${encodeURIComponent(vendorId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
     );
-    const billsRes = await adminGet<{
-      data: Array<{
-        id: string;
-        purchase_bill_number: string;
-        balance_due: number;
-      }>;
-    }>(
-      `erp/supplier-payments?view=payable-bills&vendorId=${encodeURIComponent(vendorId)}&storeId=${encodeURIComponent(effectiveStoreId)}`,
-    );
-    const lookup = new Map((billsRes.data ?? []).map((row) => [row.id, row]));
     const pending: PendingLine[] = [];
 
     for (const alloc of res.allocations) {
       const purchaseBillId = alloc.purchaseBillId ?? alloc.purchase_bill_id;
       if (!purchaseBillId || excludeBillIds.includes(purchaseBillId)) continue;
-      const bill = lookup.get(purchaseBillId);
-      if (!bill) continue;
       pending.push({
-        purchaseBillId: bill.id,
-        billNumber: bill.purchase_bill_number,
+        purchaseBillId,
+        billNumber: alloc.purchaseBillNumber ?? purchaseBillId,
         vendorId,
         vendorName: vendorLabel || null,
-        balanceDue: bill.balance_due,
+        balanceDue: Number(alloc.balanceDue ?? alloc.amount),
         amount: alloc.amount,
       });
     }
@@ -232,7 +232,7 @@ export function SupplierPaymentFormView({
 
   async function addLine() {
     clearFormError();
-    const amt = parseFloat(lineAmount);
+    const amt = parsePaymentAmount(lineAmount);
     if (!vendorId) return setFormError("Select a vendor.");
     if (!amt || amt <= 0) return setFormError("Enter a positive amount.");
     if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
@@ -308,11 +308,12 @@ export function SupplierPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitInFlightRef.current || isPending) return;
     setFormError(null);
     if (!accountId) return setFormError("Paid through account is required.");
     if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
-    const fifoOnlyAmount = parseFloat(lineAmount);
+    const fifoOnlyAmount = parsePaymentAmount(lineAmount);
     const useFifoAutoAllocate = lines.length === 0 && vendorId && fifoOnlyAmount > 0;
     const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
 
@@ -346,6 +347,7 @@ export function SupplierPaymentFormView({
       return;
     }
 
+    submitInFlightRef.current = true;
     startTransition(async () => {
       try {
         if (useFifoAutoAllocate) {
@@ -363,10 +365,10 @@ export function SupplierPaymentFormView({
           paymentDate,
           paymentMode,
           accountId,
-          totalAmount: paymentTotal,
+          totalAmount: quantizePaymentAmount(paymentTotal),
           bankCharges: bankChargesAmount,
           bankChargesAccountId: bankChargesAccountId || undefined,
-          reference: reference || undefined,
+          reference: reference.trim() || paymentIdempotencyRef.current,
           notes: notes || undefined,
           isBulk: false,
           autoAllocate: useFifoAutoAllocate,
@@ -374,12 +376,14 @@ export function SupplierPaymentFormView({
             ? []
             : lines.map((l) => ({
                 purchaseBillId: l.purchaseBillId,
-                amount: l.amount,
+                amount: quantizePaymentAmount(l.amount),
               })),
         });
         handleSuccessNavigate(res.id);
       } catch (err) {
         setFormError(err instanceof Error ? err.message : "Failed to save payment.");
+      } finally {
+        submitInFlightRef.current = false;
       }
     });
   }
@@ -527,7 +531,7 @@ export function SupplierPaymentFormView({
                     setBillLabel(option?.label ?? "");
                     const balance = option?.amount ?? 0;
                     setSelectedBillBalance(balance);
-                    if (id && balance > 0) setLineAmount(String(balance));
+                    if (id && balance > 0) setLineAmount(formatDisplayDecimal(balance));
                     if (!id) setLineAmount("");
                   }}
                 />
@@ -541,6 +545,8 @@ export function SupplierPaymentFormView({
                 <div className="flex items-center gap-2">
                   <Input
                     type="number"
+                    step="0.001"
+                    min="0"
                     placeholder="Amount"
                     value={lineAmount}
                     onChange={(e) => {
@@ -548,15 +554,10 @@ export function SupplierPaymentFormView({
                       clearFormError();
                     }}
                     onBlur={() => {
-                      if (!selectedBillId) return;
-                      const amt = parseFloat(lineAmount);
-                      const msg = validateSingleDocumentPaymentAmount(
-                        amt,
-                        selectedBillBalance,
-                        "bill",
-                        billLabel,
-                      );
-                      if (msg) notifyAmountIssue(msg);
+                      const parsed = parsePaymentAmount(lineAmount);
+                      if (Number.isFinite(parsed) && parsed > 0) {
+                        setLineAmount(formatDisplayDecimal(parsed));
+                      }
                     }}
                     className="min-w-0 flex-1"
                     disabled={isAddingLine}

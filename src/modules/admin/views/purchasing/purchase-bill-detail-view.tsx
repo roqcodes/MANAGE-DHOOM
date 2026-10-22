@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import type { LucideIcon } from "lucide-react";
 import {
+  BadgePercent,
   Building2,
   Calendar,
   CalendarClock,
@@ -61,6 +62,8 @@ import {
 } from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { cn } from "@/lib/utils";
+import { creditKindLabel } from "@/common/erp/commercial-discount";
+import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
 
 type BillDetail = {
   id: string;
@@ -113,6 +116,15 @@ type BillDetail = {
       payment_number: string;
       payment_date: string;
       total_amount: number;
+    } | null;
+  }>;
+  erp_vendor_credit_applications?: Array<{
+    amount: number;
+    erp_vendor_credits: {
+      id: string;
+      credit_number: string;
+      credit_date: string;
+      credit_kind?: string | null;
     } | null;
   }>;
 };
@@ -225,6 +237,7 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
   const [bill, setBill] = useState<BillDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [discountOpen, setDiscountOpen] = useState(false);
 
   function load() {
     return adminGet<{ bill: BillDetail }>(`erp/purchase-bills/${billId}`).then((res) => {
@@ -265,6 +278,8 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
     !bill.inventory_committed &&
     !bill.po_id;
   const canPay = bill.balance_due > 0 && bill.status !== "draft" && bill.status !== "cancelled";
+  const canDiscount = bill.status !== "draft" && bill.status !== "cancelled";
+  const creditApplications = bill.erp_vendor_credit_applications ?? [];
   const canCancel =
     bill.status !== "cancelled" &&
     bill.amount_paid === 0 &&
@@ -360,6 +375,12 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
                 <CreditCard data-icon="inline-start" />
                 Record payment
               </AdminPrimaryAction>
+            ) : null}
+            {canDiscount ? (
+              <Button variant="outline" size="page" className="rounded-full" onClick={() => setDiscountOpen(true)}>
+                <BadgePercent data-icon="inline-start" />
+                Record discount
+              </Button>
             ) : null}
             {bill.po_id ? (
               <AdminSecondaryIconAction
@@ -772,6 +793,61 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
             </CardContent>
           </Card>
 
+          {creditApplications.length > 0 ? (
+            <Card>
+              <CardHeader className="border-b bg-muted/20 pb-4">
+                <CardTitle className="text-base">Credits and discounts</CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Vendor credits applied to this bill. The bill total is unchanged.
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead>Credit</TableHead>
+                        <TableHead>Kind</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Applied</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {creditApplications.map((application, index) => {
+                        const credit = application.erp_vendor_credits;
+                        return (
+                          <TableRow key={credit?.id ?? index}>
+                            <TableCell>
+                              {credit?.id ? (
+                                <Link
+                                  href={`/admin/erp/vendor-credits/${credit.id}`}
+                                  className="font-medium text-primary hover:underline"
+                                >
+                                  {credit.credit_number || formatErpDocRef("VC", credit.id)}
+                                </Link>
+                              ) : (
+                                "—"
+                              )}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {creditKindLabel(credit?.credit_kind)}
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {formatDisplayDate(credit?.credit_date)}
+                            </TableCell>
+                            <TableCell className="text-right font-semibold tabular-nums">
+                              {formatCurrencyAmount(application.amount)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {bill.notes?.trim() ? (
             <Card>
               <CardHeader className="pb-3">
@@ -786,6 +862,26 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
           ) : null}
         </div>
       </ErpDocumentTabsLayout>
+
+      {discountOpen ? (
+        <ErpCommercialDiscountFormView
+          side="supplier"
+          variant="modal"
+          open={discountOpen}
+          onOpenChange={setDiscountOpen}
+          initialPartyId={bill.vendor_id}
+          initialPartyLabel={bill.vendors?.name ?? ""}
+          initialSourceDocumentId={bill.id}
+          initialSourceDocumentLabel={bill.purchase_bill_number}
+          lockParty
+          lockSource
+          onSuccess={() => {
+            setDiscountOpen(false);
+            void load();
+            router.refresh();
+          }}
+        />
+      ) : null}
     </AdminPageLayout>
   );
 }

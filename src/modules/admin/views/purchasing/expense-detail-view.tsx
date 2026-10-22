@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { format, parseISO } from "date-fns";
 
 import type { ErpExpenseDetail } from "@/common/erp/purchasing-types";
 import { AdminDetailSkeleton } from "@/modules/admin/components/admin-page-skeleton";
-import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
+import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
@@ -29,11 +28,8 @@ function taxModeLabel(mode: string) {
 }
 
 export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
-  const router = useRouter();
   const [expense, setExpense] = useState<ErpExpenseDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [billing, startBill] = useTransition();
-  const [billError, setBillError] = useState<string | null>(null);
 
   useEffect(() => {
     adminGet<ErpExpenseDetail>(`erp/expenses/${expenseId}`)
@@ -67,52 +63,16 @@ export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
           { label: expense.expense_number },
         ]}
         actions={
-          <div className="flex flex-wrap gap-2">
-            {expense.is_billable && !expense.billed_invoice_id ? (
-              <Button
-                size="sm"
-                disabled={billing}
-                onClick={() => {
-                  setBillError(null);
-                  startBill(async () => {
-                    try {
-                      const res = await adminPost<{ invoiceId: string }>(
-                        `erp/expenses/${expenseId}/bill`,
-                        {},
-                      );
-                      router.push(`/admin/erp/invoices/${res.invoiceId}`);
-                    } catch (err) {
-                      setBillError(err instanceof Error ? err.message : "Billing failed");
-                    }
-                  });
-                }}
-              >
-                {billing ? "Creating invoice…" : "Create customer invoice"}
-              </Button>
-            ) : null}
-            {expense.billed_invoice_id ? (
-              <Button
-                nativeButton={false}
-                size="sm"
-                variant="outline"
-                render={<Link href={`/admin/erp/invoices/${expense.billed_invoice_id}`} />}
-              >
-                View invoice
-              </Button>
-            ) : null}
-            <Button
-              nativeButton={false}
-              size="sm"
-              variant="outline"
-              render={<Link href={`/admin/erp/expenses/${expenseId}/edit`} />}
-            >
-              Edit
-            </Button>
-          </div>
+          <Button
+            nativeButton={false}
+            size="sm"
+            variant="outline"
+            render={<Link href={`/admin/erp/expenses/${expenseId}/edit`} />}
+          >
+            Edit
+          </Button>
         }
       />
-
-      {billError ? <p className="text-sm text-destructive">{billError}</p> : null}
 
       <ErpDocumentTabsLayout
         detailsLabel="Expense details"
@@ -148,16 +108,6 @@ export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
               <DetailItem label="Reference #" value={expense.reference ?? "—"} />
               <DetailItem label="Vendor" value={expense.vendor_name ?? "—"} />
               <DetailItem label="Customer" value={expense.customer_name ?? "—"} />
-              <DetailItem
-                label="Billable"
-                value={
-                  expense.is_billable
-                    ? expense.billed_invoice_id
-                      ? "Invoiced"
-                      : "Yes — pending invoice"
-                    : "No"
-                }
-              />
             </CardContent>
           </Card>
 

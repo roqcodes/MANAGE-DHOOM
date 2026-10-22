@@ -87,7 +87,7 @@ export function CustomerFormView({
 
   useEffect(() => {
     if (mode !== "edit" || !customerId) return;
-    adminGet<{ profile: CustomerErpProfile }>(`customers/${customerId}/erp`)
+    adminGet<{ profile: CustomerErpProfile }>(`customers/${customerId}/erp?view=profile`)
       .then((res) => {
         setProfile(res.profile);
         setAvatarUrl(res.profile.avatarUrl ?? "");

@@ -2,7 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
@@ -27,15 +27,12 @@ function CustomerDetailNav({ customerName }: { customerName?: string | null }) {
 
 export function AdminCustomerDetailView() {
   const params = useParams();
-  const searchParams = useSearchParams();
   const slug = (params.slug as string[] | undefined) ?? [];
   const id = slug[0] === "customers" && typeof slug[1] === "string" ? slug[1] : "";
 
-  const txPage = Math.max(0, parseInt(searchParams.get("txPage") ?? "0", 10));
-
   const { data, isPending, isError, error } = useQuery({
-    queryKey: adminQueryKeys.customerDetail(id, txPage),
-    queryFn: () => adminGetNullable<CustomerDetailsResponse>(`customers/${id}?txPage=${txPage}`),
+    queryKey: adminQueryKeys.customerDetail(id),
+    queryFn: () => adminGetNullable<CustomerDetailsResponse>(`customers/${id}`),
     enabled: Boolean(id),
     placeholderData: keepPreviousData,
   });
@@ -81,7 +78,7 @@ export function AdminCustomerDetailView() {
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 py-2.5 font-sans sm:px-4">
       <CustomerDetailNav customerName={data.summary.name} />
 
-      <CustomerDetailPanel details={data} txPage={txPage} orders={data.orders} />
+      <CustomerDetailPanel details={data} orders={data.orders} />
     </div>
   );
 }

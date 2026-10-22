@@ -54,6 +54,7 @@ export const AUDIT_ACTIONS = [
   "supplier_payment",
   "create_bulk_supplier_payment",
   "vendor_credit",
+  "record_commercial_discount",
   "create_expense",
   "stock_adjustment",
   "stock_transfer",

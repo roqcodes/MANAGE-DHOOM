@@ -22,7 +22,14 @@ function linesToJson(lines: ErpLineInput[]): Json {
 export async function listCreditNotes(
   page = 0,
   limit = 20,
-  filters?: { search?: string; status?: string; storeId?: string },
+  filters?: {
+    search?: string;
+    status?: string;
+    storeId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    creditKind?: string;
+  },
 ): Promise<{
   data: ErpCreditNoteListRow[];
   total: number;
@@ -35,7 +42,7 @@ export async function listCreditNotes(
   let query = supabase
     .from("erp_credit_notes")
     .select(
-      "id, credit_note_number, user_id, store_id, status, total_amount, balance_remaining, credit_note_date, created_at, updated_at, users:users!erp_credit_notes_user_id_fkey(name), stores(name)",
+      "id, credit_note_number, user_id, store_id, status, credit_kind, total_amount, balance_remaining, credit_note_date, created_at, updated_at, users:users!erp_credit_notes_user_id_fkey(name), stores(name)",
       { count: "exact" },
     )
     .order("credit_note_date", { ascending: false })
@@ -44,8 +51,31 @@ export async function listCreditNotes(
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
   if (filters?.status && filters.status !== "all") query = query.eq("status", filters.status);
+  if (filters?.creditKind && filters.creditKind !== "all") {
+    query = query.eq("credit_kind", filters.creditKind);
+  }
+  if (filters?.dateFrom) {
+    query = query.gte("credit_note_date", filters.dateFrom);
+  }
+  if (filters?.dateTo) {
+    query = query.lte("credit_note_date", filters.dateTo);
+  }
   if (filters?.search?.trim()) {
-    query = query.ilike("credit_note_number", `%${filters.search.trim()}%`);
+    const s = filters.search.trim();
+    const { data: customerMatches } = await supabase
+      .from("users")
+      .select("id")
+      .or(
+        `name.ilike.%${s}%,email.ilike.%${s}%,phone.ilike.%${s}%,customer_number.ilike.%${s}%,company_name.ilike.%${s}%`,
+      )
+      .limit(50);
+
+    const customerIds = (customerMatches ?? []).map((row) => row.id);
+    if (customerIds.length > 0) {
+      query = query.or(`credit_note_number.ilike.%${s}%,user_id.in.(${customerIds.join(",")})`);
+    } else {
+      query = query.ilike("credit_note_number", `%${s}%`);
+    }
   }
 
   const { data, error, count } = await query;
@@ -62,6 +92,7 @@ export async function listCreditNotes(
         user_id: row.user_id,
         store_id: row.store_id,
         status: row.status,
+        credit_kind: row.credit_kind ?? "return",
         total_amount: Number(row.total_amount ?? 0),
         balance_remaining: Number(row.balance_remaining ?? 0),
         credit_note_date: row.credit_note_date,

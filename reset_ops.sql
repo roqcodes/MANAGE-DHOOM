@@ -1,7 +1,7 @@
 -- =============================================================================
 -- reset_ops.sql — wipe operational / transactional data (DEV & staging only)
 -- =============================================================================
---
+-- 
 -- Run in Supabase SQL Editor (service_role) or: psql ... -f reset_ops.sql
 --
 -- KEEPS (master / config):

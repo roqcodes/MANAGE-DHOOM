@@ -248,15 +248,6 @@ export async function buildStorePlSeries(
   return buckets;
 }
 
-/** @deprecated Use buildStorePlSeries */
-export async function buildStoreMonthlyPlSeries(
-  storeId: string,
-  dateFrom?: string,
-  dateTo?: string,
-): Promise<DashboardMonthlySeriesPoint[]> {
-  return buildStorePlSeries(storeId, dateFrom, dateTo, "month");
-}
-
 /** Branch-scoped financial summary aligned with the Profit & Loss report (posted journals). */
 export async function getStoreFinancialDashboard(
   storeId: string,
@@ -273,11 +264,18 @@ export async function getStoreFinancialDashboard(
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const salesSince = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const snapRes = await invokeRpc(supabase, "get_admin_store_finance_snapshot", {
-    p_store_id: storeId,
-    p_date_from: from,
-    p_date_to: to,
-  });
+  const [snapRes, dashRes] = await Promise.all([
+    invokeRpc(supabase, "get_admin_store_finance_snapshot", {
+      p_store_id: storeId,
+      p_date_from: from,
+      p_date_to: to,
+    }),
+    supabase.rpc("get_erp_financial_dashboard", {
+      p_date_from: from,
+      p_date_to: to,
+      p_store_id: storeId,
+    }),
+  ]);
 
   if (!snapRes.error && snapRes.data && typeof snapRes.data === "object") {
     const snap = snapRes.data as {
@@ -294,16 +292,13 @@ export async function getStoreFinancialDashboard(
         status: string;
       }>;
     };
-    const dashRes = await supabase.rpc("get_erp_financial_dashboard", {
-      p_date_from: from,
-      p_date_to: to,
-      p_store_id: storeId,
-    });
     if (dashRes.error) throw new Error(dashRes.error.message);
     const dash = (dashRes.data ?? {}) as ErpFinancialDashboard;
     return {
       accounts_receivable: Number(snap.accounts_receivable ?? dash.accounts_receivable ?? 0),
       accounts_payable: Number(snap.accounts_payable ?? dash.accounts_payable ?? 0),
+      ar_gl: Number(dash.ar_gl ?? 0),
+      ap_gl: Number(dash.ap_gl ?? 0),
       net_income_ytd: Number(dash.net_income_ytd ?? 0),
       cogs_ytd: Number(dash.cogs_ytd ?? 0),
       purchases_ytd: Number(dash.purchases_ytd ?? 0),
@@ -312,7 +307,7 @@ export async function getStoreFinancialDashboard(
       net_profit_ytd: Number(dash.net_profit_ytd ?? 0),
       date_from: dash.date_from,
       date_to: dash.date_to,
-      low_stock_count: 0,
+      low_stock_count: Number(dash.low_stock_count ?? 0),
       daily_sales: (snap.daily_sales ?? []).map((row) => ({
         day: row.day,
         total: Number(row.total ?? 0),
@@ -335,7 +330,7 @@ export async function getStoreFinancialDashboard(
     };
   }
 
-  const [arResult, apResult, lowStockResult, invoiceStatusResult, dailySalesResult] =
+  const [arResult, apResult, lowStockResult, invoiceStatusResult, dailySalesResult, fallbackDash] =
     await Promise.all([
       supabase
         .from("invoices")
@@ -365,6 +360,7 @@ export async function getStoreFinancialDashboard(
         .eq("store_id", storeId)
         .in("status", ["issued", "partial", "paid"])
         .gte("created_at", `${salesSince}T00:00:00`),
+      Promise.resolve(dashRes),
     ]);
 
   const accountsReceivable = (arResult.data ?? []).reduce(
@@ -404,17 +400,14 @@ export async function getStoreFinancialDashboard(
     .map(([day, total]) => ({ day, total }))
     .sort((a, b) => a.day.localeCompare(b.day));
 
-  const dashRes = await supabase.rpc("get_erp_financial_dashboard", {
-    p_date_from: from,
-    p_date_to: to,
-    p_store_id: storeId,
-  });
-  if (dashRes.error) throw new Error(dashRes.error.message);
-  const dash = (dashRes.data ?? {}) as ErpFinancialDashboard;
+  if (fallbackDash.error) throw new Error(fallbackDash.error.message);
+  const dash = (fallbackDash.data ?? {}) as ErpFinancialDashboard;
 
   return {
     accounts_receivable: accountsReceivable,
     accounts_payable: accountsPayable,
+    ar_gl: Number(dash.ar_gl ?? 0),
+    ap_gl: Number(dash.ap_gl ?? 0),
     net_income_ytd: Number(dash.net_income_ytd ?? 0),
     cogs_ytd: Number(dash.cogs_ytd ?? 0),
     purchases_ytd: Number(dash.purchases_ytd ?? 0),

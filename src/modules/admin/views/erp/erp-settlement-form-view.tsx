@@ -3,10 +3,12 @@
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import type { PayablePurchaseBillRow } from "@/common/erp/purchasing-types";
+import { settlementCreditTypeLabel } from "@/common/erp/commercial-discount";
+import type { AccountSettlementPreview } from "@/common/erp/settlement-types";
 import { ERP_SUPPLIER_PAYMENT_MODES } from "@/common/erp/purchasing-types";
-import type { PaidThroughAccountOption, ReceivableInvoiceRow } from "@/common/erp/sales-types";
+import type { PaidThroughAccountOption } from "@/common/erp/sales-types";
 import { ERP_CUSTOMER_PAYMENT_MODES, paymentModeLabel } from "@/common/erp/sales-types";
+import { formatDisplayDecimal, parsePaymentAmount } from "@/lib/decimal-precision";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
@@ -31,6 +33,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { usePaymentAccountOptions } from "@/modules/erp/components/use-payment-account-options";
 import {
   ActiveStoreFormField,
   useActiveStoreFormField,
@@ -40,7 +43,6 @@ export type SettlementSide = "customer" | "supplier";
 
 export type ErpSettlementFormViewProps = ErpFormViewBaseProps & {
   side: SettlementSide;
-  /** Pre-select party when opened from customer/vendor profile */
   initialPartyId?: string;
   initialPartyLabel?: string;
 };
@@ -74,11 +76,13 @@ export function ErpSettlementFormView({
 
   const [partyId, setPartyId] = useState<string | null>(prefillPartyId || null);
   const [partyLabel, setPartyLabel] = useState(initialPartyLabel ?? "");
-  const [depositAccounts, setDepositAccounts] = useState<PaidThroughAccountOption[]>([]);
-  const [discountAccounts, setDiscountAccounts] = useState<PaidThroughAccountOption[]>([]);
-  const [bills, setBills] = useState<PayablePurchaseBillRow[]>([]);
-  const [invoices, setInvoices] = useState<ReceivableInvoiceRow[]>([]);
-  const [loadingDocs, setLoadingDocs] = useState(false);
+  const { data: customerAccountOptions } = usePaymentAccountOptions(
+    isSupplier ? undefined : effectiveStoreId,
+  );
+  const [supplierDepositAccounts, setDepositAccounts] = useState<PaidThroughAccountOption[]>([]);
+  const [supplierDiscountAccounts, setDiscountAccounts] = useState<PaidThroughAccountOption[]>([]);
+  const [preview, setPreview] = useState<AccountSettlementPreview | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentMode, setPaymentMode] = useState<string>(paymentModes[0]);
@@ -88,63 +92,100 @@ export function ErpSettlementFormView({
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
 
+  const depositAccounts = isSupplier
+    ? supplierDepositAccounts
+    : (customerAccountOptions?.depositAccounts ?? []);
+  const discountAccounts = isSupplier
+    ? supplierDiscountAccounts
+    : (customerAccountOptions?.expenseAccounts ?? []);
+
   useEffect(() => {
     if (prefillPartyId && !partyId) setPartyId(prefillPartyId);
   }, [prefillPartyId, partyId]);
 
   useEffect(() => {
-    if (!effectiveStoreId) return;
+    if (!isSupplier || !effectiveStoreId) return;
     adminGet<{ data: PaidThroughAccountOption[] }>(
       `${apiBase}?view=accounts&storeId=${encodeURIComponent(effectiveStoreId)}`,
     ).then((res) => setDepositAccounts(res.data ?? []));
     adminGet<{ data: PaidThroughAccountOption[] }>(
       `${apiBase}?view=settlement-discount-accounts&storeId=${encodeURIComponent(effectiveStoreId)}`,
     ).then((res) => setDiscountAccounts(res.data ?? []));
-  }, [effectiveStoreId, apiBase]);
+  }, [effectiveStoreId, apiBase, isSupplier]);
 
   useEffect(() => {
     if (!partyId || !effectiveStoreId) {
-      setBills([]);
-      setInvoices([]);
+      setPreview(null);
       return;
     }
-    setLoadingDocs(true);
-    const view = isSupplier ? "payable-bills" : "receivable-invoices";
-    const partyParam = isSupplier ? `vendorId=${encodeURIComponent(partyId)}` : `userId=${encodeURIComponent(partyId)}`;
-    adminGet<{ data: PayablePurchaseBillRow[] | ReceivableInvoiceRow[] }>(
-      `${apiBase}?view=${view}&${partyParam}&storeId=${encodeURIComponent(effectiveStoreId)}`,
+    setLoadingPreview(true);
+    const partyParam = isSupplier
+      ? `vendorId=${encodeURIComponent(partyId)}`
+      : `userId=${encodeURIComponent(partyId)}`;
+    adminGet<{ data: AccountSettlementPreview }>(
+      `${apiBase}?view=settlement-preview&${partyParam}&storeId=${encodeURIComponent(effectiveStoreId)}`,
     )
-      .then((res) => {
-        if (isSupplier) setBills((res.data as PayablePurchaseBillRow[]) ?? []);
-        else setInvoices((res.data as ReceivableInvoiceRow[]) ?? []);
-      })
-      .catch(() => {
-        setBills([]);
-        setInvoices([]);
-      })
-      .finally(() => setLoadingDocs(false));
+      .then((res) => setPreview(res.data ?? null))
+      .catch(() => setPreview(null))
+      .finally(() => setLoadingPreview(false));
   }, [partyId, effectiveStoreId, apiBase, isSupplier]);
 
-  const openLines = useMemo(() => {
-    if (isSupplier) {
-      return bills.map((b) => ({
-        id: b.id,
-        number: b.purchase_bill_number,
-        date: b.purchase_date,
-        balance: b.balance_due,
-      }));
-    }
-    return invoices.map((inv) => ({
-      id: inv.id,
-      number: inv.invoice_number,
-      date: inv.due_date ?? "—",
-      balance: inv.balance_due,
-    }));
-  }, [bills, invoices, isSupplier]);
+  const discountAmount = useMemo(() => {
+    const parsed = parsePaymentAmount(settlementDiscount);
+    return Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+  }, [settlementDiscount]);
 
-  const outstandingTotal = openLines.reduce((s, l) => s + l.balance, 0);
-  const discountAmount = Math.max(0, parseFloat(settlementDiscount) || 0);
-  const cashAmount = Math.max(0, outstandingTotal - discountAmount);
+  const documentSettleTotal = Number(preview?.documentSettleTotal) || 0;
+  const netBalance = Number(preview?.netBalance) || 0;
+  const openingPortion = Math.max(0, netBalance - documentSettleTotal);
+  const cashAmount = Math.max(0, netBalance - discountAmount);
+
+  type SettlementLineRow = {
+    key: string;
+    type: string;
+    number: string;
+    date: string;
+    amount: number;
+  };
+
+  const settlementLines = useMemo((): SettlementLineRow[] => {
+    if (!preview) return [];
+    const docType = isSupplier ? "Bill" : "Invoice";
+    const settlementSide = isSupplier ? "supplier" : "customer";
+    const lines: SettlementLineRow[] = [];
+
+    if (preview.openingBalance > 0) {
+      lines.push({
+        key: "opening",
+        type: "Opening balance",
+        number: "—",
+        date: "—",
+        amount: preview.openingBalance,
+      });
+    }
+
+    for (const doc of preview.documents) {
+      lines.push({
+        key: `doc-${doc.id}`,
+        type: docType,
+        number: doc.number,
+        date: doc.date ?? "—",
+        amount: doc.balance,
+      });
+    }
+
+    for (const credit of preview.credits) {
+      lines.push({
+        key: `credit-${credit.id}`,
+        type: settlementCreditTypeLabel(settlementSide, credit.creditKind, credit.number),
+        number: credit.number,
+        date: credit.date ?? "—",
+        amount: -credit.balanceRemaining,
+      });
+    }
+
+    return lines;
+  }, [preview, isSupplier]);
 
   const listPath = isSupplier ? "/admin/erp/supplier-payments" : "/admin/erp/payments";
   const detailSegment = isSupplier ? "supplier-payments" : "payments";
@@ -168,10 +209,22 @@ export function ErpSettlementFormView({
     setError(null);
     if (!partyId) return setError(isSupplier ? "Select a vendor." : "Select a customer.");
     if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (!accountId) return setError(isSupplier ? "Paid through account is required." : "Deposit account is required.");
-    if (openLines.length === 0) return setError("No open balances to settle.");
-    if (discountAmount >= outstandingTotal) {
-      return setError("Discount must be less than outstanding balance.");
+    if (!accountId) {
+      return setError(isSupplier ? "Paid through account is required." : "Deposit account is required.");
+    }
+    if (!preview || netBalance <= 0) {
+      return setError("No account balance to settle.");
+    }
+    if (discountAmount > 0 && documentSettleTotal <= 0) {
+      return setError("No open document balance for a settlement discount.");
+    }
+    if (discountAmount >= documentSettleTotal && documentSettleTotal > 0) {
+      return setError("Discount must be less than the document balance to settle.");
+    }
+    if (discountAmount > 0 && openingPortion > 0.001) {
+      return setError(
+        "Settlement discount applies to open documents only. Pay opening balance separately or remove the discount.",
+      );
     }
     if (cashAmount <= 0) return setError("Amount to pay must be positive.");
     if (discountAmount > 0 && !discountAccountId) {
@@ -184,38 +237,30 @@ export function ErpSettlementFormView({
 
     startTransition(async () => {
       try {
-        const allocations = isSupplier
-          ? openLines.map((l) => ({ purchaseBillId: l.id, amount: l.balance }))
-          : openLines.map((l) => ({ invoiceId: l.id, amount: l.balance }));
-
         const body = isSupplier
           ? {
+              accountSettlement: true,
               vendorId: partyId,
               storeId: effectiveStoreId,
               paymentDate,
               paymentMode,
               accountId,
-              totalAmount: cashAmount,
               settlementDiscount: discountAmount,
               settlementDiscountAccountId: discountAmount > 0 ? discountAccountId : undefined,
               reference: reference || undefined,
-              notes: notes || `Account settlement${discountAmount > 0 ? ` (discount ${discountAmount})` : ""}`,
-              isBulk: false,
-              allocations,
+              notes: notes || undefined,
             }
           : {
+              accountSettlement: true,
               userId: partyId,
               storeId: effectiveStoreId,
               paymentDate,
               paymentMode,
               accountId,
-              totalAmount: cashAmount,
               settlementDiscount: discountAmount,
               settlementDiscountAccountId: discountAmount > 0 ? discountAccountId : undefined,
               reference: reference || undefined,
-              notes: notes || `Account settlement${discountAmount > 0 ? ` (discount ${discountAmount})` : ""}`,
-              isBulk: false,
-              allocations,
+              notes: notes || undefined,
             };
 
         const res = await adminPost<{ id: string }>(apiBase, body);
@@ -230,8 +275,8 @@ export function ErpSettlementFormView({
 
   const title = isSupplier ? "Settle vendor account" : "Settle customer account";
   const description = isSupplier
-    ? "Clear all open purchase bills. Enter a discount if the vendor agreed to accept less than the full payable."
-    : "Clear all open invoices. Enter a discount if the customer paid less than the full receivable.";
+    ? "Applies vendor credits to open bills (FIFO), then records one payment for the remaining net balance."
+    : "Applies credit notes to open invoices (FIFO), then records one payment for the remaining net balance.";
 
   const footer = isModal ? (
     <AdminFormActions
@@ -303,45 +348,57 @@ export function ErpSettlementFormView({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Open balances" className="lg:col-span-2">
-            {loadingDocs ? (
-              <p className="text-sm text-muted-foreground">Loading open documents…</p>
-            ) : openLines.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {partyId
-                  ? "No open balances for this account in the selected store."
-                  : "Select a party to load open balances."}
-              </p>
+          <AdminFormSection title="Account items" className="lg:col-span-2">
+            {loadingPreview ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : !partyId ? (
+              <p className="text-sm text-muted-foreground">Select a party to load items.</p>
+            ) : !preview ? (
+              <p className="text-sm text-muted-foreground">Could not load settlement preview.</p>
+            ) : settlementLines.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No balance to settle in this store.</p>
             ) : (
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>{isSupplier ? "Bill" : "Invoice"}</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Number</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Balance</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {openLines.map((line) => (
-                      <TableRow key={line.id}>
+                    {settlementLines.map((line) => (
+                      <TableRow key={line.key}>
+                        <TableCell className="text-muted-foreground">{line.type}</TableCell>
                         <TableCell className="font-medium">{line.number}</TableCell>
                         <TableCell>{line.date}</TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {formatCurrencyAmount(line.balance)}
+                        <TableCell
+                          className={`text-right tabular-nums ${line.amount < 0 ? "text-emerald-700 dark:text-emerald-400" : ""}`}
+                        >
+                          {formatCurrencyAmount(line.amount)}
                         </TableCell>
                       </TableRow>
                     ))}
-                    <TableRow>
-                      <TableCell colSpan={2} className="font-medium">Total outstanding</TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums">
-                        {formatCurrencyAmount(outstandingTotal)}
+                    <TableRow className="bg-muted/50 font-semibold">
+                      <TableCell colSpan={3}>Net balance</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrencyAmount(netBalance)}
                       </TableCell>
                     </TableRow>
                   </TableBody>
                 </Table>
               </div>
             )}
+            {preview?.plannedCreditApplications.length ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Credits are applied to open documents (FIFO) when you record settlement.
+              </p>
+            ) : null}
+            {preview?.openingBalanceNote ? (
+              <p className="mt-1 text-sm text-muted-foreground">{preview.openingBalanceNote}</p>
+            ) : null}
           </AdminFormSection>
 
           <AdminFormSection title="Settlement amounts" className="lg:col-span-2">
@@ -350,7 +407,7 @@ export function ErpSettlementFormView({
                 <Input
                   type="number"
                   min={0}
-                  step="0.01"
+                  step="0.001"
                   placeholder="0"
                   value={settlementDiscount}
                   onChange={(e) => setSettlementDiscount(e.target.value)}
@@ -360,7 +417,7 @@ export function ErpSettlementFormView({
                 <Input
                   readOnly
                   className="bg-muted"
-                  value={outstandingTotal > 0 ? cashAmount.toFixed(2) : ""}
+                  value={netBalance > 0 ? formatDisplayDecimal(cashAmount) : ""}
                 />
               </AdminFormField>
               {discountAmount > 0 ? (
@@ -387,12 +444,18 @@ export function ErpSettlementFormView({
             </AdminFormGrid>
             {discountAmount > 0 ? (
               <p className="text-sm text-muted-foreground">
-                Documents totalling {formatCurrencyAmount(outstandingTotal)} will be marked settled;
-                {isSupplier ? " you pay" : " you receive"}{" "}
+                Document balance after credits{" "}
+                {formatCurrencyAmount(documentSettleTotal)};{isSupplier ? " you pay" : " you receive"}{" "}
                 {formatCurrencyAmount(cashAmount)} with{" "}
-                {formatCurrencyAmount(discountAmount)} recorded as discount.
+                {formatCurrencyAmount(discountAmount)} recorded as a payment-time discount.
+                Posted commercial discounts already reduce document balances before this step.
               </p>
-            ) : null}
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Open credits and recorded discounts are applied first. Use a payment-time
+                discount only for the remaining cash difference.
+              </p>
+            )}
           </AdminFormSection>
 
           <AdminFormSection title="Payment" className="lg:col-span-2">
@@ -439,4 +502,3 @@ export function ErpSettlementFormView({
     </AdminFormShell>
   );
 }
-

@@ -12,7 +12,9 @@ import type {
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { directPrintErpEstimate } from "@/lib/direct-document-print";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
+import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -49,6 +51,7 @@ import { EstimateFormView } from "@/modules/admin/views/sales/estimate-form-view
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 
 export function AdminErpEstimatesView() {
+  const { showError } = useAppFeedback();
   const { activeStoreId, loading: erpContextLoading } = useErpStores();
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/estimates");
   const [search, setSearch] = useState("");
@@ -198,7 +201,13 @@ export function AdminErpEstimatesView() {
                         >
                           Edit estimate
                         </DropdownMenuItem>
-                        <DropdownMenuItem nativeButton={false} render={<Link href={`/admin/erp/estimates/${row.id}/print`} target="_blank" />}>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            void directPrintErpEstimate(row.id).catch((err) => {
+                              showError(err, "Couldn't print");
+                            });
+                          }}
+                        >
                           Print
                         </DropdownMenuItem>
                       </DropdownMenuGroup>

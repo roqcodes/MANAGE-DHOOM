@@ -1,7 +1,6 @@
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatDateOnly } from "@/lib/format-date";
 import type { TabularData, TabularExportSource } from "@/lib/export/tabular-export";
-import { downloadTabularCsv } from "@/lib/export/tabular-export";
 
 export function formatReportCell(value: unknown, format?: string) {
   if (value == null || value === "") return "—";
@@ -122,17 +121,6 @@ export function buildReportExportSource(opts: {
   };
 }
 
-/** @deprecated Prefer DataExportMenu with buildReportExportSource */
-export function exportReportCsv(
-  slug: string,
-  columns: { key: string; label: string; format?: string }[],
-  rows: Record<string, unknown>[],
-) {
-  if (rows.length === 0) return;
-  const { headers, rows: body } = reportColumnsToTabular(columns, rows);
-  downloadTabularCsv({ baseFilename: slug, headers, rows: body });
-}
-
 export type TrialBalanceRow = {
   account_code?: string;
   account_name?: string;
@@ -141,7 +129,17 @@ export type TrialBalanceRow = {
   balance?: number;
   period_debit?: number;
   period_credit?: number;
+  cumulative_debit?: number;
+  cumulative_credit?: number;
 };
+
+export function trialBalanceDebit(row: TrialBalanceRow) {
+  return Number(row.period_debit ?? row.cumulative_debit ?? 0);
+}
+
+export function trialBalanceCredit(row: TrialBalanceRow) {
+  return Number(row.period_credit ?? row.cumulative_credit ?? 0);
+}
 
 export const TRIAL_BALANCE_SECTIONS: { title: string; categories: string[] }[] = [
   { title: "Assets", categories: ["Assets", "AccountsRecievable"] },
@@ -175,11 +173,32 @@ export function partitionBalanceSheetRows(rows: TrialBalanceRow[]) {
   const liabilities: TrialBalanceRow[] = [];
   const equity: TrialBalanceRow[] = [];
 
+  let currentYearEarningsRaw = 0;
+
   for (const row of rows) {
     const cat = row.account_category ?? "";
-    if (ASSET_CATEGORIES.has(cat)) assets.push(row);
-    else if (LIABILITY_CATEGORIES.has(cat)) liabilities.push(row);
-    else if (EQUITY_CATEGORIES.has(cat)) equity.push(row);
+    const rawBalance = Number(row.balance ?? 0);
+
+    if (cat === "Income" || cat === "Expense") {
+      currentYearEarningsRaw += rawBalance;
+    } else if (ASSET_CATEGORIES.has(cat)) {
+      assets.push({ ...row, balance: rawBalance });
+    } else if (LIABILITY_CATEGORIES.has(cat)) {
+      liabilities.push({ ...row, balance: -rawBalance });
+    } else if (EQUITY_CATEGORIES.has(cat)) {
+      equity.push({ ...row, balance: -rawBalance });
+    }
+  }
+
+  // Current year earnings: it's part of equity (credit-normal), so flip sign for presentation
+  if (currentYearEarningsRaw !== 0) {
+    equity.push({
+      account_code: "",
+      account_name: "Current year earnings",
+      account_category: "Equity",
+      account_type_name: "Equity",
+      balance: -currentYearEarningsRaw,
+    });
   }
 
   const sum = (list: TrialBalanceRow[]) =>

@@ -387,7 +387,7 @@ export function VendorCreditFormView({
   const title = mode === "edit" ? "Edit vendor credit" : "New vendor credit";
   const description = creditNumber
     ? creditNumber
-    : "Record supplier credits against purchase bills. Credits can auto-apply to the source bill when finalized.";
+    : "Record returned goods or bill corrections. For a price concession without returning stock, use Record discount instead.";
 
   const sidebar = (
     <Card className="h-fit border-border py-0 ring-0">
@@ -525,6 +525,8 @@ export function VendorCreditFormView({
                   selectedLabel={billLabel || undefined}
                   vendorId={vendorId || undefined}
                   storeId={effectiveStoreId || undefined}
+                  linkMode="vendorCredit"
+                  elevatedDropdown={isModal}
                   disabled={!vendorId}
                   onChange={(id, option) => {
                     setSourceBillId(id ?? "");

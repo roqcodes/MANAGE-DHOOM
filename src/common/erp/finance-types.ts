@@ -318,6 +318,8 @@ export function serializeFixedAssetMaintenance(info: FixedAssetMaintenanceInfo):
 export type ErpFinancialDashboard = {
   accounts_receivable: number;
   accounts_payable: number;
+  ar_gl?: number;
+  ap_gl?: number;
   net_income_ytd: number;
   /** Recognized COGS from posted journals (not purchase bills). */
   cogs_ytd: number;

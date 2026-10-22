@@ -168,6 +168,7 @@ export function InvoiceFormView({
       notes: string | null;
       users: { name: string | null; email: string | null } | null;
       invoice_items: Array<{
+        product_id: string | null;
         variant_id: string | null;
         product_name: string;
         description: string | null;
@@ -190,7 +191,7 @@ export function InvoiceFormView({
         setLines(
           detail.invoice_items.map((item) => ({
             key: `line-${item.product_name}-${Math.random().toString(36).slice(2, 7)}`,
-            productId: (item as { product_id?: string | null }).product_id ?? null,
+            productId: item.product_id,
             variantId: item.variant_id,
             productName: item.product_name,
             description: item.description ?? "",
@@ -244,7 +245,7 @@ export function InvoiceFormView({
     setCustomerId(savedId);
     try {
       const res = await adminGet<{ profile: CustomerErpProfile }>(
-        `customers/${savedId}/erp`,
+        `customers/${savedId}/erp?view=profile`,
       );
       setCustomerLabel(customerSelectLabel(res.profile));
     } catch {

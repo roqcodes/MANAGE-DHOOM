@@ -17,6 +17,7 @@ export function PaymentsReceivedSummary({ data }: { data: Record<string, unknown
     ["Cheque", data.check],
     ["Bank remittance", data.bank_remittance],
     ["Bank transfer", data.bank_transfer],
+    ["Other", data.other],
   ] as const;
 
   return (
@@ -42,7 +43,8 @@ export function PaymentsReceivedSummary({ data }: { data: Record<string, unknown
       </AdminDataTable>
       <p className="px-4 pb-3 text-xs text-muted-foreground">
         {Number(data.count ?? 0)} payments · Bank charges{" "}
-        {formatCurrencyAmount(Number(data.bank_charges ?? 0))} · Total{" "}
+        {formatCurrencyAmount(Number(data.bank_charges ?? 0))} · Settlement{" "}
+        {formatCurrencyAmount(Number(data.settlement_discount ?? 0))} · Total{" "}
         {formatCurrencyAmount(Number(data.total ?? 0))}
       </p>
     </div>

@@ -129,18 +129,32 @@ export async function getStoreStockForProduct(
   storeId: string,
   productId: string,
 ): Promise<number> {
-  await requireAdminOrManagerProfile();
-  const supabase = await createSupabaseServerClient();
+  const stocks = await getStoreStockForProducts(storeId, [productId]);
+  return stocks[productId] ?? 0;
+}
 
+export async function getStoreStockForProducts(
+  storeId: string,
+  productIds: string[],
+): Promise<Record<string, number>> {
+  await requireAdminOrManagerProfile();
+  const uniqueIds = [...new Set(productIds.filter(Boolean))];
+  const stocks: Record<string, number> = {};
+  for (const id of uniqueIds) stocks[id] = 0;
+  if (uniqueIds.length === 0) return stocks;
+
+  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("store_product_inventory")
-    .select("stock")
+    .select("product_id, stock")
     .eq("store_id", storeId)
-    .eq("product_id", productId)
-    .maybeSingle();
+    .in("product_id", uniqueIds);
 
   if (error) throw new Error(error.message);
-  return Math.max(0, Math.floor(Number(data?.stock ?? 0)));
+  for (const row of data ?? []) {
+    stocks[row.product_id] = Math.max(0, Math.floor(Number(row.stock ?? 0)));
+  }
+  return stocks;
 }
 
 /** @deprecated Use getStoreStockForProduct */

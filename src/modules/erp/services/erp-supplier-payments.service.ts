@@ -15,7 +15,7 @@ import type {
   SupplierPaymentModeTotals,
 } from "@/common/erp/purchasing-types";
 import { ERP_SUPPLIER_PAYMENT_MODES } from "@/common/erp/purchasing-types";
-import { logAuditEventRequired } from "@/modules/erp/services/audit-log.service";
+import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { erpDocumentDateSortKey } from "@/lib/format-date";
 import {
@@ -29,8 +29,145 @@ import {
   listIncomeAccounts,
 } from "@/modules/erp/services/erp-payments.service";
 import type { Json } from "@/lib/integrations/supabase/types";
+import { quantizePaymentAmount } from "@/lib/decimal-precision";
+import {
+  normalizePaymentAllocationAmount,
+  PAYMENT_BALANCE_TOLERANCE,
+  paymentAmountExceedsBalance,
+} from "@/modules/erp/lib/payment-balance-validation";
 
 const BULK_REF_PREFIX = "BULK:";
+const DUPLICATE_PAYMENT_LOOKBACK_MS = 5 * 60 * 1000;
+
+type PurchaseBillBalanceRow = {
+  id: string;
+  vendor_id: string;
+  store_id: string;
+  purchase_bill_number: string;
+  balance_due: number | null;
+};
+
+function amountsRoughlyEqual(
+  a: number,
+  b: number,
+  tolerance = PAYMENT_BALANCE_TOLERANCE,
+): boolean {
+  return Math.abs(quantizePaymentAmount(a) - quantizePaymentAmount(b)) <= tolerance;
+}
+
+async function findDuplicateSupplierPaymentId(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  params: {
+    vendorId: string;
+    storeId: string;
+    totalAmount: number;
+    reference?: string | null;
+    purchaseBillId: string;
+    allocationAmount: number;
+  },
+): Promise<string | null> {
+  const trimmedRef = params.reference?.trim();
+  if (trimmedRef) {
+    const { data } = await supabase
+      .from("erp_supplier_payments")
+      .select("id")
+      .eq("vendor_id", params.vendorId)
+      .eq("store_id", params.storeId)
+      .eq("reference", trimmedRef)
+      .eq("total_amount", params.totalAmount)
+      .eq("is_bulk", false)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (data?.id) return data.id;
+  }
+
+  const since = new Date(Date.now() - DUPLICATE_PAYMENT_LOOKBACK_MS).toISOString();
+  const { data: allocRows } = await supabase
+    .from("erp_supplier_payment_allocations")
+    .select(
+      "payment_id, amount, erp_supplier_payments!inner(id, vendor_id, store_id, total_amount, created_at)",
+    )
+    .eq("purchase_bill_id", params.purchaseBillId)
+    .gte("erp_supplier_payments.created_at", since);
+
+  for (const row of allocRows ?? []) {
+    const payment = row.erp_supplier_payments as {
+      id: string;
+      vendor_id: string;
+      store_id: string;
+      total_amount: number;
+    } | null;
+    if (!payment) continue;
+    if (payment.vendor_id !== params.vendorId || payment.store_id !== params.storeId) continue;
+    if (!amountsRoughlyEqual(Number(payment.total_amount), params.totalAmount)) continue;
+    if (!amountsRoughlyEqual(Number(row.amount), params.allocationAmount)) continue;
+    return payment.id;
+  }
+
+  return null;
+}
+
+async function resolveSupplierPaymentAllocations(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  input: {
+    vendorId: string;
+    storeId: string;
+    totalAmount: number;
+    reference?: string | null;
+    allocations: SupplierPaymentAllocationInput[];
+  },
+): Promise<{ allocations: SupplierPaymentAllocationInput[]; duplicatePaymentId: string | null }> {
+  if (input.allocations.length === 0) {
+    return { allocations: input.allocations, duplicatePaymentId: null };
+  }
+
+  const billIds = input.allocations.map((a) => a.purchaseBillId);
+  const { data: billRows, error: billLookupError } = await supabase
+    .from("erp_purchase_bills")
+    .select("id, vendor_id, store_id, purchase_bill_number, balance_due")
+    .in("id", billIds);
+  if (billLookupError) throw new Error(billLookupError.message);
+
+  const billById = new Map((billRows ?? []).map((row) => [row.id, row as PurchaseBillBalanceRow]));
+  const normalized: SupplierPaymentAllocationInput[] = [];
+
+  for (const alloc of input.allocations) {
+    const bill = billById.get(alloc.purchaseBillId);
+    if (!bill) throw new Error("Purchase bill not found");
+    if (bill.vendor_id !== input.vendorId) {
+      throw new Error(`Bill ${bill.purchase_bill_number} does not belong to this vendor`);
+    }
+    if (bill.store_id !== input.storeId) {
+      throw new Error(`Bill ${bill.purchase_bill_number} belongs to a different store`);
+    }
+
+    const balance = Number(bill.balance_due ?? 0);
+    const amount = quantizePaymentAmount(alloc.amount);
+
+    if (paymentAmountExceedsBalance(amount, balance)) {
+      const duplicatePaymentId = await findDuplicateSupplierPaymentId(supabase, {
+        vendorId: input.vendorId,
+        storeId: input.storeId,
+        totalAmount: input.totalAmount,
+        reference: input.reference,
+        purchaseBillId: alloc.purchaseBillId,
+        allocationAmount: amount,
+      });
+      if (duplicatePaymentId) {
+        return { allocations: normalized, duplicatePaymentId };
+      }
+      throw new Error(`Amount exceeds balance for bill ${bill.purchase_bill_number}`);
+    }
+
+    normalized.push({
+      purchaseBillId: alloc.purchaseBillId,
+      amount: normalizePaymentAllocationAmount(amount, balance),
+    });
+  }
+
+  return { allocations: normalized, duplicatePaymentId: null };
+}
 
 export interface SupplierPaymentListOptions {
   page?: number;
@@ -294,7 +431,7 @@ export async function buildFifoAllocationsForBills(
 
   let query = supabase
     .from("erp_purchase_bills")
-    .select("id, balance_due, due_date, purchase_date")
+    .select("id, purchase_bill_number, balance_due, due_date, purchase_date")
     .eq("store_id", storeId)
     .gt("balance_due", 0)
     .in("status", ["finalized", "partial"])
@@ -319,7 +456,12 @@ export async function buildFifoAllocationsForBills(
     const balance = Number(bill.balance_due ?? 0);
     if (balance <= 0) continue;
     const alloc = Math.min(remaining, balance);
-    allocations.push({ purchaseBillId: bill.id, amount: alloc });
+    allocations.push({
+      purchaseBillId: bill.id,
+      amount: alloc,
+      purchaseBillNumber: bill.purchase_bill_number,
+      balanceDue: balance,
+    });
     remaining -= alloc;
   }
 
@@ -440,7 +582,7 @@ export async function recordSupplierPayment(input: {
   settlementDiscount?: number;
   settlementDiscountAccountId?: string | null;
 }): Promise<string> {
-  await requireAdminOrManagerProfile();
+  const actor = await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(input.storeId);
 
@@ -448,23 +590,17 @@ export async function recordSupplierPayment(input: {
     throw new Error("Invalid payment mode");
   }
 
+  const totalAmount = quantizePaymentAmount(input.totalAmount);
+
   let allocations = input.allocations;
   if (allocations.length === 0 && input.autoAllocate) {
     allocations = await buildAutoAllocations(
       input.vendorId,
-      input.totalAmount,
+      totalAmount,
       storeId,
     );
     if (allocations.length === 0) {
       throw new Error("No open bills available for FIFO allocation.");
-    }
-  }
-
-  if (allocations.length === 1) {
-    const bill = await listPayableBillsForVendor(input.vendorId, storeId);
-    const target = bill.find((b) => b.id === allocations[0].purchaseBillId);
-    if (target && allocations[0].amount > target.balance_due) {
-      throw new Error("Payment amount exceeds bill balance due");
     }
   }
 
@@ -473,37 +609,27 @@ export async function recordSupplierPayment(input: {
     throw new Error("Discount account is required when settlement discount is recorded");
   }
 
-  const allocTotal = allocations.reduce((s, a) => s + a.amount, 0);
+  const allocTotal = quantizePaymentAmount(allocations.reduce((s, a) => s + a.amount, 0));
   if (settlementDiscount > 0) {
-    if (Math.abs(allocTotal - (input.totalAmount + settlementDiscount)) > 0.02) {
+    if (Math.abs(allocTotal - (totalAmount + settlementDiscount)) > 0.02) {
       throw new Error("Allocation total must equal payment amount plus settlement discount");
     }
-  } else if (allocTotal > input.totalAmount) {
+  } else if (allocTotal > totalAmount) {
     throw new Error("Allocation total exceeds payment amount");
   }
 
   if (allocations.length > 0) {
-    const billIds = allocations.map((a) => a.purchaseBillId);
-    const { data: billRows, error: billLookupError } = await supabase
-      .from("erp_purchase_bills")
-      .select("id, vendor_id, store_id, purchase_bill_number, balance_due")
-      .in("id", billIds);
-    if (billLookupError) throw new Error(billLookupError.message);
-
-    const billById = new Map((billRows ?? []).map((row) => [row.id, row]));
-    for (const alloc of allocations) {
-      const bill = billById.get(alloc.purchaseBillId);
-      if (!bill) throw new Error("Purchase bill not found");
-      if (bill.vendor_id !== input.vendorId) {
-        throw new Error(`Bill ${bill.purchase_bill_number} does not belong to this vendor`);
-      }
-      if (bill.store_id !== storeId) {
-        throw new Error(`Bill ${bill.purchase_bill_number} belongs to a different store`);
-      }
-      if (alloc.amount > Number(bill.balance_due ?? 0)) {
-        throw new Error(`Amount exceeds balance for bill ${bill.purchase_bill_number}`);
-      }
+    const resolved = await resolveSupplierPaymentAllocations(supabase, {
+      vendorId: input.vendorId,
+      storeId,
+      totalAmount,
+      reference: input.reference,
+      allocations,
+    });
+    if (resolved.duplicatePaymentId) {
+      return resolved.duplicatePaymentId;
     }
+    allocations = resolved.allocations;
   }
 
   const allocJson: Json = allocations.map((a) => ({
@@ -519,7 +645,7 @@ export async function recordSupplierPayment(input: {
     p_payment_date: input.paymentDate,
     p_payment_mode: input.paymentMode,
     p_account_id: input.accountId ?? undefined,
-    p_total_amount: input.totalAmount,
+    p_total_amount: totalAmount,
     p_reference: input.reference ?? undefined,
     p_notes: input.notes ?? undefined,
     p_is_bulk: input.isBulk ?? false,
@@ -545,24 +671,28 @@ export async function recordSupplierPayment(input: {
 
   const paymentNumber = paymentRow?.payment_number ?? null;
 
-  await logAuditEventRequired({
+  const auditId = await logAuditEvent({
     action: input.isBulk ? "create_bulk_supplier_payment" : "supplier_payment",
     entityType: "supplier_payment",
     entityId: paymentId,
     description: paymentNumber
-      ? `${input.isBulk ? "Bulk payment line" : "Payment made"} ${paymentNumber}: ${input.totalAmount}${
+      ? `${input.isBulk ? "Bulk payment line" : "Payment made"} ${paymentNumber}: ${totalAmount}${
           settlementDiscount > 0 ? ` (settlement discount ${settlementDiscount})` : ""
         }`
-      : `Supplier payment: ${input.totalAmount}`,
+      : `Supplier payment: ${totalAmount}`,
     metadata: {
       payment_number: paymentNumber,
       reference: paymentRow?.reference ?? input.reference ?? null,
-      total_amount: input.totalAmount,
+      total_amount: totalAmount,
       settlement_discount: settlementDiscount > 0 ? settlementDiscount : undefined,
       is_bulk: input.isBulk ?? false,
     },
     storeId,
+    userId: actor.id,
   });
+  if (!auditId) {
+    console.warn("Supplier payment saved but activity log was not written", { paymentId });
+  }
 
   return paymentId;
 }
@@ -577,7 +707,7 @@ export async function recordBulkSupplierPaymentBatch(input: {
   notes?: string;
   billLines: Array<{ purchaseBillId: string; amount: number }>;
 }): Promise<string> {
-  await requireAdminOrManagerProfile();
+  const actor = await requireAdminOrManagerProfile();
   const storeId = await requireErpStoreId(input.storeId);
   if (!input.accountId) throw new Error("Paid through account is required");
   if (input.billLines.length === 0) throw new Error("Add at least one bill payment");
@@ -603,12 +733,17 @@ export async function recordBulkSupplierPaymentBatch(input: {
     const bill = billById.get(line.purchaseBillId);
     if (!bill) throw new Error("Purchase bill not found");
     if (bill.store_id !== storeId) throw new Error("Bill belongs to a different store");
-    if (line.amount > Number(bill.balance_due ?? 0)) {
+    const balance = Number(bill.balance_due ?? 0);
+    const amount = quantizePaymentAmount(line.amount);
+    if (paymentAmountExceedsBalance(amount, balance)) {
       throw new Error(`Amount exceeds balance for bill ${bill.purchase_bill_number}`);
     }
 
     const existing = byVendor.get(bill.vendor_id) ?? [];
-    existing.push(line);
+    existing.push({
+      purchaseBillId: line.purchaseBillId,
+      amount: normalizePaymentAllocationAmount(amount, balance),
+    });
     byVendor.set(bill.vendor_id, existing);
   }
 
@@ -642,7 +777,7 @@ export async function recordBulkSupplierPaymentBatch(input: {
   if (bulkError) throw new Error(bulkError.message);
 
   const batchTotal = input.billLines.reduce((s, l) => s + l.amount, 0);
-  await logAuditEventRequired({
+  const auditId = await logAuditEvent({
     action: "create_bulk_supplier_payment",
     entityType: "supplier_payment_batch",
     entityId: batchId,
@@ -655,7 +790,11 @@ export async function recordBulkSupplierPaymentBatch(input: {
       vendor_count: byVendor.size,
     },
     storeId,
+    userId: actor.id,
   });
+  if (!auditId) {
+    console.warn("Bulk supplier payment saved but activity log was not written", { batchId });
+  }
 
   return batchId;
 }

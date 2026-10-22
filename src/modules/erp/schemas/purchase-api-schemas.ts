@@ -1,12 +1,18 @@
 import { z } from "zod";
 
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
+import { nullIfEmptyDate } from "@/lib/format-date";
+
+const zOptionalDateField = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => nullIfEmptyDate(v ?? undefined));
 
 const purchaseLineSchema = z.object({
   productId: z.string().uuid().nullable().optional(),
   productName: z.string().optional(),
   barcode: z.string().nullable().optional(),
-  expiryDate: z.string().nullable().optional(),
+  expiryDate: zOptionalDateField,
   quantity: z.number().positive(),
   purchasePrice: z.number(),
   taxRatePercent: z.number(),
@@ -25,7 +31,7 @@ const landedCostSchema = z.object({
 export const purchaseOrderCreatePayloadSchema = z.object({
   vendorId: z.string().uuid(),
   poDate: z.string().min(1),
-  expectedDeliveryDate: z.string().nullable().optional(),
+  expectedDeliveryDate: zOptionalDateField,
   reference: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   lines: z.array(purchaseLineSchema).min(1),
@@ -44,7 +50,7 @@ export const purchaseOrderDeliverLineSchema = z.object({
 
 export const purchaseOrderDeliverFinalizePayloadSchema = z.object({
   poId: z.string().uuid(),
-  receiveDate: z.string().optional(),
+  receiveDate: zOptionalDateField,
   notes: z.string().nullable().optional(),
   lines: z.array(purchaseOrderDeliverLineSchema).min(1),
 });
@@ -52,8 +58,8 @@ export const purchaseOrderDeliverFinalizePayloadSchema = z.object({
 export const purchaseBillCreatePayloadSchema = z.object({
   vendorId: z.string().uuid(),
   purchaseDate: z.string().min(1),
-  dueDate: z.string().nullable().optional(),
-  expectedDeliveryDate: z.string().nullable().optional(),
+  dueDate: zOptionalDateField,
+  expectedDeliveryDate: zOptionalDateField,
   poId: z.string().uuid().nullable().optional(),
   vendorBillNumber: z.string().nullable().optional(),
   grnReference: z.string().nullable().optional(),

@@ -9,9 +9,11 @@ import { adminDelete, adminGet, adminPost } from "@/modules/admin/lib/admin-api-
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
 import { ErpDocumentActions } from "@/modules/erp/components/erp-document-actions";
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
+import { creditKindLabel, formatCustomerCreditNoteRef } from "@/common/erp/commercial-discount";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { formatDateOnly } from "@/lib/format-date";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
-import { Button } from "@/components/ui/button";
+import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
@@ -28,6 +30,7 @@ type CreditNoteDetail = {
   credit_note_number: string;
   credit_note_date: string;
   status: string;
+  credit_kind?: string | null;
   total_amount: number;
   balance_remaining: number;
   reference: string | null;
@@ -101,18 +104,25 @@ export function CreditNoteDetailView({ creditNoteId }: { creditNoteId: string })
     router.push("/admin/erp/credit-notes");
   }
 
+  const displayRef = formatCustomerCreditNoteRef({
+    id: detail.id,
+    credit_note_number: detail.credit_note_number,
+    credit_kind: detail.credit_kind,
+  });
+  const isDiscount = detail.credit_kind === "discount";
+
   return (
     <AdminPageLayout>
       <AdminPageHeader
-        title={formatErpDocRef("CN", creditNoteId)}
-        description={`${detail.credit_note_date} · ${detail.status}`}
+        title={displayRef}
+        description={`${formatDateOnly(detail.credit_note_date)} · ${detail.status} · ${creditKindLabel(detail.credit_kind)}`}
         backHref="/admin/erp/credit-notes"
         breadcrumb={[
           { label: "Credit notes", href: "/admin/erp/credit-notes" },
-          { label: formatErpDocRef("CN", creditNoteId) },
+          { label: displayRef },
         ]}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             <ErpDocumentActions
               layout="bar"
               showView={false}
@@ -126,11 +136,11 @@ export function CreditNoteDetailView({ creditNoteId }: { creditNoteId: string })
               onDelete={deleteDraft}
             />
             {canFinalize ? (
-              <Button disabled={pending} onClick={finalize}>
+              <ErpPostActionButton disabled={pending} onClick={finalize}>
                 {pending ? "Finalizing…" : "Finalize & issue"}
-              </Button>
+              </ErpPostActionButton>
             ) : null}
-          </div>
+          </>
         }
       />
 
@@ -172,7 +182,8 @@ export function CreditNoteDetailView({ creditNoteId }: { creditNoteId: string })
                       className="font-medium text-primary hover:underline"
                       title={detail.source_invoice.invoice_number}
                     >
-                      {formatErpDocRef("INV", detail.source_invoice.id)}
+                      {detail.source_invoice.invoice_number?.trim() ||
+                        formatErpDocRef("INV", detail.source_invoice.id)}
                     </Link>
                   </CardContent>
                 </Card>
@@ -260,9 +271,15 @@ export function CreditNoteDetailView({ creditNoteId }: { creditNoteId: string })
                   {formatCurrencyAmount(detail.balance_remaining)}
                 </span>
               </div>
+              {detail.notes ? (
+                <p className="border-t pt-3 text-xs text-muted-foreground whitespace-pre-wrap">
+                  {detail.notes}
+                </p>
+              ) : null}
               <p className="border-t pt-3 text-xs text-muted-foreground">
-                Credit notes linked to a source invoice automatically reduce that invoice balance
-                (Winner-style). Stock and accounts are adjusted on issue.
+                {isDiscount
+                  ? "Commercial discounts reduce invoice balance without returning stock."
+                  : "Returns linked to a source invoice reduce that invoice balance. Stock and accounts are adjusted on issue."}
               </p>
             </CardContent>
           </Card>

@@ -35,6 +35,11 @@ export function prefetchErpInvoiceDetail(qc: QueryClient, invoiceId: string) {
   return prefetchErpGet(qc, `erp/invoices/${invoiceId}`);
 }
 
+export function prefetchErpCreditNoteDetail(qc: QueryClient, creditNoteId: string) {
+  if (!creditNoteId) return Promise.resolve();
+  return prefetchErpGet(qc, `erp/credit-notes/${creditNoteId}`);
+}
+
 /** Default first-page GET matching the destination list’s adminListPath. */
 function erpListPrefetchPath(hrefPath: string, storeId: string | undefined): string | null {
   const today = localYmd();

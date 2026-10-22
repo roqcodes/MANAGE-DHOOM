@@ -206,7 +206,7 @@ export function ErpListRowActions({
             <MoreHorizontal />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {renderMenuItems(dropdownItems)}
+            {renderMenuItems(dropdownItems, showError)}
           </DropdownMenuContent>
         </DropdownMenu>
       ) : null}
@@ -214,7 +214,10 @@ export function ErpListRowActions({
   );
 }
 
-function renderMenuItems(items: ErpListMenuItem[]) {
+function renderMenuItems(
+  items: ErpListMenuItem[],
+  showError: (error: unknown, title?: string) => void,
+) {
   const nodes: ReactNode[] = [];
   let group: ErpListMenuItem[] = [];
 
@@ -222,22 +225,30 @@ function renderMenuItems(items: ErpListMenuItem[]) {
     if (group.length === 0) return;
     nodes.push(
       <DropdownMenuGroup key={`group-${nodes.length}`}>
-        {group.map((item) => (
-          <DropdownMenuItem
-            key={item.label}
-            nativeButton={false}
-            render={
-              item.href ? (
-                <Link href={item.href} target={item.href.includes("/print") ? "_blank" : undefined} />
-              ) : undefined
-            }
-            disabled={item.disabled}
-            variant={item.destructive ? "destructive" : "default"}
-            onClick={item.onClick}
-          >
-            {item.label}
-          </DropdownMenuItem>
-        ))}
+        {group.map((item) => {
+          const isPrintPath = item.href?.includes("/print") ?? false;
+          return (
+            <DropdownMenuItem
+              key={item.label}
+              nativeButton={false}
+              render={item.href && !isPrintPath ? <Link href={item.href} /> : undefined}
+              disabled={item.disabled}
+              variant={item.destructive ? "destructive" : "default"}
+              onClick={
+                isPrintPath && item.href
+                  ? () => {
+                      void directPrintFromAdminPath(item.href!).catch((err) => {
+                        console.error(err);
+                        showError(err, "Couldn't print");
+                      });
+                    }
+                  : item.onClick
+              }
+            >
+              {item.label}
+            </DropdownMenuItem>
+          );
+        })}
       </DropdownMenuGroup>,
     );
     group = [];

@@ -4,7 +4,7 @@ import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.serv
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { ReportChannel, ReportStockLevel } from "@/common/erp/report-types";
 import { getReportBySlug } from "@/common/erp/report-types";
-import { getFinancialDashboard } from "@/modules/erp/services/erp-finance-dashboard.service";
+import { requireErpStoreId } from "@/modules/erp/services/store-context.service";
 
 export type ReportQuery = {
   slug: string;
@@ -132,19 +132,19 @@ export async function runErpReport(
 
   const { from, to } = resolveReportDateBounds(query);
   const asOf = query.asOf ?? to;
-  const storeId = query.storeId ?? undefined;
+  const storeId =
+    report.slug === "stock-transfer-report"
+      ? query.storeId ?? undefined
+      : await requireErpStoreId(query.storeId);
   const channel = query.channel ?? "all";
   const salesmanId = query.salesmanId ?? null;
   const { ageMin, ageMax } = normalizeAgeRange(query.ageMinDays, query.ageMaxDays);
 
   if (report.slug === "finance-summary") {
-    if (storeId) {
-      const { getStoreFinancialDashboard } = await import(
-        "@/modules/erp/services/erp-finance-dashboard.service"
-      );
-      return getStoreFinancialDashboard(storeId, from, to);
-    }
-    return getFinancialDashboard();
+    const { getStoreFinancialDashboard } = await import(
+      "@/modules/erp/services/erp-finance-dashboard.service"
+    );
+    return getStoreFinancialDashboard(storeId, from, to);
   }
 
   if (report.slug === "balance-sheet") {
@@ -313,7 +313,7 @@ export async function runErpReport(
         p_store_id: storeId,
       });
     case "get_erp_store_wise_stock_report":
-      return callRpc(supabase, report.rpc, {});
+      return callRpc(supabase, report.rpc, { p_store_id: storeId });
     case "get_erp_purchase_by_item_report":
       return callRpc(supabase, report.rpc, {
         p_date_from: from,
@@ -336,6 +336,21 @@ export async function runErpReport(
         p_store_id: storeId,
         p_search: query.search ?? null,
       });
+    case "get_erp_customer_statement_report":
+    case "get_erp_vendor_statement_report":
+      return callRpc(supabase, report.rpc, {
+        p_date_from: from,
+        p_date_to: to,
+        p_store_id: storeId,
+        p_search: query.search ?? null,
+      });
+    case "get_erp_ar_ap_gl_recon_report":
+      return callRpc(supabase, report.rpc, {
+        p_as_of: asOf,
+        p_store_id: storeId,
+      });
+    case "get_erp_stock_gl_wac_recon_report":
+      return callRpc(supabase, report.rpc, { p_store_id: storeId });
     case "get_erp_activity_log_report": {
       const { listActivityLogReportRows } = await import(
         "@/modules/erp/services/audit-log.service"

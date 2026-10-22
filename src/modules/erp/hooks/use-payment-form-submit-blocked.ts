@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import { parsePaymentAmount } from "@/lib/decimal-precision";
 import {
   validatePaymentLinesBalance,
   validateSingleDocumentPaymentAmount,
@@ -26,7 +27,7 @@ export type PaymentFormSubmitBlockInput = {
 
 function currentAmountFieldIssue(input: PaymentFormSubmitBlockInput): string | null {
   if (!input.selectedDocumentId) return null;
-  const amt = parseFloat(input.lineAmount);
+  const amt = parsePaymentAmount(input.lineAmount);
   return validateSingleDocumentPaymentAmount(
     amt,
     input.selectedDocumentBalance ?? 0,

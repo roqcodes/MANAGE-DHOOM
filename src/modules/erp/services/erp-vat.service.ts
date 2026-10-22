@@ -236,23 +236,6 @@ export async function getVatReturnDetail(returnId: string): Promise<VatReturnDet
   };
 }
 
-async function loadCustomerNames(
-  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-  userIds: string[],
-): Promise<Map<string, string | null>> {
-  const uniqueIds = [...new Set(userIds.filter(Boolean))];
-  const nameById = new Map<string, string | null>();
-  if (uniqueIds.length === 0) return nameById;
-
-  const { data, error } = await supabase.from("users").select("id, name").in("id", uniqueIds);
-  if (error) throw new Error(error.message);
-
-  for (const user of data ?? []) {
-    nameById.set(user.id, user.name);
-  }
-  return nameById;
-}
-
 async function loadVatReturnSources(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   storeId: string | null,
@@ -267,14 +250,17 @@ async function loadVatReturnSources(
       supabase
         .from("invoices")
         .select(
-          "id, invoice_number, issued_at, created_at, gst_amount, total_amount, status, store_id, user_id",
+          "id, invoice_number, issued_at, created_at, gst_amount, total_amount, status, store_id, user_id, users:users!invoices_user_id_fkey(name)",
         )
         .in("status", ["issued", "partial", "paid", "overdue"])
+        .or(
+          `and(issued_at.gte.${periodStart},issued_at.lte.${periodEnd}),and(issued_at.is.null,created_at.gte.${periodStart}T00:00:00,created_at.lte.${periodEnd}T23:59:59)`,
+        )
         .match(storeFilter),
       supabase
         .from("erp_credit_notes")
         .select(
-          "id, credit_note_number, credit_note_date, tax_amount, total_amount, status, store_id, user_id",
+          "id, credit_note_number, credit_note_date, tax_amount, total_amount, status, store_id, user_id, users:users!erp_credit_notes_user_id_fkey(name)",
         )
         .in("status", ["issued", "applied"])
         .gte("credit_note_date", periodStart)
@@ -318,33 +304,34 @@ async function loadVatReturnSources(
     return effectiveDate && effectiveDate >= periodStart && effectiveDate <= periodEnd;
   });
 
-  const customerNames = await loadCustomerNames(supabase, [
-    ...filteredInvoices.map((row) => row.user_id as string),
-    ...(creditNotesRes.data ?? []).map((row) => row.user_id as string),
-  ]);
+  const salesInvoices: VatReturnSourceLine[] = filteredInvoices.map((row) => {
+    const user = row.users as { name: string | null } | null;
+    return {
+      id: row.id,
+      document_number: row.invoice_number,
+      document_date:
+        (row.issued_at as string | null)?.slice(0, 10) ??
+        (row.created_at as string | null)?.slice(0, 10) ??
+        "",
+      party_name: user?.name ?? null,
+      tax_amount: Number(row.gst_amount ?? 0),
+      total_amount: Number(row.total_amount ?? 0),
+      href: `/admin/erp/invoices/${row.id}`,
+    };
+  });
 
-  const salesInvoices: VatReturnSourceLine[] = filteredInvoices.map((row) => ({
-    id: row.id,
-    document_number: row.invoice_number,
-    document_date:
-      (row.issued_at as string | null)?.slice(0, 10) ??
-      (row.created_at as string | null)?.slice(0, 10) ??
-      "",
-    party_name: customerNames.get(row.user_id as string) ?? null,
-    tax_amount: Number(row.gst_amount ?? 0),
-    total_amount: Number(row.total_amount ?? 0),
-    href: `/admin/erp/invoices/${row.id}`,
-  }));
-
-  const creditNotes: VatReturnSourceLine[] = (creditNotesRes.data ?? []).map((row) => ({
-    id: row.id,
-    document_number: row.credit_note_number,
-    document_date: row.credit_note_date,
-    party_name: customerNames.get(row.user_id as string) ?? null,
-    tax_amount: Number(row.tax_amount ?? 0),
-    total_amount: Number(row.total_amount ?? 0),
-    href: `/admin/erp/credit-notes/${row.id}`,
-  }));
+  const creditNotes: VatReturnSourceLine[] = (creditNotesRes.data ?? []).map((row) => {
+    const user = row.users as { name: string | null } | null;
+    return {
+      id: row.id,
+      document_number: row.credit_note_number,
+      document_date: row.credit_note_date,
+      party_name: user?.name ?? null,
+      tax_amount: Number(row.tax_amount ?? 0),
+      total_amount: Number(row.total_amount ?? 0),
+      href: `/admin/erp/credit-notes/${row.id}`,
+    };
+  });
 
   const purchaseBills: VatReturnSourceLine[] = (billsRes.data ?? []).map((row) => {
     const vendor = row.vendors as { name: string } | null;

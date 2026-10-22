@@ -4,6 +4,7 @@ import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
 import { listAuditLogsForEntity } from "@/modules/erp/services/audit-log.service";
 import { getAdminErpContext } from "@/modules/erp/services/store-context.service";
 import {
+  getVendorErpDetailBundle,
   getVendorErpProfile,
   getVendorErpSummary,
   getVendorPurchaseBills,
@@ -18,14 +19,25 @@ export async function GET(request: Request, context: RouteContext) {
   if (!auth.ok) return auth.response;
   const { id } = await context.params;
   const view = new URL(request.url).searchParams.get("view");
-  const ctx = await getAdminErpContext();
-  const storeId = ctx?.store_id ?? undefined;
 
   try {
     if (view === "profile") {
       const profile = await getVendorErpProfile(id);
       if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json(profile);
+    }
+    if (view === "activity") {
+      const logs = await listAuditLogsForEntity("vendor", id);
+      return NextResponse.json({ logs });
+    }
+
+    const ctx = await getAdminErpContext();
+    const storeId = ctx?.store_id ?? undefined;
+
+    if (view === "detail") {
+      const bundle = await getVendorErpDetailBundle(id, storeId);
+      if (!bundle) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json(bundle);
     }
     if (view === "statement") {
       const lines = await getVendorStatement(id, storeId);
@@ -38,10 +50,6 @@ export async function GET(request: Request, context: RouteContext) {
       );
       const result = await getVendorPurchaseBills(id, storeId, page);
       return NextResponse.json(result);
-    }
-    if (view === "activity") {
-      const logs = await listAuditLogsForEntity("vendor", id);
-      return NextResponse.json({ logs });
     }
     const summary = await getVendorErpSummary(id, storeId);
     return NextResponse.json(summary);

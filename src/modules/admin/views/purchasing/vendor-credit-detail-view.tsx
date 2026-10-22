@@ -9,6 +9,7 @@ import { adminDelete, adminGet, adminPost } from "@/modules/admin/lib/admin-api-
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
 import { ErpDocumentActions } from "@/modules/erp/components/erp-document-actions";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
+import { creditKindLabel } from "@/common/erp/commercial-discount";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ type VendorCreditDetail = {
   credit_number: string;
   credit_date: string;
   status: string;
+  credit_kind?: string | null;
   total_amount: number;
   balance_remaining: number;
   reference: string | null;
@@ -107,7 +109,7 @@ export function VendorCreditDetailView({ creditId }: { creditId: string }) {
     <AdminPageLayout>
       <AdminPageHeader
         title={formatErpDocRef("VC", creditId)}
-        description={`${detail.credit_date} · ${detail.status}`}
+        description={`${detail.credit_date} · ${detail.status} · ${creditKindLabel(detail.credit_kind)}`}
         backHref="/admin/erp/vendor-credits"
         breadcrumb={[
           { label: "Vendor credits", href: "/admin/erp/vendor-credits" },

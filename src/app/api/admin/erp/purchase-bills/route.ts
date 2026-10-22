@@ -24,6 +24,7 @@ export async function GET(request: Request) {
   const dateFrom = new URL(request.url).searchParams.get("dateFrom") ?? undefined;
   const dateTo = new URL(request.url).searchParams.get("dateTo") ?? undefined;
   const openOnly = new URL(request.url).searchParams.get("openOnly") === "1";
+  const apDocumentsOnly = new URL(request.url).searchParams.get("apDocumentsOnly") === "1";
   const limit = Math.min(
     100,
     Math.max(1, parseInt(new URL(request.url).searchParams.get("limit") ?? "20", 10)),
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
       dateFrom,
       dateTo,
       openOnly,
+      apDocumentsOnly,
     });
     return NextResponse.json(result);
   } catch (error) {

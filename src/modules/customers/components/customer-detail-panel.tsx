@@ -12,6 +12,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  BadgePercent,
   HandCoins,
   ShieldCheck,
   Trash2,
@@ -62,6 +63,7 @@ import {
 } from "@/modules/customers/components/customers-ui";
 import { cn } from "@/lib/utils";
 import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
+import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
 
 type ErpPayload = {
   summary: CustomerErpSummary;
@@ -101,7 +103,6 @@ export function CustomerDetailPanel({
   orders,
 }: {
   details: CustomerDetailsResponse;
-  txPage: number;
   orders: Order[];
 }) {
   const queryClient = useQueryClient();
@@ -113,6 +114,7 @@ export function CustomerDetailPanel({
   const [erp, setErp] = useState<ErpPayload | null>(null);
   const [erpLoading, setErpLoading] = useState(true);
   const [settlementOpen, setSettlementOpen] = useState(false);
+  const [discountOpen, setDiscountOpen] = useState(false);
   const { summary } = details;
   const verified = summary.is_verified !== false;
 
@@ -140,7 +142,7 @@ export function CustomerDetailPanel({
       if (verified) await blockUserAction(summary.id);
       else await unblockUserAction(summary.id);
       await queryClient.invalidateQueries({
-        queryKey: adminQueryKeys.customerDetail(summary.id, 0),
+        queryKey: adminQueryKeys.customerDetail(summary.id),
       });
       await queryClient.invalidateQueries({ queryKey: ["admin", "customers"] });
     });
@@ -176,6 +178,25 @@ export function CustomerDetailPanel({
           initialPartyLabel={displayName}
           onSuccess={() => {
             setSettlementOpen(false);
+            setErpLoading(true);
+            adminGet<ErpPayload>(`customers/${summary.id}/erp`)
+              .then(setErp)
+              .finally(() => setErpLoading(false));
+          }}
+        />
+      ) : null}
+
+      {discountOpen ? (
+        <ErpCommercialDiscountFormView
+          side="customer"
+          variant="modal"
+          open={discountOpen}
+          onOpenChange={setDiscountOpen}
+          initialPartyId={summary.id}
+          initialPartyLabel={displayName}
+          lockParty
+          onSuccess={() => {
+            setDiscountOpen(false);
             setErpLoading(true);
             adminGet<ErpPayload>(`customers/${summary.id}/erp`)
               .then(setErp)
@@ -253,20 +274,20 @@ export function CustomerDetailPanel({
               variant="outline"
               nativeButton={false}
               render={
-                <Link href={`/admin/erp/payments/new?customerId=${summary.id}&advance=1`} />
+                <Link href={`/admin/erp/payments/new?customerId=${summary.id}`} />
               }
             >
-              Record advance payment
+              <HandCoins data-icon="inline-start" />
+              Record payment
             </Button>
             <Button
               size="sm"
               variant="outline"
-              nativeButton={false}
-              render={
-                <Link href={`/admin/erp/payments/new?customerId=${summary.id}`} />
-              }
+              type="button"
+              onClick={() => setDiscountOpen(true)}
             >
-              Apply payment
+              <BadgePercent data-icon="inline-start" />
+              Record discount
             </Button>
             <Button
               size="sm"

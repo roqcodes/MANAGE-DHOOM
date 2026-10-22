@@ -13,6 +13,7 @@ import type {
   CustomerStatementLine,
 } from "@/common/erp/sales-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
+import { nullIfEmptyDate } from "@/lib/format-date";
 import {
   assertUniqueCustomerCompanyName,
   rethrowUniqueNameViolation,
@@ -111,7 +112,7 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
     po_box: input.poBox?.trim() || null,
     customer_notes: input.customerNotes?.trim() || null,
     opening_balance: openingBalance,
-    opening_balance_date: input.openingBalanceDate ?? null,
+    opening_balance_date: nullIfEmptyDate(input.openingBalanceDate),
     avatar_url: input.avatarUrl?.trim() || null,
   });
   if (error) {
@@ -256,7 +257,7 @@ export async function updateCustomerProfile(
         : {}),
       ...(openingBalance !== undefined ? { opening_balance: openingBalance } : {}),
       ...(input.openingBalanceDate !== undefined
-        ? { opening_balance_date: input.openingBalanceDate }
+        ? { opening_balance_date: nullIfEmptyDate(input.openingBalanceDate) }
         : {}),
       ...(input.avatarUrl !== undefined
         ? { avatar_url: input.avatarUrl?.trim() || null }
@@ -345,7 +346,10 @@ export async function deleteCustomerIfUnused(userId: string): Promise<void> {
   }
 }
 
-export async function getCustomerErpSummary(userId: string): Promise<CustomerErpSummary> {
+export async function getCustomerErpSummary(
+  userId: string,
+  storeId?: string,
+): Promise<CustomerErpSummary> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
 
@@ -356,28 +360,35 @@ export async function getCustomerErpSummary(userId: string): Promise<CustomerErp
     .single();
   if (userErr) throw new Error(userErr.message);
 
-  const [{ data: invoices }, { data: creditNotes }, { data: creditRow }, { data: payments }] = await Promise.all([
-    supabase
-      .from("invoices")
-      .select("total_amount, balance_due, amount_paid")
-      .eq("user_id", userId)
-      .neq("status", "cancelled"),
-    supabase
-      .from("erp_credit_notes")
-      .select("total_amount")
-      .eq("user_id", userId)
-      .in("status", ["issued", "applied"]),
-    supabase
-      .from("customer_credit_limits")
-      .select("credit_limit")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    supabase
-      .from("erp_customer_payments")
-      .select("unallocated_amount")
-      .eq("user_id", userId)
-      .gt("unallocated_amount", 0),
-  ]);
+  let invoicesQuery = supabase
+    .from("invoices")
+    .select("total_amount, balance_due, amount_paid")
+    .eq("user_id", userId)
+    .neq("status", "cancelled");
+  if (storeId) invoicesQuery = invoicesQuery.eq("store_id", storeId);
+
+  let creditNotesQuery = supabase
+    .from("erp_credit_notes")
+    .select("total_amount, balance_remaining")
+    .eq("user_id", userId)
+    .in("status", ["issued", "applied"]);
+  if (storeId) creditNotesQuery = creditNotesQuery.eq("store_id", storeId);
+
+  const [{ data: invoices }, { data: creditNotes }, { data: creditRow }, { data: payments }] =
+    await Promise.all([
+      invoicesQuery,
+      creditNotesQuery,
+      supabase
+        .from("customer_credit_limits")
+        .select("credit_limit")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      supabase
+        .from("erp_customer_payments")
+        .select("unallocated_amount")
+        .eq("user_id", userId)
+        .gt("unallocated_amount", 0),
+    ]);
 
   const invoiceTotal = (invoices ?? []).reduce((s, i) => s + Number(i.total_amount ?? 0), 0);
   const receivables = (invoices ?? []).reduce((s, i) => s + Number(i.balance_due ?? 0), 0);
@@ -387,9 +398,13 @@ export async function getCustomerErpSummary(userId: string): Promise<CustomerErp
     (s, c) => s + Number(c.total_amount ?? 0),
     0,
   );
+  const creditBalance = (creditNotes ?? []).reduce(
+    (s, c) => s + Number(c.balance_remaining ?? 0),
+    0,
+  );
 
   const openingBalance = Number(user.opening_balance ?? 0);
-  const balanceDue = openingBalance + receivables;
+  const balanceDue = openingBalance + receivables - creditBalance;
   const unallocatedPayments = (payments ?? []).reduce(
     (s, p) => s + Number(p.unallocated_amount ?? 0),
     0,
@@ -401,6 +416,7 @@ export async function getCustomerErpSummary(userId: string): Promise<CustomerErp
     invoiceCount: invoices?.length ?? 0,
     creditNoteTotal,
     creditNoteCount: creditNotes?.length ?? 0,
+    creditBalance,
     paymentReceived,
     balanceDue,
     receivables: balanceDue,
@@ -409,81 +425,89 @@ export async function getCustomerErpSummary(userId: string): Promise<CustomerErp
   };
 }
 
-export async function getCustomerInvoices(userId: string): Promise<CustomerInvoiceRow[]> {
-  await requireAdminOrManagerProfile();
-  const supabase = await createSupabaseServerClient();
+type StoreNameEmbed = { name: string } | null;
 
-  const { data, error } = await supabase
-    .from("invoices")
-    .select(
-      "id, invoice_number, created_at, due_date, total_amount, amount_paid, balance_due, status, stores(name)",
-    )
-    .eq("user_id", userId)
-    .neq("status", "cancelled")
-    .order("created_at", { ascending: false })
-    .limit(50);
-  if (error) throw new Error(error.message);
-
-  return (data ?? []).map((row) => {
-    const store = row.stores as { name: string } | null;
-    return {
-      id: row.id,
-      invoiceNumber: row.invoice_number,
-      createdAt: row.created_at ?? "",
-      dueDate: row.due_date,
-      totalAmount: Number(row.total_amount ?? 0),
-      amountPaid: Number(row.amount_paid ?? 0),
-      balanceDue: Number(row.balance_due ?? 0),
-      status: row.status,
-      storeName: store?.name ?? null,
-    };
-  });
+function storeNameFromEmbed(value: unknown): string | null {
+  const store = value as StoreNameEmbed;
+  return store?.name ?? null;
 }
 
-export async function getCustomerStatement(userId: string): Promise<CustomerStatementLine[]> {
+export async function getCustomerErpBundle(userId: string): Promise<{
+  summary: CustomerErpSummary;
+  statement: CustomerStatementLine[];
+  invoices: CustomerInvoiceRow[];
+}> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
 
-  const { data: user } = await supabase
+  const { data: user, error: userErr } = await supabase
     .from("users")
     .select("opening_balance, opening_balance_date")
     .eq("id", userId)
     .single();
+  if (userErr) throw new Error(userErr.message);
 
-  const lines: CustomerStatementLine[] = [];
-  let running = Number(user?.opening_balance ?? 0);
+  const [invoicesRes, creditNotesRes, paymentsRes, creditLimitRes] = await Promise.all([
+    supabase
+      .from("invoices")
+      .select(
+        "id, invoice_number, created_at, due_date, total_amount, amount_paid, balance_due, status, stores(name)",
+      )
+      .eq("user_id", userId)
+      .neq("status", "cancelled"),
+    supabase
+      .from("erp_credit_notes")
+      .select("credit_note_number, total_amount, balance_remaining, credit_note_date, stores(name)")
+      .eq("user_id", userId)
+      .in("status", ["issued", "applied"]),
+    supabase
+      .from("erp_customer_payments")
+      .select("payment_number, total_amount, payment_date, unallocated_amount, stores(name)")
+      .eq("user_id", userId),
+    supabase
+      .from("customer_credit_limits")
+      .select("credit_limit")
+      .eq("user_id", userId)
+      .maybeSingle(),
+  ]);
 
-  if (user?.opening_balance_date) {
-    lines.push({
-      date: user.opening_balance_date,
-      storeName: null,
-      transactionType: "opening_balance",
-      details: "Opening Balance",
-      amount: running,
-      payments: 0,
-      balance: running,
-    });
-  }
+  if (invoicesRes.error) throw new Error(invoicesRes.error.message);
+  if (creditNotesRes.error) throw new Error(creditNotesRes.error.message);
+  if (paymentsRes.error) throw new Error(paymentsRes.error.message);
+  if (creditLimitRes.error) throw new Error(creditLimitRes.error.message);
 
-  const { data: invoices } = await supabase
-    .from("invoices")
-    .select("id, invoice_number, total_amount, created_at, store_id, stores(name)")
-    .eq("user_id", userId)
-    .neq("status", "cancelled")
-    .order("created_at", { ascending: true });
+  const invoices = invoicesRes.data ?? [];
+  const creditNotes = creditNotesRes.data ?? [];
+  const payments = paymentsRes.data ?? [];
 
-  const { data: payments } = await supabase
-    .from("erp_customer_payments")
-    .select("payment_number, total_amount, payment_date, store_id, stores(name)")
-    .eq("user_id", userId)
-    .order("payment_date", { ascending: true });
+  const invoiceTotal = invoices.reduce((s, i) => s + Number(i.total_amount ?? 0), 0);
+  const receivables = invoices.reduce((s, i) => s + Number(i.balance_due ?? 0), 0);
+  const paymentReceived = invoices.reduce((s, i) => s + Number(i.amount_paid ?? 0), 0);
+  const creditNoteTotal = creditNotes.reduce((s, c) => s + Number(c.total_amount ?? 0), 0);
+  const creditBalance = creditNotes.reduce((s, c) => s + Number(c.balance_remaining ?? 0), 0);
+  const openingBalance = Number(user.opening_balance ?? 0);
+  const balanceDue = openingBalance + receivables - creditBalance;
+  const unallocatedPayments = payments.reduce(
+    (s, p) => s + Number(p.unallocated_amount ?? 0),
+    0,
+  );
 
-  const { data: creditNotes } = await supabase
-    .from("erp_credit_notes")
-    .select("credit_note_number, total_amount, credit_note_date, store_id, stores(name)")
-    .eq("user_id", userId)
-    .in("status", ["issued", "applied"])
-    .order("credit_note_date", { ascending: true });
+  const summary: CustomerErpSummary = {
+    openingBalance,
+    invoiceTotal,
+    invoiceCount: invoices.length,
+    creditNoteTotal,
+    creditNoteCount: creditNotes.length,
+    creditBalance,
+    paymentReceived,
+    balanceDue,
+    receivables: balanceDue,
+    creditLimit:
+      creditLimitRes.data?.credit_limit != null
+        ? Number(creditLimitRes.data.credit_limit)
+        : null,
+    unallocatedPayments,
+  };
 
   type StatementEvent = {
     date: string;
@@ -495,48 +519,54 @@ export async function getCustomerStatement(userId: string): Promise<CustomerStat
   };
 
   const events: StatementEvent[] = [];
-
-  for (const inv of invoices ?? []) {
-    const store = inv.stores as { name: string } | null;
+  for (const inv of invoices) {
     events.push({
       date: inv.created_at?.slice(0, 10) ?? "",
-      storeName: store?.name ?? null,
+      storeName: storeNameFromEmbed(inv.stores),
       transactionType: "invoice",
       details: inv.invoice_number,
       debit: Number(inv.total_amount ?? 0),
       credit: 0,
     });
   }
-
-  for (const p of payments ?? []) {
-    const store = p.stores as { name: string } | null;
+  for (const p of payments) {
     events.push({
       date: p.payment_date,
-      storeName: store?.name ?? null,
+      storeName: storeNameFromEmbed(p.stores),
       transactionType: "payment",
       details: p.payment_number,
       debit: 0,
       credit: Number(p.total_amount ?? 0),
     });
   }
-
-  for (const cn of creditNotes ?? []) {
-    const store = cn.stores as { name: string } | null;
+  for (const cn of creditNotes) {
     events.push({
       date: cn.credit_note_date,
-      storeName: store?.name ?? null,
+      storeName: storeNameFromEmbed(cn.stores),
       transactionType: "credit_note",
       details: cn.credit_note_number,
       debit: 0,
       credit: Number(cn.total_amount ?? 0),
     });
   }
-
   events.sort((a, b) => a.date.localeCompare(b.date) || a.details.localeCompare(b.details));
 
+  const statement: CustomerStatementLine[] = [];
+  let running = openingBalance;
+  if (user.opening_balance_date) {
+    statement.push({
+      date: user.opening_balance_date,
+      storeName: null,
+      transactionType: "opening_balance",
+      details: "Opening Balance",
+      amount: running,
+      payments: 0,
+      balance: running,
+    });
+  }
   for (const event of events) {
     running += event.debit - event.credit;
-    lines.push({
+    statement.push({
       date: event.date,
       storeName: event.storeName,
       transactionType: event.transactionType,
@@ -547,5 +577,20 @@ export async function getCustomerStatement(userId: string): Promise<CustomerStat
     });
   }
 
-  return lines;
+  const invoiceRows: CustomerInvoiceRow[] = [...invoices]
+    .sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""))
+    .slice(0, 50)
+    .map((row) => ({
+      id: row.id,
+      invoiceNumber: row.invoice_number,
+      createdAt: row.created_at ?? "",
+      dueDate: row.due_date,
+      totalAmount: Number(row.total_amount ?? 0),
+      amountPaid: Number(row.amount_paid ?? 0),
+      balanceDue: Number(row.balance_due ?? 0),
+      status: row.status,
+      storeName: storeNameFromEmbed(row.stores),
+    }));
+
+  return { summary, statement, invoices: invoiceRows };
 }

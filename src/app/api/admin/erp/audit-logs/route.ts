@@ -28,11 +28,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "entityType and entityId required" }, { status: 400 });
   }
   try {
-    const data = await listAuditLogsForEntity(
-      entityType,
-      entityId,
-      parseInt(searchParams.get("limit") ?? "20", 10),
-    );
+    const parsedLimit = parseInt(searchParams.get("limit") ?? "20", 10);
+    const limit =
+      entityType === "vendor" || entityType === "customer"
+        ? Math.min(Math.max(parsedLimit, 50), 100)
+        : Math.min(parsedLimit, 100);
+    const data = await listAuditLogsForEntity(entityType, entityId, limit);
     return NextResponse.json({ data });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Failed to load audit logs";

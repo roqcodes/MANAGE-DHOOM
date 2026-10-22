@@ -222,6 +222,11 @@ export function PurchaseBillFormView({
   }, [purchaseDate, mode]);
 
   useEffect(() => {
+    const preselected = searchParams.get("vendorId");
+    if (preselected && mode === "create") setVendorId(preselected);
+  }, [searchParams, mode]);
+
+  useEffect(() => {
     adminGet<{ data: ErpLandedCostItem[] }>("erp/landed-costs").then((r) =>
       setLandedMaster(r.data ?? []),
     );

@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 
 import type {
@@ -88,7 +89,7 @@ export function AdminVendorDetailView() {
   const { vendor, vendorProducts, availableVariants } = data;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 py-2.5 font-sans sm:px-4">
+    <AdminPageLayout>
       <VendorDetailNav vendorName={vendor.name} />
 
       <VendorDetailPanel
@@ -96,6 +97,14 @@ export function AdminVendorDetailView() {
         vendorProducts={vendorProducts}
         availableVariants={availableVariants}
       />
-    </div>
+
+      <p className="text-xs text-muted-foreground">
+        <Link href={`/admin/vendors/${vendor.id}/erp`} className="hover:text-primary hover:underline">
+          Financial profile & payables
+        </Link>
+        {" · "}
+        Bills, payments, statement, and settlement.
+      </p>
+    </AdminPageLayout>
   );
 }

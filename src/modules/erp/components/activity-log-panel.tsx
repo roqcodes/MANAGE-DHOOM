@@ -23,11 +23,23 @@ export function ActivityLogPanel({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     adminGet<{ data: AuditLogEntry[] }>(
       `erp/audit-logs?entityType=${encodeURIComponent(entityType)}&entityId=${encodeURIComponent(entityId)}`,
     )
-      .then((res) => setLogs(res.data ?? []))
-      .finally(() => setLoading(false));
+      .then((res) => {
+        if (!cancelled) setLogs(res.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setLogs([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [entityType, entityId]);
 
   return <AuditLogEntryList logs={logs} loading={loading} />;
