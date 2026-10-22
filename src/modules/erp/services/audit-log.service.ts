@@ -145,14 +145,14 @@ export async function logAuditEvent(input: LogAuditEventInput): Promise<string |
   const { data, error } = await supabase.rpc("log_audit_event", {
     p_action: input.action,
     p_entity_type: input.entityType,
-    p_entity_id: normalized.entityId ?? null,
-    p_description: input.description ?? null,
+    p_entity_id: normalized.entityId ?? undefined,
+    p_description: input.description ?? undefined,
     p_metadata: (normalized.metadata as Json) ?? {},
     p_old_data: (input.oldData as Json) ?? null,
     p_new_data: (input.newData as Json) ?? null,
-    p_store_id: input.storeId ?? null,
-    p_user_id: salesmanId ? null : userId,
-    p_salesman_id: salesmanId,
+    p_store_id: input.storeId ?? undefined,
+    p_user_id: salesmanId ? undefined : userId ?? undefined,
+    p_salesman_id: salesmanId ?? undefined,
   });
 
   if (!error && data) {
@@ -386,7 +386,14 @@ async function listAuditLogsByPartyRpc(
   rpcArgKey: "p_vendor_id" | "p_user_id",
 ): Promise<AuditLogEntry[]> {
   const capped = Math.min(Math.max(limit, 1), 100);
-  const { data: idRows, error: rpcError } = await supabase.rpc(rpcName, {
+  const { data: idRows, error: rpcError } = await (
+    supabase as unknown as {
+      rpc: (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => ReturnType<typeof supabase.rpc>;
+    }
+  ).rpc(rpcName, {
     [rpcArgKey]: partyId.trim().toLowerCase(),
     p_limit: capped,
   });
@@ -396,8 +403,8 @@ async function listAuditLogsByPartyRpc(
     return [];
   }
 
-  const ids = (idRows ?? [])
-    .map((row: { id?: string }) => row.id)
+  const ids = ((idRows ?? []) as Array<{ id?: string }>)
+    .map((row) => row.id)
     .filter((logId): logId is string => Boolean(logId));
 
   if (ids.length === 0) return [];

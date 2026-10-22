@@ -69,6 +69,7 @@ export async function getStockDetails(input?: {
     }
 
     for (const v of variants ?? []) {
+      if (!v.product_id) continue;
       const entry = productMap.get(v.product_id);
       if (!entry) continue;
       entry.variants.push({

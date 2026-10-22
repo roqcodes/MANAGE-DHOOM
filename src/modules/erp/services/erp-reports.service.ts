@@ -141,6 +141,7 @@ export async function runErpReport(
   const { ageMin, ageMax } = normalizeAgeRange(query.ageMinDays, query.ageMaxDays);
 
   if (report.slug === "finance-summary") {
+    if (!storeId) throw new Error("Store is required");
     const { getStoreFinancialDashboard } = await import(
       "@/modules/erp/services/erp-finance-dashboard.service"
     );

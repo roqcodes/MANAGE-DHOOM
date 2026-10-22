@@ -28,7 +28,7 @@ export async function listErpSalesmen(options?: {
     .order("name", { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as ErpSalesmanRow[];
+  return (data ?? []) as unknown as ErpSalesmanRow[];
 }
 
 export async function verifyErpSalesmanPin(
@@ -60,6 +60,21 @@ export async function createErpSalesman(input: {
   return data as string;
 }
 
+async function callUntypedRpc(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  fn: string,
+  args: Record<string, unknown>,
+) {
+  return (
+    supabase as unknown as {
+      rpc: (
+        name: string,
+        params: Record<string, unknown>,
+      ) => ReturnType<typeof supabase.rpc>;
+    }
+  ).rpc(fn, args);
+}
+
 export async function updateErpSalesman(input: {
   id: string;
   name: string;
@@ -68,7 +83,7 @@ export async function updateErpSalesman(input: {
   isActive: boolean;
 }): Promise<void> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("update_erp_salesman", {
+  const { error } = await callUntypedRpc(supabase, "update_erp_salesman", {
     p_id: input.id,
     p_name: input.name,
     p_email: input.email ?? undefined,
@@ -80,7 +95,7 @@ export async function updateErpSalesman(input: {
 
 export async function updateErpSalesmanPin(id: string, pin: string): Promise<void> {
   const supabase = await createSupabaseServerClient();
-  const { error } = await supabase.rpc("update_erp_salesman_pin", {
+  const { error } = await callUntypedRpc(supabase, "update_erp_salesman_pin", {
     p_id: id,
     p_pin: pin,
   });
