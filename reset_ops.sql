@@ -14,6 +14,7 @@
 --
 -- CLEARS:
 --   sales & purchase documents, payments, journals, VAT, deferred COGS postings,
+--   per-store party openings (erp_party_store_openings),
 --   inventory movements, stock levels (zeroed; store WAC/sales overrides cleared),
 --   storefront carts/orders, HR payroll runs, sync ops,
 --   audit trail, analytics reach tables, idempotency rows, document counters.
@@ -21,14 +22,15 @@
 -- MAINTENANCE: When a migration adds/changes transactional tables, append them
 -- to reset_ops_truncate_tables() below (newest migrations first in list is ok;
 -- children must appear before parents). Recent tables to remember:
+--   - erp_party_store_openings (20261022190000) — per-store AR/AP openings
+--   - erp_invoice_deferred_cogs_postings (20261020160000)
+--   - catalog_product_create_operations (20261019210000)
 --   - erp_client_operations (20261003120000)
 --   - pos_checkout_operations (20261002140000)
 --   - purchase_po_delivery_operations (20261002170000)
 --   - purchase_order_landed_costs (20261001140000)
 --   - erp_purchase_receives / lines (20260907130000)
---   - catalog_product_create_operations (20261019210000)
---   - erp_invoice_deferred_cogs_postings (20261020160000)
--- Last reviewed: 2026-10-21
+-- Last reviewed: 2026-10-22 (through 20261022200000_reports_reaudit_fixes)
 --
 -- ⚠️  Destructive. Backup before running in any shared environment.
 -- =============================================================================
@@ -76,6 +78,7 @@ DECLARE
     'purchase_po_delivery_operations',
     'catalog_product_create_operations',
     -- AR allocations & payments
+    'erp_party_store_openings',
     'erp_invoice_deferred_cogs_postings',
     'erp_payment_allocations',
     'erp_customer_payments',
@@ -218,7 +221,8 @@ BEGIN
 END $$;
 
 -- Optional: clear vendor/customer opening balances on master records
--- (uncomment if you want AR/AP aging to start from zero on masters too)
+-- (uncomment if you want AR/AP aging to start from zero on masters too).
+-- Per-store openings (erp_party_store_openings) are truncated above.
 -- UPDATE public.vendors SET opening_balance = 0, opening_balance_date = NULL;
 -- UPDATE public.users SET opening_balance = 0 WHERE opening_balance IS NOT NULL;
 

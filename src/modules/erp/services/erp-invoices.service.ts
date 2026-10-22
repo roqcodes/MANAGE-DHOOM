@@ -220,14 +220,7 @@ export async function updateErpInvoice(
   const beforeSnapshot = salesInvoiceAuditSnapshotFromDetail({
     ...beforeDetail,
     users: beforeDetail.users,
-    invoice_items: beforeDetail.invoice_items as
-      | Array<{
-          product_name: string | null;
-          quantity: number | null;
-          unit_price: number | null;
-          gst_rate?: number | null;
-        }>
-      | null,
+    invoice_items: beforeDetail.invoice_items,
   });
   const { error } = await (
     supabase as unknown as {
@@ -253,14 +246,7 @@ export async function updateErpInvoice(
   const afterSnapshot = salesInvoiceAuditSnapshotFromDetail({
     ...afterDetail,
     users: afterDetail.users,
-    invoice_items: afterDetail.invoice_items as
-      | Array<{
-          product_name: string | null;
-          quantity: number | null;
-          unit_price: number | null;
-          gst_rate?: number | null;
-        }>
-      | null,
+    invoice_items: afterDetail.invoice_items,
   });
 
   await logAuditEvent(
@@ -372,8 +358,17 @@ export async function fetchErpInvoiceDetail(invoiceId: string) {
 
   const { users: _usersEmbed, ...invoice } = data;
   const rawItems = (invoice.invoice_items ?? []) as Array<{
+    id: string;
     product_id: string | null;
     variant_id: string | null;
+    unit_id: string | null;
+    product_name: string | null;
+    quantity: number | null;
+    unit_price: number | null;
+    gst_rate: number | null;
+    gst_amount: number | null;
+    total_amount: number | null;
+    description: string | null;
   }>;
 
   const variantIdsNeedingProduct = [

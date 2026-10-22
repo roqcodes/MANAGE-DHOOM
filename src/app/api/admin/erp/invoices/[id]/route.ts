@@ -30,14 +30,7 @@ function invoiceAuditSnapshotFromFetched(detail: Awaited<ReturnType<typeof fetch
   return salesInvoiceAuditSnapshotFromDetail({
     ...detail,
     users: detail.users,
-    invoice_items: detail.invoice_items as
-      | Array<{
-          product_name: string | null;
-          quantity: number | null;
-          unit_price: number | null;
-          gst_rate?: number | null;
-        }>
-      | null,
+    invoice_items: detail.invoice_items,
   });
 }
 
