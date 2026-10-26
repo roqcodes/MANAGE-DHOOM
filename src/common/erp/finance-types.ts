@@ -320,6 +320,11 @@ export type ErpFinancialDashboard = {
   accounts_payable: number;
   ar_gl?: number;
   ap_gl?: number;
+  /** P&L total_income for the period (sales revenue ex tax). */
+  revenue_ytd?: number;
+  /** Alias of revenue_ytd (RPC field name). */
+  total_income_ytd?: number;
+  /** Bottom-line profit for the period (same basis as net_profit_ytd). */
   net_income_ytd: number;
   /** Recognized COGS from posted journals (not purchase bills). */
   cogs_ytd: number;

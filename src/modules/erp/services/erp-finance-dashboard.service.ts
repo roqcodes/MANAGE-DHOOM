@@ -6,6 +6,7 @@ import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import type { ErpFinancialDashboard, ErpReconciliationSnapshot } from "@/common/erp/finance-types";
 import { roundMoney } from "@/lib/decimal-precision";
+import { parseFinancialDashboardKpis } from "@/lib/erp/financial-dashboard-metrics";
 
 const MONTH_LABELS = [
   "Jan",
@@ -43,6 +44,21 @@ type JournalEntryRow = {
   transaction_date: string;
   journal_entry_lines: JournalLineRow[] | null;
 };
+
+function normalizeFinancialDashboard(
+  raw: ErpFinancialDashboard | Record<string, unknown>,
+): ErpFinancialDashboard {
+  const dash = raw as ErpFinancialDashboard;
+  const kpis = parseFinancialDashboardKpis(raw as Record<string, unknown>);
+  return {
+    ...dash,
+    revenue_ytd: kpis.revenue_ytd,
+    total_income_ytd: kpis.revenue_ytd,
+    gross_profit_ytd: kpis.gross_profit_ytd,
+    net_income_ytd: kpis.net_income_ytd,
+    net_profit_ytd: kpis.net_profit_ytd,
+  };
+}
 
 function defaultDashboardDateRange() {
   const today = new Date();
@@ -293,18 +309,20 @@ export async function getStoreFinancialDashboard(
       }>;
     };
     if (dashRes.error) throw new Error(dashRes.error.message);
-    const dash = (dashRes.data ?? {}) as ErpFinancialDashboard;
+    const dash = normalizeFinancialDashboard((dashRes.data ?? {}) as ErpFinancialDashboard);
     return {
       accounts_receivable: Number(snap.accounts_receivable ?? dash.accounts_receivable ?? 0),
       accounts_payable: Number(snap.accounts_payable ?? dash.accounts_payable ?? 0),
       ar_gl: Number(dash.ar_gl ?? 0),
       ap_gl: Number(dash.ap_gl ?? 0),
-      net_income_ytd: Number(dash.net_income_ytd ?? 0),
+      revenue_ytd: dash.revenue_ytd,
+      total_income_ytd: dash.total_income_ytd,
+      net_income_ytd: dash.net_income_ytd,
       cogs_ytd: Number(dash.cogs_ytd ?? 0),
       purchases_ytd: Number(dash.purchases_ytd ?? 0),
-      gross_profit_ytd: Number(dash.gross_profit_ytd ?? 0),
+      gross_profit_ytd: dash.gross_profit_ytd,
       expenses_ytd: Number(dash.expenses_ytd ?? 0),
-      net_profit_ytd: Number(dash.net_profit_ytd ?? 0),
+      net_profit_ytd: dash.net_profit_ytd,
       date_from: dash.date_from,
       date_to: dash.date_to,
       low_stock_count: Number(dash.low_stock_count ?? 0),
@@ -401,19 +419,21 @@ export async function getStoreFinancialDashboard(
     .sort((a, b) => a.day.localeCompare(b.day));
 
   if (fallbackDash.error) throw new Error(fallbackDash.error.message);
-  const dash = (fallbackDash.data ?? {}) as ErpFinancialDashboard;
+  const dash = normalizeFinancialDashboard((fallbackDash.data ?? {}) as ErpFinancialDashboard);
 
   return {
     accounts_receivable: accountsReceivable,
     accounts_payable: accountsPayable,
     ar_gl: Number(dash.ar_gl ?? 0),
     ap_gl: Number(dash.ap_gl ?? 0),
-    net_income_ytd: Number(dash.net_income_ytd ?? 0),
+    revenue_ytd: dash.revenue_ytd,
+    total_income_ytd: dash.total_income_ytd,
+    net_income_ytd: dash.net_income_ytd,
     cogs_ytd: Number(dash.cogs_ytd ?? 0),
     purchases_ytd: Number(dash.purchases_ytd ?? 0),
-    gross_profit_ytd: Number(dash.gross_profit_ytd ?? 0),
+    gross_profit_ytd: dash.gross_profit_ytd,
     expenses_ytd: Number(dash.expenses_ytd ?? 0),
-    net_profit_ytd: Number(dash.net_profit_ytd ?? 0),
+    net_profit_ytd: dash.net_profit_ytd,
     date_from: dash.date_from,
     date_to: dash.date_to,
     low_stock_count: lowStockCount,
@@ -439,7 +459,7 @@ export async function getFinancialDashboard(
     p_store_id: null,
   });
   if (error) throw new Error(error.message);
-  return data as ErpFinancialDashboard;
+  return normalizeFinancialDashboard((data ?? {}) as ErpFinancialDashboard);
 }
 
 export async function getReconciliationSnapshot(): Promise<ErpReconciliationSnapshot> {

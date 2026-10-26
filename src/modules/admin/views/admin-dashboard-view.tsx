@@ -291,7 +291,7 @@ function IncomeExpensesChart({
               Total income
             </p>
             <p className="text-base font-semibold tabular-nums text-primary">
-              {fmtMoney(erp?.net_income_ytd ?? 0, settings)}
+              {fmtMoney(erp?.revenue_ytd ?? erp?.total_income_ytd ?? 0, settings)}
             </p>
           </Link>
           <Link href="/admin/erp/reports/profit-and-loss" className="hover:underline">

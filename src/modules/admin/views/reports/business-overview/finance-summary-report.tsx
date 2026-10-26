@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import type { ReportDefinition } from "@/common/erp/report-types";
 import { extractReportRows, getReportBySlug } from "@/common/erp/report-types";
+import { parseFinancialDashboardKpis } from "@/lib/erp/financial-dashboard-metrics";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { buildErpReportApiPath } from "@/modules/erp/lib/erp-report-api-path";
@@ -67,7 +68,11 @@ export function FinanceSummaryReport({ report }: { report: ReportDefinition }) {
     [positionQuery.data],
   );
 
-  const metrics = (rawData ?? {}) as Record<string, unknown>;
+  const metrics = useMemo(() => {
+    const raw = (rawData ?? {}) as Record<string, unknown>;
+    const kpis = parseFinancialDashboardKpis(raw);
+    return { ...raw, ...kpis } as Record<string, unknown>;
+  }, [rawData]);
   const { assets, liabilities, equity, totalAssets, totalLiabilities, totalEquity } = useMemo(
     () => partitionBalanceSheetRows(positionRows),
     [positionRows],
@@ -145,10 +150,17 @@ export function FinanceSummaryReport({ report }: { report: ReportDefinition }) {
             <MetricCard label="AR (GL Control)" value={Number(metrics.ar_gl ?? 0)} />
             <MetricCard label="Accounts payable" value={Number(metrics.accounts_payable ?? 0)} />
             <MetricCard label="AP (GL Control)" value={Number(metrics.ap_gl ?? 0)} />
-            <MetricCard label="Revenue (period)" value={Number(metrics.net_income_ytd ?? 0)} />
+            <MetricCard
+              label="Revenue (period)"
+              value={Number(metrics.revenue_ytd ?? metrics.total_income_ytd ?? 0)}
+            />
+            <MetricCard label="Gross profit (period)" value={Number(metrics.gross_profit_ytd ?? 0)} />
             <MetricCard label="COGS (recognized)" value={Number(metrics.cogs_ytd ?? 0)} />
             <MetricCard label="Purchases (bills)" value={Number(metrics.purchases_ytd ?? 0)} />
-            <MetricCard label="Net profit (period)" value={Number(metrics.net_profit_ytd ?? 0)} />
+            <MetricCard
+              label="Net income (period)"
+              value={Number(metrics.net_income_ytd ?? metrics.net_profit_ytd ?? 0)}
+            />
           </div>
           <p className="text-xs text-muted-foreground px-1">
             Profit and COGS follow posted journals (same basis as Profit &amp; Loss). Purchase bills are

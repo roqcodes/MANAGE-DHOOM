@@ -5,10 +5,13 @@
  *   set NEXT_PUBLIC_SUPABASE_URL=...
  *   set NEXT_PUBLIC_SUPABASE_ANON_KEY=...
  *   set SUPABASE_SERVICE_ROLE_KEY=...
+ *   set ACCOUNTING_STORE_ID=<erp-store-uuid>
  *   npm run erp:accounting:validate
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+import { requireAccountingStoreId } from "../src/lib/erp/accounting-integration-store";
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
@@ -83,6 +86,7 @@ async function main(): Promise<void> {
   assert(Boolean(url && serviceKey && anonKey), "NEXT_PUBLIC_SUPABASE_URL, ANON_KEY, and SERVICE_ROLE_KEY required");
 
   const supabase = await createStaffRpcClient(url!, serviceKey!, anonKey!);
+  const storeId = requireAccountingStoreId();
 
   const { data: unbalanced, error: ubErr } = await supabase.rpc("erp_audit_unbalanced_journals", {
     p_limit: 50,
@@ -125,6 +129,7 @@ async function main(): Promise<void> {
   const { data: pl, error: plErr } = await supabase.rpc("get_erp_profit_and_loss", {
     p_date_from: yearStart,
     p_date_to: today,
+    p_store_id: storeId,
   });
   if (plErr) throw new Error(`get_erp_profit_and_loss: ${plErr.message}`);
   const plObj = pl as Record<string, unknown>;
@@ -148,18 +153,34 @@ async function main(): Promise<void> {
   const { data: dash, error: dashErr } = await supabase.rpc("get_erp_financial_dashboard", {
     p_date_from: yearStart,
     p_date_to: today,
+    p_store_id: storeId,
   });
   if (dashErr) throw new Error(`get_erp_financial_dashboard: ${dashErr.message}`);
   const dashObj = dash as Record<string, unknown>;
+  const revenue = Number(dashObj.revenue_ytd ?? dashObj.total_income_ytd ?? 0);
   assert(
     Math.abs(Number(dashObj.net_profit_ytd ?? 0) - net) < 0.02,
     "Finance dashboard net_profit_ytd does not match P&L net_profit",
   );
   assert(
+    Math.abs(Number(dashObj.net_income_ytd ?? 0) - net) < 0.02,
+    "Finance dashboard net_income_ytd does not match P&L net_profit",
+  );
+  assert(
+    Math.abs(revenue - income) < 0.02,
+    "Finance dashboard revenue_ytd does not match P&L total_income",
+  );
+  assert(
     Math.abs(Number(dashObj.cogs_ytd ?? 0) - cogs) < 0.02,
     "Finance dashboard cogs_ytd does not match P&L total_cogs",
   );
-  console.log("get_erp_financial_dashboard: OK (aligned with P&L)");
+  assert(
+    Math.abs(Number(dashObj.gross_profit_ytd ?? 0) - gross) < 0.02,
+    "Finance dashboard gross_profit_ytd does not match P&L gross_profit",
+  );
+  console.log(
+    `get_erp_financial_dashboard: OK (store=${storeId}, revenue=${revenue}, net=${net})`,
+  );
 
   console.log("Accounting integration checks completed.");
 }

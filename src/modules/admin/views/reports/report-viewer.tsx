@@ -54,10 +54,11 @@ function FinanceSummaryCards({ data }: { data: Record<string, unknown> }) {
   const cards = [
     ["Accounts receivable", data.accounts_receivable],
     ["Accounts payable", data.accounts_payable],
-    ["Net income YTD", data.net_income_ytd],
+    ["Revenue (period)", data.revenue_ytd ?? data.total_income_ytd],
+    ["Gross profit (period)", data.gross_profit_ytd],
     ["COGS YTD", data.cogs_ytd],
     ["Expenses YTD", data.expenses_ytd],
-    ["Net profit YTD", data.net_profit_ytd],
+    ["Net income (period)", data.net_income_ytd ?? data.net_profit_ytd],
     ["Low stock items", data.low_stock_count],
   ] as const;
 

@@ -152,8 +152,9 @@ export function AdminErpFinancialSummaryView() {
         {[
           ["Accounts Receivable", data?.accounts_receivable],
           ["Accounts Payable", data?.accounts_payable],
-          ["Net Income YTD", data?.net_income_ytd],
-          ["Net Profit YTD", data?.net_profit_ytd],
+          ["Revenue (period)", data?.revenue_ytd ?? data?.total_income_ytd],
+          ["Gross profit (period)", data?.gross_profit_ytd],
+          ["Net income (period)", data?.net_income_ytd ?? data?.net_profit_ytd],
           ["COGS (recognized)", data?.cogs_ytd],
           ["Purchases (bills)", data?.purchases_ytd],
           ["Operating expenses", data?.expenses_ytd],
