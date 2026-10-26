@@ -150,13 +150,38 @@ export async function createBankingAccount(input: {
   });
 }
 
+function recomputeRunningBalances(
+  rows: AccountTransactionRow[],
+  scope: "account" | "store_filter",
+): AccountTransactionRow[] {
+  if (scope !== "store_filter" || rows.length === 0) return rows;
+
+  const asc = [...rows].sort((a, b) => {
+    const d = String(a.transaction_date).localeCompare(String(b.transaction_date));
+    if (d !== 0) return d;
+    return String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""));
+  });
+
+  let running = 0;
+  const balanceById = new Map<string, number>();
+  for (const row of asc) {
+    running += row.debit_amount - row.credit_amount;
+    balanceById.set(row.id, running);
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    running_balance: balanceById.get(row.id) ?? row.running_balance,
+  }));
+}
+
 export async function listAccountTransactions(
   accountId: string,
   options?: { storeId?: string; limit?: number },
 ): Promise<AccountTransactionRow[]> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
-  const activeStoreId = await resolveErpStoreId(options?.storeId);
+  const filterStoreId = options?.storeId?.trim() || null;
 
   let query = supabase
     .from("erp_account_transactions")
@@ -168,29 +193,50 @@ export async function listAccountTransactions(
     .order("created_at", { ascending: false })
     .limit(options?.limit ?? 100);
 
-  if (activeStoreId) query = query.eq("store_id", activeStoreId);
+  if (filterStoreId) query = query.eq("store_id", filterStoreId);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((row) => ({
-      id: row.id,
-      transaction_number: row.transaction_number,
-      transaction_date: row.transaction_date,
-      transaction_type: row.transaction_type,
-      details: row.details,
-      debit_amount: Number(row.debit_amount),
-      credit_amount: Number(row.credit_amount),
-      running_balance: row.running_balance != null ? Number(row.running_balance) : null,
-      reference: row.reference,
-      payment_type: row.payment_type,
-      store_id: row.store_id,
-      store_name: null,
-      account_id: row.account_id,
-      account_name: null,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
-    }));
+  const storeIds = [
+    ...new Set((data ?? []).map((r) => r.store_id).filter(Boolean)),
+  ] as string[];
+  const storeNameById = new Map<string, string>();
+  if (storeIds.length > 0) {
+    const { data: stores } = await supabase
+      .from("stores")
+      .select("id, name")
+      .in("id", storeIds);
+    for (const s of stores ?? []) {
+      storeNameById.set(s.id as string, s.name as string);
+    }
+  }
+
+  const mapped: AccountTransactionRow[] = (data ?? []).map((row) => ({
+    id: row.id,
+    transaction_number: row.transaction_number,
+    transaction_date: row.transaction_date,
+    transaction_type: row.transaction_type,
+    details: row.details,
+    debit_amount: Number(row.debit_amount),
+    credit_amount: Number(row.credit_amount),
+    running_balance: row.running_balance != null ? Number(row.running_balance) : null,
+    reference: row.reference,
+    payment_type: row.payment_type,
+    store_id: row.store_id,
+    store_name: row.store_id
+      ? (storeNameById.get(row.store_id) ?? null)
+      : null,
+    account_id: row.account_id,
+    account_name: null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  }));
+
+  return recomputeRunningBalances(
+    mapped,
+    filterStoreId ? "store_filter" : "account",
+  );
 }
 
 export async function getAccountStoreBalances(
@@ -234,7 +280,11 @@ export async function getAccountStoreBalances(
   }
 
   const account = await getBankingAccount(accountId);
-  if (account && map.size === 0) {
+  if (!account) {
+    return Array.from(map.values()).sort((a, b) => b.balance - a.balance);
+  }
+
+  if (map.size === 0) {
     return [
       {
         store_id: account.store_id,
@@ -242,6 +292,16 @@ export async function getAccountStoreBalances(
         balance: account.current_balance,
       },
     ];
+  }
+
+  const movementTotal = Array.from(map.values()).reduce((s, r) => s + r.balance, 0);
+  const openingAndOther = account.current_balance - movementTotal;
+  if (Math.abs(openingAndOther) >= 0.01) {
+    map.set("opening_gl", {
+      store_id: null,
+      store_name: "Opening balance & other GL",
+      balance: openingAndOther,
+    });
   }
 
   return Array.from(map.values()).sort((a, b) => b.balance - a.balance);

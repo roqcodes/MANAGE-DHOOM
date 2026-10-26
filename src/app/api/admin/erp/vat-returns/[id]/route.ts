@@ -6,6 +6,7 @@ import {
   fileVatReturn,
   getVatReturnDetail,
   refreshVatReturn,
+  repairVatReturnTotals,
 } from "@/modules/erp/services/erp-vat.service";
 
 export async function GET(
@@ -41,6 +42,12 @@ export async function PATCH(
     }
     if (body.action === "refresh") {
       const data = await refreshVatReturn(id);
+      return NextResponse.json(data);
+    }
+    if (body.action === "repair") {
+      const detail = await getVatReturnDetail(id);
+      await repairVatReturnTotals(detail.store_id);
+      const data = await getVatReturnDetail(id);
       return NextResponse.json(data);
     }
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });

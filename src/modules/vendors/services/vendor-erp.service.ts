@@ -435,14 +435,18 @@ export async function getVendorErpDetailBundle(
 
   let creditsQuery = supabase
     .from("erp_vendor_credits")
-    .select("total_amount, balance_remaining, credit_date, credit_number, stores(name)")
+    .select(
+      "total_amount, balance_remaining, credit_date, credit_number, created_at, stores(name)",
+    )
     .eq("vendor_id", vendorId)
     .in("status", ["issued", "applied"]);
   if (storeId) creditsQuery = creditsQuery.eq("store_id", storeId);
 
   let paymentsQuery = supabase
     .from("erp_supplier_payments")
-    .select("payment_date, payment_number, total_amount, stores(name)")
+    .select(
+      "payment_date, payment_number, total_amount, settlement_discount, created_at, stores(name)",
+    )
     .eq("vendor_id", vendorId);
   if (storeId) paymentsQuery = paymentsQuery.eq("store_id", storeId);
 
@@ -480,6 +484,8 @@ export async function getVendorErpDetailBundle(
   };
 
   type StmtEvent = {
+    sortTs: string;
+    sortKey: number;
     date: string;
     storeName: string | null;
     transactionType: string;
@@ -488,20 +494,13 @@ export async function getVendorErpDetailBundle(
     payments: number;
   };
   const events: StmtEvent[] = [];
-  if (vendor.opening_balance_date) {
-    events.push({
-      date: vendor.opening_balance_date,
-      storeName: null,
-      transactionType: "Opening Balance",
-      details: "Opening balance",
-      amount: openingBalance,
-      payments: 0,
-    });
-  }
   for (const bill of bills) {
     const store = bill.stores as { name: string } | null;
+    const purchaseDate = bill.purchase_date ?? "";
     events.push({
-      date: bill.purchase_date,
+      sortTs: purchaseDate ? `${purchaseDate}T12:00:00` : "",
+      sortKey: 1,
+      date: purchaseDate,
       storeName: store?.name ?? null,
       transactionType: "Purchase",
       details: bill.purchase_bill_number,
@@ -511,18 +510,25 @@ export async function getVendorErpDetailBundle(
   }
   for (const pay of payments) {
     const store = pay.stores as { name: string } | null;
+    const createdAt = pay.created_at ?? "";
     events.push({
+      sortTs: createdAt || `${pay.payment_date}T12:00:00`,
+      sortKey: 2,
       date: pay.payment_date,
       storeName: store?.name ?? null,
       transactionType: "Payment",
       details: pay.payment_number,
       amount: 0,
-      payments: Number(pay.total_amount ?? 0),
+      payments:
+        Number(pay.total_amount ?? 0) + Number(pay.settlement_discount ?? 0),
     });
   }
   for (const credit of credits) {
     const store = credit.stores as { name: string } | null;
+    const createdAt = credit.created_at ?? "";
     events.push({
+      sortTs: createdAt || `${credit.credit_date}T12:00:00`,
+      sortKey: 3,
       date: credit.credit_date,
       storeName: store?.name ?? null,
       transactionType: "Credit",
@@ -531,9 +537,26 @@ export async function getVendorErpDetailBundle(
       payments: Number(credit.total_amount ?? 0),
     });
   }
-  events.sort((a, b) => a.date.localeCompare(b.date));
-  let running = 0;
+  events.sort(
+    (a, b) =>
+      a.sortTs.localeCompare(b.sortTs) ||
+      a.sortKey - b.sortKey ||
+      a.details.localeCompare(b.details),
+  );
+
   const lines: VendorStatementLine[] = [];
+  let running = openingBalance;
+  if (vendor.opening_balance_date) {
+    lines.push({
+      date: vendor.opening_balance_date,
+      storeName: null,
+      transactionType: "Opening Balance",
+      details: "Opening balance",
+      amount: openingBalance,
+      payments: 0,
+      balance: running,
+    });
+  }
   for (const ev of events) {
     running += ev.amount - ev.payments;
     lines.push({

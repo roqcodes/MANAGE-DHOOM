@@ -313,8 +313,12 @@ export async function runErpReport(
         p_date_to: to,
         p_store_id: storeId,
       });
-    case "get_erp_store_wise_stock_report":
-      return callRpc(supabase, report.rpc, { p_store_id: storeId });
+    case "get_erp_store_wise_stock_report": {
+      const { listStoreWiseStockReportRows } = await import(
+        "@/modules/erp/services/store-wise-stock-report.service"
+      );
+      return listStoreWiseStockReportRows();
+    }
     case "get_erp_purchase_by_item_report":
       return callRpc(supabase, report.rpc, {
         p_date_from: from,

@@ -43,20 +43,26 @@ export function firstPositivePrice(
   return null;
 }
 
-/** Instant defaults from catalog search (shown in the line table immediately). */
+/** Tax from catalog search; unit rate is filled after line context loads (not catalog list price). */
 export function salesLineDefaultsFromSearchRow(row: ErpSalesProductSearchRow) {
   return {
-    unitPrice: roundMoney(row.sales_price ?? 0),
     taxRatePercent: row.tax_rate_percent ?? 0,
   };
 }
 
-/** Instant defaults from purchase catalog search. */
+function catalogSalesUnitPriceFromSearchRow(row: ErpSalesProductSearchRow): number {
+  return roundMoney(row.sales_price ?? 0);
+}
+
+/** Tax from catalog search; unit rate is filled after line context loads (not catalog cost). */
 export function purchaseLineDefaultsFromSearchRow(row: ErpProductSearchRow) {
   return {
-    purchasePrice: roundMoney(row.purchase_price ?? 0),
     taxRatePercent: row.tax_rate_percent ?? 0,
   };
+}
+
+function catalogPurchaseUnitPriceFromSearchRow(row: ErpProductSearchRow): number {
+  return roundMoney(row.purchase_price ?? 0);
 }
 
 /** Authoritative store/catalog defaults for a sales line (search row is fallback only). */
@@ -64,13 +70,12 @@ export async function resolveSalesLineDefaultsFromSelection(
   row: ErpSalesProductSearchRow,
   options: { storeId?: string; customerId?: string },
 ): Promise<{ unitPrice: number; taxRatePercent: number }> {
-  const { unitPrice: searchUnitPrice, taxRatePercent: searchTax } =
-    salesLineDefaultsFromSearchRow(row);
-  let unitPrice = searchUnitPrice;
-  let taxRatePercent = searchTax;
+  const catalogUnitPrice = catalogSalesUnitPriceFromSearchRow(row);
+  let taxRatePercent = salesLineDefaultsFromSearchRow(row).taxRatePercent;
 
   if (!options.storeId) {
-    return { unitPrice, taxRatePercent };
+    const unitPrice = firstPositivePrice(catalogUnitPrice) ?? 0;
+    return { unitPrice: roundMoney(unitPrice), taxRatePercent };
   }
 
   try {
@@ -78,25 +83,28 @@ export async function resolveSalesLineDefaultsFromSelection(
       storeId: options.storeId,
       customerId: options.customerId,
     });
-    if (!ctx) return { unitPrice, taxRatePercent };
 
-    const resolved = firstPositivePrice(
-      ctx.storeSalesPrice,
-      ctx.counterpartyLastPrice,
-      ctx.lastSellingPrice,
-      ctx.avgSellingPrice,
-      searchUnitPrice,
-    );
-    if (resolved != null) unitPrice = resolved;
+    const historical = ctx
+      ? firstPositivePrice(
+          ctx.counterpartyLastPrice,
+          ctx.avgSellingPrice,
+          ctx.lastSellingPrice,
+        )
+      : null;
+    const unitPrice =
+      historical ??
+      firstPositivePrice(ctx?.storeSalesPrice, catalogUnitPrice) ??
+      0;
 
-    if (ctx.taxRatePercent != null) {
+    if (ctx?.taxRatePercent != null) {
       taxRatePercent = ctx.taxRatePercent;
     }
-  } catch {
-    /* keep search fallbacks */
-  }
 
-  return { unitPrice: roundMoney(unitPrice), taxRatePercent };
+    return { unitPrice: roundMoney(unitPrice), taxRatePercent };
+  } catch {
+    const unitPrice = firstPositivePrice(catalogUnitPrice) ?? 0;
+    return { unitPrice: roundMoney(unitPrice), taxRatePercent };
+  }
 }
 
 /** Authoritative catalog defaults for a purchase line (search row is fallback only). */
@@ -104,12 +112,11 @@ export async function resolvePurchaseLineDefaultsFromSelection(
   row: ErpProductSearchRow,
   options: { storeId?: string; vendorId?: string },
 ): Promise<{ purchasePrice: number; taxRatePercent: number }> {
-  const { purchasePrice: searchPrice, taxRatePercent: searchTax } =
-    purchaseLineDefaultsFromSearchRow(row);
-  let purchasePrice = searchPrice;
-  let taxRatePercent = searchTax;
+  const catalogUnitPrice = catalogPurchaseUnitPriceFromSearchRow(row);
+  let taxRatePercent = purchaseLineDefaultsFromSearchRow(row).taxRatePercent;
 
   if (!options.storeId) {
+    const purchasePrice = firstPositivePrice(catalogUnitPrice) ?? 0;
     return { purchasePrice: roundMoney(purchasePrice), taxRatePercent };
   }
 
@@ -118,33 +125,31 @@ export async function resolvePurchaseLineDefaultsFromSelection(
       storeId: options.storeId,
       vendorId: options.vendorId,
     });
-    if (!ctx) {
-      return { purchasePrice: roundMoney(purchasePrice), taxRatePercent };
-    }
 
-    // Avg store WAC first, then catalog default from item master; bill history is fallback only.
-    const resolved = firstPositivePrice(
-      ctx.avgPurchasePrice,
-      ctx.catalogPurchasePrice,
-      searchPrice,
-      ctx.lastBillPurchaseRate,
-      ctx.lastPurchasePrice,
-      ctx.vendorLastBillPurchaseRate,
-      ctx.counterpartyLastPrice,
-    );
-    if (resolved != null) {
-      purchasePrice = resolved;
-    }
+    const fromAvgOrBills = ctx
+      ? firstPositivePrice(
+          ctx.avgPurchasePrice,
+          ctx.lastBillPurchaseRate,
+          ctx.lastPurchasePrice,
+          ctx.vendorLastBillPurchaseRate,
+          ctx.counterpartyLastPrice,
+        )
+      : null;
+    const purchasePrice =
+      fromAvgOrBills ??
+      firstPositivePrice(ctx?.catalogPurchasePrice, catalogUnitPrice) ??
+      0;
 
-    if (ctx.taxRatePercent != null) {
+    if (ctx?.taxRatePercent != null) {
       taxRatePercent = ctx.taxRatePercent;
     }
-  } catch {
-    /* keep search fallbacks */
-  }
 
-  return {
-    purchasePrice: roundMoney(purchasePrice),
-    taxRatePercent,
-  };
+    return {
+      purchasePrice: roundMoney(purchasePrice),
+      taxRatePercent,
+    };
+  } catch {
+    const purchasePrice = firstPositivePrice(catalogUnitPrice) ?? 0;
+    return { purchasePrice: roundMoney(purchasePrice), taxRatePercent };
+  }
 }

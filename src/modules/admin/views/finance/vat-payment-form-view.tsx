@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
@@ -12,6 +12,7 @@ import {
 import type { PaidThroughAccountOption } from "@/common/erp/purchasing-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { validateVatRefundAmount } from "@/lib/erp/vat-refund-eligibility";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
   AdminFormActions,
@@ -55,6 +56,7 @@ export function VatPaymentFormView({
   const formId = useId();
   const searchParams = useSearchParams();
   const vatReturnId = searchParams.get("vatReturnId") ?? "";
+  const isRefund = searchParams.get("kind") === "refund";
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +71,12 @@ export function VatPaymentFormView({
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
 
+  const defaultAmount = useMemo(() => {
+    if (!vatReturn) return "";
+    if (isRefund) return String(vatReturn.refund_remaining ?? 0);
+    return String(vatReturn.balance_due);
+  }, [vatReturn, isRefund]);
+
   useEffect(() => {
     if (!vatReturnId) {
       setLoading(false);
@@ -78,7 +86,9 @@ export function VatPaymentFormView({
     adminGet<VatReturnDetail>(`erp/vat-returns/${vatReturnId}`)
       .then((detail) => {
         setVatReturn(detail);
-        setAmount(String(detail.balance_due));
+        setAmount(
+          isRefund ? String(detail.refund_remaining ?? 0) : String(detail.balance_due),
+        );
         const q = detail.store_id
           ? `?view=accounts&storeId=${encodeURIComponent(detail.store_id)}`
           : "?view=accounts";
@@ -88,7 +98,11 @@ export function VatPaymentFormView({
         if (res) setAccounts(res.data);
       })
       .finally(() => setLoading(false));
-  }, [vatReturnId]);
+  }, [vatReturnId, isRefund]);
+
+  useEffect(() => {
+    if (vatReturn && defaultAmount) setAmount(defaultAmount);
+  }, [defaultAmount, vatReturn?.id]);
 
   function handleCancel() {
     if (isModal) {
@@ -110,12 +124,23 @@ export function VatPaymentFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!vatReturnId) return setError("VAT return is required.");
-    if (!paidFromAccountId) return setError("Paid from account is required.");
+    if (!paidFromAccountId) {
+      return setError(isRefund ? "Deposit to account is required." : "Paid from account is required.");
+    }
     const amt = parseFloat(amount);
     if (!amt || amt === 0) return setError("Amount is required.");
     if (vatReturn) {
-      const vatErr = validateVatPaymentAmount(amt, vatReturn.balance_due);
-      if (vatErr) return setError(vatErr);
+      if (isRefund) {
+        const refundErr = validateVatRefundAmount(
+          amt,
+          vatReturn.recoverable_tax,
+          vatReturn.refund_received_total,
+        );
+        if (refundErr) return setError(refundErr);
+      } else {
+        const vatErr = validateVatPaymentAmount(amt, vatReturn.balance_due);
+        if (vatErr) return setError(vatErr);
+      }
     }
 
     startTransition(async () => {
@@ -126,17 +151,23 @@ export function VatPaymentFormView({
           paymentType,
           paidFromAccountId,
           amount: amt,
+          kind: isRefund ? "refund" : "payment",
           reference: reference.trim() || undefined,
           notes: notes.trim() || undefined,
         });
         handleSuccessNavigate();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save VAT payment.");
+        setError(err instanceof Error ? err.message : "Failed to save VAT transaction.");
       }
     });
   }
 
   if (isModal && !open) return null;
+
+  const title = isRefund ? "Record VAT refund received" : "Add VAT payment";
+  const description = isRefund
+    ? "Record cash or bank received from the tax authority. This is not income — it clears recoverable VAT credit."
+    : "Pay tax authority for VAT owed on this return.";
 
   if (loading) {
     return (
@@ -144,7 +175,7 @@ export function VatPaymentFormView({
         variant={variant}
         open={open}
         onOpenChange={onOpenChange}
-        title="Add VAT payment"
+        title={title}
         size="lg"
         loading
         loadingFallback={<AdminPageSkeleton />}
@@ -161,12 +192,12 @@ export function VatPaymentFormView({
         variant={variant}
         open={open}
         onOpenChange={onOpenChange}
-        title="Add VAT payment"
-        description="Open this page from a filed VAT return to record a payment."
+        title={title}
+        description="Open this page from a filed VAT return."
         backHref="/admin/erp/vat-returns"
         breadcrumb={[
           { label: "VAT returns", href: "/admin/erp/vat-returns" },
-          { label: "Add VAT payment" },
+          { label: title },
         ]}
         size="lg"
       >
@@ -177,12 +208,29 @@ export function VatPaymentFormView({
     );
   }
 
-  const title = "Add VAT payment";
+  if (isRefund && vatReturn.refund_remaining <= 0) {
+    return (
+      <AdminFormShell
+        variant={variant}
+        open={open}
+        onOpenChange={onOpenChange}
+        title={title}
+        description="No refundable credit remains on this return."
+        size="lg"
+      >
+        <p className="text-sm text-muted-foreground">
+          Recoverable credit: {formatCurrencyAmount(vatReturn.recoverable_tax)} · Already
+          received: {formatCurrencyAmount(vatReturn.refund_received_total)}
+        </p>
+      </AdminFormShell>
+    );
+  }
+
   const footer = isModal ? (
     <AdminFormActions
       formId={formId}
       onCancel={handleCancel}
-      submitLabel="Save VAT payment"
+      submitLabel={isRefund ? "Record refund received" : "Save VAT payment"}
       pending={isPending}
     />
   ) : undefined;
@@ -193,11 +241,11 @@ export function VatPaymentFormView({
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      description={`Record payment for ${vatReturn.return_number} (${vatReturn.period_label}).`}
+      description={`${description} (${vatReturn.return_number} · ${vatReturn.period_label}).`}
       backHref="/admin/erp/vat-payments"
       breadcrumb={[
         { label: "VAT payments", href: "/admin/erp/vat-payments" },
-        { label: "Add VAT payment" },
+        { label: title },
       ]}
       size="lg"
       formId={formId}
@@ -209,36 +257,54 @@ export function VatPaymentFormView({
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Number</TableHead>
-                  <TableHead>Tax return</TableHead>
+                  <TableHead>Return</TableHead>
                   <TableHead>Period</TableHead>
-                  <TableHead>Store</TableHead>
-                  <TableHead className="text-right">Total tax payable</TableHead>
-                  <TableHead className="text-right">Balance due</TableHead>
+                  <TableHead className="text-right">Tax payable</TableHead>
+                  <TableHead className="text-right">Recoverable</TableHead>
+                  {isRefund ? (
+                    <>
+                      <TableHead className="text-right">Refunded</TableHead>
+                      <TableHead className="text-right">Remaining</TableHead>
+                    </>
+                  ) : (
+                    <TableHead className="text-right">Balance due</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 <TableRow>
                   <TableCell className="font-medium">{vatReturn.return_number}</TableCell>
-                  <TableCell>{vatReturn.period_label}</TableCell>
                   <TableCell>
-                    {formatDisplayDate(vatReturn.period_start)} -{" "}
+                    {formatDisplayDate(vatReturn.period_start)} –{" "}
                     {formatDisplayDate(vatReturn.period_end)}
                   </TableCell>
-                  <TableCell>{vatReturn.store_name ?? "—"}</TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatCurrencyAmount(vatReturn.total_tax_payable)}
                   </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {formatCurrencyAmount(vatReturn.balance_due)}
+                  <TableCell className="text-right tabular-nums">
+                    {formatCurrencyAmount(vatReturn.recoverable_tax)}
                   </TableCell>
+                  {isRefund ? (
+                    <>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrencyAmount(vatReturn.refund_received_total)}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">
+                        {formatCurrencyAmount(vatReturn.refund_remaining)}
+                      </TableCell>
+                    </>
+                  ) : (
+                    <TableCell className="text-right font-medium tabular-nums">
+                      {formatCurrencyAmount(vatReturn.balance_due)}
+                    </TableCell>
+                  )}
                 </TableRow>
               </TableBody>
             </Table>
           </div>
         </AdminFormSection>
 
-        <AdminFormSection title="Payment details">
+        <AdminFormSection title={isRefund ? "Refund received" : "Payment details"}>
           <AdminFormGrid cols={3}>
             <AdminFormField label="Date" required>
               <Input
@@ -248,11 +314,11 @@ export function VatPaymentFormView({
                 required
               />
             </AdminFormField>
-            <AdminFormField label="Reference #">
+            <AdminFormField label={isRefund ? "Claim / reference #" : "Reference #"}>
               <Input
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
-                placeholder="Reference"
+                placeholder={isRefund ? "Authority claim or UTR" : "Reference"}
               />
             </AdminFormField>
             <AdminFormField label="Payment type" required>
@@ -269,7 +335,11 @@ export function VatPaymentFormView({
                 ))}
               </select>
             </AdminFormField>
-            <AdminFormField label="Paid from account" required className="sm:col-span-2">
+            <AdminFormField
+              label={isRefund ? "Deposit to account" : "Paid from account"}
+              required
+              className="sm:col-span-2"
+            >
               <select
                 className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 value={paidFromAccountId}
@@ -288,14 +358,9 @@ export function VatPaymentFormView({
               <Input
                 type="number"
                 step="0.01"
+                min={0}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                onBlur={() => {
-                  if (!vatReturn) return;
-                  const amt = parseFloat(amount);
-                  const vatErr = validateVatPaymentAmount(amt, vatReturn.balance_due);
-                  if (vatErr) setError(vatErr);
-                }}
                 required
               />
             </AdminFormField>
@@ -318,7 +383,7 @@ export function VatPaymentFormView({
               Cancel
             </Link>
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving…" : "Save VAT payment"}
+              {isPending ? "Saving…" : isRefund ? "Record refund received" : "Save VAT payment"}
             </Button>
           </div>
         ) : null}
@@ -326,4 +391,3 @@ export function VatPaymentFormView({
     </AdminFormShell>
   );
 }
-

@@ -451,18 +451,22 @@ export async function getCustomerErpBundle(userId: string): Promise<{
     supabase
       .from("invoices")
       .select(
-        "id, invoice_number, created_at, due_date, total_amount, amount_paid, balance_due, status, stores(name)",
+        "id, invoice_number, created_at, issued_at, due_date, total_amount, amount_paid, balance_due, status, stores(name)",
       )
       .eq("user_id", userId)
-      .neq("status", "cancelled"),
+      .in("status", ["issued", "partial", "paid", "overdue"]),
     supabase
       .from("erp_credit_notes")
-      .select("credit_note_number, total_amount, balance_remaining, credit_note_date, stores(name)")
+      .select(
+        "credit_note_number, total_amount, balance_remaining, credit_note_date, created_at, stores(name)",
+      )
       .eq("user_id", userId)
       .in("status", ["issued", "applied"]),
     supabase
       .from("erp_customer_payments")
-      .select("payment_number, total_amount, payment_date, unallocated_amount, stores(name)")
+      .select(
+        "payment_number, total_amount, payment_date, unallocated_amount, settlement_discount, created_at, stores(name)",
+      )
       .eq("user_id", userId),
     supabase
       .from("customer_credit_limits")
@@ -510,6 +514,8 @@ export async function getCustomerErpBundle(userId: string): Promise<{
   };
 
   type StatementEvent = {
+    sortTs: string;
+    sortKey: number;
     date: string;
     storeName: string | null;
     transactionType: string;
@@ -520,8 +526,11 @@ export async function getCustomerErpBundle(userId: string): Promise<{
 
   const events: StatementEvent[] = [];
   for (const inv of invoices) {
+    const issuedAt = inv.issued_at ?? inv.created_at ?? "";
     events.push({
-      date: inv.created_at?.slice(0, 10) ?? "",
+      sortTs: issuedAt,
+      sortKey: 1,
+      date: issuedAt.slice(0, 10) || "",
       storeName: storeNameFromEmbed(inv.stores),
       transactionType: "invoice",
       details: inv.invoice_number,
@@ -530,17 +539,24 @@ export async function getCustomerErpBundle(userId: string): Promise<{
     });
   }
   for (const p of payments) {
+    const createdAt = p.created_at ?? "";
     events.push({
+      sortTs: createdAt || `${p.payment_date}T12:00:00`,
+      sortKey: 2,
       date: p.payment_date,
       storeName: storeNameFromEmbed(p.stores),
       transactionType: "payment",
       details: p.payment_number,
       debit: 0,
-      credit: Number(p.total_amount ?? 0),
+      credit:
+        Number(p.total_amount ?? 0) + Number(p.settlement_discount ?? 0),
     });
   }
   for (const cn of creditNotes) {
+    const createdAt = cn.created_at ?? "";
     events.push({
+      sortTs: createdAt || `${cn.credit_note_date}T12:00:00`,
+      sortKey: 3,
       date: cn.credit_note_date,
       storeName: storeNameFromEmbed(cn.stores),
       transactionType: "credit_note",
@@ -549,7 +565,12 @@ export async function getCustomerErpBundle(userId: string): Promise<{
       credit: Number(cn.total_amount ?? 0),
     });
   }
-  events.sort((a, b) => a.date.localeCompare(b.date) || a.details.localeCompare(b.details));
+  events.sort(
+    (a, b) =>
+      a.sortTs.localeCompare(b.sortTs) ||
+      a.sortKey - b.sortKey ||
+      a.details.localeCompare(b.details),
+  );
 
   const statement: CustomerStatementLine[] = [];
   let running = openingBalance;

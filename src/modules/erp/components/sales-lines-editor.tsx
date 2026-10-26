@@ -117,7 +117,7 @@ export function SalesLinesEditor({
 
   function addFromSearch(row: ErpSalesProductSearchRow) {
     const key = newLineKey();
-    const { unitPrice, taxRatePercent } = salesLineDefaultsFromSearchRow(row);
+    const { taxRatePercent } = salesLineDefaultsFromSearchRow(row);
     const newLine: SalesLineFormRow = {
       key,
       productId: row.id,
@@ -126,7 +126,7 @@ export function SalesLinesEditor({
       description: "",
       barcode: row.barcode ?? "",
       quantity: 1,
-      unitPrice,
+      unitPrice: 0,
       taxRatePercent,
       unitId: null,
     };
@@ -134,23 +134,15 @@ export function SalesLinesEditor({
     linesRef.current = next;
     onChange(next);
 
-    if (!storeId) return;
-
     void resolveSalesLineDefaultsFromSelection(row, { storeId, customerId }).then(
       (resolved) => {
         const current = linesRef.current;
         if (!current.some((l) => l.key === key)) return;
         const updated = current.map((l) => {
           if (l.key !== key) return l;
-          const nextUnitPrice =
-            resolved.unitPrice > 0
-              ? roundSalesMoney(resolved.unitPrice)
-              : l.unitPrice > 0
-                ? l.unitPrice
-                : roundSalesMoney(resolved.unitPrice);
           return {
             ...l,
-            unitPrice: nextUnitPrice,
+            unitPrice: roundSalesMoney(resolved.unitPrice),
             taxRatePercent: resolved.taxRatePercent,
           };
         });

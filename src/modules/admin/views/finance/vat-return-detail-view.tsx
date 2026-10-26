@@ -81,7 +81,7 @@ function TaxMetric({
   highlight?: "success" | "warning" | "muted";
 }) {
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-4 sm:px-5">
+    <div className="flex min-w-[7.5rem] shrink-0 flex-1 items-center gap-2.5 px-3 py-3 sm:min-w-0 sm:gap-3 sm:px-4 sm:py-4">
       <div
         className={cn(
           "flex size-10 shrink-0 items-center justify-center rounded-xl",
@@ -237,8 +237,6 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
   }
 
   const returnRef = detail.return_number || formatErpDocRef("VR", detail.id);
-  const paidTotal = detail.sources.payments.reduce((sum, row) => sum + row.amount, 0);
-
   async function handleFile() {
     const ok = await confirm({
       title: "File VAT return?",
@@ -333,12 +331,27 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
                 Record payment
               </AdminPrimaryAction>
             ) : null}
+            {detail.status === "filed" && detail.refund_remaining > 0 ? (
+              <Button
+                size="page"
+                variant="outline"
+                nativeButton={false}
+                className="rounded-full"
+                render={
+                  <Link
+                    href={`/admin/erp/vat-returns?vatReturnId=${encodeURIComponent(returnId)}&form=new&kind=refund`}
+                  />
+                }
+              >
+                Record refund received
+              </Button>
+            ) : null}
           </div>
         }
       />
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
-        <div className="grid divide-y divide-border sm:grid-cols-2 xl:grid-cols-4 xl:divide-x xl:divide-y-0">
+        <div className="flex flex-nowrap divide-x divide-border overflow-x-auto">
           <TaxMetric
             label="Output tax"
             value={formatCurrencyAmount(detail.output_tax)}
@@ -349,12 +362,40 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
             value={formatCurrencyAmount(detail.input_tax)}
             icon={ArrowDownLeft}
           />
+          {detail.carry_forward_credit > 0 ? (
+            <TaxMetric
+              label="Prior credit applied"
+              value={formatCurrencyAmount(detail.carry_forward_credit)}
+              icon={RefreshCw}
+            />
+          ) : null}
           <TaxMetric
             label="Tax payable"
             value={formatCurrencyAmount(detail.total_tax_payable)}
             icon={Receipt}
             highlight={detail.total_tax_payable > 0 ? "warning" : "muted"}
           />
+          <TaxMetric
+            label="Recoverable credit"
+            value={formatCurrencyAmount(detail.recoverable_tax)}
+            icon={FileCheck2}
+            highlight={detail.recoverable_tax > 0 ? "success" : "muted"}
+          />
+          {detail.refund_received_total > 0 ? (
+            <TaxMetric
+              label="Refund received"
+              value={formatCurrencyAmount(detail.refund_received_total)}
+              icon={Wallet}
+            />
+          ) : null}
+          {detail.recoverable_tax > 0 ? (
+            <TaxMetric
+              label="Credit to carry forward"
+              value={formatCurrencyAmount(detail.carry_forward_remaining)}
+              icon={RefreshCw}
+              highlight={detail.carry_forward_remaining > 0 ? "success" : "muted"}
+            />
+          ) : null}
           <TaxMetric
             label="Balance due"
             value={formatCurrencyAmount(detail.balance_due)}
@@ -403,9 +444,9 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
 
             <Card className="overflow-hidden border border-border ring-0">
               <CardHeader className="border-b bg-muted/20 pb-4">
-                <CardTitle className="text-base">VAT payments</CardTitle>
+                <CardTitle className="text-base">VAT payments &amp; refunds</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Payments recorded against this return
+                  Tax paid to authority or refunds received into bank/cash
                 </p>
               </CardHeader>
               <CardContent className="p-0">
@@ -432,9 +473,12 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
                           <TableCell className="text-muted-foreground">
                             {formatDisplayDate(row.payment_date)}
                           </TableCell>
-                          <TableCell>{row.payment_type}</TableCell>
+                          <TableCell>
+                            {row.entry_kind === "tax_refund" ? "Refund received" : "Tax payment"}
+                            <span className="ml-1 text-muted-foreground">({row.payment_type})</span>
+                          </TableCell>
                           <TableCell className="text-right tabular-nums">
-                            {formatCurrencyAmount(row.amount)}
+                            {formatCurrencyAmount(Math.abs(row.amount))}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -474,19 +518,41 @@ export function VatReturnDetailView({ returnId }: { returnId: string }) {
                 <Separator />
                 <TotalsRow label="Output tax" value={formatCurrencyAmount(detail.output_tax)} />
                 <TotalsRow label="Input tax" value={formatCurrencyAmount(detail.input_tax)} />
+                {detail.carry_forward_credit > 0 ? (
+                  <TotalsRow
+                    label="Prior credit applied"
+                    value={formatCurrencyAmount(detail.carry_forward_credit)}
+                    muted
+                  />
+                ) : null}
                 <TotalsRow
                   label="Tax payable"
                   value={formatCurrencyAmount(detail.total_tax_payable)}
                   emphasis
                 />
-                {detail.recoverable_tax > 0 ? (
-                  <TotalsRow
-                    label="Recoverable credit"
-                    value={formatCurrencyAmount(detail.recoverable_tax)}
-                    muted
-                  />
-                ) : null}
-                <TotalsRow label="Paid" value={formatCurrencyAmount(paidTotal)} />
+                <TotalsRow
+                  label="Recoverable credit (period)"
+                  value={formatCurrencyAmount(detail.recoverable_tax)}
+                  muted
+                />
+                <TotalsRow
+                  label="Refund received"
+                  value={formatCurrencyAmount(detail.refund_received_total)}
+                  muted
+                />
+                <TotalsRow
+                  label="Credit to carry forward"
+                  value={formatCurrencyAmount(detail.carry_forward_remaining)}
+                  emphasis
+                />
+                <TotalsRow
+                  label="Tax paid"
+                  value={formatCurrencyAmount(
+                    detail.sources.payments
+                      .filter((p) => p.entry_kind === "tax_payment")
+                      .reduce((s, p) => s + Math.max(0, p.amount), 0),
+                  )}
+                />
                 <TotalsRow
                   label="Balance due"
                   value={formatCurrencyAmount(detail.balance_due)}

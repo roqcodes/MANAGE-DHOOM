@@ -16,6 +16,7 @@ import type { ReportKpiItem } from "../business-overview/report-summaries";
 export type VatNetSummary = {
   due_tax?: number;
   recoverable_tax?: number;
+  carry_forward_applied?: number;
   net_payable?: number;
   net_reclaimable?: number;
 };
@@ -23,16 +24,28 @@ export type VatNetSummary = {
 export function buildNetVatKpis(net: VatNetSummary): ReportKpiItem[] {
   const due = Number(net.due_tax ?? 0);
   const recoverable = Number(net.recoverable_tax ?? 0);
-  const payable = Number(net.net_payable ?? 0);
-  const reclaimable = Number(net.net_reclaimable ?? 0);
+  const carryForward = Number(net.carry_forward_applied ?? 0);
+  const payable = Math.max(0, Number(net.net_payable ?? 0));
+  const reclaimable = Math.max(0, Number(net.net_reclaimable ?? 0));
   const items: ReportKpiItem[] = [
-    { label: "Due tax", value: formatCurrencyAmount(due) },
-    { label: "Recoverable tax", value: formatCurrencyAmount(recoverable) },
+    { label: "Output tax (due)", value: formatCurrencyAmount(due) },
+    { label: "Input tax (recoverable)", value: formatCurrencyAmount(recoverable) },
   ];
-  if (payable > 0) {
-    items.push({ label: "Net payable", value: formatCurrencyAmount(payable) });
-  } else if (reclaimable > 0) {
-    items.push({ label: "Net reclaimable", value: formatCurrencyAmount(reclaimable) });
+  if (carryForward > 0) {
+    items.push({
+      label: "Prior-period credit applied",
+      value: formatCurrencyAmount(carryForward),
+    });
+  }
+  items.push({
+    label: "Tax payable",
+    value: formatCurrencyAmount(payable),
+  });
+  if (reclaimable > 0) {
+    items.push({
+      label: "Recoverable credit (carry forward)",
+      value: formatCurrencyAmount(reclaimable),
+    });
   }
   return items;
 }
@@ -40,21 +53,21 @@ export function buildNetVatKpis(net: VatNetSummary): ReportKpiItem[] {
 export function NetVatDueSection({ net }: { net: VatNetSummary }) {
   const due = Number(net.due_tax ?? 0);
   const recoverable = Number(net.recoverable_tax ?? 0);
-  const payable = Number(net.net_payable ?? 0);
-  const reclaimable = Number(net.net_reclaimable ?? 0);
-  const netLabel =
-    payable > 0
-      ? "Net VAT payable for the period"
-      : reclaimable > 0
-        ? "Net VAT reclaimable for the period"
-        : "Net VAT payable (or reclaimable) for the period";
-  const netAmount = payable > 0 ? payable : reclaimable > 0 ? -reclaimable : 0;
+  const carryForward = Number(net.carry_forward_applied ?? 0);
+  const payable = Math.max(0, Number(net.net_payable ?? 0));
+  const reclaimable = Math.max(0, Number(net.net_reclaimable ?? 0));
 
-  const rows = [
-    ["Total value of due tax for the period", due],
-    ["Total value of recoverable tax for the period", recoverable],
-    [netLabel, netAmount],
-  ] as const;
+  const rows: [string, number][] = [
+    ["Total output tax for the period", due],
+    ["Total input tax for the period", recoverable],
+  ];
+  if (carryForward > 0) {
+    rows.push(["Prior-period VAT credit applied", carryForward]);
+  }
+  rows.push(["Tax payable", payable]);
+  if (reclaimable > 0) {
+    rows.push(["Recoverable credit (carry forward)", reclaimable]);
+  }
 
   return (
     <div className="border-t bg-muted/20 p-4">

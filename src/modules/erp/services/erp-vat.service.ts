@@ -18,6 +18,7 @@ import {
   resolveErpStoreId,
   withAccountStoreScope,
 } from "@/modules/erp/services/store-context.service";
+import { vatCarryForwardCredit, vatRefundRemaining } from "@/lib/erp/vat-refund-eligibility";
 
 type VatReturnFilters = {
   page?: number;
@@ -62,7 +63,18 @@ function mapVatReturnRow(
     status: row.status as string,
     output_tax: Number(row.output_tax ?? 0),
     input_tax: Number(row.input_tax ?? 0),
+    carry_forward_credit: Number(row.carry_forward_credit ?? 0),
     total_tax_payable: Number(row.total_tax_payable ?? 0),
+    recoverable_tax: Number(row.recoverable_tax ?? 0),
+    refund_received_total: Number(row.refund_received_total ?? 0),
+    refund_remaining: vatRefundRemaining(
+      Number(row.recoverable_tax ?? 0),
+      Number(row.refund_received_total ?? 0),
+    ),
+    carry_forward_remaining: vatCarryForwardCredit(
+      Number(row.recoverable_tax ?? 0),
+      Number(row.refund_received_total ?? 0),
+    ),
     balance_due: Number(row.balance_due ?? 0),
     notes: (row.notes as string | null) ?? null,
   };
@@ -81,7 +93,7 @@ export async function listVatReturns(
   let query = supabase
     .from("erp_vat_returns")
     .select(
-      "id, return_number, period_label, period_start, period_end, filed_date, status, output_tax, input_tax, total_tax_payable, balance_due, store_id, notes",
+      "id, return_number, period_label, period_start, period_end, filed_date, status, output_tax, input_tax, carry_forward_credit, total_tax_payable, recoverable_tax, refund_received_total, balance_due, store_id, notes",
       { count: "exact" },
     )
     .order("period_end", { ascending: false });
@@ -154,6 +166,7 @@ export async function previewVatReturn(input: {
   return {
     output_tax: Number(row.output_tax ?? 0),
     input_tax: Number(row.input_tax ?? 0),
+    carry_forward_credit: Number(row.carry_forward_credit ?? 0),
     total_tax_payable: Number(row.total_tax_payable ?? 0),
     recoverable_tax: Number(row.recoverable_tax ?? 0),
   };
@@ -231,7 +244,6 @@ export async function getVatReturnDetail(returnId: string): Promise<VatReturnDet
 
   return {
     ...base,
-    recoverable_tax: Math.max(0, base.input_tax - base.output_tax),
     sources,
   };
 }
@@ -286,7 +298,7 @@ async function loadVatReturnSources(
         .match(storeFilter),
       supabase
         .from("erp_vat_payments")
-        .select("id, payment_number, payment_date, amount, payment_type, reference")
+        .select("id, payment_number, payment_date, amount, entry_kind, payment_type, reference")
         .eq("vat_return_id", returnId)
         .order("payment_date", { ascending: false }),
     ]);
@@ -364,6 +376,10 @@ async function loadVatReturnSources(
     payment_number: row.payment_number,
     payment_date: row.payment_date,
     amount: Number(row.amount ?? 0),
+    entry_kind:
+      row.entry_kind === "tax_refund" || Number(row.amount ?? 0) < 0
+        ? "tax_refund"
+        : "tax_payment",
     payment_type: row.payment_type,
     reference: row.reference,
     href: `/admin/erp/vat-payments`,
@@ -453,7 +469,7 @@ export async function listVatPayments(
   let query = supabase
     .from("erp_vat_payments")
     .select(
-      "id, payment_number, vat_return_id, store_id, payment_date, reference, payment_type, paid_from_account_id, amount, notes, created_at, updated_at, erp_vat_returns(return_number, period_label)",
+      "id, payment_number, vat_return_id, store_id, payment_date, reference, payment_type, paid_from_account_id, amount, entry_kind, notes, created_at, updated_at, erp_vat_returns(return_number, period_label)",
       { count: "exact" },
     )
     .order("payment_date", { ascending: false })
@@ -513,6 +529,10 @@ export async function listVatPayments(
       payment_type: row.payment_type,
       notes: row.notes,
       amount: Number(row.amount ?? 0),
+      entry_kind:
+        row.entry_kind === "tax_refund" || Number(row.amount ?? 0) < 0
+          ? "tax_refund"
+          : "tax_payment",
       return_number: vatReturn?.return_number ?? null,
       period_label: vatReturn?.period_label ?? null,
       created_at: (row.created_at as string | null) ?? null,
@@ -529,20 +549,29 @@ export async function createVatPayment(input: {
   paymentType: string;
   paidFromAccountId: string;
   amount: number;
+  kind?: "payment" | "refund";
   reference?: string;
   notes?: string;
+  /** Stable per UI submit; enables safe RPC retries after 51800 migration. */
+  idempotencyKey?: string;
 }): Promise<string> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+
+  const signedAmount =
+    input.kind === "refund"
+      ? -Math.abs(input.amount)
+      : Math.abs(input.amount);
 
   const { data, error } = await supabase.rpc("create_erp_vat_payment", {
     p_vat_return_id: input.vatReturnId,
     p_payment_date: input.paymentDate,
     p_payment_type: input.paymentType,
     p_paid_from_account_id: input.paidFromAccountId,
-    p_amount: input.amount,
+    p_amount: signedAmount,
     p_reference: input.reference ?? undefined,
     p_notes: input.notes ?? undefined,
+    p_idempotency_key: input.idempotencyKey ?? undefined,
   });
   if (error) throw new Error(error.message);
 

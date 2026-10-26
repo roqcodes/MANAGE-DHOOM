@@ -118,14 +118,21 @@ async function resolveJournalSourcePairs(
   const supabase = await createSupabaseServerClient();
 
   if (sourceType === "vendor_credit") {
+    // Issue GL is posted on the vendor credit; application is usually subledger-only.
+    const pairs: Array<{ sourceType: string; sourceId: string }> = [
+      { sourceType: "vendor_credit", sourceId },
+    ];
     const { data: apps } = await supabase
       .from("erp_vendor_credit_applications")
       .select("id")
       .eq("vendor_credit_id", sourceId);
-    return (apps ?? []).map((app) => ({
-      sourceType: "vendor_credit_application",
-      sourceId: app.id,
-    }));
+    for (const app of apps ?? []) {
+      pairs.push({
+        sourceType: "vendor_credit_application",
+        sourceId: app.id,
+      });
+    }
+    return pairs;
   }
 
   if (sourceType === "customer_payment_batch") {

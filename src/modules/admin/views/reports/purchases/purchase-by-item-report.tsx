@@ -96,6 +96,11 @@ export function PurchaseByItemReport({ report }: { report: ReportDefinition }) {
       }
     >
       <ErrorsFeedbackBridge errors={error} />
+      <p className="text-muted-foreground mb-4 text-sm">
+        Gross purchase value is line extension plus allocated landed costs (ex tax),{" "}
+        <strong>before</strong> bill-level vendor discount (e.g. PB-38CE7 shows ₹2,300 gross vs ₹2,350 net
+        acquisition in inventory/WAC). Not input VAT, not AP total, and not store WAC.
+      </p>
       {loading ? (
         <AdminDataTable>
           <AdminDataTableRowsSkeleton rows={10} columns={report.columns.length} />

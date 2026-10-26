@@ -248,7 +248,9 @@ export function VatReturnsListView() {
           ) : (
           <AdminTableBody>
             {sorted.map((row) => {
-              const canPay = row.status === "filed" && Math.abs(row.balance_due) > 0.0001;
+              const canPay = row.status === "filed" && row.balance_due > 0.0001;
+              const canRefund =
+                row.status === "filed" && (row.refund_remaining ?? 0) > 0.0001;
               return (
                 <AdminTableRow key={row.id}>
                   <AdminTableCell className="font-medium">
@@ -324,6 +326,15 @@ export function VatReturnsListView() {
                           onClick={() => openNew({ vatReturnId: row.id })}
                         >
                           Add payment
+                        </Button>
+                      ) : null}
+                      {canRefund ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openNew({ vatReturnId: row.id, kind: "refund" })}
+                        >
+                          Record refund
                         </Button>
                       ) : null}
                     </div>

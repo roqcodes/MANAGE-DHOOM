@@ -18,7 +18,7 @@ export function InventoryReport({ report }: { report: ReportDefinition }) {
     case "stock-transfer-report":
       return <StockTransferReport report={report} />;
     case "store-wise-stock":
-      return <SalesTabularReport report={report} />;
+      return <SalesTabularReport report={report} footnote="Totals use store on-hand quantity × WAC (store inventory purchase price)." />;
       default:
       return <SalesTabularReport report={report} />;
   }

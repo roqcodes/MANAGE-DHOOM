@@ -24,7 +24,6 @@ import {
   AdminListCard,
   AdminListFooter,
   AdminPrimaryAction,
-  AdminSecondaryIconAction,
   AdminPageHeader,
   AdminPageLayout,
   AdminTableBody,
@@ -151,12 +150,6 @@ export function CreditNotesListView() {
         actions={
           <>
             <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
-            <AdminSecondaryIconAction
-              onClick={() => setSettlementOpen(true)}
-              aria-label="Settle account"
-            >
-              <Scale />
-            </AdminSecondaryIconAction>
             <Button
               variant="outline"
               size="page"
@@ -165,6 +158,15 @@ export function CreditNotesListView() {
             >
               <BadgePercent data-icon="inline-start" />
               Record discount
+            </Button>
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              onClick={() => setSettlementOpen(true)}
+            >
+              <Scale data-icon="inline-start" />
+              Settle account
             </Button>
             <AdminPrimaryAction onClick={() => openNew()}>
               <Plus data-icon="inline-start" />

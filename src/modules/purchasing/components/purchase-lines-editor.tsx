@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/table";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
-  firstPositivePrice,
   purchaseLineDefaultsFromSearchRow,
   resolvePurchaseLineDefaultsFromSelection,
 } from "@/modules/erp/lib/resolve-product-line-defaults.client";
@@ -113,7 +112,7 @@ export function PurchaseLinesEditor({
 
   function addProduct(row: ErpProductSearchRow) {
     const key = newLineKey();
-    const { purchasePrice, taxRatePercent } = purchaseLineDefaultsFromSearchRow(row);
+    const { taxRatePercent } = purchaseLineDefaultsFromSearchRow(row);
     const newLine: PurchaseLineFormRow = {
       key,
       productId: row.id,
@@ -122,14 +121,12 @@ export function PurchaseLinesEditor({
       barcode: row.barcode ?? "",
       expiryDate: defaultExpiryDate,
       quantity: 1,
-      purchasePrice,
+      purchasePrice: 0,
       taxRatePercent,
     };
     const next = [...lines, newLine];
     linesRef.current = next;
     onChange(next);
-
-    if (!storeId) return;
 
     void resolvePurchaseLineDefaultsFromSelection(row, { storeId, vendorId }).then(
       (resolved) => {
@@ -137,11 +134,9 @@ export function PurchaseLinesEditor({
         if (!current.some((l) => l.key === key)) return;
         const updated = current.map((l) => {
           if (l.key !== key) return l;
-          const nextPrice =
-            firstPositivePrice(resolved.purchasePrice, l.purchasePrice) ?? 0;
           return {
             ...l,
-            purchasePrice: roundMoney(nextPrice),
+            purchasePrice: roundMoney(resolved.purchasePrice),
             taxRatePercent: resolved.taxRatePercent,
           };
         });

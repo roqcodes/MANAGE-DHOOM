@@ -65,7 +65,7 @@ function PopoverShell({
 }
 
 export function VatReturnTaxPopover({ row }: { row: VatReturnListRow }) {
-  const recoverable = Math.max(0, row.input_tax - row.output_tax);
+  const recoverable = row.recoverable_tax;
   const hasActivity = row.output_tax > 0 || row.input_tax > 0;
   const brief = hasActivity
     ? `Out ${formatCurrencyAmount(row.output_tax)} · In ${formatCurrencyAmount(row.input_tax)}`
@@ -100,6 +100,13 @@ export function VatReturnTaxPopover({ row }: { row: VatReturnListRow }) {
         >
           <BreakdownRow label="Output tax (sales)" value={formatCurrencyAmount(row.output_tax)} />
           <BreakdownRow label="Input tax (purchases)" value={formatCurrencyAmount(row.input_tax)} />
+          {row.carry_forward_credit > 0 ? (
+            <BreakdownRow
+              label="Prior credit applied"
+              value={formatCurrencyAmount(row.carry_forward_credit)}
+              muted
+            />
+          ) : null}
           <div className="my-0.5 border-t border-border/60" />
           <BreakdownRow
             label="Tax payable"
@@ -108,7 +115,7 @@ export function VatReturnTaxPopover({ row }: { row: VatReturnListRow }) {
           />
           {recoverable > 0 ? (
             <BreakdownRow
-              label="Recoverable credit"
+              label="Recoverable credit (carry forward)"
               value={formatCurrencyAmount(recoverable)}
               muted
             />
@@ -121,7 +128,8 @@ export function VatReturnTaxPopover({ row }: { row: VatReturnListRow }) {
             />
           ) : null}
           <p className="pt-1 text-[10px] leading-relaxed text-muted-foreground">
-            Payable is output minus input, floored at zero.
+            Payable is output minus input minus prior filed credit, floored at zero. Excess
+            input is recoverable credit for the next period.
           </p>
           <Link
             href={`/admin/erp/vat-returns/${row.id}`}

@@ -2,35 +2,23 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronDown, Plus } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowLeftRight,
+  ArrowUpRight,
+  Coins,
+} from "lucide-react";
 
 import type {
   AccountStoreBalanceRow,
   AccountTransactionRow,
   BankingAccountRow,
 } from "@/common/erp/finance-types";
-import { PAYMENT_MODE_OPTIONS } from "@/common/erp/finance-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -44,11 +32,13 @@ import {
 } from "@/modules/erp/components/sales-module-ui";
 import { SortableTableHead, AdminTableDateTime, useSortableData } from "@/modules/admin/ui";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import {
   BalanceBadge,
+  bankingTxToolbarInButtonClass,
+  bankingTxToolbarOutButtonClass,
   formatBankingType,
 } from "@/modules/admin/views/banking/banking-ui";
+import { BankingTransactionFormModal } from "@/modules/admin/views/banking/banking-transaction-form-modal";
 
 type TxKind = "owner_contribution" | "owner_drawing" | "generic" | "account_transfer";
 
@@ -135,8 +125,11 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
     router.replace(qs ? `?${qs}` : `/admin/erp/banking/${accountId}`, { scroll: false });
   }, [loading, searchParams, router, accountId]);
 
-  function openTransaction(kind: TxKind) {
+  function openTransaction(kind: TxKind, direction?: "in" | "out") {
     setTxKind(kind);
+    if (kind === "generic") {
+      setGenericDirection(direction ?? "in");
+    }
     setError(null);
     setTxOpen(true);
   }
@@ -195,15 +188,6 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
     );
   }
 
-  const txTitle =
-    txKind === "owner_contribution"
-      ? "Owner's contribution"
-      : txKind === "owner_drawing"
-        ? "Owner's drawings"
-        : txKind === "account_transfer"
-          ? "Transfer to another account"
-          : "Other income";
-
   return (
     <SalesPageLayout>
       <AdminBreadcrumb
@@ -221,33 +205,63 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
             {account.code} · {account.account_type_name}
           </p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger render={<Button size="sm" />}>
-            <Plus data-icon="inline-start" />
-            Add transaction
-            <ChevronDown />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuGroup>
-              <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Money in</p>
-              <DropdownMenuItem onClick={() => openTransaction("owner_contribution")}>
-                Owner&apos;s contribution
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openTransaction("generic")}>
-                Other income
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuGroup>
-              <p className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Money out</p>
-              <DropdownMenuItem onClick={() => openTransaction("owner_drawing")}>
-                Owner&apos;s drawings
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openTransaction("account_transfer")}>
-                Transfer to account
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div
+          className="flex max-w-full shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-gradient-to-b from-muted/45 to-muted/20 p-1 shadow-xs sm:gap-1.5"
+          role="toolbar"
+          aria-label="Record cash transaction"
+        >
+          <span
+            className="shrink-0 px-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary/80"
+          >
+            In
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={bankingTxToolbarInButtonClass}
+            onClick={() => openTransaction("owner_contribution")}
+          >
+            <ArrowDownLeft data-icon="inline-start" className="size-4" />
+            <span className="whitespace-nowrap">Owner&apos;s contribution</span>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={bankingTxToolbarInButtonClass}
+            onClick={() => openTransaction("generic", "in")}
+          >
+            <Coins data-icon="inline-start" className="size-4" />
+            <span className="whitespace-nowrap">Other income</span>
+          </Button>
+          <span className="mx-0.5 h-6 w-px shrink-0 bg-border/80" aria-hidden />
+          <span
+            className="shrink-0 px-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+          >
+            Out
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={bankingTxToolbarOutButtonClass}
+            onClick={() => openTransaction("owner_drawing")}
+          >
+            <ArrowUpRight data-icon="inline-start" className="size-4" />
+            <span className="whitespace-nowrap">Owner&apos;s drawings</span>
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={bankingTxToolbarOutButtonClass}
+            onClick={() => openTransaction("account_transfer")}
+          >
+            <ArrowLeftRight data-icon="inline-start" className="size-4" />
+            <span className="whitespace-nowrap">Transfer</span>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -282,8 +296,16 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
       </div>
 
       <Card>
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 border-b">
-          <CardTitle>Transactions</CardTitle>
+        <CardHeader className="flex flex-col gap-2 border-b sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Transactions</CardTitle>
+            {storeFilter ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Filtered by store. Balance column is movement for this store only; current
+                balance above is the whole cash account (all stores + opening).
+              </p>
+            ) : null}
+          </div>
           <select
             className="h-9 rounded-md border border-input bg-background px-3 text-sm"
             value={storeFilter}
@@ -388,118 +410,21 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
         </CardContent>
       </Card>
 
-      <Dialog open={txOpen} onOpenChange={setTxOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{txTitle}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleTransaction} className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Store *</Label>
-              <select name="storeId" className="h-9 w-full rounded-md border px-3 text-sm" required>
-                <option value="">Select store</option>
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {txKind === "owner_drawing" ? (
-              <div className="space-y-2 sm:col-span-2">
-                <Label>To account</Label>
-                <select
-                  name="counterAccountId"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  defaultValue=""
-                >
-                  <option value="">Drawings (default)</option>
-                  {allAccounts
-                    .filter((a) => a.id !== accountId)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            ) : (
-              <div className="space-y-2 sm:col-span-2">
-                <Label>{txKind === "account_transfer" ? "Transfer to account *" : "From account"}</Label>
-                <select
-                  name="counterAccountId"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  defaultValue=""
-                  required={txKind === "account_transfer"}
-                >
-                  <option value="">Select</option>
-                  {allAccounts
-                    .filter((a) => a.id !== accountId)
-                    .map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label>Date *</Label>
-              <Input
-                name="transactionDate"
-                type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Amount *</Label>
-              <Input name="amount" type="number" step="0.01" min={0} defaultValue={0} required />
-            </div>
-            {txKind === "generic" ? (
-              <div className="space-y-2 sm:col-span-2">
-                <Label>Direction</Label>
-                <select
-                  name="direction"
-                  className="h-9 w-full rounded-md border px-3 text-sm"
-                  value={genericDirection}
-                  onChange={(e) => setGenericDirection(e.target.value as "in" | "out")}
-                >
-                  <option value="in">Money in</option>
-                  <option value="out">Money out</option>
-                </select>
-              </div>
-            ) : null}
-            <div className="space-y-2">
-              <Label>{txKind === "owner_contribution" ? "Received via" : "Paid via"}</Label>
-              <select name="paymentType" className="h-9 w-full rounded-md border px-3 text-sm" defaultValue="Cash">
-                {PAYMENT_MODE_OPTIONS.map((mode) => (
-                  <option key={mode} value={mode}>
-                    {mode}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Reference #</Label>
-              <Input name="reference" />
-            </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Description</Label>
-              <Textarea name="description" rows={3} />
-            </div>
-            <ErrorsFeedbackBridge errors={error} />
-            <div className="flex justify-end gap-2 sm:col-span-2">
-              <Button type="button" variant="outline" onClick={() => setTxOpen(false)}>
-                Close
-              </Button>
-              <Button type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Save changes"}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <BankingTransactionFormModal
+        open={txOpen}
+        onOpenChange={setTxOpen}
+        account={account}
+        accountId={accountId}
+        txKind={txKind}
+        genericDirection={genericDirection}
+        onGenericDirectionChange={setGenericDirection}
+        stores={stores}
+        defaultStoreId={storeFilter || activeStoreId || ""}
+        allAccounts={allAccounts}
+        pending={pending}
+        error={error}
+        onSubmit={handleTransaction}
+      />
     </SalesPageLayout>
   );
 }

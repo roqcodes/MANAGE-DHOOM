@@ -277,11 +277,22 @@ export function VatReturnFormView({
             {previewLoading ? (
               <p className="text-sm text-muted-foreground">Calculating…</p>
             ) : preview ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                 <PreviewMetric label="Output tax (sales)" value={preview.output_tax} />
                 <PreviewMetric label="Input tax (purchases)" value={preview.input_tax} />
-                <PreviewMetric label="Tax payable" value={preview.total_tax_payable} />
-                <PreviewMetric label="Recoverable credit" value={preview.recoverable_tax} />
+                {preview.carry_forward_credit > 0 ? (
+                  <PreviewMetric
+                    label="Prior credit applied"
+                    value={preview.carry_forward_credit}
+                  />
+                ) : null}
+                <PreviewMetric label="Tax payable" value={preview.total_tax_payable} highlight="payable" />
+                <PreviewMetric
+                  label="Recoverable credit"
+                  value={preview.recoverable_tax}
+                  highlight={preview.recoverable_tax > 0 ? "credit" : undefined}
+                />
+                <PreviewMetric label="Balance due" value={preview.total_tax_payable} highlight="payable" />
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -289,8 +300,9 @@ export function VatReturnFormView({
               </p>
             )}
             <p className="text-xs text-muted-foreground">
-              Tax payable is output minus input, floored at zero. Purchase-only periods show
-              recoverable credit instead of an amount owed.
+              Tax payable is output minus input minus any prior filed recoverable credit, floored at
+              zero. Excess input becomes recoverable credit to carry forward; balance due follows tax
+              payable (no VAT payment when payable is zero).
             </p>
           </AdminFormSection>
         ) : null}
@@ -312,11 +324,26 @@ export function VatReturnFormView({
   );
 }
 
-function PreviewMetric({ label, value }: { label: string; value: number }) {
+function PreviewMetric({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  highlight?: "payable" | "credit";
+}) {
   return (
     <div className="rounded-lg border border-border px-3 py-2">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-base font-semibold tabular-nums">{formatCurrencyAmount(value)}</p>
+      <p
+        className={cn(
+          "mt-1 text-base font-semibold tabular-nums",
+          highlight === "credit" && value > 0 && "text-primary",
+        )}
+      >
+        {formatCurrencyAmount(value)}
+      </p>
     </div>
   );
 }

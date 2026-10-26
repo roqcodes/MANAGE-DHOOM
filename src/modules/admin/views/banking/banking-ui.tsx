@@ -47,3 +47,26 @@ export function BalanceBadge({ amount }: { amount: number }) {
     </span>
   );
 }
+
+/** Cash account header: money-in actions (theme primary). */
+export const bankingTxToolbarInButtonClass = cn(
+  "shrink-0 border border-primary/15 bg-primary/[0.08] text-foreground shadow-none",
+  "hover:border-primary/30 hover:bg-primary/[0.13]",
+  "[&_svg]:text-primary",
+);
+
+/** Cash account header: money-out actions (neutral secondary). */
+export const bankingTxToolbarOutButtonClass = cn(
+  "shrink-0 border border-border/80 bg-card text-foreground shadow-none",
+  "hover:border-border hover:bg-secondary/50",
+  "[&_svg]:text-secondary-foreground",
+);
+
+export function bankingTxModalAccentClass(accent: "in" | "out" | "neutral") {
+  return cn(
+    "flex size-9 shrink-0 items-center justify-center rounded-lg",
+    accent === "in" && "bg-primary/12 text-primary ring-1 ring-primary/15",
+    accent === "out" && "bg-secondary/80 text-secondary-foreground ring-1 ring-border/80",
+    accent === "neutral" && "bg-accent text-accent-foreground ring-1 ring-border/60",
+  );
+}

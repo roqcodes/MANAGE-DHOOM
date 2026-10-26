@@ -20,6 +20,11 @@ const AUDIT_LOG_SELECT = `
     name,
     email,
     role
+  ),
+  erp_salesmen:erp_salesmen!audit_logs_salesman_id_fkey (
+    id,
+    name,
+    email
   )
 `;
 
@@ -30,6 +35,12 @@ type AuditLogUserRow = {
   role: string | null;
 };
 
+type AuditLogSalesmanRow = {
+  id: string;
+  name: string;
+  email: string | null;
+};
+
 type AuditLogDbRow = Omit<
   AuditLogEntry,
   "user_name" | "user_email" | "user_role" | "metadata" | "old_data" | "new_data"
@@ -38,16 +49,22 @@ type AuditLogDbRow = Omit<
   old_data: Json | null;
   new_data: Json | null;
   users?: AuditLogUserRow | AuditLogUserRow[] | null;
+  erp_salesmen?: AuditLogSalesmanRow | AuditLogSalesmanRow[] | null;
 };
 
 function mapAuditLogRow(row: AuditLogDbRow): AuditLogEntry {
   const user = Array.isArray(row.users) ? row.users[0] : row.users;
+  const salesman = Array.isArray(row.erp_salesmen) ? row.erp_salesmen[0] : row.erp_salesmen;
+
+  const user_name =
+    salesman?.name?.trim() || user?.name?.trim() || null;
+  const user_email = salesman?.email ?? user?.email ?? null;
 
   return {
     id: row.id,
     user_id: row.user_id,
-    user_name: user?.name ?? null,
-    user_email: user?.email ?? null,
+    user_name,
+    user_email,
     user_role: user?.role ?? null,
     store_id: row.store_id,
     action: row.action,

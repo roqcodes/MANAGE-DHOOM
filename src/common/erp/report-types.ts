@@ -245,7 +245,8 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "sales-by-customer",
     title: "Sales by Customer",
-    description: "Invoice totals, margin, and profit by customer. Filter by store and channel.",
+    description:
+      "Invoice totals, margin, and profit by customer. Net sales (ex tax) is after prorated header discount on lines. Filter by store and channel.",
     category: "Sales",
     filters: { dateRange: true, store: true, channel: true, salesman: true },
     rpc: "get_erp_sales_by_customer",
@@ -266,7 +267,8 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "sales-by-item",
     title: "Sales by Item",
-    description: "Line-item sales, cost, and profit. ERP store vs online channel.",
+    description:
+      "Line-item sales, cost, and profit after prorated header discount on net sales (ex tax). ERP store vs online channel.",
     category: "Sales",
     filters: { dateRange: true, store: true, channel: true, salesman: true },
     rpc: "get_erp_sales_by_item",
@@ -381,7 +383,8 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "store-wise-stock",
     title: "Store Wise Stock",
-    description: "Stock totals and value by store.",
+    description:
+      "On-hand units and value at cost (WAC) for each active store from store inventory.",
     category: "Inventory",
     filters: { store: true },
     rpc: "get_erp_store_wise_stock_report",
@@ -447,7 +450,8 @@ export const ERP_REPORTS: ReportDefinition[] = [
   {
     slug: "purchase-by-item",
     title: "Purchase By Item",
-    description: "Purchase and inbound transfer quantities and values by product.",
+    description:
+      "Purchase and inbound transfer quantities and values by product. Purchase value is line extension plus allocated landed costs (ex tax), before bill-level discount—not net acquisition cost.",
     category: "Purchases and Expenses",
     filters: { dateRange: true, store: true, brand: true, category: true },
     rpc: "get_erp_purchase_by_item_report",
@@ -458,10 +462,25 @@ export const ERP_REPORTS: ReportDefinition[] = [
       { key: "purchase_qty", label: "Purchase qty", align: "right", format: "number" },
       { key: "transfer_qty", label: "Transfer qty", align: "right", format: "number" },
       { key: "total_qty", label: "Total qty", align: "right", format: "number" },
-      { key: "purchase_value", label: "Purchase value", align: "right", format: "currency" },
+      {
+        key: "purchase_value",
+        label: "Gross purchase value (before bill discount)",
+        align: "right",
+        format: "currency",
+      },
       { key: "transfer_value", label: "Transfer value", align: "right", format: "currency" },
-      { key: "total_value", label: "Total value", align: "right", format: "currency" },
-      { key: "avg_purchase_cost", label: "Avg. purchase cost", align: "right", format: "currency" },
+      {
+        key: "total_value",
+        label: "Gross total (before bill discount)",
+        align: "right",
+        format: "currency",
+      },
+      {
+        key: "avg_purchase_cost",
+        label: "Avg. gross unit cost (before discount)",
+        align: "right",
+        format: "currency",
+      },
     ],
   },
   {

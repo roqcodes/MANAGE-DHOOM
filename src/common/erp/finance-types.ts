@@ -159,6 +159,7 @@ export const BANKING_TRANSACTION_TYPES = {
 export type VatReturnPreview = {
   output_tax: number;
   input_tax: number;
+  carry_forward_credit: number;
   total_tax_payable: number;
   recoverable_tax: number;
 };
@@ -183,7 +184,14 @@ export type VatReturnListRow = {
   status: string;
   output_tax: number;
   input_tax: number;
+  carry_forward_credit: number;
   total_tax_payable: number;
+  recoverable_tax: number;
+  refund_received_total: number;
+  /** recoverable_tax − refund_received_total */
+  refund_remaining: number;
+  /** Credit available for next return after refunds */
+  carry_forward_remaining: number;
   balance_due: number;
   notes: string | null;
 };
@@ -205,13 +213,13 @@ export type VatReturnPaymentLine = {
   payment_number: string;
   payment_date: string;
   amount: number;
+  entry_kind: "tax_payment" | "tax_refund";
   payment_type: string;
   reference: string | null;
   href: string;
 };
 
 export type VatReturnDetailWithSources = VatReturnDetail & {
-  recoverable_tax: number;
   sources: {
     sales_invoices: VatReturnSourceLine[];
     credit_notes: VatReturnSourceLine[];
@@ -236,6 +244,7 @@ export type VatPaymentListRow = {
   payment_type: string;
   notes: string | null;
   amount: number;
+  entry_kind: "tax_payment" | "tax_refund";
   return_number: string | null;
   period_label: string | null;
   created_at?: string | null;

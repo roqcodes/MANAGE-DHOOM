@@ -60,7 +60,9 @@ export function AdminPageHeader({
           ) : null}
         </div>
         {actions ? (
-          <AdminPageActionBar className="[&_[data-slot=button]]:shadow-sm [&_[data-slot=button]]:shadow-primary/10">
+          <AdminPageActionBar
+            className="ml-auto w-full shrink-0 justify-end sm:w-auto [&_[data-slot=button]]:shadow-sm [&_[data-slot=button]]:shadow-primary/10"
+          >
             {actions}
           </AdminPageActionBar>
         ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { format } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -132,10 +132,7 @@ export function CustomerDetailPanel({
 
   const financial = erp?.summary;
 
-  const statementRows = useMemo(() => {
-    if (!erp?.statement.length) return [];
-    return [...erp.statement].reverse();
-  }, [erp?.statement]);
+  const statementRows = erp?.statement ?? [];
 
   function handleToggleBlock() {
     startTransition(async () => {
@@ -395,7 +392,9 @@ export function CustomerDetailPanel({
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <CardTitle>Statement of accounts</CardTitle>
-                    <CardDescription>Invoices and payments with running balance.</CardDescription>
+                    <CardDescription>
+                      Chronological invoices, payments, and credits with running balance.
+                    </CardDescription>
                   </div>
                   <Button
                     type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -119,10 +119,7 @@ export function VendorErpDetailView() {
   const displayName = profile?.name?.trim() || "Vendor";
   const isActive = profile?.is_active !== false;
 
-  const statementRows = useMemo(() => {
-    if (!statement.length) return [];
-    return [...statement].reverse();
-  }, [statement]);
+  const statementRows = statement;
 
   async function handleDelete() {
     const ok = await confirm({
