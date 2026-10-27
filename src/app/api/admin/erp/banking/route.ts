@@ -9,8 +9,10 @@ import {
   getBankingAccount,
   listAccountTransactions,
   listBankingAccounts,
+  listBankingLedgerCounters,
   listPaymentStatements,
   listProfitWithdrawals,
+  type BankingCounterKind,
 } from "@/modules/erp/services/erp-banking.service";
 
 export async function GET(request: Request) {
@@ -42,6 +44,12 @@ export async function GET(request: Request) {
       });
       const total = rows.reduce((s, r) => s + r.amount, 0);
       return NextResponse.json({ data: rows, total });
+    }
+
+    const counterKind = url.searchParams.get("counterKind") as BankingCounterKind | null;
+    if (counterKind === "income" || counterKind === "expense" || counterKind === "equity") {
+      const rows = await listBankingLedgerCounters(counterKind);
+      return NextResponse.json({ data: rows });
     }
 
     if (accountId && url.searchParams.get("storeBalances") === "1") {

@@ -13,6 +13,7 @@ import type {
   AccountStoreBalanceRow,
   AccountTransactionRow,
   BankingAccountRow,
+  BankingLedgerCounterRow,
 } from "@/common/erp/finance-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
@@ -61,6 +62,7 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
   const [transactions, setTransactions] = useState<AccountTransactionRow[]>([]);
   const [storeBalances, setStoreBalances] = useState<AccountStoreBalanceRow[]>([]);
   const [allAccounts, setAllAccounts] = useState<BankingAccountRow[]>([]);
+  const [ledgerCounters, setLedgerCounters] = useState<BankingLedgerCounterRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [storeFilter, setStoreFilter] = useState(activeStoreId ?? "");
   const [txOpen, setTxOpen] = useState(false);
@@ -106,6 +108,22 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
   }, [accountId, storeFilter]);
 
   useEffect(() => {
+    if (!txOpen || txKind === "account_transfer") {
+      setLedgerCounters([]);
+      return;
+    }
+    const counterKind =
+      txKind === "generic"
+        ? genericDirection === "in"
+          ? "income"
+          : "expense"
+        : "equity";
+    adminGet<{ data: BankingLedgerCounterRow[] }>(
+      `erp/banking?counterKind=${counterKind}`,
+    ).then((res) => setLedgerCounters(res.data ?? []));
+  }, [txOpen, txKind, genericDirection]);
+
+  useEffect(() => {
     if (loading) return;
     const tx = searchParams.get("tx");
     if (!isTxKind(tx)) return;
@@ -138,10 +156,14 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
-    const storeId = fd.get("storeId") as string;
+    const storeId = storeFilter || activeStoreId || "";
     const amount = parseFloat((fd.get("amount") as string) || "0");
-    if (!storeId || amount <= 0) {
-      setError("Store and amount are required");
+    if (!storeId) {
+      setError("Select a store using the header switcher before saving.");
+      return;
+    }
+    if (amount <= 0) {
+      setError("Amount is required");
       return;
     }
 
@@ -429,14 +451,15 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
       <BankingTransactionFormModal
         open={txOpen}
         onOpenChange={setTxOpen}
+        hideGenericDirection
         account={account}
         accountId={accountId}
         txKind={txKind}
         genericDirection={genericDirection}
         onGenericDirectionChange={setGenericDirection}
-        stores={stores}
-        defaultStoreId={storeFilter || activeStoreId || ""}
-        allAccounts={allAccounts}
+        activeStoreName={stores.find((s) => s.id === (storeFilter || activeStoreId))?.name}
+        transferDestinations={allAccounts.filter((a) => a.id !== accountId)}
+        ledgerCounters={ledgerCounters}
         pending={pending}
         error={error}
         onSubmit={handleTransaction}

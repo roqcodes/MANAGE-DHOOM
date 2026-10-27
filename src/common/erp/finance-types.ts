@@ -69,6 +69,14 @@ export type SourceJournalGroup = {
 
 export type BankingAccountRow = AccountListRow;
 
+/** Chart-of-accounts line for banking offsets (income / expense / equity)—not cash/bank. */
+export type BankingLedgerCounterRow = {
+  id: string;
+  code: string;
+  name: string;
+  account_type_name: string;
+};
+
 export type AccountTransactionRow = {
   id: string;
   transaction_number: string;

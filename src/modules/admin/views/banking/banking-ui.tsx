@@ -79,3 +79,14 @@ export function bankingTxModalAccentClass(accent: "in" | "out" | "neutral") {
     accent === "neutral" && "bg-accent text-accent-foreground ring-1 ring-border/60",
   );
 }
+
+/** Left pane of split banking modals (money in vs out). */
+export function bankingTxModalAsideClass(accent: "in" | "out" | "neutral") {
+  return cn(
+    "flex flex-col border-border px-4 md:w-[min(100%,300px)] md:shrink-0 md:border-r",
+    "border-b bg-gradient-to-b from-muted/45 to-muted/15 md:border-b-0",
+    accent === "in" && "md:border-l-[3px] md:border-l-primary",
+    accent === "out" && "md:border-l-[3px] md:border-l-muted-foreground/45",
+    accent === "neutral" && "md:border-l-[3px] md:border-l-border",
+  );
+}

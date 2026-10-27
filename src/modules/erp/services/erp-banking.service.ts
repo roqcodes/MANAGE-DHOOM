@@ -7,6 +7,7 @@ import type {
   AccountStoreBalanceRow,
   AccountTransactionRow,
   BankingAccountRow,
+  BankingLedgerCounterRow,
   PaymentStatementRow,
   ProfitWithdrawalRow,
 } from "@/common/erp/finance-types";
@@ -17,6 +18,8 @@ import {
   resolveErpStoreId,
   withAccountStoreScope,
 } from "@/modules/erp/services/store-context.service";
+
+export type BankingCounterKind = "income" | "expense" | "equity";
 
 const CASH_ACCOUNT_TYPES = new Set(["Cash", "Bank"]);
 const LOAN_TYPE_PATTERN = /loan/i;
@@ -117,6 +120,45 @@ export async function getBankingAccount(accountId: string): Promise<BankingAccou
     p_account_id: data.id,
   });
   return mapAccountRow(data, Number(balance ?? 0));
+}
+
+/** Zoho-style: other income/expense and equity use COA accounts, not other cash/bank wallets. */
+export async function listBankingLedgerCounters(
+  kind: BankingCounterKind,
+): Promise<BankingLedgerCounterRow[]> {
+  await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+
+  const targetCategory =
+    kind === "income" ? "Income" : kind === "expense" ? "Expense" : "Equity";
+
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("id, code, name, account_types(name, account_category)")
+    .eq("is_active", true)
+    .order("code");
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? [])
+    .filter((row) => {
+      const type = row.account_types as { name: string; account_category: string } | null;
+      if (type?.account_category !== targetCategory) return false;
+      if (kind === "expense") {
+        if (type?.name === "Cost of Goods Sold") return false;
+        if ((row.code as string) === "COST_OF_GOODS_SOLD") return false;
+      }
+      return true;
+    })
+    .map((row) => {
+      const type = row.account_types as { name: string } | null;
+      return {
+        id: row.id as string,
+        code: row.code as string,
+        name: row.name as string,
+        account_type_name: type?.name ?? "—",
+      };
+    });
 }
 
 export async function createBankingAccount(input: {

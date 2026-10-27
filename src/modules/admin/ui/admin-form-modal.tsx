@@ -41,6 +41,8 @@ export type AdminFormModalProps = {
   children: ReactNode;
   footer?: ReactNode;
   formId?: string;
+  /** When false, body does not scroll (fit compact modals). Default true. */
+  scrollBody?: boolean;
 };
 
 const SIZE_CLASSES: Record<AdminFormModalSize, string> = {
@@ -62,6 +64,7 @@ export function AdminFormModal({
   children,
   footer,
   formId,
+  scrollBody = true,
 }: AdminFormModalProps) {
   const isLandscape = size === "landscape";
 
@@ -84,7 +87,12 @@ export function AdminFormModal({
           ) : null}
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+        <div
+          className={cn(
+            "min-h-0 flex-1 px-5 py-4",
+            scrollBody ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
+          )}
+        >
           {children}
         </div>
 
