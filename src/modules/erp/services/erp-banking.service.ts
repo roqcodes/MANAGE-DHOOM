@@ -272,8 +272,9 @@ export async function getAccountStoreBalances(
       store_id: row.store_id,
       store_name: row.store_id
         ? (storeNameById.get(row.store_id) ?? "Store")
-        : "Unassigned",
+        : "Unassigned (cash book)",
       balance: 0,
+      row_kind: "store",
     };
     existing.balance += Number(row.debit_amount ?? 0) - Number(row.credit_amount ?? 0);
     map.set(key, existing);
@@ -284,27 +285,44 @@ export async function getAccountStoreBalances(
     return Array.from(map.values()).sort((a, b) => b.balance - a.balance);
   }
 
-  if (map.size === 0) {
+  const openingBalance = Number(account.opening_balance ?? 0);
+  const storeRows = Array.from(map.values()).map((r) => ({ ...r, row_kind: "store" as const }));
+  const movementTotal = storeRows.reduce((s, r) => s + r.balance, 0);
+  const otherGl = account.current_balance - openingBalance - movementTotal;
+
+  const breakdown: AccountStoreBalanceRow[] = [];
+
+  if (Math.abs(openingBalance) >= 0.01) {
+    breakdown.push({
+      store_id: null,
+      store_name: "Opening balance",
+      balance: openingBalance,
+      row_kind: "opening",
+    });
+  }
+
+  if (Math.abs(otherGl) >= 0.01) {
+    breakdown.push({
+      store_id: null,
+      store_name: "Other GL",
+      balance: otherGl,
+      row_kind: "other_gl",
+    });
+  }
+
+  if (storeRows.length === 0 && breakdown.length === 0) {
     return [
       {
         store_id: account.store_id,
         store_name: account.store_name ?? "All stores",
         balance: account.current_balance,
+        row_kind: "store",
       },
     ];
   }
 
-  const movementTotal = Array.from(map.values()).reduce((s, r) => s + r.balance, 0);
-  const openingAndOther = account.current_balance - movementTotal;
-  if (Math.abs(openingAndOther) >= 0.01) {
-    map.set("opening_gl", {
-      store_id: null,
-      store_name: "Opening balance & other GL",
-      balance: openingAndOther,
-    });
-  }
-
-  return Array.from(map.values()).sort((a, b) => b.balance - a.balance);
+  storeRows.sort((a, b) => b.balance - a.balance);
+  return [...breakdown, ...storeRows];
 }
 
 export async function listPaymentStatements(filters?: {

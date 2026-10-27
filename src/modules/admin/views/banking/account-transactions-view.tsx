@@ -276,15 +276,29 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm text-muted-foreground">Store-wise balance</CardTitle>
+            <CardTitle className="text-sm text-muted-foreground">Balance breakdown</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Opening balance and other GL are from the ledger; store rows match the cash book.
+            </p>
           </CardHeader>
           <CardContent className="space-y-2">
             {storeBalances.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No store breakdown yet.</p>
+              <p className="text-sm text-muted-foreground">No breakdown yet.</p>
             ) : (
               storeBalances.map((row) => (
-                <div key={row.store_id ?? row.store_name} className="flex justify-between text-sm">
-                  <span>{row.store_name}</span>
+                <div
+                  key={row.row_kind ?? row.store_id ?? row.store_name}
+                  className="flex justify-between text-sm"
+                >
+                  <span
+                    className={
+                      row.row_kind === "opening" || row.row_kind === "other_gl"
+                        ? "text-muted-foreground"
+                        : undefined
+                    }
+                  >
+                    {row.store_name}
+                  </span>
                   <span className="tabular-nums font-medium">
                     {formatCurrencyAmount(row.balance)}
                   </span>
@@ -302,7 +316,7 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
             {storeFilter ? (
               <p className="mt-1 text-xs text-muted-foreground">
                 Filtered by store. Balance column is movement for this store only; current
-                balance above is the whole cash account (all stores + opening).
+                balance above is opening + other GL + all store cash-book activity.
               </p>
             ) : null}
           </div>

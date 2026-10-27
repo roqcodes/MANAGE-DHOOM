@@ -45,8 +45,7 @@ export async function PATCH(
       return NextResponse.json(data);
     }
     if (body.action === "repair") {
-      const detail = await getVatReturnDetail(id);
-      await repairVatReturnTotals(detail.store_id);
+      await repairVatReturnTotals(id);
       const data = await getVatReturnDetail(id);
       return NextResponse.json(data);
     }

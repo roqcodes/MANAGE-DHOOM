@@ -3121,7 +3121,9 @@ export type Database = {
           amount: number
           created_at: string
           created_by: string | null
+          entry_kind: string
           id: string
+          idempotency_key: string | null
           notes: string | null
           paid_from_account_id: string
           payment_date: string
@@ -3137,7 +3139,9 @@ export type Database = {
           amount: number
           created_at?: string
           created_by?: string | null
+          entry_kind?: string
           id?: string
+          idempotency_key?: string | null
           notes?: string | null
           paid_from_account_id: string
           payment_date?: string
@@ -3153,7 +3157,9 @@ export type Database = {
           amount?: number
           created_at?: string
           created_by?: string | null
+          entry_kind?: string
           id?: string
+          idempotency_key?: string | null
           notes?: string | null
           paid_from_account_id?: string
           payment_date?: string
@@ -3205,6 +3211,7 @@ export type Database = {
       erp_vat_returns: {
         Row: {
           balance_due: number
+          carry_forward_credit: number
           created_at: string
           created_by: string | null
           filed_date: string | null
@@ -3216,6 +3223,8 @@ export type Database = {
           period_end: string
           period_label: string
           period_start: string
+          recoverable_tax: number
+          refund_received_total: number
           return_number: string
           status: string
           store_id: string | null
@@ -3224,6 +3233,7 @@ export type Database = {
         }
         Insert: {
           balance_due?: number
+          carry_forward_credit?: number
           created_at?: string
           created_by?: string | null
           filed_date?: string | null
@@ -3235,6 +3245,8 @@ export type Database = {
           period_end: string
           period_label?: string
           period_start: string
+          recoverable_tax?: number
+          refund_received_total?: number
           return_number: string
           status?: string
           store_id?: string | null
@@ -3243,6 +3255,7 @@ export type Database = {
         }
         Update: {
           balance_due?: number
+          carry_forward_credit?: number
           created_at?: string
           created_by?: string | null
           filed_date?: string | null
@@ -3254,6 +3267,8 @@ export type Database = {
           period_end?: string
           period_label?: string
           period_start?: string
+          recoverable_tax?: number
+          refund_received_total?: number
           return_number?: string
           status?: string
           store_id?: string | null
@@ -4987,7 +5002,22 @@ export type Database = {
           store_id?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "store_product_inventory_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_product_inventory_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       online_stock_transfers: {
         Row: {
@@ -6153,6 +6183,7 @@ export type Database = {
         Args: {
           p_amount: number
           p_created_by?: string
+          p_idempotency_key?: string
           p_notes?: string
           p_paid_from_account_id: string
           p_payment_date: string

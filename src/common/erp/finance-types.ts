@@ -122,6 +122,8 @@ export type AccountStoreBalanceRow = {
   store_id: string | null;
   store_name: string;
   balance: number;
+  /** Non-store rows for stable ordering and labels. */
+  row_kind?: "opening" | "other_gl" | "store";
 };
 
 export const PAYMENT_MODE_OPTIONS = [

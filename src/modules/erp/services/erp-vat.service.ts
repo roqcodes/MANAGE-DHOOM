@@ -420,6 +420,53 @@ export async function deleteVatReturn(returnId: string): Promise<void> {
   });
 }
 
+/** Recompute balance_due and refund_received_total from payment rows (mirrors sync_erp_vat_return_payment_totals). */
+export async function repairVatReturnTotals(returnId: string): Promise<void> {
+  await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+
+  const { data: returnRow, error: returnErr } = await supabase
+    .from("erp_vat_returns")
+    .select("id, total_tax_payable, store_id")
+    .eq("id", returnId)
+    .single();
+  if (returnErr) throw new Error(returnErr.message);
+
+  const { data: payments, error: payErr } = await supabase
+    .from("erp_vat_payments")
+    .select("amount, entry_kind")
+    .eq("vat_return_id", returnId);
+  if (payErr) throw new Error(payErr.message);
+
+  const taxPaid = (payments ?? [])
+    .filter((p) => p.entry_kind === "tax_payment" && Number(p.amount) > 0)
+    .reduce((s, p) => s + Number(p.amount), 0);
+
+  const refundReceived = (payments ?? [])
+    .filter((p) => p.entry_kind === "tax_refund")
+    .reduce((s, p) => s + Math.abs(Number(p.amount)), 0);
+
+  const totalTaxPayable = Number(returnRow.total_tax_payable ?? 0);
+  const balanceDue = Math.max(0, totalTaxPayable - taxPaid);
+
+  const { error: updateErr } = await supabase
+    .from("erp_vat_returns")
+    .update({
+      balance_due: balanceDue,
+      refund_received_total: refundReceived,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", returnId);
+  if (updateErr) throw new Error(updateErr.message);
+
+  await logAuditEvent({
+    action: "repair_vat_return_totals",
+    entityType: "vat_return",
+    entityId: returnId,
+    description: "VAT return payment totals reconciled from payments",
+  });
+}
+
 export async function listVatPaidThroughAccounts(
   storeId?: string,
 ): Promise<PaidThroughAccountOption[]> {
