@@ -15,7 +15,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -39,6 +41,7 @@ export function VendorErpFormView({
   const id = vendorIdProp ?? (mode === "edit" ? (params.id as string) : "");
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<string[]>([]);
+  const fieldValidation = useFormFieldValidation();
   const [profile, setProfile] = useState<VendorErpProfile | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const isModal = variant === "modal";
@@ -74,12 +77,17 @@ export function VendorErpFormView({
     const name = (fd.get("name") as string).trim();
     const address = (fd.get("address") as string).trim();
     const vendorType = fd.get("vendorType") as string;
-    const validationErrors: string[] = [];
-    if (!name) validationErrors.push("Name is required.");
-    if (!address) validationErrors.push("Address is required.");
-    if (!vendorType) validationErrors.push("Vendor type is required.");
-    if (validationErrors.length > 0) {
-      setErrors(validationErrors);
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "name", ok: Boolean(name), message: "Name is required." },
+        { key: "address", ok: Boolean(address), message: "Address is required." },
+        { key: "vendorType", ok: Boolean(vendorType), message: "Vendor type is required." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setErrors(validationMessages);
       return;
     }
     setErrors([]);
@@ -162,7 +170,7 @@ export function VendorErpFormView({
         <AdminFormSection title="Vendor details">
           <AdminFormColumns cols={2}>
             <AdminFormGrid cols={2}>
-              <AdminFormField label="Name" required className="sm:col-span-2">
+              <AdminFormField label="Name" required fieldKey="name" className="sm:col-span-2">
                 <Input name="name" defaultValue={profile?.name ?? ""} required />
               </AdminFormField>
               <AdminFormField label="PO box">
@@ -171,7 +179,7 @@ export function VendorErpFormView({
               <AdminFormField label="TRN">
                 <Input name="trn" defaultValue={profile?.trn ?? ""} />
               </AdminFormField>
-              <AdminFormField label="Address" required className="sm:col-span-2">
+              <AdminFormField label="Address" required fieldKey="address" className="sm:col-span-2">
                 <Input name="address" defaultValue={profile?.address ?? ""} required />
               </AdminFormField>
               <AdminFormField label="Email">
@@ -185,7 +193,7 @@ export function VendorErpFormView({
               <AdminFormField label="Fax">
                 <Input name="fax" defaultValue={profile?.fax ?? ""} />
               </AdminFormField>
-              <AdminFormField label="Vendor type" required>
+              <AdminFormField label="Vendor type" required fieldKey="vendorType">
                 <select
                   name="vendorType"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"

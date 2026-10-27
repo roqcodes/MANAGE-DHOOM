@@ -13,9 +13,11 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   ErpDocumentNumberField,
   ProductLiveSearch,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +51,8 @@ export function TransferRequestFormView({
   const router = useRouter();
   const { stores } = useErpStores();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [fromStoreId, setFromStoreId] = useState("");
@@ -119,19 +122,31 @@ export function TransferRequestFormView({
 
   function handleSubmit(submit: boolean) {
     setError(null);
-    if (!fromStoreId || !toStoreId || fromStoreId === toStoreId) {
-      setError("Valid from/to stores required");
+    const overStockLine = lines.find((line) => line.quantity > line.sourceAvailable);
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "stores",
+          ok: Boolean(fromStoreId && toStoreId && fromStoreId !== toStoreId),
+          message: "Valid from/to stores required.",
+        },
+        { key: "lines", ok: lines.length > 0, message: "Add at least one item." },
+        {
+          key: "lines",
+          ok: !overStockLine,
+          message: overStockLine
+            ? `Quantity exceeds available stock for ${overStockLine.productName}.`
+            : "",
+        },
+      ].filter((c) => c.message !== ""),
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
-    }
-    if (lines.length === 0) {
-      setError("Add at least one item");
-      return;
-    }
-    for (const line of lines) {
-      if (line.quantity > line.sourceAvailable) {
-        setError(`Quantity exceeds available stock for ${line.productName}`);
-        return;
-      }
     }
 
     startTransition(async () => {
@@ -181,10 +196,10 @@ export function TransferRequestFormView({
       <AdminFormSection title="Request details">
         <AdminFormGrid cols={2}>
           <ErpDocumentNumberField kind="TR" />
-          <AdminFormField label="Supplying store (has stock)" required>
+          <AdminFormField label="Supplying store (has stock)" required fieldKey="stores">
             <StoreSelect value={fromStoreId} onChange={setFromStoreId} stores={stores} label="" />
           </AdminFormField>
-          <AdminFormField label="Requesting store (needs stock)" required>
+          <AdminFormField label="Requesting store (needs stock)" required fieldKey="stores">
             <StoreSelect value={toStoreId} onChange={setToStoreId} stores={stores} label="" />
           </AdminFormField>
           <AdminFormField label="Request date">
@@ -200,7 +215,12 @@ export function TransferRequestFormView({
         </AdminFormGrid>
       </AdminFormSection>
 
-      <AdminFormSection title="Items">
+      <AdminFormSection
+        title="Items"
+        className={
+          fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+        }
+      >
         <ProductLiveSearch
           catalog="sales"
           storeId={fromStoreId}

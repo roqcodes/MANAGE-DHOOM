@@ -5,6 +5,11 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { adminPost } from "@/modules/admin/lib/admin-api-client";
 import { Modal, SecondaryBtn } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +22,24 @@ export function UsersCreateSalesmanModal({
   onClose: () => void;
   onCreated?: () => void;
 }) {
+  return (
+    <Modal title="Create salesman" onClose={onClose} size="md">
+      <FormValidationScope>
+        <UsersCreateSalesmanModalForm onClose={onClose} onCreated={onCreated} />
+      </FormValidationScope>
+    </Modal>
+  );
+}
+
+function UsersCreateSalesmanModalForm({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated?: () => void;
+}) {
   const queryClient = useQueryClient();
+  const fieldValidation = useFormFieldValidation();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -30,6 +52,18 @@ export function UsersCreateSalesmanModal({
     name.trim().length > 0 && pinDigits.length === 3 && !isPending;
 
   function handleCreate() {
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "name", ok: name.trim().length > 0, message: "Full name is required." },
+        { key: "pin", ok: pinDigits.length === 3, message: "Enter a valid 3-digit PIN." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(validationMessages[0]);
+      return;
+    }
     startTransition(async () => {
       setError(null);
       try {
@@ -51,7 +85,6 @@ export function UsersCreateSalesmanModal({
   }
 
   return (
-    <Modal title="Create salesman" onClose={onClose} size="md">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Salesmen are identified by a unique 3-digit PIN on sales invoices and orders. They do not
@@ -67,6 +100,7 @@ export function UsersCreateSalesmanModal({
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
               placeholder="Rahul Verma"
+              aria-invalid={fieldValidation.isFieldInvalid("name")}
             />
           </div>
           <div className="space-y-2">
@@ -98,6 +132,7 @@ export function UsersCreateSalesmanModal({
               onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 3))}
               autoComplete="off"
               placeholder="e.g. 427"
+              aria-invalid={fieldValidation.isFieldInvalid("pin")}
             />
           </div>
         </div>
@@ -111,6 +146,5 @@ export function UsersCreateSalesmanModal({
           </Button>
         </div>
       </div>
-    </Modal>
   );
 }

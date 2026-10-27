@@ -12,8 +12,10 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   ErpDocumentNumberField,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import {
   ActiveStoreFormField,
@@ -57,7 +59,8 @@ export function JournalEntryFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [accounts, setAccounts] = useState<{ id: string; code: string; name: string }[]>([]);
   const [transactionDate, setTransactionDate] = useState(new Date().toISOString().slice(0, 10));
   const [description, setDescription] = useState("");
@@ -103,14 +106,6 @@ export function JournalEntryFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required");
-      return;
-    }
-    if (totals.debit !== totals.credit || totals.debit === 0) {
-      setError("Journal must balance with non-zero totals");
-      return;
-    }
     const apiLines = lines
       .filter(
         (l) =>
@@ -123,8 +118,27 @@ export function JournalEntryFormView({
         credit: coalesceNumber(l.credit) > 0 ? coalesceNumber(l.credit) : undefined,
         description: l.description || undefined,
       }));
-    if (apiLines.length < 2) {
-      setError("At least two lines required");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        {
+          key: "lines",
+          ok: totals.debit === totals.credit && totals.debit > 0,
+          message: "Journal must balance with non-zero totals.",
+        },
+        { key: "lines", ok: apiLines.length >= 2, message: "At least two lines required." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
@@ -187,7 +201,7 @@ export function JournalEntryFormView({
                 onChange={(e) => setTransactionDate(e.target.value)}
               />
             </AdminFormField>
-            <AdminFormField label="Store" required>
+            <AdminFormField label="Store" required fieldKey="store">
               <ActiveStoreFormField
                 mode="create"
                 stores={stores}
@@ -195,6 +209,7 @@ export function JournalEntryFormView({
                 storeId={storeId}
                 onStoreIdChange={setStoreId}
                 label=""
+                invalid={fieldValidation.isFieldInvalid("store")}
               />
             </AdminFormField>
             <AdminFormField label="Description" className="sm:col-span-2 lg:col-span-1">
@@ -203,7 +218,11 @@ export function JournalEntryFormView({
           </AdminFormGrid>
         </AdminFormSection>
 
-        <Card>
+        <Card
+          className={
+            fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+          }
+        >
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Lines</CardTitle>
             <Button

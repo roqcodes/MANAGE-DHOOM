@@ -12,11 +12,13 @@ import {
   AdminFormField,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   CustomerSearchSelect,
   InvoiceSearchSelect,
   PurchaseBillSearchSelect,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import {
   ActiveStoreFormField,
@@ -63,7 +65,8 @@ export function ErpCommercialDiscountFormView({
     useActiveStoreFormField({ mode: "create" });
 
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [partyId, setPartyId] = useState<string | null>(initialPartyId ?? null);
   const [partyLabel, setPartyLabel] = useState(initialPartyLabel ?? "");
   const [sourceId, setSourceId] = useState<string | null>(initialSourceDocumentId ?? null);
@@ -163,24 +166,40 @@ export function ErpCommercialDiscountFormView({
 
   function submit() {
     setError(null);
-    if (!partyId) {
-      setError(isSupplier ? "Vendor is required." : "Customer is required.");
-      return;
-    }
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required.");
-      return;
-    }
-    if (!discountDate) {
-      setError("Discount date is required.");
-      return;
-    }
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setError("Enter a discount amount greater than zero.");
-      return;
-    }
-    if (sourceBalance && (sourceBalance.status === "draft" || sourceBalance.status === "cancelled")) {
-      setError("Choose a posted document. Draft and cancelled documents cannot take a discount.");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "party",
+          ok: Boolean(partyId),
+          message: isSupplier ? "Vendor is required." : "Customer is required.",
+        },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "discountDate", ok: Boolean(discountDate), message: "Discount date is required." },
+        {
+          key: "amount",
+          ok: Number.isFinite(parsedAmount) && parsedAmount > 0,
+          message: "Enter a discount amount greater than zero.",
+        },
+        {
+          key: "sourceDocument",
+          ok:
+            !sourceBalance ||
+            (sourceBalance.status !== "draft" && sourceBalance.status !== "cancelled"),
+          message:
+            "Choose a posted document. Draft and cancelled documents cannot take a discount.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
@@ -246,6 +265,7 @@ export function ErpCommercialDiscountFormView({
             <AdminFormField
               label={isSupplier ? "Vendor" : "Customer"}
               required
+              fieldKey="party"
               className="sm:col-span-2"
             >
               {isSupplier ? (
@@ -253,6 +273,7 @@ export function ErpCommercialDiscountFormView({
                   value={partyId}
                   selectedLabel={partyLabel || undefined}
                   disabled={lockParty}
+                  invalid={fieldValidation.isFieldInvalid("party")}
                   onChange={(id, option) => {
                     setPartyId(id);
                     setPartyLabel(option?.label ?? "");
@@ -268,6 +289,7 @@ export function ErpCommercialDiscountFormView({
                   value={partyId}
                   selectedLabel={partyLabel || undefined}
                   disabled={lockParty}
+                  invalid={fieldValidation.isFieldInvalid("party")}
                   onChange={(id, option) => {
                     setPartyId(id);
                     setPartyLabel(option?.label ?? "");
@@ -280,7 +302,7 @@ export function ErpCommercialDiscountFormView({
                 />
               )}
             </AdminFormField>
-            <AdminFormField label="Store" required>
+            <AdminFormField label="Store" required fieldKey="store">
               <ActiveStoreFormField
                 mode="create"
                 stores={stores}
@@ -288,14 +310,16 @@ export function ErpCommercialDiscountFormView({
                 storeId={storeId}
                 onStoreIdChange={setStoreId}
                 label=""
+                invalid={fieldValidation.isFieldInvalid("store")}
               />
             </AdminFormField>
-            <AdminFormField label="Date">
+            <AdminFormField label="Date" required fieldKey="discountDate">
               <Input type="date" value={discountDate} onChange={(e) => setDiscountDate(e.target.value)} />
             </AdminFormField>
             <AdminFormField
               label={isSupplier ? "Source purchase bill" : "Source invoice"}
               optional
+              fieldKey="sourceDocument"
               className="sm:col-span-2"
             >
               {isSupplier ? (
@@ -335,7 +359,7 @@ export function ErpCommercialDiscountFormView({
                 </p>
               ) : null}
             </AdminFormField>
-            <AdminFormField label="Discount amount" required>
+            <AdminFormField label="Discount amount" required fieldKey="amount">
               <Input
                 type="number"
                 min={0}

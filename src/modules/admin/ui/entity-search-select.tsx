@@ -66,6 +66,8 @@ type EntitySearchSelectProps = {
   loadOnFocus?: boolean;
   /** Raise listbox above ERP modals (z-50). */
   elevatedDropdown?: boolean;
+  /** Highlight when save was attempted without a valid selection. */
+  invalid?: boolean;
 };
 
 export function EntitySearchSelect({
@@ -85,6 +87,7 @@ export function EntitySearchSelect({
   minChars = 1,
   loadOnFocus = true,
   elevatedDropdown = false,
+  invalid = false,
 }: EntitySearchSelectProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -326,6 +329,7 @@ export function EntitySearchSelect({
           type="search"
           value={displayValue}
           disabled={disabled}
+          aria-invalid={invalid || undefined}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
@@ -388,6 +392,7 @@ export function CustomerSearchSelect({
   className,
   disabled,
   placeholder,
+  invalid,
 }: {
   value: string | null;
   onChange: (id: string | null, option?: EntitySearchOption) => void;
@@ -395,6 +400,7 @@ export function CustomerSearchSelect({
   className?: string;
   disabled?: boolean;
   placeholder?: string;
+  invalid?: boolean;
 }) {
   return (
     <EntitySearchSelect
@@ -403,6 +409,7 @@ export function CustomerSearchSelect({
       selectedLabel={selectedLabel}
       className={className}
       disabled={disabled}
+      invalid={invalid}
       cacheScope="customer"
       placeholder={placeholder ?? "Select customer"}
       searchPlaceholder="Search by name, phone, or customer #…"
@@ -422,6 +429,7 @@ export function VendorSearchSelect({
   className,
   disabled,
   placeholder,
+  invalid,
 }: {
   value: string | null;
   onChange: (id: string | null, option?: EntitySearchOption) => void;
@@ -429,6 +437,7 @@ export function VendorSearchSelect({
   className?: string;
   disabled?: boolean;
   placeholder?: string;
+  invalid?: boolean;
 }) {
   return (
     <EntitySearchSelect
@@ -437,6 +446,7 @@ export function VendorSearchSelect({
       selectedLabel={selectedLabel}
       className={className}
       disabled={disabled}
+      invalid={invalid}
       cacheScope="vendor"
       placeholder={placeholder ?? "Select vendor"}
       searchPlaceholder="Search vendor name, TRN, phone…"
@@ -518,6 +528,7 @@ export function InvoiceSearchSelect({
   selectedLabel,
   className,
   disabled,
+  invalid,
   openOnly,
   storeId,
   userId,
@@ -527,6 +538,7 @@ export function InvoiceSearchSelect({
   selectedLabel?: string;
   className?: string;
   disabled?: boolean;
+  invalid?: boolean;
   openOnly?: boolean;
   storeId?: string;
   /** When set, only open invoices for this customer are listed. */
@@ -539,6 +551,7 @@ export function InvoiceSearchSelect({
       selectedLabel={selectedLabel}
       className={className}
       disabled={disabled}
+      invalid={invalid}
       cacheScope={`invoice-select:${storeId ?? "all"}:${userId ?? "all"}:${openOnly ? "open" : "all"}`}
       staleTime={ENTITY_DOCUMENT_SEARCH_STALE_MS}
       placeholder="Select invoice"

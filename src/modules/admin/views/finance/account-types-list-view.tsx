@@ -12,9 +12,15 @@ import {
   Modal,
   PrimaryBtn,
   SecondaryBtn,
+  fieldControlCls,
   inputCls,
   selectCls,
 } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { adminDelete, adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
@@ -53,19 +59,50 @@ function AccountTypeFormModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  return (
+    <Modal
+      title={mode === "create" ? "Add account type" : "Edit account type"}
+      subtitle="Classify ledger accounts by category and type name."
+      onClose={onClose}
+      size="md"
+    >
+      <FormValidationScope resetKey={`${mode}-${row?.id ?? "new"}`}>
+        <AccountTypeFormModalBody mode={mode} row={row} onClose={onClose} onSaved={onSaved} />
+      </FormValidationScope>
+    </Modal>
+  );
+}
+
+function AccountTypeFormModalBody({
+  mode,
+  row,
+  onClose,
+  onSaved,
+}: {
+  mode: "create" | "edit";
+  row?: AccountTypeRow;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<string[]>([]);
+  const fieldValidation = useFormFieldValidation();
   const [accountCategory, setAccountCategory] = useState(row?.account_category ?? "Assets");
   const [name, setName] = useState(row?.name ?? "");
   const [description, setDescription] = useState(row?.description ?? "");
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationErrors: string[] = [];
-    if (!name.trim()) validationErrors.push("Name is required.");
-    if (!description.trim()) validationErrors.push("Description is required.");
-    if (validationErrors.length > 0) {
-      setErrors(validationErrors);
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "name", ok: Boolean(name.trim()), message: "Name is required." },
+        { key: "description", ok: Boolean(description.trim()), message: "Description is required." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setErrors(validationMessages);
       return;
     }
     setErrors([]);
@@ -92,12 +129,6 @@ function AccountTypeFormModal({
   }
 
   return (
-    <Modal
-      title={mode === "create" ? "Add account type" : "Edit account type"}
-      subtitle="Classify ledger accounts by category and type name."
-      onClose={onClose}
-      size="md"
-    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
@@ -122,7 +153,7 @@ function AccountTypeFormModal({
             Name *
           </span>
           <input
-            className={inputCls}
+            className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("name"))}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name"
@@ -135,7 +166,7 @@ function AccountTypeFormModal({
             Description *
           </span>
           <input
-            className={inputCls}
+            className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("description"))}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Description"
@@ -150,7 +181,6 @@ function AccountTypeFormModal({
           </PrimaryBtn>
         </ModalFormFooter>
       </form>
-    </Modal>
   );
 }
 

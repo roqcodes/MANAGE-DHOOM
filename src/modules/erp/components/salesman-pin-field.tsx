@@ -13,6 +13,8 @@ export type SalesmanPinFieldProps = {
   disabled?: boolean;
   id?: string;
   className?: string;
+  /** After save attempt when PIN is missing or not verified. */
+  submitInvalid?: boolean;
 };
 
 export function SalesmanPinField({
@@ -22,6 +24,7 @@ export function SalesmanPinField({
   disabled,
   id = "salesman-pin",
   className,
+  submitInvalid = false,
 }: SalesmanPinFieldProps) {
   const [status, setStatus] = useState<"idle" | "verifying" | "valid" | "invalid">("idle");
   const [salesmanName, setSalesmanName] = useState<string | null>(null);
@@ -85,10 +88,12 @@ export function SalesmanPinField({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 3))}
+        aria-invalid={submitInvalid || undefined}
         className={cn(
           "h-10",
           status === "valid" && "border-emerald-500",
-          status === "invalid" && value.length === 3 && "border-destructive",
+          (submitInvalid || (status === "invalid" && value.length === 3)) &&
+            "border-destructive",
         )}
       />
       <p

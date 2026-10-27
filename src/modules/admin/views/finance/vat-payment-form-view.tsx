@@ -20,7 +20,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +61,8 @@ export function VatPaymentFormView({
   const isRefund = searchParams.get("kind") === "refund";
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [vatReturn, setVatReturn] = useState<VatReturnDetail | null>(null);
@@ -123,25 +126,41 @@ export function VatPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!vatReturnId) return setError("VAT return is required.");
-    if (!paidFromAccountId) {
-      return setError(isRefund ? "Deposit to account is required." : "Paid from account is required.");
-    }
     const amt = parseFloat(amount);
-    if (!amt || amt === 0) return setError("Amount is required.");
-    if (vatReturn) {
-      if (isRefund) {
-        const refundErr = validateVatRefundAmount(
-          amt,
-          vatReturn.recoverable_tax,
-          vatReturn.refund_received_total,
-        );
-        if (refundErr) return setError(refundErr);
-      } else {
-        const vatErr = validateVatPaymentAmount(amt, vatReturn.balance_due);
-        if (vatErr) return setError(vatErr);
-      }
+    const refundErr =
+      vatReturn && isRefund
+        ? validateVatRefundAmount(
+            amt,
+            vatReturn.recoverable_tax,
+            vatReturn.refund_received_total,
+          )
+        : null;
+    const vatErr =
+      vatReturn && !isRefund ? validateVatPaymentAmount(amt, vatReturn.balance_due) : null;
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "vatReturn", ok: Boolean(vatReturnId), message: "VAT return is required." },
+        {
+          key: "paidFromAccount",
+          ok: Boolean(paidFromAccountId),
+          message: isRefund
+            ? "Deposit to account is required."
+            : "Paid from account is required.",
+        },
+        { key: "amount", ok: Boolean(amt && amt !== 0), message: "Amount is required." },
+        ...(refundErr ? [{ key: "amount", ok: false, message: refundErr }] : []),
+        ...(vatErr ? [{ key: "amount", ok: false, message: vatErr }] : []),
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
+      return;
     }
+    setError(null);
 
     startTransition(async () => {
       try {
@@ -338,6 +357,7 @@ export function VatPaymentFormView({
             <AdminFormField
               label={isRefund ? "Deposit to account" : "Paid from account"}
               required
+              fieldKey="paidFromAccount"
               className="sm:col-span-2"
             >
               <select
@@ -354,7 +374,7 @@ export function VatPaymentFormView({
                 ))}
               </select>
             </AdminFormField>
-            <AdminFormField label="Amount" required>
+            <AdminFormField label="Amount" required fieldKey="amount">
               <Input
                 type="number"
                 step="0.01"

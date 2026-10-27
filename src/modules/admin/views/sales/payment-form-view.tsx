@@ -21,9 +21,11 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   CustomerSearchSelect,
   InvoiceSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -42,6 +44,7 @@ import {
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
 import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
 import {
   usePaymentFormAddLineBlocked,
@@ -115,6 +118,7 @@ export function PaymentFormView({
   const isModal = variant === "modal";
   const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
     useErpPaymentFormErrors(isModal);
+  const fieldValidation = useFormFieldValidation();
 
   const { data: accountOptions } = usePaymentAccountOptions(effectiveStoreId);
   const depositAccounts = accountOptions?.depositAccounts ?? [];
@@ -315,21 +319,44 @@ export function PaymentFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
-    if (!accountId) return setFormError("Deposit account is required.");
-    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
     const fifoOnlyAmount = parsePaymentAmount(lineAmount);
     const useFifoAutoAllocate = lines.length === 0 && userId && fifoOnlyAmount > 0;
     const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
 
-    if (!useFifoAutoAllocate && lines.length === 0) {
-      return setFormError(
-        "Add at least one invoice payment, or select a customer and amount to allocate FIFO.",
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "accountId", ok: Boolean(accountId), message: "Deposit account is required." },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        {
+          key: "lines",
+          ok: useFifoAutoAllocate || lines.length > 0,
+          message:
+            "Add at least one invoice payment, or select a customer and amount to allocate FIFO.",
+        },
+        {
+          key: "bankCharges",
+          ok: bankChargesAmount < paymentTotal,
+          message: "Bank charges must be less than total payment.",
+        },
+        {
+          key: "bankChargesAccountId",
+          ok: bankChargesAmount <= 0 || Boolean(bankChargesAccountId),
+          message: "Expense account is required for bank charges.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setFormError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
       );
-    }
-    if (bankChargesAmount >= paymentTotal) return setFormError("Bank charges must be less than total payment.");
-    if (bankChargesAmount > 0 && !bankChargesAccountId) {
-      return setFormError("Expense account is required for bank charges.");
+      return;
     }
 
     const paymentUserId = useFifoAutoAllocate ? userId : lines[0].userId;
@@ -420,7 +447,7 @@ export function PaymentFormView({
         <AdminFormColumns cols={2} columnRatio="2:1">
           <AdminFormSection title="Payment details">
             <AdminFormGrid cols={3}>
-              <AdminFormField label="Store" required>
+              <AdminFormField label="Store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode="create"
                   stores={stores}
@@ -428,6 +455,7 @@ export function PaymentFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
               <AdminFormField label="Payment date" required>
@@ -451,12 +479,13 @@ export function PaymentFormView({
                   ))}
                 </select>
               </AdminFormField>
-              <AdminFormField label="Deposit to" required>
+              <AdminFormField label="Deposit to" required fieldKey="accountId">
                 <select
                   className="h-9 w-full rounded-md border px-3 text-sm"
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
                   required
+                  aria-invalid={fieldValidation.isFieldInvalid("accountId") || undefined}
                 >
                   <option value="">Select account</option>
                   {depositAccounts.map((account) => (
@@ -476,11 +505,14 @@ export function PaymentFormView({
                   placeholder="0.00"
                 />
               </AdminFormField>
-              <AdminFormField label="Bank charges account">
+              <AdminFormField label="Bank charges account" fieldKey="bankChargesAccountId">
                 <select
                   className="h-9 w-full rounded-md border px-3 text-sm"
                   value={bankChargesAccountId}
                   onChange={(e) => setBankChargesAccountId(e.target.value)}
+                  aria-invalid={
+                    fieldValidation.isFieldInvalid("bankChargesAccountId") || undefined
+                  }
                 >
                   <option value="">Select expense account</option>
                   {expenseAccounts.map((account) => (
@@ -667,6 +699,7 @@ export function PaymentFormView({
           </Card>
         ) : null}
 
+        <ErrorsFeedbackBridge errors={inlineError} title="Fix this issue" />
         <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (

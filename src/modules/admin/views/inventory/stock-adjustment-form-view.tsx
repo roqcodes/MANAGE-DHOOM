@@ -13,9 +13,11 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   ErpDocumentNumberField,
   ProductLiveSearch,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +56,8 @@ export function StockAdjustmentFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [adjustmentDate, setAdjustmentDate] = useState(new Date().toISOString().slice(0, 10));
@@ -96,25 +99,38 @@ export function StockAdjustmentFormView({
 
   function handleSubmit(finalize: boolean) {
     setError(null);
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required");
-      return;
-    }
-    if (lines.length === 0) {
-      setError("Add at least one item");
-      return;
-    }
-    if (draftAdjustmentId && !finalize) {
+    const missingCostLine = lines.find(
+      (line) => line.direction === "add" && (!line.purchaseCost || line.purchaseCost <= 0),
+    );
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "lines", ok: lines.length > 0, message: "Add at least one item." },
+        {
+          key: "draft",
+          ok: !draftAdjustmentId || finalize,
+          message: `A draft adjustment already exists. Open /admin/erp/stock-adjustments/${draftAdjustmentId} or use Finalize to complete it.`,
+        },
+        {
+          key: "lines",
+          ok: !missingCostLine,
+          message: missingCostLine
+            ? `Purchase cost is required when adding stock (${missingCostLine.productName}).`
+            : "",
+        },
+      ].filter((c) => c.message !== ""),
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
       setError(
-        `A draft adjustment already exists. Open /admin/erp/stock-adjustments/${draftAdjustmentId} or use Finalize to complete it.`,
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
       );
       return;
-    }
-    for (const line of lines) {
-      if (line.direction === "add" && (!line.purchaseCost || line.purchaseCost <= 0)) {
-        setError(`Purchase cost is required when adding stock (${line.productName})`);
-        return;
-      }
     }
 
     if (submitInFlightRef.current) return;
@@ -185,7 +201,7 @@ export function StockAdjustmentFormView({
       <AdminFormSection title="Adjustment details">
         <AdminFormGrid cols={2}>
           <ErpDocumentNumberField kind="SA" />
-          <AdminFormField label="Store" required>
+          <AdminFormField label="Store" required fieldKey="store">
             <ActiveStoreFormField
               mode="create"
               stores={stores}
@@ -193,6 +209,7 @@ export function StockAdjustmentFormView({
               storeId={storeId}
               onStoreIdChange={setStoreId}
               label=""
+              invalid={fieldValidation.isFieldInvalid("store")}
             />
           </AdminFormField>
           <AdminFormField label="Date">
@@ -208,7 +225,12 @@ export function StockAdjustmentFormView({
         </AdminFormGrid>
       </AdminFormSection>
 
-      <AdminFormSection title="Items">
+      <AdminFormSection
+        title="Items"
+        className={
+          fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+        }
+      >
         <ProductLiveSearch
           catalog="sales"
           storeId={effectiveStoreId}

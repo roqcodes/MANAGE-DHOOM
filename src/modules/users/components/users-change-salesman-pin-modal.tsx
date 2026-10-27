@@ -5,6 +5,11 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { adminPost } from "@/modules/admin/lib/admin-api-client";
 import { Modal, SecondaryBtn } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +17,21 @@ import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedb
 import { clearSalesmanPinVerifyCache } from "@/modules/users/lib/verify-salesman-pin.client";
 import type { ErpSalesmanRow } from "@/modules/users/services/erp-salesmen.service";
 
-export function UsersChangeSalesmanPinModal({
+export function UsersChangeSalesmanPinModal(props: {
+  salesman: ErpSalesmanRow;
+  onClose: () => void;
+  onSaved?: () => void;
+}) {
+  return (
+    <Modal title={`Change PIN — ${props.salesman.name}`} onClose={props.onClose} size="sm">
+      <FormValidationScope resetKey={props.salesman.id}>
+        <UsersChangeSalesmanPinModalForm {...props} />
+      </FormValidationScope>
+    </Modal>
+  );
+}
+
+function UsersChangeSalesmanPinModalForm({
   salesman,
   onClose,
   onSaved,
@@ -22,6 +41,7 @@ export function UsersChangeSalesmanPinModal({
   onSaved?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const fieldValidation = useFormFieldValidation();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -30,6 +50,15 @@ export function UsersChangeSalesmanPinModal({
   const canSubmit = pinDigits.length === 3 && !isPending;
 
   function handleSave() {
+    const validationMessages = applyFieldValidation(
+      [{ key: "pin", ok: pinDigits.length === 3, message: "Enter a valid 3-digit PIN." }],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(validationMessages[0]);
+      return;
+    }
     startTransition(async () => {
       setError(null);
       try {
@@ -50,7 +79,6 @@ export function UsersChangeSalesmanPinModal({
   }
 
   return (
-    <Modal title={`Change PIN — ${salesman.name}`} onClose={onClose} size="sm">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Enter a new unique 3-digit PIN. The previous PIN stops working immediately.
@@ -65,6 +93,7 @@ export function UsersChangeSalesmanPinModal({
             onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 3))}
             autoComplete="off"
             placeholder="e.g. 427"
+            aria-invalid={fieldValidation.isFieldInvalid("pin")}
           />
         </div>
 
@@ -77,6 +106,5 @@ export function UsersChangeSalesmanPinModal({
           </Button>
         </div>
       </div>
-    </Modal>
   );
 }

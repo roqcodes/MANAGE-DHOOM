@@ -14,7 +14,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +37,8 @@ export function ProfitWithdrawalFormView({
   const { stores, activeStoreId } = useErpStores();
   const [accounts, setAccounts] = useState<BankingAccountRow[]>([]);
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   useEffect(() => {
@@ -69,8 +72,19 @@ export function ProfitWithdrawalFormView({
     const storeId = fd.get("storeId") as string;
     const fromAccountId = fd.get("fromAccountId") as string;
     const amount = parseFloat((fd.get("amount") as string) || "0");
-    if (!storeId || !fromAccountId || amount <= 0) {
-      setError("Store, from account, and amount are required");
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "store", ok: Boolean(storeId), message: "Store is required." },
+        { key: "fromAccount", ok: Boolean(fromAccountId), message: "From account is required." },
+        { key: "amount", ok: amount > 0, message: "Amount must be greater than zero." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
@@ -127,7 +141,7 @@ export function ProfitWithdrawalFormView({
         <AdminFormSection title="Withdrawal details">
           <AdminFormColumns cols={2}>
             <AdminFormGrid cols={2}>
-              <AdminFormField label="Store" required className="sm:col-span-2">
+              <AdminFormField label="Store" required fieldKey="store" className="sm:col-span-2">
                 <select
                   name="storeId"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -142,7 +156,7 @@ export function ProfitWithdrawalFormView({
                   ))}
                 </select>
               </AdminFormField>
-              <AdminFormField label="From account" required>
+              <AdminFormField label="From account" required fieldKey="fromAccount">
                 <select
                   name="fromAccountId"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
@@ -160,7 +174,7 @@ export function ProfitWithdrawalFormView({
                 <Input value="Drawings" disabled />
                 <input type="hidden" name="counterAccountId" value="" />
               </AdminFormField>
-              <AdminFormField label="Withdrawal amount" required>
+              <AdminFormField label="Withdrawal amount" required fieldKey="amount">
                 <Input name="amount" type="number" step="0.01" min={0} defaultValue={0} required />
               </AdminFormField>
               <AdminFormField label="Date" required>

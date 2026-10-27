@@ -24,8 +24,10 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import {
   ActiveStoreFormField,
@@ -129,7 +131,8 @@ export function FixedAssetFormView({
   const formId = useId();
   const { stores, activeStoreId, storeRequiredMessage } = useActiveStoreFormField({ mode });
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [form, setForm] = useState<FormState>(() => emptyForm());
   const isModal = variant === "modal";
 
@@ -190,22 +193,35 @@ export function FixedAssetFormView({
     e.preventDefault();
     const purchaseAmount = parseFloat(form.purchaseAmount);
     const resolvedStoreId = form.storeId || activeStoreId;
-    if (!resolvedStoreId) {
-      setError(storeRequiredMessage ?? "Store is required.");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "store",
+          ok: Boolean(resolvedStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "name", ok: Boolean(form.name.trim()), message: "Item name is required." },
+        {
+          key: "purchaseAmount",
+          ok: Number.isFinite(purchaseAmount) && purchaseAmount > 0,
+          message: "Purchase amount must be greater than zero.",
+        },
+        {
+          key: "paidThrough",
+          ok: Boolean(form.paidThroughAccountId),
+          message: "Paid through account is required.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
-    if (!form.name.trim()) {
-      setError("Item name is required.");
-      return;
-    }
-    if (!Number.isFinite(purchaseAmount) || purchaseAmount <= 0) {
-      setError("Purchase amount must be greater than zero.");
-      return;
-    }
-    if (!form.paidThroughAccountId) {
-      setError("Paid through account is required.");
-      return;
-    }
+    setError(null);
 
     const taxPercent = parseFloat(form.taxPercent) || 0;
     const taxAmount = Math.round(((purchaseAmount * taxPercent) / 100) * 100) / 100;
@@ -309,7 +325,7 @@ export function FixedAssetFormView({
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
         <AdminFormSection title="Store">
           <AdminFormGrid cols={3}>
-            <AdminFormField label="Select store" required className="sm:col-span-2">
+            <AdminFormField label="Select store" required fieldKey="store" className="sm:col-span-2">
               <ActiveStoreFormField
                 mode={mode}
                 stores={stores}
@@ -317,6 +333,7 @@ export function FixedAssetFormView({
                 storeId={form.storeId}
                 onStoreIdChange={(value) => update("storeId", value)}
                 label=""
+                invalid={fieldValidation.isFieldInvalid("store")}
               />
             </AdminFormField>
           </AdminFormGrid>
@@ -325,7 +342,7 @@ export function FixedAssetFormView({
         <AdminFormColumns cols={2}>
           <AdminFormSection title="Item details">
             <AdminFormGrid cols={2}>
-              <AdminFormField label="Item name" required className="sm:col-span-2">
+              <AdminFormField label="Item name" required fieldKey="name" className="sm:col-span-2">
                 <Input
                   value={form.name}
                   onChange={(e) => update("name", e.target.value)}
@@ -367,7 +384,7 @@ export function FixedAssetFormView({
                   required
                 />
               </AdminFormField>
-              <AdminFormField label="Purchase amount" required>
+              <AdminFormField label="Purchase amount" required fieldKey="purchaseAmount">
                 <Input
                   type="number"
                   step="0.01"
@@ -377,7 +394,7 @@ export function FixedAssetFormView({
                   required
                 />
               </AdminFormField>
-              <AdminFormField label="Paid through account" required className="sm:col-span-2">
+              <AdminFormField label="Paid through account" required fieldKey="paidThrough" className="sm:col-span-2">
                 <select
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={form.paidThroughAccountId}

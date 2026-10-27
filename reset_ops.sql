@@ -1,7 +1,7 @@
 -- =============================================================================
 -- reset_ops.sql — wipe operational / transactional data (DEV & staging only)
 -- =============================================================================
--- 
+--
 -- Run in Supabase SQL Editor (service_role) or: psql ... -f reset_ops.sql
 --
 -- KEEPS (master / config):
@@ -10,18 +10,21 @@
 --   erp_posting_rules, erp_landed_cost_items, erp_employees (profiles),
 --   erp_salesmen (PIN sellers; not transactional),
 --   item_units, tax_rates, pricing_rules, app_settings, erp_purchasing_settings,
---   push_templates, customer_credit_limits (limits only), addresses (optional).
+--   push_templates, push_tokens, notification_preferences,
+--   customer_credit_limits (limits only), addresses (optional).
 --
 -- CLEARS:
 --   sales & purchase documents, payments, journals, VAT, deferred COGS postings,
 --   per-store party openings (erp_party_store_openings),
 --   inventory movements, stock levels (zeroed; store WAC/sales overrides cleared),
---   storefront carts/orders, HR payroll runs, sync ops,
---   audit trail, analytics reach tables, idempotency rows, document counters.
+--   storefront carts/orders/wishlists, HR payroll runs, sync ops,
+--   audit trail, analytics reach tables, idempotency rows, document counters,
+--   SPI WAC repair audit runs.
 --
 -- MAINTENANCE: When a migration adds/changes transactional tables, append them
 -- to reset_ops_truncate_tables() below (newest migrations first in list is ok;
 -- children must appear before parents). Recent tables to remember:
+--   - erp_spi_wac_repair_runs (20261026220000) — WAC repair dry-run/apply log
 --   - erp_party_store_openings (20261022190000) — per-store AR/AP openings
 --   - erp_invoice_deferred_cogs_postings (20261020160000)
 --   - catalog_product_create_operations (20261019210000)
@@ -30,7 +33,9 @@
 --   - purchase_po_delivery_operations (20261002170000)
 --   - purchase_order_landed_costs (20261001140000)
 --   - erp_purchase_receives / lines (20260907130000)
--- Last reviewed: 2026-10-22 (through 20261022200000_reports_reaudit_fixes)
+--   - shopping_lists / shopping_list_items (storefront wishlists)
+-- Migrations 20261026250000–20261027141408: no new transactional tables (RPC/policy only).
+-- Last reviewed: 2026-10-27 (through 20261027141408_receipt_cost_skip_negative_onhand)
 --
 -- ⚠️  Destructive. Backup before running in any shared environment.
 -- =============================================================================
@@ -62,6 +67,18 @@ BEGIN
   END IF;
 END $$;
 
+-- ─── RESTRICT FK children (truncate alone before the main batch) ───────────
+
+DO $$
+BEGIN
+  IF to_regclass('public.pos_checkout_operations') IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.pos_checkout_operations RESTART IDENTITY';
+  END IF;
+  IF to_regclass('public.purchase_po_delivery_operations') IS NOT NULL THEN
+    EXECUTE 'TRUNCATE TABLE public.purchase_po_delivery_operations RESTART IDENTITY';
+  END IF;
+END $$;
+
 -- ─── Truncate operational tables (children before parents) ─────────────────
 
 CREATE OR REPLACE FUNCTION public.reset_ops_truncate_tables()
@@ -77,6 +94,8 @@ DECLARE
     'pos_checkout_operations',
     'purchase_po_delivery_operations',
     'catalog_product_create_operations',
+    -- Inventory repair audit (20261026220000)
+    'erp_spi_wac_repair_runs',
     -- AR allocations & payments
     'erp_party_store_openings',
     'erp_invoice_deferred_cogs_postings',
@@ -109,6 +128,8 @@ DECLARE
     'order_fulfillments',
     'order_items',
     'orders',
+    'shopping_list_items',
+    'shopping_lists',
     -- Inventory ops
     'erp_transfer_payments',
     'erp_store_transfer_lines',
@@ -143,7 +164,7 @@ DECLARE
     'cart_items',
     'carts',
     'transactions',
-    -- Observability & campaigns (not device tokens)
+    -- Observability & campaigns (not device tokens / templates)
     'audit_logs',
     'notifications',
     'product_view_reach',
@@ -190,12 +211,18 @@ BEGIN
     SET
       stock = 0,
       opening_stock = 0,
+      reserved_stock = 0,
       purchase_price = NULL,
       sales_price = NULL,
       updated_at = now();
   END IF;
   IF to_regclass('public.inventory') IS NOT NULL THEN
-    UPDATE public.inventory SET stock = 0, reserved_stock = 0;
+    UPDATE public.inventory
+    SET
+      stock = 0,
+      reserved_stock = 0,
+      last_reorder_quantity = NULL,
+      updated_at = now();
   END IF;
   IF to_regclass('public.vendor_products') IS NOT NULL THEN
     UPDATE public.vendor_products SET stock = 0;
@@ -217,6 +244,9 @@ DO $$
 BEGIN
   IF to_regclass('public.erp_document_sequences') IS NOT NULL THEN
     UPDATE public.erp_document_sequences SET next_number = 1, updated_at = now();
+    UPDATE public.erp_document_sequences
+    SET next_number = 101, updated_at = now()
+    WHERE document_type IN ('vat_return', 'vat_payment');
   END IF;
 END $$;
 
@@ -232,4 +262,6 @@ COMMIT;
 -- SELECT COUNT(*) FROM public.invoices;
 -- SELECT COUNT(*) FROM public.erp_purchase_bills;
 -- SELECT COUNT(*) FROM public.journal_entries;
+-- SELECT COUNT(*) FROM public.erp_client_operations;
+-- SELECT COUNT(*) FROM public.erp_spi_wac_repair_runs;
 -- SELECT SUM(stock) FROM public.store_product_inventory;

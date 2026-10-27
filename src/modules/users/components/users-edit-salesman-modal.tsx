@@ -5,6 +5,11 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { adminPost } from "@/modules/admin/lib/admin-api-client";
 import { Modal, SecondaryBtn } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -12,7 +17,21 @@ import { Label } from "@/components/ui/label";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import type { ErpSalesmanRow } from "@/modules/users/services/erp-salesmen.service";
 
-export function UsersEditSalesmanModal({
+export function UsersEditSalesmanModal(props: {
+  salesman: ErpSalesmanRow;
+  onClose: () => void;
+  onSaved?: () => void;
+}) {
+  return (
+    <Modal title="Edit salesman" onClose={props.onClose} size="md">
+      <FormValidationScope resetKey={props.salesman.id}>
+        <UsersEditSalesmanModalForm {...props} />
+      </FormValidationScope>
+    </Modal>
+  );
+}
+
+function UsersEditSalesmanModalForm({
   salesman,
   onClose,
   onSaved,
@@ -22,6 +41,7 @@ export function UsersEditSalesmanModal({
   onSaved?: () => void;
 }) {
   const queryClient = useQueryClient();
+  const fieldValidation = useFormFieldValidation();
   const [name, setName] = useState(salesman.name);
   const [email, setEmail] = useState(salesman.email ?? "");
   const [phone, setPhone] = useState(salesman.phone ?? "");
@@ -32,6 +52,15 @@ export function UsersEditSalesmanModal({
   const canSubmit = name.trim().length > 0 && !isPending;
 
   function handleSave() {
+    const validationMessages = applyFieldValidation(
+      [{ key: "name", ok: name.trim().length > 0, message: "Full name is required." }],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(validationMessages[0]);
+      return;
+    }
     startTransition(async () => {
       setError(null);
       try {
@@ -54,7 +83,6 @@ export function UsersEditSalesmanModal({
   }
 
   return (
-    <Modal title="Edit salesman" onClose={onClose} size="md">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-2 sm:col-span-2">
@@ -64,6 +92,7 @@ export function UsersEditSalesmanModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
+              aria-invalid={fieldValidation.isFieldInvalid("name")}
             />
           </div>
           <div className="space-y-2">
@@ -105,6 +134,5 @@ export function UsersEditSalesmanModal({
           </Button>
         </div>
       </div>
-    </Modal>
   );
 }

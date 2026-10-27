@@ -35,6 +35,12 @@ import {
   updateVariantAction,
   deleteVariantAction,
 } from "@/modules/products/actions/variants.actions";
+import {
+  catalogSimpleProductValidationMessage,
+  isCatalogSimpleProductPricingValid,
+  normalizeCatalogProductErpFields,
+  shouldEnsureDefaultVariantForSimpleProduct,
+} from "@/modules/products/lib/build-simple-catalog-product-create-input";
 import { useProductCreateSession } from "@/modules/products/lib/product-create-session";
 import type { CatalogProductCreateSetup } from "@/modules/products/types/product-create-result";
 import { Button } from "@/components/ui/button";
@@ -59,8 +65,9 @@ import {
 import { adminGet, adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import { invalidateAdminProductCatalogQueries } from "@/modules/erp/lib/erp-product-live-search.client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
-import { cn } from "@/lib/utils";
+import { controlBorderInvalid } from "@/lib/form-field-invalid";
 import { RequiredFieldMark, showRequiredMark } from "@/lib/required-field-label";
+import { cn } from "@/lib/utils";
 import { currencyLabel, formatInr } from "@/lib/format-currency";
 import { useCurrencySettings } from "@/modules/settings/providers/currency-settings-provider";
 import { isDefaultSkuName } from "@/modules/products/lib/product-sku-catalog";
@@ -1231,20 +1238,14 @@ function EditVariantsStep({
 // Removed SkuConfigurationStep
 
 function variantErpFieldsFromDraft(draft: ProductDraft) {
-  return {
-    barcode: draft.barcode.trim() || null,
-    productCode: draft.productCode.trim() || null,
-    purchasePrice:
-      coalesceNumber(draft.purchasePrice) > 0
-        ? roundMoney2(coalesceNumber(draft.purchasePrice))
-        : null,
-    taxRatePercent:
-      coalesceNumber(draft.taxRatePercent) > 0
-        ? roundMoney2(coalesceNumber(draft.taxRatePercent))
-        : null,
+  return normalizeCatalogProductErpFields({
+    barcode: draft.barcode,
+    productCode: draft.productCode,
+    purchasePrice: draft.purchasePrice,
+    taxRatePercent: draft.taxRatePercent,
     unitId: draft.unitId,
-    markupPercent: draft.markupPercent > 0 ? roundMoney2(draft.markupPercent) : null,
-  };
+    markupPercent: draft.markupPercent,
+  });
 }
 
 function DetailsStepForm({
@@ -1256,6 +1257,8 @@ function DetailsStepForm({
   error,
   showMrp,
   isGroupedLayout = false,
+  detailsSubmitAttempted = false,
+  simplePricingRequired = false,
 }: {
   draft: ProductDraft;
   categories: Category[];
@@ -1265,10 +1268,17 @@ function DetailsStepForm({
   error: string | null;
   showMrp: boolean;
   isGroupedLayout?: boolean;
+  detailsSubmitAttempted?: boolean;
+  simplePricingRequired?: boolean;
 }) {
+  const nameInvalid = detailsSubmitAttempted && !draft.name.trim();
+  const pricingInvalid =
+    detailsSubmitAttempted &&
+    simplePricingRequired &&
+    !isCatalogSimpleProductPricingValid(draft.defaultPrice, draft.purchasePrice);
   const pricingHint = isGroupedLayout
     ? "Pre-fills new SKUs you add later."
-    : "Applies to the primary item; variants inherit unless overridden.";
+    : "For a simple item, enter a sales price or purchase price (either is enough). Sales price can be set later before you sell.";
 
   const pricingCols = showMrp
     ? "grid-cols-2 sm:grid-cols-3 min-[1200px]:grid-cols-5"
@@ -1281,13 +1291,14 @@ function DetailsStepForm({
           <DetailsSection title="Basic information">
             <div className="grid gap-2.5 sm:grid-cols-2 min-[1200px]:grid-cols-4">
               <div className="sm:col-span-2 min-[1200px]:col-span-2">
-                <CompactField label="Name">
+                <CompactField label="Name" required>
                   <input
-                    className={compactInputCls}
+                    className={controlBorderInvalid(nameInvalid, compactInputCls)}
                     value={draft.name}
                     onChange={(e) => onDraftChange({ ...draft, name: e.target.value })}
                     placeholder="Product name"
                     required
+                    aria-invalid={nameInvalid || undefined}
                   />
                 </CompactField>
               </div>
@@ -1345,10 +1356,11 @@ function DetailsStepForm({
               <div className={`grid gap-2.5 ${pricingCols}`}>
                 <CompactField label={currencyLabel("Sales price")}>
                   <input
-                    className={compactInputCls}
+                    className={controlBorderInvalid(pricingInvalid, compactInputCls)}
                     type="number"
+                    aria-invalid={pricingInvalid || undefined}
                     step="0.001"
-                    min="0.01"
+                    min="0"
                     value={formatNumberInputValue(draft.defaultPrice)}
                     onChange={(e) =>
                       onDraftChange({
@@ -1356,8 +1368,7 @@ function DetailsStepForm({
                         defaultPrice: parseNumberInputValue(e.target.value),
                       })
                     }
-                    placeholder="0.000"
-                    required
+                    placeholder="Optional"
                   />
                 </CompactField>
                 {showMrp ? (
@@ -1380,8 +1391,9 @@ function DetailsStepForm({
                 ) : null}
                 <CompactField label="Purchase price">
                   <input
-                    className={compactInputCls}
+                    className={controlBorderInvalid(pricingInvalid, compactInputCls)}
                     type="number"
+                    aria-invalid={pricingInvalid || undefined}
                     step="0.001"
                     min="0"
                     value={formatNumberInputValue(draft.purchasePrice)}
@@ -1565,6 +1577,7 @@ export function ProductManageModal({
   const [createVariantLayout, setCreateVariantLayout] = useState<"none" | "flat" | "grouped">("none");
 
   const [error, setError] = useState<string | null>(null);
+  const [detailsSubmitAttempted, setDetailsSubmitAttempted] = useState(false);
 
   const [productDraft, setProductDraft] = useState<ProductDraft>(() =>
     emptyProductDraft(product),
@@ -1649,7 +1662,12 @@ export function ProductManageModal({
 
   const detailsValid =
     productDraft.name.trim().length > 0 &&
-    (productDraft.defaultPrice > 0 || (!isCreate && variants.length > 0) || (isCreate && createVariantLayout !== "none"));
+    ((!isCreate && variants.length > 0) ||
+      (isCreate && createVariantLayout !== "none") ||
+      isCatalogSimpleProductPricingValid(
+        productDraft.defaultPrice,
+        productDraft.purchasePrice,
+      ));
 
   const variantsValid = useMemo(() => {
     if (variantDrafts.length === 0) return true;
@@ -1756,29 +1774,29 @@ export function ProductManageModal({
     return !groupDraftsEqual(groupDrafts, initialGroupDrafts);
   }, [isGroupedProduct, groupDrafts, initialGroupDrafts]);
 
+  const simplePricingRequired =
+    !((!isCreate && variants.length > 0) ||
+      (isCreate && createVariantLayout !== "none"));
+
+  function failDetailsValidation(): boolean {
+    if (detailsValid) {
+      setDetailsSubmitAttempted(false);
+      return false;
+    }
+    setDetailsSubmitAttempted(true);
+    setError(catalogSimpleProductValidationMessage(isCreate));
+    return true;
+  }
+
   function handleContinueDetails() {
     setError(null);
-    if (!detailsValid) {
-      setError(
-        isCreate
-          ? "Product name and default price are required."
-          : "Product name is required.",
-      );
-      return;
-    }
+    if (failDetailsValidation()) return;
     setActiveTab("variants");
   }
 
   function handleSaveDetails() {
     setError(null);
-    if (!detailsValid) {
-      setError(
-        isCreate
-          ? "Product name and default price are required."
-          : "Product name is required.",
-      );
-      return;
-    }
+    if (failDetailsValidation()) return;
     if (!isDetailsDirty) {
       onClose();
       return;
@@ -1887,8 +1905,7 @@ export function ProductManageModal({
   }
 
   function handleCreateAll() {
-    if (!detailsValid) {
-      setError("Product name is required.");
+    if (failDetailsValidation()) {
       setActiveTab("details");
       return;
     }
@@ -1951,7 +1968,10 @@ export function ProductManageModal({
         } else {
           setup = {
             mode: "simple",
-            ensureDefaultVariant: productDraft.defaultPrice > 0,
+            ensureDefaultVariant: shouldEnsureDefaultVariantForSimpleProduct(
+              productDraft.defaultPrice,
+              productDraft.purchasePrice,
+            ),
           };
         }
 
@@ -2079,6 +2099,8 @@ export function ProductManageModal({
                 error={error}
                 showMrp={showMrp}
                 isGroupedLayout={isCreate ? layoutGrouped : isGroupedProduct}
+                detailsSubmitAttempted={detailsSubmitAttempted}
+                simplePricingRequired={simplePricingRequired}
               />
             ) : null}
 

@@ -14,6 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 
 import { ModalFormFooter } from "@/modules/admin/lib/form-footer-errors";
+import { FormValidationScope } from "@/modules/admin/lib/form-validation";
 
 import {
   AdminFormLayout,
@@ -93,7 +94,7 @@ export function AdminFormModal({
             scrollBody ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
           )}
         >
-          {children}
+          <FormValidationScope resetKey={open}>{children}</FormValidationScope>
         </div>
 
         {footer ? (
@@ -195,12 +196,14 @@ export function AdminFormShell({
         breadcrumb={breadcrumb}
       />
       <div data-form-enter-scope>
-        <div
-          className={cn(pending && "pointer-events-none opacity-60 transition-opacity")}
-          aria-busy={pending || undefined}
-        >
-          {children}
-        </div>
+        <FormValidationScope>
+          <div
+            className={cn(pending && "pointer-events-none opacity-60 transition-opacity")}
+            aria-busy={pending || undefined}
+          >
+            {children}
+          </div>
+        </FormValidationScope>
         {footer && variant === "page" ? (
           <div
             data-form-enter-footer

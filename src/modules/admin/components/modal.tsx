@@ -13,7 +13,9 @@ import {
 import { Field, FieldLabel as UiFieldLabel } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import { ModalFormFooter } from "@/modules/admin/lib/form-footer-errors";
+import { FormValidationScope } from "@/modules/admin/lib/form-validation";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { applyFieldInvalidState, controlBorderInvalid } from "@/lib/form-field-invalid";
 import { RequiredFieldMark, showRequiredMark } from "@/lib/required-field-label";
 
 interface ModalProps {
@@ -39,12 +41,17 @@ const SIZE_CLASSES: Record<NonNullable<ModalProps["size"]>, string> = {
 
 /** Shared input styling for legacy raw `<input>` / `<select>` / `<textarea>` in forms. */
 export const inputCls =
-  "h-7 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50";
+  "h-7 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40";
 
 export const selectCls = `${inputCls} cursor-pointer`;
 
 export const textareaCls =
-  "min-h-20 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50";
+  "min-h-20 w-full resize-none rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40";
+
+/** Legacy modal controls — pass when save was attempted with a validation error on this field. */
+export function fieldControlCls(base: string, invalid?: boolean) {
+  return controlBorderInvalid(invalid, base);
+}
 
 export function Modal({
   title,
@@ -83,7 +90,7 @@ export function Modal({
               : "min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-3",
           )}
         >
-          {children}
+          <FormValidationScope>{children}</FormValidationScope>
         </div>
       </DialogContent>
     </Dialog>
@@ -93,31 +100,37 @@ export function Modal({
 export function FieldLabel({
   label,
   required,
+  invalid,
   children,
 }: {
   label: string;
   required?: boolean;
+  invalid?: boolean;
   children: ReactNode;
 }) {
   const showRequired = showRequiredMark(required, children);
 
   return (
-    <Field>
-      <UiFieldLabel className="text-sm font-medium">
+    <Field data-invalid={invalid || undefined}>
+      <UiFieldLabel
+        className={cn("text-sm font-medium", invalid && "text-destructive")}
+      >
         {label}
         {showRequired ? <RequiredFieldMark /> : null}
       </UiFieldLabel>
-      {children}
+      {applyFieldInvalidState(children, Boolean(invalid))}
     </Field>
   );
 }
 
 export function FormError({ message }: { message: string | string[] | null }) {
   if (!message) return null;
-  if (Array.isArray(message)) {
-    return <ErrorsFeedbackBridge errors={message} />;
-  }
-  return <ErrorsFeedbackBridge errors={message} asError />;
+  return (
+    <ErrorsFeedbackBridge
+      errors={message}
+      title={Array.isArray(message) && message.length > 1 ? "Fix these issues" : "Fix this issue"}
+    />
+  );
 }
 
 export { ModalFormFooter };

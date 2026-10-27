@@ -11,8 +11,10 @@ import {
   AdminFormGrid,
   AdminFormModal,
   AdminFormSection,
+  applyFieldValidation,
   CustomerSearchSelect,
   VendorSearchSelect,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -62,7 +64,8 @@ export function RecurringScheduleFormDialog({
   const isEdit = Boolean(schedule?.id);
   const { stores, activeStoreId } = useErpStores();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
 
   const [name, setName] = useState("");
   const [scheduleType, setScheduleType] = useState<"invoice" | "purchase_bill">("purchase_bill");
@@ -142,18 +145,44 @@ export function RecurringScheduleFormDialog({
 
     const unitPrice = parseFloat(amount);
     const documentDate = nullIfEmptyDate(nextRunDate);
-    if (!name.trim()) return setError("Schedule name is required.");
-    if (!documentDate) return setError("Next run date is required.");
-    if (!productName.trim()) return setError("Line item description is required.");
-    if (!unitPrice || unitPrice <= 0) return setError("Amount must be greater than zero.");
-    if (scheduleType === "invoice" && !customerId) {
-      return setError("Customer is required for recurring invoices.");
-    }
-    if (scheduleType === "invoice" && !salesPersonId) {
-      return setError("Salesman PIN is required for recurring invoices.");
-    }
-    if (scheduleType === "purchase_bill" && !vendorId) {
-      return setError("Vendor is required for recurring bills.");
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "name", ok: Boolean(name.trim()), message: "Schedule name is required." },
+        { key: "nextRunDate", ok: Boolean(documentDate), message: "Next run date is required." },
+        {
+          key: "lines",
+          ok: Boolean(productName.trim()),
+          message: "Line item description is required.",
+        },
+        {
+          key: "lines",
+          ok: Boolean(unitPrice && unitPrice > 0),
+          message: "Amount must be greater than zero.",
+        },
+        {
+          key: "customer",
+          ok: scheduleType !== "invoice" || Boolean(customerId),
+          message: "Customer is required for recurring invoices.",
+        },
+        {
+          key: "salesmanPin",
+          ok: scheduleType !== "invoice" || Boolean(salesPersonId),
+          message: "Salesman PIN is required for recurring invoices.",
+        },
+        {
+          key: "vendor",
+          ok: scheduleType !== "purchase_bill" || Boolean(vendorId),
+          message: "Vendor is required for recurring bills.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
+      return;
     }
 
     const linePayload: Record<string, unknown> = {
@@ -245,7 +274,7 @@ export function RecurringScheduleFormDialog({
         <AdminFormColumns cols={2} columnRatio="1:1">
           <AdminFormSection title="Schedule">
             <AdminFormGrid cols={2}>
-              <AdminFormField label="Schedule name" required className="sm:col-span-2">
+              <AdminFormField label="Schedule name" required fieldKey="name" className="sm:col-span-2">
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -293,7 +322,7 @@ export function RecurringScheduleFormDialog({
               <AdminFormField label="Store" required>
                 <StoreSelect value={storeId} onChange={setStoreId} stores={stores} label="" />
               </AdminFormField>
-              <AdminFormField label="Next run date" required>
+              <AdminFormField label="Next run date" required fieldKey="nextRunDate">
                 <Input
                   type="date"
                   value={nextRunDate}
@@ -303,29 +332,32 @@ export function RecurringScheduleFormDialog({
               </AdminFormField>
               {scheduleType === "invoice" ? (
                 <>
-                  <AdminFormField label="Customer" required className="sm:col-span-2">
+                  <AdminFormField label="Customer" required fieldKey="customer" className="sm:col-span-2">
                     <CustomerSearchSelect
                       value={customerId || null}
                       selectedLabel={customerLabel || undefined}
+                      invalid={fieldValidation.isFieldInvalid("customer")}
                       onChange={(id, option) => {
                         setCustomerId(id ?? "");
                         setCustomerLabel(option?.label ?? "");
                       }}
                     />
                   </AdminFormField>
-                  <AdminFormField label="Salesman PIN" required className="sm:col-span-2">
+                  <AdminFormField label="Salesman PIN" required fieldKey="salesmanPin" className="sm:col-span-2">
                     <SalesmanPinField
                       value={salesmanPin}
                       onChange={setSalesmanPin}
                       onSalesmanChange={(s) => setSalesPersonId(s?.id ?? null)}
+                      submitInvalid={fieldValidation.isFieldInvalid("salesmanPin")}
                     />
                   </AdminFormField>
                 </>
               ) : (
-                <AdminFormField label="Vendor" required className="sm:col-span-2">
+                <AdminFormField label="Vendor" required fieldKey="vendor" className="sm:col-span-2">
                   <VendorSearchSelect
                     value={vendorId || null}
                     selectedLabel={vendorLabel || undefined}
+                    invalid={fieldValidation.isFieldInvalid("vendor")}
                     onChange={(id, option) => {
                       setVendorId(id ?? "");
                       setVendorLabel(option?.label ?? "");
@@ -336,7 +368,12 @@ export function RecurringScheduleFormDialog({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Line item">
+          <AdminFormSection
+            title="Line item"
+            className={
+              fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             <AdminFormGrid cols={2}>
               {scheduleType === "purchase_bill" ? (
                 <AdminFormField
@@ -377,7 +414,7 @@ export function RecurringScheduleFormDialog({
                   ) : null}
                 </AdminFormField>
               ) : null}
-              <AdminFormField label="Description" required className="sm:col-span-2">
+              <AdminFormField label="Description" required fieldKey="lines" className="sm:col-span-2">
                 <Input
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
@@ -385,7 +422,7 @@ export function RecurringScheduleFormDialog({
                   required
                 />
               </AdminFormField>
-              <AdminFormField label="Amount (AED)" required>
+              <AdminFormField label="Amount (AED)" required fieldKey="lines">
                 <Input
                   type="number"
                   min="0"

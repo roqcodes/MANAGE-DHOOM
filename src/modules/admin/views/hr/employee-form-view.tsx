@@ -12,7 +12,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +44,7 @@ export function EmployeeFormView({
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(mode === "edit");
   const [errors, setErrors] = useState<string[]>([]);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [fullName, setFullName] = useState("");
@@ -92,12 +95,21 @@ export function EmployeeFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationErrors: string[] = [];
-    if (!effectiveStoreId) validationErrors.push(storeRequiredMessage ?? "Store is required.");
-    if (!fullName.trim()) validationErrors.push("Full name is required.");
-    if (!mobile.trim()) validationErrors.push("Mobile is required.");
-    if (validationErrors.length > 0) {
-      setErrors(validationErrors);
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "fullName", ok: Boolean(fullName.trim()), message: "Full name is required." },
+        { key: "mobile", ok: Boolean(mobile.trim()), message: "Mobile is required." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setErrors(validationMessages);
       return;
     }
     setErrors([]);
@@ -180,23 +192,27 @@ export function EmployeeFormView({
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
         <AdminFormSection title="Employee details">
           <AdminFormGrid>
-            <ActiveStoreFormField
-              mode={mode}
-              stores={stores}
-              activeStoreId={activeStoreId}
-              storeId={storeId}
-              onStoreIdChange={setStoreId}
-            />
+            <AdminFormField label="Store" required fieldKey="store">
+              <ActiveStoreFormField
+                mode={mode}
+                stores={stores}
+                activeStoreId={activeStoreId}
+                storeId={storeId}
+                onStoreIdChange={setStoreId}
+                label=""
+                invalid={fieldValidation.isFieldInvalid("store")}
+              />
+            </AdminFormField>
             <AdminFormField label="ID#" htmlFor="employeeCode">
               <Input id="employeeCode" value={employeeCode} onChange={(e) => setEmployeeCode(e.target.value)} />
             </AdminFormField>
             <AdminFormField label="ID expiry date" htmlFor="idExpiryDate">
               <Input id="idExpiryDate" type="date" value={idExpiryDate} onChange={(e) => setIdExpiryDate(e.target.value)} />
             </AdminFormField>
-            <AdminFormField label="Full name" htmlFor="fullName" required>
+            <AdminFormField label="Full name" htmlFor="fullName" required fieldKey="fullName">
               <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
             </AdminFormField>
-            <AdminFormField label="Mobile" htmlFor="mobile" required>
+            <AdminFormField label="Mobile" htmlFor="mobile" required fieldKey="mobile">
               <Input id="mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} required />
             </AdminFormField>
             <AdminFormField label="Date of birth" htmlFor="dateOfBirth">

@@ -16,7 +16,7 @@ export type PaymentFormLineBalance = {
 };
 
 export type PaymentFormSubmitBlockInput = {
-  inlineError: string | null;
+  inlineError: string | string[] | null;
   lineAmount: string;
   documentKind: PaymentDocumentKind;
   selectedDocumentId?: string;

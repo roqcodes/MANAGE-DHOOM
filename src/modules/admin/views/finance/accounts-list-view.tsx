@@ -10,9 +10,15 @@ import {
   Modal,
   PrimaryBtn,
   SecondaryBtn,
+  fieldControlCls,
   inputCls,
   selectCls,
 } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { adminDelete, adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
@@ -58,8 +64,45 @@ function AccountFormModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  return (
+    <Modal
+      title={mode === "create" ? "Add account" : "Edit account"}
+      subtitle="Ledger accounts used across expenses, banking, and journals."
+      onClose={onClose}
+      size="md"
+    >
+      <FormValidationScope resetKey={`${mode}-${row?.id ?? "new"}`}>
+        <AccountFormModalBody
+          mode={mode}
+          row={row}
+          accountTypes={accountTypes}
+          storeId={storeId}
+          onClose={onClose}
+          onSaved={onSaved}
+        />
+      </FormValidationScope>
+    </Modal>
+  );
+}
+
+function AccountFormModalBody({
+  mode,
+  row,
+  accountTypes,
+  storeId,
+  onClose,
+  onSaved,
+}: {
+  mode: "create" | "edit";
+  row?: AccountListRow;
+  accountTypes: AccountTypeRow[];
+  storeId?: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<string[]>([]);
+  const fieldValidation = useFormFieldValidation();
   const [accountTypeId, setAccountTypeId] = useState(row?.account_type_id ?? "");
   const [code, setCode] = useState(row?.code ?? "");
   const [name, setName] = useState(row?.name ?? "");
@@ -67,12 +110,17 @@ function AccountFormModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationErrors: string[] = [];
-    if (!accountTypeId) validationErrors.push("Account type is required.");
-    if (!code.trim()) validationErrors.push("Code is required.");
-    if (!name.trim()) validationErrors.push("Name is required.");
-    if (validationErrors.length > 0) {
-      setErrors(validationErrors);
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "accountTypeId", ok: Boolean(accountTypeId), message: "Account type is required." },
+        { key: "code", ok: Boolean(code.trim()), message: "Code is required." },
+        { key: "name", ok: Boolean(name.trim()), message: "Name is required." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setErrors(validationMessages);
       return;
     }
     setErrors([]);
@@ -101,19 +149,13 @@ function AccountFormModal({
   }
 
   return (
-    <Modal
-      title={mode === "create" ? "Add account" : "Edit account"}
-      subtitle="Ledger accounts used across expenses, banking, and journals."
-      onClose={onClose}
-      size="md"
-    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <label className="flex flex-col gap-1">
           <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-slate-500">
             Account type *
           </span>
           <select
-            className={selectCls}
+            className={fieldControlCls(selectCls, fieldValidation.isFieldInvalid("accountTypeId"))}
             value={accountTypeId}
             onChange={(e) => setAccountTypeId(e.target.value)}
             required
@@ -133,7 +175,7 @@ function AccountFormModal({
             Code *
           </span>
           <input
-            className={inputCls}
+            className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("code"))}
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="Code"
@@ -146,7 +188,7 @@ function AccountFormModal({
             Name *
           </span>
           <input
-            className={inputCls}
+            className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("name"))}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Name"
@@ -173,7 +215,6 @@ function AccountFormModal({
           </PrimaryBtn>
         </ModalFormFooter>
       </form>
-    </Modal>
   );
 }
 

@@ -15,9 +15,11 @@ import {
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   CustomerSearchSelect,
   ErpDocumentNumberField,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
@@ -56,7 +58,8 @@ export function EstimateFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode });
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [loadingEstimate, setLoadingEstimate] = useState(mode === "edit");
   const isModal = variant === "modal";
 
@@ -180,17 +183,24 @@ export function EstimateFormView({
 
   function handleSubmit(submitMode: "save" | "draft" | "print") {
     setError(null);
-    if (!customerId) {
-      setError("Customer is required");
-      return;
-    }
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required");
-      return;
-    }
     const apiLines = salesLinesToApiInput(lines);
-    if (apiLines.length === 0) {
-      setError("Add at least one item");
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "customer", ok: Boolean(customerId), message: "Customer is required." },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "lines", ok: apiLines.length > 0, message: "Add at least one item." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
@@ -309,11 +319,12 @@ export function EstimateFormView({
         <AdminFormModalLayout sidebar={totalsSidebar}>
           <AdminFormSection title="Estimate details">
             <AdminFormGrid cols={3}>
-              <AdminFormField label="Customer" required className="sm:col-span-2">
+              <AdminFormField label="Customer" required fieldKey="customer" className="sm:col-span-2">
                 <CustomerSearchSelect
                   value={customerId || null}
                   selectedLabel={customerLabel || undefined}
                   disabled={mode === "edit"}
+                  invalid={fieldValidation.isFieldInvalid("customer")}
                   onChange={(id, option) => {
                     setCustomerId(id ?? "");
                     setCustomerLabel(option?.label ?? "");
@@ -323,7 +334,7 @@ export function EstimateFormView({
                   Add customer
                 </Link>
               </AdminFormField>
-              <AdminFormField label="Store" required>
+              <AdminFormField label="Store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode={mode}
                   stores={stores}
@@ -331,6 +342,7 @@ export function EstimateFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
               <ErpDocumentNumberField kind="EST" enabled={mode === "create"} />
@@ -353,7 +365,12 @@ export function EstimateFormView({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Estimate items">
+          <AdminFormSection
+            title="Estimate items"
+            className={
+              fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             <SalesLinesEditor
               lines={lines}
               onChange={setLines}

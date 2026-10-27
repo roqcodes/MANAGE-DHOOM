@@ -12,7 +12,9 @@ import {
   AdminFormField,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Input } from "@/components/ui/input";
@@ -80,6 +82,7 @@ export function CustomerFormView({
 
   const [pending, startTransition] = useTransition();
   const [errors, setErrors] = useState<string[]>([]);
+  const fieldValidation = useFormFieldValidation();
   const [profile, setProfile] = useState<CustomerErpProfile | null>(null);
   const [loading, setLoading] = useState(mode === "edit");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -116,8 +119,19 @@ export function CustomerFormView({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const companyName = (fd.get("companyName") as string).trim();
-    if (!companyName) {
-      setErrors(["Company name is required."]);
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "companyName",
+          ok: Boolean(companyName),
+          message: "Company name is required.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setErrors(validationMessages);
       return;
     }
     setErrors([]);
@@ -229,7 +243,7 @@ export function CustomerFormView({
             onUploadingChange={setAvatarUploading}
           />
           <FieldGrid className="min-w-0 flex-1">
-            <AdminFormField label="Company name" required className="sm:col-span-2">
+            <AdminFormField label="Company name" required fieldKey="companyName" className="sm:col-span-2">
               <Input
                 name="companyName"
                 placeholder="Trading name"

@@ -14,7 +14,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +50,8 @@ export function VatReturnFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [notes, setNotes] = useState("");
@@ -133,9 +136,34 @@ export function VatReturnFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (!periodStart || !periodEnd) return setError("Period dates are required.");
-    if (periodEnd < periodStart) return setError("End date must be on or after start date.");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        {
+          key: "period",
+          ok: Boolean(periodStart && periodEnd),
+          message: "Period dates are required.",
+        },
+        {
+          key: "period",
+          ok: !periodStart || !periodEnd || periodEnd >= periodStart,
+          message: "End date must be on or after start date.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
+      return;
+    }
+    setError(null);
 
     startTransition(async () => {
       try {
@@ -195,7 +223,7 @@ export function VatReturnFormView({
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
         <AdminFormSection title="Return details">
           <AdminFormGrid cols={3}>
-            <AdminFormField label="Store" required>
+            <AdminFormField label="Store" required fieldKey="store">
               <ActiveStoreFormField
                 mode="create"
                 stores={stores}
@@ -203,9 +231,10 @@ export function VatReturnFormView({
                 storeId={storeId}
                 onStoreIdChange={setStoreId}
                 label=""
+                invalid={fieldValidation.isFieldInvalid("store")}
               />
             </AdminFormField>
-            <AdminFormField label="VAT return start date" required>
+            <AdminFormField label="VAT return start date" required fieldKey="period">
               <Input
                 type="date"
                 value={periodStart}
@@ -213,7 +242,7 @@ export function VatReturnFormView({
                 required
               />
             </AdminFormField>
-            <AdminFormField label="VAT return end date" required>
+            <AdminFormField label="VAT return end date" required fieldKey="period">
               <Input
                 type="date"
                 value={periodEnd}

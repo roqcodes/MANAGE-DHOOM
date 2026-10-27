@@ -7,6 +7,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { Category } from "@/common/admin/types";
 import type { ErpProductSearchRow } from "@/common/erp/purchasing-types";
 import { createCatalogProductAction } from "@/modules/products/actions/create-product-catalog.action";
+import {
+  buildSimpleCatalogProductCreateInput,
+  isPurchaseQuickCreatePricingValid,
+  purchaseQuickCreatePricingMessage,
+} from "@/modules/products/lib/build-simple-catalog-product-create-input";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { formatActionError } from "@/modules/admin/lib/format-action-error";
 import {
@@ -15,9 +20,15 @@ import {
   ModalFormFooter,
   PrimaryBtn,
   SecondaryBtn,
+  fieldControlCls,
   inputCls,
   selectCls,
 } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { invalidateAdminProductCatalogQueries } from "@/modules/erp/lib/erp-product-live-search.client";
 import { useProductCreateSession } from "@/modules/products/lib/product-create-session";
 import { DEFAULT_ITEM_TAX_RATE_PERCENT } from "@/modules/tax/default-item-tax-rate";
@@ -31,15 +42,34 @@ export type QuickProductCreateModalProps = {
   onCreated: (product: ErpProductSearchRow) => void;
 };
 
-export function QuickProductCreateModal({
+export function QuickProductCreateModal(props: QuickProductCreateModalProps) {
+  const { nested = false, initialName = "", onClose } = props;
+  return (
+    <AnimatePresence>
+      <Modal
+        title="New product"
+        subtitle="Adds a goods item with purchase cost for this bill. Set sales price later on the products page before selling."
+        onClose={onClose}
+        size="md"
+        nested={nested}
+      >
+        <FormValidationScope resetKey={initialName || "new"}>
+          <QuickProductCreateModalForm {...props} />
+        </FormValidationScope>
+      </Modal>
+    </AnimatePresence>
+  );
+}
+
+function QuickProductCreateModalForm({
   initialName = "",
-  nested = false,
   onClose,
   onCreated,
 }: QuickProductCreateModalProps) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [categories, setCategories] = useState<Category[]>([]);
   const { begin, end } = useProductCreateSession(true);
 
@@ -68,24 +98,36 @@ export function QuickProductCreateModal({
     const hsnSac = (fd.get("hsnSac") as string).trim();
     const categoryId = (fd.get("categoryId") as string).trim();
 
-    if (!name) {
-      setError("Product name is required.");
-      end();
-      return;
-    }
-
     const purchasePrice = purchasePriceRaw ? parseFloat(purchasePriceRaw) : 0;
     const taxRatePercent = taxRateRaw
       ? parseFloat(taxRateRaw)
       : DEFAULT_ITEM_TAX_RATE_PERCENT;
+    const pricingMessage = !isPurchaseQuickCreatePricingValid(purchasePrice)
+      ? purchaseQuickCreatePricingMessage()
+      : null;
 
-    if (!Number.isFinite(purchasePrice) || purchasePrice < 0) {
-      setError("Enter a valid purchase price.");
-      end();
-      return;
-    }
-    if (!Number.isFinite(taxRatePercent) || taxRatePercent < 0) {
-      setError("Enter a valid tax rate.");
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "name", ok: Boolean(name), message: "Product name is required." },
+        {
+          key: "purchasePrice",
+          ok: Number.isFinite(purchasePrice) && purchasePrice >= 0,
+          message: "Enter a valid purchase price.",
+        },
+        { key: "purchasePrice", ok: !pricingMessage, message: pricingMessage ?? "" },
+        {
+          key: "taxRatePercent",
+          ok: Number.isFinite(taxRatePercent) && taxRatePercent >= 0,
+          message: "Enter a valid tax rate.",
+        },
+      ].filter((c) => c.message !== ""),
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       end();
       return;
     }
@@ -93,21 +135,16 @@ export function QuickProductCreateModal({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await createCatalogProductAction({
+        const catalogInput = buildSimpleCatalogProductCreateInput({
           operationId,
           name,
-          description: "",
           categoryId: categoryId || null,
-          brandId: null,
-          imageUrl: null,
-          variantLayout: "flat",
-          itemType: "goods",
           barcode: barcode || null,
           purchasePrice,
           taxRatePercent,
           hsnSac: hsnSac || null,
-          setup: { mode: "simple", ensureDefaultVariant: true },
         });
+        const result = await createCatalogProductAction(catalogInput);
 
         await invalidateAdminProductCatalogQueries(queryClient);
 
@@ -128,9 +165,9 @@ export function QuickProductCreateModal({
         onCreated({
           id: result.productId,
           product_name: name,
-          barcode: barcode || null,
-          purchase_price: purchasePrice,
-          tax_rate_percent: taxRatePercent,
+          barcode: catalogInput.barcode ?? null,
+          purchase_price: catalogInput.purchasePrice ?? null,
+          tax_rate_percent: catalogInput.taxRatePercent ?? null,
         });
         onClose();
       } catch (err) {
@@ -145,18 +182,10 @@ export function QuickProductCreateModal({
   }
 
   return (
-    <AnimatePresence>
-      <Modal
-        title="New product"
-        subtitle="Adds a goods item to your catalog and inserts it on this document. You can add images and SKUs later from the products page."
-        onClose={onClose}
-        size="md"
-        nested={nested}
-      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <FieldLabel label="Product name">
             <input
-              className={inputCls}
+              className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("name"))}
               name="name"
               defaultValue={initialName}
               placeholder="e.g. Organic tomatoes"
@@ -175,14 +204,15 @@ export function QuickProductCreateModal({
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
-            <FieldLabel label="Purchase price">
+            <FieldLabel label="Purchase price" required>
               <input
                 className={inputCls}
                 name="purchasePrice"
                 type="number"
-                min={0}
+                min={0.001}
                 step="any"
-                placeholder="0"
+                placeholder="Required"
+                required
               />
             </FieldLabel>
             <FieldLabel label="Tax %">
@@ -215,7 +245,5 @@ export function QuickProductCreateModal({
             </PrimaryBtn>
           </ModalFormFooter>
         </form>
-      </Modal>
-    </AnimatePresence>
   );
 }

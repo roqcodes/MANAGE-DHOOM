@@ -6,7 +6,9 @@ import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
 import { AdminPageActionBar } from "@/modules/admin/ui/admin-page-actions";
 import { AdminInfoTip } from "@/modules/admin/ui/admin-info-tip";
 import { cn } from "@/lib/utils";
+import { applyFieldInvalidState } from "@/lib/form-field-invalid";
 import { RequiredFieldMark, showRequiredMark } from "@/lib/required-field-label";
+import { useFormFieldValidation } from "@/modules/admin/lib/form-validation";
 
 export function AdminPageLayout({
   children,
@@ -148,6 +150,8 @@ export function AdminFormField({
   required,
   optional,
   hint,
+  fieldKey,
+  invalid,
   children,
   className,
 }: {
@@ -156,17 +160,24 @@ export function AdminFormField({
   required?: boolean;
   optional?: boolean;
   hint?: string;
+  /** When set, shows invalid styling after a failed save attempt (see FormValidationScope). */
+  fieldKey?: string;
+  invalid?: boolean;
   children: ReactNode;
   className?: string;
 }) {
+  const { isFieldInvalid } = useFormFieldValidation();
   const showRequired = showRequiredMark(required, children);
+  const showInvalid =
+    invalid === true || (fieldKey ? isFieldInvalid(fieldKey) : false);
 
   return (
-    <div className={cn("space-y-1", className)}>
+    <div className={cn("space-y-1", className)} data-field-invalid={showInvalid || undefined}>
       <label
         htmlFor={htmlFor}
         className={cn(
           "text-xs font-medium text-foreground",
+          showInvalid && "text-destructive",
           optional && "flex w-full items-center justify-between gap-2",
         )}
       >
@@ -179,7 +190,7 @@ export function AdminFormField({
         ) : null}
       </label>
       <div className="[&_input]:h-10 [&_button]:h-10 [&_select]:h-10 [&_textarea]:min-h-[2.5rem]">
-        {children}
+        {applyFieldInvalidState(children, showInvalid)}
       </div>
       {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
     </div>

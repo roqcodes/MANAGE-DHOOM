@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/table";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
+  firstPositivePrice,
   purchaseLineDefaultsFromSearchRow,
   resolvePurchaseLineDefaultsFromSelection,
 } from "@/modules/erp/lib/resolve-product-line-defaults.client";
@@ -113,6 +114,8 @@ export function PurchaseLinesEditor({
   function addProduct(row: ErpProductSearchRow) {
     const key = newLineKey();
     const { taxRatePercent } = purchaseLineDefaultsFromSearchRow(row);
+    const catalogPurchasePrice =
+      firstPositivePrice(row.purchase_price ?? undefined) ?? 0;
     const newLine: PurchaseLineFormRow = {
       key,
       productId: row.id,
@@ -121,7 +124,7 @@ export function PurchaseLinesEditor({
       barcode: row.barcode ?? "",
       expiryDate: defaultExpiryDate,
       quantity: 1,
-      purchasePrice: 0,
+      purchasePrice: catalogPurchasePrice,
       taxRatePercent,
     };
     const next = [...lines, newLine];

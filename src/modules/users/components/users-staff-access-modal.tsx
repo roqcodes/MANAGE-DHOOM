@@ -12,6 +12,11 @@ import {
   Modal,
   SecondaryBtn,
 } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { UserRoleBadge } from "@/modules/users/components/users-ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,7 +32,21 @@ import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedb
 
 type StoreRow = { id: string; name: string };
 
-export function UsersStaffAccessModal({
+export function UsersStaffAccessModal(props: {
+  user: DBUser;
+  onClose: () => void;
+  onUpdated?: () => void;
+}) {
+  return (
+    <Modal title="Assign role & store access" onClose={props.onClose} size="md">
+      <FormValidationScope resetKey={props.user.id}>
+        <UsersStaffAccessModalForm {...props} />
+      </FormValidationScope>
+    </Modal>
+  );
+}
+
+function UsersStaffAccessModalForm({
   user,
   onClose,
   onUpdated,
@@ -37,6 +56,7 @@ export function UsersStaffAccessModal({
   onUpdated?: () => void;
 }) {
   const profile = useAdminSession();
+  const fieldValidation = useFormFieldValidation();
   const queryClient = useQueryClient();
   const [roleId, setRoleId] = useState("");
   const [storeIds, setStoreIds] = useState<string[]>([]);
@@ -93,7 +113,15 @@ export function UsersStaffAccessModal({
   }
 
   function handleSave() {
-    if (!roleId) return;
+    const validationMessages = applyFieldValidation(
+      [{ key: "roleId", ok: Boolean(roleId), message: "Role is required." }],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(validationMessages[0]);
+      return;
+    }
     startTransition(async () => {
       setError(null);
       try {
@@ -115,7 +143,6 @@ export function UsersStaffAccessModal({
   }
 
   return (
-    <Modal title="Assign role & store access" onClose={onClose} size="md">
       <div className="space-y-4">
         <div className="rounded-lg bg-muted px-3 py-2 text-sm">
           <p className="font-medium">{user.name ?? "Unknown user"}</p>
@@ -131,7 +158,10 @@ export function UsersStaffAccessModal({
             value={selectedRole ? roleId : null}
             onValueChange={(value) => setRoleId(value ?? "")}
           >
-            <SelectTrigger className="w-full min-w-0">
+            <SelectTrigger
+              className="w-full min-w-0"
+              aria-invalid={fieldValidation.isFieldInvalid("roleId")}
+            >
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-left",
@@ -194,6 +224,5 @@ export function UsersStaffAccessModal({
           </Button>
         </div>
       </div>
-    </Modal>
   );
 }

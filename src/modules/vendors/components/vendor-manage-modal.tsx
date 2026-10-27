@@ -16,10 +16,16 @@ import {
   Modal,
   PrimaryBtn,
   SecondaryBtn,
+  fieldControlCls,
   inputCls,
 } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 
-export function VendorManageModal({
+function VendorManageModalForm({
   mode,
   vendor,
   onClose,
@@ -31,13 +37,22 @@ export function VendorManageModal({
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const fieldValidation = useFormFieldValidation();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const name = (fd.get("name") as string).trim();
     const contact = (fd.get("contact") as string).trim();
-    if (!name) return setError("Name is required.");
+    const validationMessages = applyFieldValidation(
+      [{ key: "name", ok: Boolean(name), message: "Name is required." }],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(validationMessages[0]);
+      return;
+    }
     setError(null);
     startTransition(async () => {
       try {
@@ -55,16 +70,10 @@ export function VendorManageModal({
   }
 
   return (
-    <AnimatePresence>
-      <Modal
-        title={mode === "create" ? "New Vendor" : "Edit Vendor"}
-        onClose={onClose}
-        size="sm"
-      >
         <form onSubmit={handleSubmit} className="space-y-4">
           <FieldLabel label="Vendor Name">
             <input
-              className={inputCls}
+              className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("name"))}
               name="name"
               defaultValue={vendor?.name ?? ""}
               placeholder="e.g. Fresh Farms Co."
@@ -91,6 +100,28 @@ export function VendorManageModal({
             </PrimaryBtn>
           </div>
         </form>
+  );
+}
+
+export function VendorManageModal({
+  mode,
+  vendor,
+  onClose,
+}: {
+  mode: "create" | "edit";
+  vendor?: Vendor;
+  onClose: () => void;
+}) {
+  return (
+    <AnimatePresence>
+      <Modal
+        title={mode === "create" ? "New Vendor" : "Edit Vendor"}
+        onClose={onClose}
+        size="sm"
+      >
+        <FormValidationScope resetKey={`${mode}-${vendor?.id ?? "new"}`}>
+          <VendorManageModalForm mode={mode} vendor={vendor} onClose={onClose} />
+        </FormValidationScope>
       </Modal>
     </AnimatePresence>
   );

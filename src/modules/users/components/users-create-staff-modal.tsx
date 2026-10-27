@@ -8,6 +8,11 @@ import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
 import type { RbacRoleRow } from "@/modules/rbac/services/rbac-admin.service";
 import { Modal, SecondaryBtn } from "@/modules/admin/components/modal";
+import {
+  FormValidationScope,
+  applyFieldValidation,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -30,7 +35,24 @@ export function UsersCreateStaffModal({
   onClose: () => void;
   onCreated?: () => void;
 }) {
+  return (
+    <Modal title="Create staff user" onClose={onClose} size="md">
+      <FormValidationScope>
+        <UsersCreateStaffModalForm onClose={onClose} onCreated={onCreated} />
+      </FormValidationScope>
+    </Modal>
+  );
+}
+
+function UsersCreateStaffModalForm({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated?: () => void;
+}) {
   const profile = useAdminSession();
+  const fieldValidation = useFormFieldValidation();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -70,6 +92,20 @@ export function UsersCreateStaffModal({
   }
 
   function handleCreate() {
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "name", ok: name.trim().length > 0, message: "Name is required." },
+        { key: "email", ok: email.trim().length > 0, message: "Email is required." },
+        { key: "password", ok: password.length >= 8, message: "Password must be at least 8 characters." },
+        { key: "roleId", ok: Boolean(roleId), message: "Role is required." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(validationMessages[0]);
+      return;
+    }
     startTransition(async () => {
       setError(null);
       try {
@@ -99,7 +135,6 @@ export function UsersCreateStaffModal({
     Boolean(roleId);
 
   return (
-    <Modal title="Create staff user" onClose={onClose} size="md">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Creates a verified portal account with email and password. The user can sign in
@@ -115,6 +150,7 @@ export function UsersCreateStaffModal({
               onChange={(e) => setName(e.target.value)}
               autoComplete="name"
               placeholder="Priya Sharma"
+              aria-invalid={fieldValidation.isFieldInvalid("name")}
             />
           </div>
           <div className="space-y-2">
@@ -126,6 +162,7 @@ export function UsersCreateStaffModal({
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="off"
               placeholder="staff@company.com"
+              aria-invalid={fieldValidation.isFieldInvalid("email")}
             />
           </div>
           <div className="space-y-2">
@@ -147,6 +184,7 @@ export function UsersCreateStaffModal({
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
               placeholder="Minimum 8 characters"
+              aria-invalid={fieldValidation.isFieldInvalid("password")}
             />
           </div>
         </div>
@@ -154,7 +192,10 @@ export function UsersCreateStaffModal({
         <div className="space-y-2">
           <Label>Role</Label>
           <Select value={selectedRole ? roleId : null} onValueChange={(v) => setRoleId(v ?? "")}>
-            <SelectTrigger className="w-full min-w-0">
+            <SelectTrigger
+              className="w-full min-w-0"
+              aria-invalid={fieldValidation.isFieldInvalid("roleId")}
+            >
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-left",
@@ -217,6 +258,5 @@ export function UsersCreateStaffModal({
           </Button>
         </div>
       </div>
-    </Modal>
   );
 }

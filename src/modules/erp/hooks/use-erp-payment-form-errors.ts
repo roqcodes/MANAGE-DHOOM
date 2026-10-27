@@ -7,13 +7,13 @@ import { useCallback, useState } from "react";
  * Avoids global validation modals that re-open on focus/blur after dismiss.
  */
 export function useErpPaymentFormErrors(_isModal: boolean) {
-  const [inlineError, setInlineError] = useState<string | null>(null);
+  const [inlineError, setInlineError] = useState<string | string[] | null>(null);
 
   const clearFormError = useCallback(() => {
     setInlineError(null);
   }, []);
 
-  const setFormError = useCallback((message: string | null) => {
+  const setFormError = useCallback((message: string | string[] | null) => {
     setInlineError(message);
   }, []);
 

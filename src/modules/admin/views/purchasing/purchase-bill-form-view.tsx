@@ -46,9 +46,11 @@ import {
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   ErpDocumentNumberField,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
@@ -183,7 +185,8 @@ export function PurchaseBillFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode });
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [landedMaster, setLandedMaster] = useState<ErpLandedCostItem[]>([]);
   const [loading, setLoading] = useState(mode === "edit");
   const [billStatus, setBillStatus] = useState<string | null>(null);
@@ -431,32 +434,42 @@ export function PurchaseBillFormView({
   function submit(finalize: boolean) {
     setError(null);
     const shouldFinalize = finalize && !poId;
-    if (shouldFinalize && !landedAllocationBalanced) {
-      setError(
-        "Landed cost allocation must match the landed cost total before finalizing this invoice.",
-      );
-      return;
-    }
     const linesForSave = commitResolvedLandedAllocationsToLines(
       lines,
       landedCosts,
       landedAllocationMethod,
     );
     const apiLines = linesToApiInput(linesForSave, landedCosts, landedAllocationMethod);
-    if (!vendorId || !effectiveStoreId) {
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "landedCosts",
+          ok: !shouldFinalize || landedAllocationBalanced,
+          message:
+            "Landed cost allocation must match the landed cost total before finalizing this invoice.",
+        },
+        { key: "vendor", ok: Boolean(vendorId), message: "Vendor is required." },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message:
+            storeRequiredMessage ?? "Select a store using the header switcher before saving.",
+        },
+        { key: "lines", ok: apiLines.length > 0, message: "Add at least one valid line item." },
+        {
+          key: "lines",
+          ok: !shouldFinalize || totals.total > 0,
+          message:
+            "Enter line rates so the grand total is greater than zero before finalizing.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
       setError(
-        !effectiveStoreId
-          ? (storeRequiredMessage ?? "Select a store using the header switcher before saving.")
-          : "Vendor and store are required",
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
       );
-      return;
-    }
-    if (!apiLines.length) {
-      setError("Add at least one valid line item");
-      return;
-    }
-    if (shouldFinalize && totals.total <= 0) {
-      setError("Enter line rates so the grand total is greater than zero before finalizing.");
       return;
     }
 
@@ -668,8 +681,9 @@ export function PurchaseBillFormView({
           <AdminFormSection title="Purchase header">
             <AdminFormGrid cols={3}>
               <ErpDocumentNumberField kind="PB" value={billNumber} enabled={mode === "create"} />
-              <AdminFormField label="Supplier" required>
+              <AdminFormField label="Supplier" required fieldKey="vendor">
                 <VendorSearchSelect
+                  invalid={fieldValidation.isFieldInvalid("vendor")}
                   value={vendorId || null}
                   selectedLabel={vendorLabel || undefined}
                   disabled={Boolean(poId)}
@@ -679,7 +693,7 @@ export function PurchaseBillFormView({
                   }}
                 />
               </AdminFormField>
-              <AdminFormField label="Destination store" required>
+              <AdminFormField label="Destination store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode={mode}
                   stores={stores}
@@ -687,6 +701,7 @@ export function PurchaseBillFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
               <AdminFormField label="Purchase date">
@@ -727,7 +742,12 @@ export function PurchaseBillFormView({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Purchase items">
+          <AdminFormSection
+            title="Purchase items"
+            className={
+              fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             <PurchaseLinesEditor
               lines={lines}
               onChange={setLines}
@@ -738,7 +758,12 @@ export function PurchaseBillFormView({
             />
           </AdminFormSection>
 
-          <AdminFormSection title="Landed costs">
+          <AdminFormSection
+            title="Landed costs"
+            className={
+              fieldValidation.isFieldInvalid("landedCosts") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             <LandedCostsEditor
               rows={landedCosts}
               onChange={setLandedCosts}

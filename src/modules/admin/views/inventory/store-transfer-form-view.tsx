@@ -13,9 +13,11 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   ErpDocumentNumberField,
   ProductLiveSearch,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -88,7 +90,8 @@ export function StoreTransferFormView({
   const router = useRouter();
   const { stores } = useErpStores();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [fromStoreId, setFromStoreId] = useState("");
@@ -215,16 +218,27 @@ export function StoreTransferFormView({
 
   function handleSubmit() {
     setError(null);
-    if (!fromStoreId || !toStoreId) {
-      setError("From and To stores are required");
-      return;
-    }
-    if (fromStoreId === toStoreId) {
-      setError("From and To stores must be different");
-      return;
-    }
-    if (lines.length === 0) {
-      setError("Add at least one item");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "stores",
+          ok: Boolean(fromStoreId && toStoreId),
+          message: "From and To stores are required.",
+        },
+        {
+          key: "stores",
+          ok: Boolean(fromStoreId && toStoreId && fromStoreId !== toStoreId),
+          message: "From and To stores must be different.",
+        },
+        { key: "lines", ok: lines.length > 0, message: "Add at least one item." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
@@ -288,10 +302,10 @@ export function StoreTransferFormView({
       <AdminFormSection title="Transfer details">
         <AdminFormGrid cols={2}>
           <ErpDocumentNumberField kind="ST" />
-          <AdminFormField label="From store" required>
+          <AdminFormField label="From store" required fieldKey="stores">
             <StoreSelect value={fromStoreId} onChange={setFromStoreId} stores={stores} label="" />
           </AdminFormField>
-          <AdminFormField label="To store" required>
+          <AdminFormField label="To store" required fieldKey="stores">
             <StoreSelect value={toStoreId} onChange={setToStoreId} stores={stores} label="" />
           </AdminFormField>
           <AdminFormField label="Transfer date">
@@ -307,7 +321,12 @@ export function StoreTransferFormView({
         </AdminFormGrid>
       </AdminFormSection>
 
-      <AdminFormSection title="Items">
+      <AdminFormSection
+        title="Items"
+        className={
+          fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+        }
+      >
         <ProductLiveSearch
           catalog="sales"
           storeId={fromStoreId}

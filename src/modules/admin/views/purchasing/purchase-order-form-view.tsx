@@ -60,9 +60,11 @@ import {
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   ErpDocumentNumberField,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
@@ -85,7 +87,8 @@ export function PurchaseOrderFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode });
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [loading, setLoading] = useState(mode === "edit");
   const [vendorLabel, setVendorLabel] = useState("");
   const isModal = variant === "modal";
@@ -267,28 +270,34 @@ export function PurchaseOrderFormView({
 
   function submit() {
     setError(null);
-    if (!landedAllocationBalanced) {
-      setError(
-        "Landed cost allocation must match the landed cost total before saving.",
-      );
-      return;
-    }
     const linesForSave = commitResolvedLandedAllocationsToLines(
       lines,
       landedCosts,
       landedAllocationMethod,
     );
     const apiLines = linesToApiInput(linesForSave, landedCosts, landedAllocationMethod);
-    if (!vendorId) {
-      setError("Vendor is required");
-      return;
-    }
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required");
-      return;
-    }
-    if (!apiLines.length) {
-      setError("Add at least one valid line item");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "landedCosts",
+          ok: landedAllocationBalanced,
+          message: "Landed cost allocation must match the landed cost total before saving.",
+        },
+        { key: "vendor", ok: Boolean(vendorId), message: "Vendor is required." },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "lines", ok: apiLines.length > 0, message: "Add at least one valid line item." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
@@ -437,17 +446,18 @@ export function PurchaseOrderFormView({
           <AdminFormSection title="Purchase order details">
             <AdminFormGrid cols={3}>
               <ErpDocumentNumberField kind="PO" value={poNumber} enabled={mode === "create"} />
-              <AdminFormField label="Vendor" required>
+              <AdminFormField label="Vendor" required fieldKey="vendor">
                 <VendorSearchSelect
                   value={vendorId || null}
                   selectedLabel={vendorLabel || undefined}
+                  invalid={fieldValidation.isFieldInvalid("vendor")}
                   onChange={(id, option) => {
                     setVendorId(id ?? "");
                     setVendorLabel(option?.label ?? "");
                   }}
                 />
               </AdminFormField>
-              <AdminFormField label="Destination store" required>
+              <AdminFormField label="Destination store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode={mode}
                   stores={stores}
@@ -455,6 +465,7 @@ export function PurchaseOrderFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
               <AdminFormField label="PO date">
@@ -476,7 +487,12 @@ export function PurchaseOrderFormView({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Line items">
+          <AdminFormSection
+            title="Line items"
+            className={
+              fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             {mode === "create" ? (
               <div className="mb-3 flex flex-wrap justify-end">
                 <Button
@@ -498,7 +514,12 @@ export function PurchaseOrderFormView({
             />
           </AdminFormSection>
 
-          <AdminFormSection title="Landed costs">
+          <AdminFormSection
+            title="Landed costs"
+            className={
+              fieldValidation.isFieldInvalid("landedCosts") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             <LandedCostsEditor
               rows={landedCosts}
               onChange={setLandedCosts}

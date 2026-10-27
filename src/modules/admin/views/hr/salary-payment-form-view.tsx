@@ -14,7 +14,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
@@ -44,7 +46,8 @@ export function SalaryPaymentFormView({
   const formId = useId();
   const { activeStoreId } = useErpStores();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [employees, setEmployees] = useState<ErpEmployeeOption[]>([]);
@@ -112,8 +115,20 @@ export function SalaryPaymentFormView({
     e.preventDefault();
     setError(null);
     const amount = parseFloat(amountPaid);
-    if (!employeeId) return setError("Select an employee.");
-    if (!amount || amount <= 0) return setError("Enter a positive amount.");
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "employee", ok: Boolean(employeeId), message: "Select an employee." },
+        { key: "amount", ok: Boolean(amount && amount > 0), message: "Enter a positive amount." },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
+      return;
+    }
 
     startTransition(async () => {
       try {
@@ -186,7 +201,7 @@ export function SalaryPaymentFormView({
 
         <AdminFormSection title="Payment details">
           <AdminFormGrid>
-            <AdminFormField label="Employee" htmlFor="employeeId" required className="sm:col-span-2">
+            <AdminFormField label="Employee" htmlFor="employeeId" required fieldKey="employee" className="sm:col-span-2">
               <select
                 id="employeeId"
                 className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm disabled:opacity-60"
@@ -230,7 +245,7 @@ export function SalaryPaymentFormView({
                 ))}
               </select>
             </AdminFormField>
-            <AdminFormField label="Amount paid" htmlFor="amountPaid" required>
+            <AdminFormField label="Amount paid" htmlFor="amountPaid" required fieldKey="amount">
               <Input
                 id="amountPaid"
                 type="number"

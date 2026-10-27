@@ -36,9 +36,11 @@ import {
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   CustomerSearchSelect,
   ErpDocumentNumberField,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
@@ -99,7 +101,8 @@ export function InvoiceFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode });
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [loadingInvoice, setLoadingInvoice] = useState(mode === "edit");
   const [invoiceStatus, setInvoiceStatus] = useState<string | null>(null);
 
@@ -306,32 +309,47 @@ export function InvoiceFormView({
   function handleSubmit(finalize: boolean) {
     setError(null);
     if (creditLimitBlocked) return;
-    if (!customerId) {
-      setError("Customer is required");
-      return;
-    }
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required");
-      return;
-    }
     const apiLines = salesLinesToApiInput(lines);
-    if (apiLines.length === 0) {
-      setError("Add at least one item");
-      return;
-    }
-    if (finalize && totals.total <= 0) {
-      setError("Enter line rates so the total is greater than zero before finalizing.");
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "customer", ok: Boolean(customerId), message: "Customer is required." },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "lines", ok: apiLines.length > 0, message: "Add at least one item." },
+        {
+          key: "lines",
+          ok: !finalize || totals.total > 0,
+          message:
+            "Enter line rates so the total is greater than zero before finalizing.",
+        },
+        {
+          key: "lines",
+          ok:
+            !finalize || !apiLines.some((line) => !line.productId),
+          message:
+            "Each line must be linked to a product (use product search) before finalizing.",
+        },
+        {
+          key: "salesmanPin",
+          ok: Boolean(salesPersonId),
+          message: "Enter a valid salesman PIN.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
-    if (finalize && apiLines.some((line) => !line.productId)) {
-      setError("Each line must be linked to a product (use product search) before finalizing.");
-      return;
-    }
-    if (!salesPersonId) {
-      setError("Enter a valid salesman PIN");
-      return;
-    }
+    const resolvedSalesPersonId = salesPersonId;
+    if (!resolvedSalesPersonId) return;
 
     startTransition(async () => {
       try {
@@ -370,7 +388,7 @@ export function InvoiceFormView({
               discount: coalesceNumber(discount),
               taxInclusive,
               notes: notes || undefined,
-              salesPersonId,
+              salesPersonId: resolvedSalesPersonId,
             };
             await store.enqueue({
               operationType: ERP_CLIENT_OPERATION_TYPES.salesInvoice.update,
@@ -385,7 +403,7 @@ export function InvoiceFormView({
               await store.enqueue({
                 operationType: ERP_CLIENT_OPERATION_TYPES.salesInvoice.issue,
                 schemaVersion: 1,
-                payload: { invoiceId, salesPersonId },
+                payload: { invoiceId, salesPersonId: resolvedSalesPersonId },
                 userId: staffUserId,
                 storeId: effectiveStoreId,
                 terminalId: getOrCreateErpTerminalId(),
@@ -401,7 +419,7 @@ export function InvoiceFormView({
               discount: coalesceNumber(discount),
               taxInclusive,
               notes: notes || undefined,
-              salesPersonId,
+              salesPersonId: resolvedSalesPersonId,
               finalize,
             };
             await store.enqueue({
@@ -560,13 +578,19 @@ export function InvoiceFormView({
         <AdminFormModalLayout sidebar={totalsSidebar}>
           <AdminFormSection title="Invoice details">
             <AdminFormGrid cols={3}>
-              <AdminFormField label="Customer" required className="sm:col-span-2">
+              <AdminFormField
+                label="Customer"
+                required
+                fieldKey="customer"
+                className="sm:col-span-2"
+              >
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <CustomerSearchSelect
                       value={customerId || null}
                       selectedLabel={customerLabel || undefined}
                       disabled={mode === "edit"}
+                      invalid={fieldValidation.isFieldInvalid("customer")}
                       onChange={(id, option) => {
                         setCustomerId(id ?? "");
                         setCustomerLabel(option?.label ?? "");
@@ -588,7 +612,7 @@ export function InvoiceFormView({
                 </div>
               </AdminFormField>
               <ErpDocumentNumberField kind="INV" enabled={mode === "create"} />
-              <AdminFormField label="Store" required>
+              <AdminFormField label="Store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode={mode}
                   stores={stores}
@@ -596,6 +620,7 @@ export function InvoiceFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
               <AdminFormField label="Invoice date">
@@ -619,6 +644,7 @@ export function InvoiceFormView({
                 value={salesmanPin}
                 onChange={setSalesmanPin}
                 onSalesmanChange={(s) => setSalesPersonId(s?.id ?? null)}
+                submitInvalid={fieldValidation.isFieldInvalid("salesmanPin")}
               />
               <label className="flex items-center gap-2 text-sm sm:col-span-2">
                 <input
@@ -631,7 +657,14 @@ export function InvoiceFormView({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Invoice items">
+          <AdminFormSection
+            title="Invoice items"
+            className={
+              fieldValidation.isFieldInvalid("lines")
+                ? "ring-2 ring-destructive/60"
+                : undefined
+            }
+          >
             <SalesLinesEditor
               lines={lines}
               onChange={setLines}

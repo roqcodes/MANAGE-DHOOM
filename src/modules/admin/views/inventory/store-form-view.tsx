@@ -15,7 +15,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -38,6 +40,7 @@ export function StoreFormView({
   const [pending, startTransition] = useTransition();
   const [loading, setLoading] = useState(Boolean(storeId));
   const [errors, setErrors] = useState<string[]>([]);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [name, setName] = useState("");
@@ -101,6 +104,15 @@ export function StoreFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const validationMessages = applyFieldValidation(
+      [{ key: "name", ok: Boolean(name.trim()), message: "Store name is required." }],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setErrors(validationMessages);
+      return;
+    }
     setErrors([]);
     const payload = {
       name,
@@ -182,7 +194,7 @@ export function StoreFormView({
         <AdminFormSection title="Store details">
           <AdminFormColumns cols={2}>
             <AdminFormGrid cols={2}>
-              <AdminFormField label="Store name" required className="sm:col-span-2">
+              <AdminFormField label="Store name" required fieldKey="name" className="sm:col-span-2">
                 <Input value={name} onChange={(e) => setName(e.target.value)} required />
               </AdminFormField>
               <AdminFormField label="Store type">

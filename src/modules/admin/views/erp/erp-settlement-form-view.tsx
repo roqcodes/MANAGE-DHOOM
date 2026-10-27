@@ -18,9 +18,11 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   CustomerSearchSelect,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,7 +73,8 @@ export function ErpSettlementFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [partyId, setPartyId] = useState<string | null>(prefillPartyId || null);
@@ -207,32 +210,63 @@ export function ErpSettlementFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!partyId) return setError(isSupplier ? "Select a vendor." : "Select a customer.");
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (!accountId) {
-      return setError(isSupplier ? "Paid through account is required." : "Deposit account is required.");
-    }
-    if (!preview || netBalance <= 0) {
-      return setError("No account balance to settle.");
-    }
-    if (discountAmount > 0 && documentSettleTotal <= 0) {
-      return setError("No open document balance for a settlement discount.");
-    }
-    if (discountAmount >= documentSettleTotal && documentSettleTotal > 0) {
-      return setError("Discount must be less than the document balance to settle.");
-    }
-    if (discountAmount > 0 && openingPortion > 0.001) {
-      return setError(
-        "Settlement discount applies to open documents only. Pay opening balance separately or remove the discount.",
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "party",
+          ok: Boolean(partyId),
+          message: isSupplier ? "Select a vendor." : "Select a customer.",
+        },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        {
+          key: "account",
+          ok: Boolean(accountId),
+          message: isSupplier
+            ? "Paid through account is required."
+            : "Deposit account is required.",
+        },
+        {
+          key: "settlementPreview",
+          ok: Boolean(preview) && netBalance > 0,
+          message: "No account balance to settle.",
+        },
+        {
+          key: "settlementDiscount",
+          ok: discountAmount <= 0 || documentSettleTotal > 0,
+          message: "No open document balance for a settlement discount.",
+        },
+        {
+          key: "settlementDiscount",
+          ok: discountAmount <= 0 || discountAmount < documentSettleTotal,
+          message: "Discount must be less than the document balance to settle.",
+        },
+        {
+          key: "settlementDiscount",
+          ok: discountAmount <= 0 || openingPortion <= 0.001,
+          message:
+            "Settlement discount applies to open documents only. Pay opening balance separately or remove the discount.",
+        },
+        { key: "cashAmount", ok: cashAmount > 0, message: "Amount to pay must be positive." },
+        {
+          key: "discountAccount",
+          ok: discountAmount <= 0 || Boolean(discountAccountId),
+          message: isSupplier
+            ? "Select an income account for the settlement discount."
+            : "Select an expense account for the settlement discount.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
       );
-    }
-    if (cashAmount <= 0) return setError("Amount to pay must be positive.");
-    if (discountAmount > 0 && !discountAccountId) {
-      return setError(
-        isSupplier
-          ? "Select an income account for the settlement discount."
-          : "Select an expense account for the settlement discount.",
-      );
+      return;
     }
 
     startTransition(async () => {
@@ -307,7 +341,7 @@ export function ErpSettlementFormView({
         <AdminFormColumns cols={2}>
           <AdminFormSection title="Account" className="lg:col-span-2">
             <AdminFormGrid cols={3}>
-              <AdminFormField label="Store" required>
+              <AdminFormField label="Store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode="create"
                   stores={stores}
@@ -315,13 +349,15 @@ export function ErpSettlementFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
-              <AdminFormField label={isSupplier ? "Vendor" : "Customer"} required>
+              <AdminFormField label={isSupplier ? "Vendor" : "Customer"} required fieldKey="party">
                 {isSupplier ? (
                   <VendorSearchSelect
                     value={partyId}
                     selectedLabel={partyLabel}
+                    invalid={fieldValidation.isFieldInvalid("party")}
                     onChange={(id, option) => {
                       setPartyId(id);
                       setPartyLabel(option?.label ?? "");
@@ -331,6 +367,7 @@ export function ErpSettlementFormView({
                   <CustomerSearchSelect
                     value={partyId}
                     selectedLabel={partyLabel}
+                    invalid={fieldValidation.isFieldInvalid("party")}
                     onChange={(id, option) => {
                       setPartyId(id);
                       setPartyLabel(option?.label ?? "");
@@ -348,7 +385,14 @@ export function ErpSettlementFormView({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Account items" className="lg:col-span-2">
+          <AdminFormSection
+            title="Account items"
+            className={
+              fieldValidation.isFieldInvalid("settlementPreview")
+                ? "ring-2 ring-destructive/60 lg:col-span-2"
+                : "lg:col-span-2"
+            }
+          >
             {loadingPreview ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
             ) : !partyId ? (
@@ -401,9 +445,17 @@ export function ErpSettlementFormView({
             ) : null}
           </AdminFormSection>
 
-          <AdminFormSection title="Settlement amounts" className="lg:col-span-2">
+          <AdminFormSection
+            title="Settlement amounts"
+            className={
+              fieldValidation.isFieldInvalid("settlementDiscount") ||
+              fieldValidation.isFieldInvalid("cashAmount")
+                ? "ring-2 ring-destructive/60 lg:col-span-2"
+                : "lg:col-span-2"
+            }
+          >
             <AdminFormGrid cols={3}>
-              <AdminFormField label="Settlement discount">
+              <AdminFormField label="Settlement discount" fieldKey="settlementDiscount">
                 <Input
                   type="number"
                   min={0}
@@ -413,7 +465,10 @@ export function ErpSettlementFormView({
                   onChange={(e) => setSettlementDiscount(e.target.value)}
                 />
               </AdminFormField>
-              <AdminFormField label={isSupplier ? "Amount to pay" : "Amount received"}>
+              <AdminFormField
+                label={isSupplier ? "Amount to pay" : "Amount received"}
+                fieldKey="cashAmount"
+              >
                 <Input
                   readOnly
                   className="bg-muted"
@@ -426,6 +481,7 @@ export function ErpSettlementFormView({
                     isSupplier ? "Purchase discount (income)" : "Settlement discount (expense)"
                   }
                   required
+                  fieldKey="discountAccount"
                 >
                   <select
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
@@ -473,7 +529,7 @@ export function ErpSettlementFormView({
                   ))}
                 </select>
               </AdminFormField>
-              <AdminFormField label={isSupplier ? "Paid through" : "Deposit to"} required>
+              <AdminFormField label={isSupplier ? "Paid through" : "Deposit to"} required fieldKey="account">
                 <select
                   className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm"
                   value={accountId}

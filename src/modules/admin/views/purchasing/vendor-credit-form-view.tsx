@@ -14,10 +14,12 @@ import {
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   ErpDocumentNumberField,
   PurchaseBillSearchSelect,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -126,7 +128,8 @@ export function VendorCreditFormView({
 
   const [isPending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [loading, setLoading] = useState(mode === "edit");
 
   const [vendorId, setVendorId] = useState("");
@@ -327,22 +330,34 @@ export function VendorCreditFormView({
 
   function submit(finalize: boolean) {
     setError(null);
-    if (!vendorId) {
-      setError("Supplier is required.");
-      return;
-    }
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required.");
-      return;
-    }
-
     const apiLines = purchaseLinesToVendorCreditInput(lines);
-    if (apiLines.length === 0) {
-      setError("Add at least one item with quantity and rate.");
-      return;
-    }
-    if (finalize && totals.total <= 0) {
-      setError("Enter line rates so the credit total is greater than zero before issuing.");
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "vendor", ok: Boolean(vendorId), message: "Supplier is required." },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        {
+          key: "lines",
+          ok: apiLines.length > 0,
+          message: "Add at least one item with quantity and rate.",
+        },
+        {
+          key: "lines",
+          ok: !finalize || totals.total > 0,
+          message:
+            "Enter line rates so the credit total is greater than zero before issuing.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
@@ -485,10 +500,11 @@ export function VendorCreditFormView({
         <AdminFormModalLayout sidebar={sidebar}>
           <AdminFormSection title="Credit details">
             <AdminFormGrid cols={3}>
-              <AdminFormField label="Supplier" required className="sm:col-span-2">
+              <AdminFormField label="Supplier" required fieldKey="vendor" className="sm:col-span-2">
                 <VendorSearchSelect
                   value={vendorId || null}
                   selectedLabel={vendorLabel || undefined}
+                  invalid={fieldValidation.isFieldInvalid("vendor")}
                   onChange={(id, option) => {
                     setVendorId(id ?? "");
                     setVendorLabel(option?.label ?? "");
@@ -508,7 +524,7 @@ export function VendorCreditFormView({
                   placeholder="Supplier reference"
                 />
               </AdminFormField>
-              <AdminFormField label="Store" required>
+              <AdminFormField label="Store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode={mode}
                   stores={stores}
@@ -516,6 +532,7 @@ export function VendorCreditFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
               <AdminFormField label="Source purchase bill" className="sm:col-span-2">
@@ -557,7 +574,12 @@ export function VendorCreditFormView({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Items">
+          <AdminFormSection
+            title="Items"
+            className={
+              fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             <PurchaseLinesEditor
               lines={lines}
               onChange={setLines}

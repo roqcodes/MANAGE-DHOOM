@@ -11,9 +11,11 @@ import {
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   ErpDocumentNumberField,
   InvoiceSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
@@ -101,7 +103,8 @@ export function CreditNoteFormView({
     useActiveStoreFormField({ mode });
   const [pending, startTransition] = useTransition();
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [creditNoteDate, setCreditNoteDate] = useState(new Date().toISOString().slice(0, 10));
@@ -228,30 +231,44 @@ export function CreditNoteFormView({
 
   function handleSubmit(finalize: boolean) {
     setError(null);
-    if (!customerId) {
-      setError("Select a source invoice to load customer details");
-      return;
-    }
-    if (!selectedInvoiceId) {
-      setError("Source invoice is required");
-      return;
-    }
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required");
-      return;
-    }
     const apiLines = salesLinesToApiInput(lines);
-    if (apiLines.length === 0) {
-      setError("Add at least one refund line");
-      return;
-    }
     const refundTotal = lines.reduce((sum, line) => {
       const taxable = line.quantity * line.unitPrice;
       const tax = taxable * (line.taxRatePercent / 100);
       return sum + taxable + tax;
     }, 0);
-    if (finalize && refundTotal <= 0) {
-      setError("Enter line rates so the refund total is greater than zero before issuing.");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "sourceInvoice",
+          ok: Boolean(selectedInvoiceId),
+          message: "Source invoice is required.",
+        },
+        {
+          key: "sourceInvoice",
+          ok: Boolean(customerId),
+          message: "Select a source invoice to load customer details.",
+        },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "lines", ok: apiLines.length > 0, message: "Add at least one refund line." },
+        {
+          key: "lines",
+          ok: !finalize || refundTotal > 0,
+          message:
+            "Enter line rates so the refund total is greater than zero before issuing.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
       return;
     }
 
@@ -389,7 +406,7 @@ export function CreditNoteFormView({
                 value={creditNoteNumber}
                 enabled={mode === "create"}
               />
-              <AdminFormField label="Store" required>
+              <AdminFormField label="Store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode={mode}
                   stores={stores}
@@ -397,6 +414,7 @@ export function CreditNoteFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
               <AdminFormField label="Credit note date">
@@ -409,11 +427,12 @@ export function CreditNoteFormView({
               <AdminFormField label="Reference">
                 <Input value={reference} onChange={(e) => setReference(e.target.value)} />
               </AdminFormField>
-              <AdminFormField label="Source invoice" required className="sm:col-span-2">
+              <AdminFormField label="Source invoice" required fieldKey="sourceInvoice" className="sm:col-span-2">
                 <InvoiceSearchSelect
                   value={selectedInvoiceId || null}
                   selectedLabel={invoiceLabel || undefined}
                   storeId={effectiveStoreId || undefined}
+                  invalid={fieldValidation.isFieldInvalid("sourceInvoice")}
                   onChange={(id, option) => {
                     setSelectedInvoiceId(id ?? "");
                     setInvoiceLabel(option?.label ?? "");
@@ -466,7 +485,12 @@ export function CreditNoteFormView({
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Refund items">
+          <AdminFormSection
+            title="Refund items"
+            className={
+              fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             <SalesLinesEditor
               lines={lines}
               onChange={setLines}

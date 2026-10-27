@@ -27,9 +27,11 @@ import {
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   CustomerSearchSelect,
   ErpDocumentNumberField,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import {
   SalesLinesEditor,
@@ -71,7 +73,8 @@ export function SalesOrderFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: isEdit ? "edit" : "create" });
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const [loadingOrder, setLoadingOrder] = useState(isEdit);
   const isModal = variant === "modal";
 
@@ -187,19 +190,7 @@ export function SalesOrderFormView({
 
   function handleSubmit() {
     setError(null);
-    if (!customerId) {
-      setError("Customer is required");
-      return;
-    }
-    if (!effectiveStoreId) {
-      setError(storeRequiredMessage ?? "Store is required");
-      return;
-    }
     const apiLines = salesLinesToApiInput(lines);
-    if (apiLines.length === 0) {
-      setError("Add at least one item");
-      return;
-    }
     const items = apiLines
       .filter((l) => l.productId)
       .map((l) => ({
@@ -208,19 +199,40 @@ export function SalesOrderFormView({
         unitPrice: l.unitPrice,
         taxRatePercent: l.taxRatePercent,
       }));
-    if (items.length === 0) {
-      setError("Select products from catalog search");
-      return;
-    }
     const lineWithoutPrice = items.find((i) => !i.unitPrice || i.unitPrice <= 0);
-    if (lineWithoutPrice) {
+    const validationMessages = applyFieldValidation(
+      [
+        { key: "customer", ok: Boolean(customerId), message: "Customer is required." },
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "lines", ok: apiLines.length > 0, message: "Add at least one item." },
+        {
+          key: "lines",
+          ok: items.length > 0,
+          message: "Select products from catalog search.",
+        },
+        {
+          key: "lines",
+          ok: !lineWithoutPrice,
+          message:
+            "Each line needs a unit price above zero. Enter a price on the line or set the product's catalog selling price.",
+        },
+        {
+          key: "salesmanPin",
+          ok: Boolean(salesPersonId),
+          message: "Enter a valid salesman PIN.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
       setError(
-        "Each line needs a unit price above zero. Enter a price on the line or set the product’s catalog selling price.",
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
       );
-      return;
-    }
-    if (!salesPersonId) {
-      setError("Enter a valid salesman PIN");
       return;
     }
 
@@ -238,7 +250,7 @@ export function SalesOrderFormView({
           referenceNumber: referenceNumber || undefined,
           shipmentDate: shipmentDate || undefined,
           deliveryMethod: deliveryMethod || undefined,
-          salesPersonId,
+          salesPersonId: salesPersonId!,
           subtotal: totals.subtotal,
           tax: totals.tax,
           discount: coalesceNumber(discount),
@@ -387,11 +399,12 @@ export function SalesOrderFormView({
         <AdminFormModalLayout sidebar={totalsSidebar}>
           <AdminFormSection title="Sales order details">
             <AdminFormGrid cols={3}>
-              <AdminFormField label="Customer" required className="sm:col-span-2">
+              <AdminFormField label="Customer" required fieldKey="customer" className="sm:col-span-2">
                 <CustomerSearchSelect
                   key={createSession}
                   value={customerId || null}
                   selectedLabel={customerLabel || undefined}
+                  invalid={fieldValidation.isFieldInvalid("customer")}
                   onChange={(id, option) => {
                     setCustomerId(id ?? "");
                     setCustomerLabel(option?.label ?? "");
@@ -430,8 +443,9 @@ export function SalesOrderFormView({
                 value={salesmanPin}
                 onChange={setSalesmanPin}
                 onSalesmanChange={(s) => setSalesPersonId(s?.id ?? null)}
+                submitInvalid={fieldValidation.isFieldInvalid("salesmanPin")}
               />
-              <AdminFormField label="Store" required>
+              <AdminFormField label="Store" required fieldKey="store">
                 <ActiveStoreFormField
                   mode={isEdit ? "edit" : "create"}
                   stores={stores}
@@ -439,12 +453,18 @@ export function SalesOrderFormView({
                   storeId={storeId}
                   onStoreIdChange={setStoreId}
                   label=""
+                  invalid={fieldValidation.isFieldInvalid("store")}
                 />
               </AdminFormField>
             </AdminFormGrid>
           </AdminFormSection>
 
-          <AdminFormSection title="Order items">
+          <AdminFormSection
+            title="Order items"
+            className={
+              fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+            }
+          >
             <SalesLinesEditor
               key={createSession}
               lines={lines}

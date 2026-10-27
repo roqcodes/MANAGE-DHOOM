@@ -8,7 +8,7 @@ export function PaymentFormInlineAlert({
   message,
   className,
 }: {
-  message: string | null;
+  message: string | string[] | null;
   className?: string;
 }) {
   if (!message) return null;
@@ -22,7 +22,9 @@ export function PaymentFormInlineAlert({
       )}
     >
       <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-700" aria-hidden />
-      <p>{message}</p>
+      <p>
+        {Array.isArray(message) ? message.join(" ") : message}
+      </p>
     </div>
   );
 }

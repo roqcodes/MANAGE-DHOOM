@@ -15,10 +15,12 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   CustomerSearchSelect,
   ErpDocumentNumberField,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +57,8 @@ export function ExpenseFormView({
     useActiveStoreFormField({ mode });
   const [isPending, startTransition] = useTransition();
   const [loading, setLoading] = useState(mode === "edit");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().slice(0, 10));
@@ -133,10 +136,31 @@ export function ExpenseFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const amt = parseFloat(amount);
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
-    if (!accountId) return setError("Expense account is required.");
-    if (!amt || amt <= 0) return setError("Amount must be positive.");
-    if (!paidThroughId) return setError("Paid through account is required.");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        { key: "account", ok: Boolean(accountId), message: "Expense account is required." },
+        { key: "amount", ok: Boolean(amt && amt > 0), message: "Amount must be positive." },
+        {
+          key: "paidThrough",
+          ok: Boolean(paidThroughId),
+          message: "Paid through account is required.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
+      return;
+    }
+    setError(null);
 
     const payload = {
       storeId: effectiveStoreId,
@@ -200,7 +224,7 @@ export function ExpenseFormView({
       <AdminFormColumns cols={2} columnRatio="2:1">
         <AdminFormSection title="Expense details">
           <AdminFormGrid cols={3}>
-            <AdminFormField label="Store" required>
+            <AdminFormField label="Store" required fieldKey="store">
               <ActiveStoreFormField
                 mode={mode}
                 stores={stores}
@@ -208,6 +232,7 @@ export function ExpenseFormView({
                 storeId={storeId}
                 onStoreIdChange={setStoreId}
                 label=""
+                invalid={fieldValidation.isFieldInvalid("store")}
               />
             </AdminFormField>
             <AdminFormField label="Expense date" required>
@@ -223,7 +248,7 @@ export function ExpenseFormView({
               enabled={mode === "create"}
               value={mode === "edit" ? expenseNumber : undefined}
             />
-            <AdminFormField label="Expense account" required className="sm:col-span-2 lg:col-span-1">
+            <AdminFormField label="Expense account" required fieldKey="account" className="sm:col-span-2 lg:col-span-1">
               <select
                 className={SELECT_CLS}
                 value={accountId}
@@ -239,7 +264,7 @@ export function ExpenseFormView({
                 ))}
               </select>
             </AdminFormField>
-            <AdminFormField label="Amount" required>
+            <AdminFormField label="Amount" required fieldKey="amount">
               <Input
                 type="number"
                 min="0"
@@ -260,7 +285,7 @@ export function ExpenseFormView({
                 onChange={(e) => setTaxPercent(e.target.value)}
               />
             </AdminFormField>
-            <AdminFormField label="Paid through" required>
+            <AdminFormField label="Paid through" required fieldKey="paidThrough">
               <select
                 className={SELECT_CLS}
                 value={paidThroughId}

@@ -14,7 +14,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  applyFieldValidation,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,7 +58,8 @@ export function SalaryBulkPaymentFormView({
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
     useActiveStoreFormField({ mode: "create" });
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
   const [accounts, setAccounts] = useState<PaidThroughAccountOption[]>([]);
   const [lines, setLines] = useState<LineState[]>([]);
@@ -130,7 +133,6 @@ export function SalaryBulkPaymentFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!effectiveStoreId) return setError(storeRequiredMessage ?? "Store is required.");
 
     const paymentLines = lines
       .map((line) => ({
@@ -141,8 +143,27 @@ export function SalaryBulkPaymentFormView({
       }))
       .filter((l) => l.totalPayment > 0);
 
-    if (paymentLines.length === 0) {
-      return setError("Enter at least one salary payment amount.");
+    const validationMessages = applyFieldValidation(
+      [
+        {
+          key: "store",
+          ok: Boolean(effectiveStoreId),
+          message: storeRequiredMessage ?? "Store is required.",
+        },
+        {
+          key: "lines",
+          ok: paymentLines.length > 0,
+          message: "Enter at least one salary payment amount.",
+        },
+      ],
+      fieldValidation.markFieldValidationFailed,
+      fieldValidation.clearFieldValidation,
+    );
+    if (validationMessages) {
+      setError(
+        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
+      );
+      return;
     }
 
     startTransition(async () => {
@@ -195,13 +216,17 @@ export function SalaryBulkPaymentFormView({
 
         <AdminFormSection title="Batch details">
           <AdminFormGrid>
-            <ActiveStoreFormField
-              mode="create"
-              stores={stores}
-              activeStoreId={activeStoreId}
-              storeId={storeId}
-              onStoreIdChange={setStoreId}
-            />
+            <AdminFormField label="Store" required fieldKey="store">
+              <ActiveStoreFormField
+                mode="create"
+                stores={stores}
+                activeStoreId={activeStoreId}
+                storeId={storeId}
+                onStoreIdChange={setStoreId}
+                label=""
+                invalid={fieldValidation.isFieldInvalid("store")}
+              />
+            </AdminFormField>
             <AdminFormField label="Payment date" htmlFor="paymentDate" required>
               <Input id="paymentDate" type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} />
             </AdminFormField>
@@ -236,7 +261,12 @@ export function SalaryBulkPaymentFormView({
           </AdminFormGrid>
         </AdminFormSection>
 
-        <AdminFormSection title="Employee payments">
+        <AdminFormSection
+          title="Employee payments"
+          className={
+            fieldValidation.isFieldInvalid("lines") ? "ring-2 ring-destructive/60" : undefined
+          }
+        >
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>

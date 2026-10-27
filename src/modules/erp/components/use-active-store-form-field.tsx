@@ -48,6 +48,7 @@ export function ActiveStoreFormField({
   label = "Store",
   allowAll = false,
   required = true,
+  invalid = false,
 }: {
   mode: "create" | "edit";
   stores: Array<{ id: string; name: string }>;
@@ -57,6 +58,7 @@ export function ActiveStoreFormField({
   label?: string;
   allowAll?: boolean;
   required?: boolean;
+  invalid?: boolean;
 }) {
   const effectiveId = mode === "create" ? activeStoreId || storeId : storeId;
   const displayName =
@@ -69,7 +71,12 @@ export function ActiveStoreFormField({
           {label}
           {required && label.trim() ? <RequiredFieldMark /> : null}
         </span>
-        <Input readOnly value={displayName} required={required} />
+        <Input
+          readOnly
+          value={displayName}
+          required={required}
+          aria-invalid={invalid || undefined}
+        />
       </label>
     );
   }
