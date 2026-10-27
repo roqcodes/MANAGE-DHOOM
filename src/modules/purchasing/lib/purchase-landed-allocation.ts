@@ -3,7 +3,7 @@ import type {
   LandedCostFormRow,
   PurchaseLineFormRow,
 } from "@/common/erp/purchasing-types";
-import { calcPurchaseLine, roundMoney } from "@/common/erp/purchasing-types";
+import { calcPurchaseLine, roundCalc, roundMoney } from "@/common/erp/purchasing-types";
 import { CALC_BALANCE_TOLERANCE } from "@/lib/decimal-precision";
 
 export const LANDED_BALANCE_TOLERANCE = CALC_BALANCE_TOLERANCE;
@@ -51,6 +51,100 @@ export function calcUnitLoadedCostFromAlloc(
   const qty = quantity > 0 ? quantity : 0;
   const alloc = roundMoney(Math.max(0, landedCostAllocated));
   return qty > 0 ? roundMoney(price + alloc / qty) : roundMoney(price);
+}
+
+/** Net unit after landed add-on and header discount share — matches `erp_refresh_purchase_bill_line_net_unit`. */
+export function calcNetUnitAcquisitionCost(
+  quantity: number,
+  purchasePrice: number,
+  landedCostAllocated: number,
+  discountAllocated: number,
+): number {
+  const qty = quantity > 0 ? quantity : 0;
+  const price = Number.isFinite(purchasePrice) ? purchasePrice : 0;
+  if (qty <= 0) return roundMoney(price);
+  const lineNet = roundCalc(
+    qty * price +
+      Math.max(0, landedCostAllocated) -
+      Math.max(0, discountAllocated),
+  );
+  return roundCalc(lineNet / qty);
+}
+
+export function netUnitAcquisitionFromStoredLine(
+  line: StoredPurchaseLineCost & {
+    landed_cost_allocated?: number | null;
+    unit_loaded_cost?: number | null;
+    unit_net_acquisition_cost?: number | null;
+    unitNetAcquisitionCost?: number | null;
+    discount_allocated?: number | null;
+    discountAllocated?: number | null;
+  },
+): number {
+  const stored =
+    line.unitNetAcquisitionCost ?? line.unit_net_acquisition_cost;
+  if (stored != null && Number.isFinite(Number(stored))) {
+    return roundCalc(Number(stored));
+  }
+  const qty = Number(line.quantity ?? 0);
+  const price = Number(
+    line.purchasePrice ?? (line as { purchase_price?: number }).purchase_price ?? 0,
+  );
+  const landed = landedAllocFromStoredLine(line);
+  const discount = roundMoney(
+    Math.max(
+      0,
+      Number(
+        line.discountAllocated ??
+          line.discount_allocated ??
+          0,
+      ),
+    ),
+  );
+  return calcNetUnitAcquisitionCost(qty, price, landed, discount);
+}
+
+/**
+ * Prorate purchase bill header discount by qty × unit price (same basis as landed proration in DB).
+ * Mirrors `erp_allocate_purchase_bill_discount`.
+ */
+export function proratePurchaseBillHeaderDiscount(
+  lines: PurchaseLineAllocationRow[],
+  headerDiscount: number,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  const discount = roundMoney(Math.max(0, headerDiscount));
+  const eligible = lines.filter((l) => coalesceQty(l.quantity) > 0);
+  for (const line of lines) {
+    out.set(line.key, 0);
+  }
+  if (discount <= 0 || eligible.length === 0) {
+    return out;
+  }
+
+  let basisTotal = 0;
+  const extendedByKey = new Map<string, number>();
+  for (const line of eligible) {
+    const ext = roundCalc(coalesceQty(line.quantity) * coalesceNumber(line.unitPrice));
+    extendedByKey.set(line.key, ext);
+    basisTotal = roundCalc(basisTotal + ext);
+  }
+  if (basisTotal <= 0) return out;
+
+  let allocatedSoFar = 0;
+  const n = eligible.length;
+  eligible.forEach((line, index) => {
+    const ext = extendedByKey.get(line.key) ?? 0;
+    let share = 0;
+    if (index < n - 1) {
+      share = roundCalc(discount * (ext / basisTotal));
+      allocatedSoFar = roundCalc(allocatedSoFar + share);
+    } else {
+      share = roundCalc(discount - allocatedSoFar);
+    }
+    out.set(line.key, Math.max(0, share));
+  });
+  return out;
 }
 
 export type PurchaseLineAllocationRow = {

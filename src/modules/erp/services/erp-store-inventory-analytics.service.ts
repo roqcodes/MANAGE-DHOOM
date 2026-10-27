@@ -20,7 +20,10 @@ import {
   catalogPricingFromProductAndVariants,
   storeInventoryOverridePrice,
 } from "@/modules/erp/lib/resolve-store-product-pricing";
-import { calcUnitLoadedCostFromAlloc } from "@/modules/purchasing/lib/purchase-landed-allocation";
+import {
+  loadedUnitCostFromStoredLine,
+  netUnitAcquisitionFromStoredLine,
+} from "@/modules/purchasing/lib/purchase-landed-allocation";
 
 type BillLineRow = {
   id: string;
@@ -28,6 +31,8 @@ type BillLineRow = {
   purchase_price: number | null;
   landed_cost_allocated: number | null;
   unit_loaded_cost: number | null;
+  discount_allocated: number | null;
+  unit_net_acquisition_cost: number | null;
   quantity: number | null;
   line_total: number | null;
   erp_purchase_bills: {
@@ -112,22 +117,6 @@ type ProductAnalyticsRpc = {
   movements: StoreInventoryMovementRow[];
 };
 
-function loadedUnitFromBillLine(line: {
-  unit_loaded_cost: number | null;
-  purchase_price: number | null;
-  landed_cost_allocated: number | null;
-  quantity: number | null;
-}): number {
-  const price = Number(line.purchase_price ?? 0);
-  const qty = Math.max(0, Number(line.quantity ?? 0));
-  const stored = line.unit_loaded_cost;
-  if (stored != null && Number.isFinite(Number(stored))) {
-    return Number(stored);
-  }
-  const alloc = Number(line.landed_cost_allocated ?? 0);
-  return calcUnitLoadedCostFromAlloc(price, qty, alloc);
-}
-
 function buildPurchaseGlance(
   lines: BillLineRow[],
   wacAtStore: number | null,
@@ -156,10 +145,27 @@ function buildPurchaseGlance(
       line.landed_cost_allocated != null && Number(line.landed_cost_allocated) > 0
         ? Number(line.landed_cost_allocated)
         : null;
-    const loadedUnit = loadedUnitFromBillLine(line);
-    costs.push(loadedUnit);
+    const loadedUnit = loadedUnitCostFromStoredLine({
+      quantity: qty,
+      purchasePrice: unitPrice,
+      landed_cost_allocated: line.landed_cost_allocated,
+      unit_loaded_cost: line.unit_loaded_cost,
+    });
+    const discountAlloc =
+      line.discount_allocated != null && Number(line.discount_allocated) > 0
+        ? Number(line.discount_allocated)
+        : null;
+    const netUnit = netUnitAcquisitionFromStoredLine({
+      quantity: qty,
+      purchasePrice: unitPrice,
+      landed_cost_allocated: line.landed_cost_allocated,
+      unit_loaded_cost: line.unit_loaded_cost,
+      unit_net_acquisition_cost: line.unit_net_acquisition_cost,
+      discount_allocated: line.discount_allocated,
+    });
+    costs.push(netUnit);
     totalQty += qty;
-    sumWeighted += loadedUnit * qty;
+    sumWeighted += netUnit * qty;
 
     if (recent.length < recentLimit) {
       recent.push({
@@ -171,7 +177,9 @@ function buildPurchaseGlance(
         quantity: qty,
         unitPrice,
         landedCostAllocated: landedAlloc,
+        discountAllocated: discountAlloc,
         loadedUnitCost: loadedUnit,
+        netUnitAcquisitionCost: netUnit,
         lineTotal: Number(line.line_total ?? qty * unitPrice),
       });
     }
@@ -356,6 +364,18 @@ function purchaseGlanceFromRpc(
   block: ProductAnalyticsRpc["purchase"],
   wacAtStore: number | null,
 ): StoreProductPurchaseGlance {
+  const recent = (block.recent ?? []).map((row) => {
+    const netUnit =
+      row.netUnitAcquisitionCost ??
+      netUnitAcquisitionFromStoredLine({
+        quantity: row.quantity,
+        purchasePrice: row.unitPrice,
+        landed_cost_allocated: row.landedCostAllocated,
+        unit_loaded_cost: row.loadedUnitCost,
+        discount_allocated: row.discountAllocated,
+      });
+    return { ...row, netUnitAcquisitionCost: netUnit };
+  });
   return {
     minUnitCost: block.minUnitCost,
     maxUnitCost: block.maxUnitCost,
@@ -363,7 +383,7 @@ function purchaseGlanceFromRpc(
     purchaseCount: block.purchaseCount,
     totalQtyPurchased: block.totalQtyPurchased,
     wacAtStore,
-    recent: block.recent ?? [],
+    recent,
   };
 }
 
@@ -476,7 +496,7 @@ async function loadBillLinesForProducts(storeId: string, productIds: string[]) {
   const { data, error } = await supabase
     .from("erp_purchase_bill_lines")
     .select(
-      `id, product_id, purchase_price, landed_cost_allocated, unit_loaded_cost, quantity, line_total,
+      `id, product_id, purchase_price, landed_cost_allocated, unit_loaded_cost, discount_allocated, unit_net_acquisition_cost, quantity, line_total,
       erp_purchase_bills!inner(id, purchase_bill_number, purchase_date, created_at, status, store_id, vendors(name))`,
     )
     .eq("erp_purchase_bills.store_id", storeId)

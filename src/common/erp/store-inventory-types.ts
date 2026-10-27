@@ -8,7 +8,12 @@ export type PurchaseHistoryRow = {
   unitPrice: number;
   /** Landed cost allocated to this bill line (document share). */
   landedCostAllocated: number | null;
+  /** Header discount prorated to this line (ex-tax qty×rate basis). */
+  discountAllocated: number | null;
+  /** Pre-discount loaded unit (rate + landed/qty). */
   loadedUnitCost: number | null;
+  /** Net acquisition unit (rate + landed − discount) / qty; matches WAC receipt. */
+  netUnitAcquisitionCost: number;
   lineTotal: number;
 };
 

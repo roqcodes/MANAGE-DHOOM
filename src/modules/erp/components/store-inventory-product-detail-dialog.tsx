@@ -180,10 +180,10 @@ export function StoreInventoryProductDetailDialog({
                   <StatGrid
                     title="Purchase summary"
                     items={[
-                      { label: "Min (loaded)", value: fmt(detail.purchase.minUnitCost) },
-                      { label: "Max (loaded)", value: fmt(detail.purchase.maxUnitCost) },
+                      { label: "Min (net)", value: fmt(detail.purchase.minUnitCost) },
+                      { label: "Max (net)", value: fmt(detail.purchase.maxUnitCost) },
                       {
-                        label: "Avg (loaded)",
+                        label: "Avg (net)",
                         value: fmt(detail.purchase.avgUnitCost),
                       },
                       {
@@ -225,7 +225,7 @@ export function StoreInventoryProductDetailDialog({
                         align="right"
                         className="px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
                       >
-                        Loaded unit
+                        Net unit
                       </AdminTableCell>
                     </AdminTableHeader>
                     <AdminTableBody>
@@ -264,7 +264,7 @@ export function StoreInventoryProductDetailDialog({
                                 : "—"}
                             </AdminTableCell>
                             <AdminTableCell align="right" className="px-4 py-3 tabular-nums font-medium">
-                              {fmt(row.loadedUnitCost ?? row.unitPrice)}
+                              {fmt(row.netUnitAcquisitionCost ?? row.loadedUnitCost ?? row.unitPrice)}
                             </AdminTableCell>
                           </AdminTableRow>
                         ))

@@ -13,7 +13,10 @@
     "db:push": "supabase db push",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "pwa:validate": "node scripts/validate-pwa-phase1.mjs",
-    "ai:sitemap": "npx tsx scripts/generate-app-sitemap.mjs"
+    "ai:sitemap": "npx tsx scripts/generate-app-sitemap.mjs",
+    "test:banking": "tsx --test src/modules/admin/views/banking/banking-display.test.ts",
+    "test:erp:neg-stock": "tsx --test src/lib/erp/negative-stock-costing.test.ts",
+    "test:erp:purchase-net": "tsx --test src/modules/purchasing/lib/purchase-net-acquisition-allocation.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

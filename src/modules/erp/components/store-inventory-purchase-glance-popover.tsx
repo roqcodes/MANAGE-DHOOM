@@ -135,11 +135,12 @@ export function StoreInventoryPurchaseGlancePopover({
                         {row.vendorName ?? "Vendor"} · {row.quantity} @{" "}
                         {formatCurrencyAmount(row.unitPrice)}
                         {row.landedCostAllocated != null && row.landedCostAllocated > 0
-                          ? ` + ${formatCurrencyAmount(row.landedCostAllocated)} landed → ${formatCurrencyAmount(row.loadedUnitCost ?? row.unitPrice)} loaded`
-                          : row.loadedUnitCost != null &&
-                              row.loadedUnitCost !== row.unitPrice
-                            ? ` → ${formatCurrencyAmount(row.loadedUnitCost)} loaded`
-                            : ""}
+                          ? ` + ${formatCurrencyAmount(row.landedCostAllocated)} landed`
+                          : ""}
+                        {row.discountAllocated != null && row.discountAllocated > 0
+                          ? ` − ${formatCurrencyAmount(row.discountAllocated)} disc`
+                          : ""}
+                        {` → ${formatCurrencyAmount(row.netUnitAcquisitionCost ?? row.loadedUnitCost ?? row.unitPrice)} net`}
                       </span>
                     </li>
                   ))}
