@@ -28,6 +28,38 @@ const AUDIT_LOG_SELECT = `
   )
 `;
 
+/** When salesman FK still targets erp_salesmen (pre–employees migration). */
+const AUDIT_LOG_SELECT_SALESMEN_TABLE = `
+  *,
+  users:users!audit_logs_user_fkey (
+    id,
+    name,
+    email,
+    role
+  ),
+  erp_salesmen:erp_salesmen!audit_logs_salesman_id_fkey (
+    id,
+    name,
+    phone
+  )
+`;
+
+const AUDIT_LOG_SELECT_USERS_ONLY = `
+  *,
+  users:users!audit_logs_user_fkey (
+    id,
+    name,
+    email,
+    role
+  )
+`;
+
+const AUDIT_LOG_SELECT_VARIANTS = [
+  AUDIT_LOG_SELECT,
+  AUDIT_LOG_SELECT_SALESMEN_TABLE,
+  AUDIT_LOG_SELECT_USERS_ONLY,
+] as const;
+
 type AuditLogUserRow = {
   id: string;
   name: string | null;
@@ -41,23 +73,128 @@ type AuditLogSalesmanRow = {
   mobile: string | null;
 };
 
+type AuditLogSalesmanLegacyRow = {
+  id: string;
+  name: string;
+  phone: string | null;
+};
+
 type AuditLogDbRow = Omit<
   AuditLogEntry,
   "user_name" | "user_email" | "user_role" | "metadata" | "old_data" | "new_data"
 > & {
+  salesman_id?: string | null;
   metadata: Json;
   old_data: Json | null;
   new_data: Json | null;
   users?: AuditLogUserRow | AuditLogUserRow[] | null;
   erp_employees?: AuditLogSalesmanRow | AuditLogSalesmanRow[] | null;
+  erp_salesmen?: AuditLogSalesmanLegacyRow | AuditLogSalesmanLegacyRow[] | null;
 };
+
+type AuditLogQueryResult = {
+  data: unknown[] | null;
+  error: { message: string } | null;
+};
+
+async function fetchAuditLogRows(
+  runQuery: (select: string) => PromiseLike<AuditLogQueryResult>,
+): Promise<AuditLogDbRow[]> {
+  let lastError: string | null = null;
+
+  for (const select of AUDIT_LOG_SELECT_VARIANTS) {
+    const { data, error } = await runQuery(select);
+    if (!error) {
+      return (data ?? []) as AuditLogDbRow[];
+    }
+    lastError = error.message;
+  }
+
+  console.error("fetchAuditLogRows failed:", lastError);
+  return [];
+}
+
+/** Document activity tabs use `invoice`; older rows may use `sales_invoice`. */
+function auditEntityTypesForLookup(entityType: string): string[] {
+  if (entityType === "invoice") {
+    return ["invoice", "sales_invoice"];
+  }
+  return [entityType];
+}
+
+async function resolveSalesmanDisplayNames(salesmanIds: string[]): Promise<Map<string, string>> {
+  const unique = [...new Set(salesmanIds.filter(Boolean))];
+  const names = new Map<string, string>();
+  if (unique.length === 0) return names;
+
+  const admin = createSupabaseAdminClient();
+  const client = admin ?? (await createSupabaseServerClient());
+
+  const { data: employees } = await client
+    .from("erp_employees")
+    .select("id, full_name")
+    .in("id", unique);
+
+  for (const row of employees ?? []) {
+    const label = row.full_name?.trim();
+    if (label) names.set(row.id, label);
+  }
+
+  const missing = unique.filter((id) => !names.has(id));
+  if (missing.length > 0) {
+    const { data: legacy } = await client
+      .from("erp_salesmen")
+      .select("id, name")
+      .in("id", missing);
+    for (const row of legacy ?? []) {
+      const label = row.name?.trim();
+      if (label) names.set(row.id, label);
+    }
+  }
+
+  return names;
+}
+
+/** POS / durable-sync rows often have salesman_id only (user_id null); embeds can be RLS-hidden. */
+async function enrichAuditLogEntries(
+  entries: AuditLogEntry[],
+  rawRows: AuditLogDbRow[],
+): Promise<AuditLogEntry[]> {
+  const salesmanIds: string[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    if (!entries[i].user_name?.trim() && rawRows[i]?.salesman_id) {
+      salesmanIds.push(rawRows[i].salesman_id as string);
+    }
+  }
+  if (salesmanIds.length === 0) return entries;
+
+  const names = await resolveSalesmanDisplayNames(salesmanIds);
+  if (names.size === 0) return entries;
+
+  return entries.map((entry, i) => {
+    if (entry.user_name?.trim()) return entry;
+    const sid = rawRows[i]?.salesman_id;
+    const name = sid ? names.get(sid) : undefined;
+    if (!name) return entry;
+    return { ...entry, user_name: name };
+  });
+}
+
+async function mapAndEnrichAuditLogRows(rawRows: AuditLogDbRow[]): Promise<AuditLogEntry[]> {
+  const entries = rawRows.map((row) => mapAuditLogRow(row));
+  return enrichAuditLogEntries(entries, rawRows);
+}
 
 function mapAuditLogRow(row: AuditLogDbRow): AuditLogEntry {
   const user = Array.isArray(row.users) ? row.users[0] : row.users;
   const salesman = Array.isArray(row.erp_employees) ? row.erp_employees[0] : row.erp_employees;
+  const salesmanLegacy = Array.isArray(row.erp_salesmen) ? row.erp_salesmen[0] : row.erp_salesmen;
 
   const user_name =
-    salesman?.full_name?.trim() || user?.name?.trim() || null;
+    salesman?.full_name?.trim() ||
+    salesmanLegacy?.name?.trim() ||
+    user?.name?.trim() ||
+    null;
   const user_email = user?.email ?? null;
 
   return {
@@ -198,18 +335,15 @@ export async function logAuditEventRequired(input: LogAuditEventInput): Promise<
 
 export async function listRecentAuditLogs(limit = 10): Promise<AuditLogEntry[]> {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("audit_logs")
-    .select(AUDIT_LOG_SELECT)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const rows = await fetchAuditLogRows((select) =>
+    supabase
+      .from("audit_logs")
+      .select(select)
+      .order("created_at", { ascending: false })
+      .limit(limit),
+  );
 
-  if (error) {
-    console.error("listRecentAuditLogs failed:", error);
-    return [];
-  }
-
-  return (data ?? []).map((row) => mapAuditLogRow(row as AuditLogDbRow));
+  return mapAndEnrichAuditLogRows(rows);
 }
 
 export async function listAuditLogs(filters?: {
@@ -244,8 +378,9 @@ export async function listAuditLogs(filters?: {
   const { data, error, count } = await query;
   if (error) throw new Error(error.message);
 
+  const rawRows = (data ?? []) as AuditLogDbRow[];
   return {
-    data: (data ?? []).map((row) => mapAuditLogRow(row as AuditLogDbRow)),
+    data: await mapAndEnrichAuditLogRows(rawRows),
     total: count ?? 0,
   };
 }
@@ -437,10 +572,12 @@ async function listAuditLogsByPartyRpc(
     return [];
   }
 
-  const byId = new Map(
-    (data ?? []).map((row) => [row.id, mapAuditLogRow(row as AuditLogDbRow)]),
-  );
-  return ids.map((logId) => byId.get(logId)).filter((row): row is AuditLogEntry => Boolean(row));
+  const rawRows = (data ?? []) as AuditLogDbRow[];
+  const byId = new Map(rawRows.map((row) => [row.id, row]));
+  const ordered = ids
+    .map((logId) => byId.get(logId))
+    .filter((row): row is AuditLogDbRow => Boolean(row));
+  return mapAndEnrichAuditLogRows(ordered);
 }
 
 /** Bills, credits, payments, etc. are logged on their document type — not `vendor`. */
@@ -488,28 +625,21 @@ export async function listAuditLogsForEntity(
   const supabase = await createSupabaseServerClient();
   const trimmed = entityId.trim();
   const { entityId: lookupId } = normalizeAuditEntityId(trimmed);
+  const entityTypes = auditEntityTypesForLookup(entityType);
 
-  let query = supabase
-    .from("audit_logs")
-    .select(AUDIT_LOG_SELECT)
-    .eq("entity_type", entityType);
+  const rows = await fetchAuditLogRows((select) => {
+    let query = supabase.from("audit_logs").select(select).in("entity_type", entityTypes);
 
-  if (lookupId) {
-    query = query.eq("entity_id", lookupId);
-  } else {
-    query = query.or(
-      `metadata->>batch_ref.eq.${trimmed},metadata->>reference.eq.${trimmed}`,
-    );
-  }
+    if (lookupId) {
+      query = query.eq("entity_id", lookupId);
+    } else {
+      query = query.or(
+        `metadata->>batch_ref.eq.${trimmed},metadata->>reference.eq.${trimmed}`,
+      );
+    }
 
-  const { data, error } = await query
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    return query.order("created_at", { ascending: false }).limit(limit);
+  });
 
-  if (error) {
-    console.error("listAuditLogsForEntity failed:", error);
-    return [];
-  }
-
-  return (data ?? []).map((row) => mapAuditLogRow(row as AuditLogDbRow));
+  return mapAndEnrichAuditLogRows(rows);
 }
