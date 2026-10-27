@@ -8,6 +8,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import type { CustomerErpProfile, SalesLineFormRow } from "@/common/erp/sales-types";
 import { ERP_DOCUMENT_UI, isSalesInvoiceDraft } from "@/common/erp/document-status";
+import {
+  computeErpInvoiceEditable,
+  ERP_INVOICE_NOT_EDITABLE_MESSAGE,
+} from "@/common/erp/invoice-edit-policy";
 import { calcSalesLine, roundSalesMoney } from "@/common/erp/sales-types";
 import {
   addMonthsToDateInput,
@@ -159,6 +163,8 @@ export function InvoiceFormView({
     if (mode !== "edit" || !invoiceId) return;
     adminGet<{
       status: string;
+      amount_paid?: number;
+      credits_applied?: number;
       user_id: string;
       store_id: string | null;
       created_at: string;
@@ -174,11 +180,25 @@ export function InvoiceFormView({
         description: string | null;
         quantity: number;
         unit_price: number;
+        base_price: number | null;
         gst_rate: number;
         unit_id: string | null;
       }>;
     }>(`erp/invoices/${invoiceId}`)
       .then((detail) => {
+        if (
+          !computeErpInvoiceEditable({
+            status: detail.status,
+            amount_paid: detail.amount_paid,
+            credits_applied: detail.credits_applied,
+          })
+        ) {
+          setError(ERP_INVOICE_NOT_EDITABLE_MESSAGE);
+          if (variant === "modal") {
+            onOpenChange?.(false);
+          }
+          return;
+        }
         setInvoiceStatus(detail.status);
         setCustomerId(detail.user_id);
         setCustomerLabel(detail.users?.name ?? detail.users?.email ?? "");
@@ -198,6 +218,10 @@ export function InvoiceFormView({
             barcode: "",
             quantity: item.quantity,
             unitPrice: item.unit_price,
+            purchasePrice:
+              item.base_price != null && Number(item.base_price) > 0
+                ? Number(item.base_price)
+                : null,
             taxRatePercent: item.gst_rate,
             unitId: item.unit_id,
           })),

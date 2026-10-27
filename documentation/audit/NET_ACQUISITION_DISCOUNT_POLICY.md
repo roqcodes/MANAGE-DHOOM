@@ -38,5 +38,5 @@ Apply SQL editor migrations through `20261026250800`. Audit: `SELECT erp_audit_i
 
 - **SPI repair (dry-run / apply):** `erp_spi_wac_repair` — use a **new** idempotency key when re-running after net-acquisition migration.
 - **COGS audit:** `SELECT erp_audit_invoice_cogs_trueup('<invoice_id>');`
-- **Approved true-up post (idempotent):** migration `20261026250600` + `documentation/audit/INV_9A400_COGS_TRUEUP_POST.sql`
+- **Approved true-up post (idempotent):** migration `20261026250600` (`erp_invoice_net_acquisition_cogs_trueup_post`)
 - **Integration:** `ACCOUNTING_INTEGRATION=1` + `ACCOUNTING_STORE_ID` → `npm run erp:accounting:validate`

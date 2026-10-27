@@ -251,6 +251,8 @@ export interface SalesLineFormRow {
   barcode: string;
   quantity: number;
   unitPrice: number;
+  /** Sale-time unit cost (invoice_items.base_price); sent on edit to avoid live-WAC re-cost. */
+  purchasePrice?: number | null;
   taxRatePercent: number;
   unitId: string | null;
 }

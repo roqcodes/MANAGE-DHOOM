@@ -21,6 +21,12 @@ import {
   salesInvoiceUpdatePayloadSchema,
 } from "@/modules/erp/schemas/sales-invoice-api-schemas";
 import {
+  ERP_INVOICE_NOT_EDITABLE_CODE,
+  ERP_INVOICE_NOT_EDITABLE_MESSAGE,
+  assertErpInvoiceEditable,
+  isInvoiceNotEditableError,
+} from "@/common/erp/invoice-edit-policy";
+import {
   cancelErpInvoice,
   fetchErpInvoiceDetail,
   updateErpInvoice,
@@ -71,6 +77,11 @@ export async function PATCH(
       }
 
       const beforeDetail = await fetchErpInvoiceDetail(routeInvoiceId);
+      assertErpInvoiceEditable({
+        status: beforeDetail.status,
+        amount_paid: beforeDetail.amount_paid,
+        credits_applied: beforeDetail.credits_applied,
+      });
       const beforeSnapshot = invoiceAuditSnapshotFromFetched(beforeDetail);
 
       const outcome = await executeIdempotentOperation<{
@@ -128,6 +139,12 @@ export async function PATCH(
     await updateErpInvoice(invoiceId, rest);
     return NextResponse.json({ ok: true });
   } catch (error) {
+    if (isInvoiceNotEditableError(error)) {
+      return NextResponse.json(
+        { error: ERP_INVOICE_NOT_EDITABLE_MESSAGE, code: ERP_INVOICE_NOT_EDITABLE_CODE },
+        { status: 409 },
+      );
+    }
     const mapped = idempotentOperationErrorResponse(error);
     if (
       error instanceof Error &&

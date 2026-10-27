@@ -12,6 +12,14 @@ import { withSalesmanDocumentAudit } from "@/modules/erp/lib/log-sales-document-
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
+import {
+  assertErpInvoiceEditable,
+  computeErpInvoiceEditable,
+  ErpInvoiceNotEditableError,
+  isInvoiceNotEditableError,
+} from "@/common/erp/invoice-edit-policy";
+
+export { computeErpInvoiceEditable } from "@/common/erp/invoice-edit-policy";
 
 function linesToJson(lines: ErpLineInput[]): Json {
   return lines.map((l) => ({
@@ -217,6 +225,11 @@ export async function updateErpInvoice(
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const beforeDetail = await fetchErpInvoiceDetail(invoiceId);
+  assertErpInvoiceEditable({
+    status: beforeDetail.status,
+    amount_paid: beforeDetail.amount_paid,
+    credits_applied: beforeDetail.credits_applied,
+  });
   const beforeSnapshot = salesInvoiceAuditSnapshotFromDetail({
     ...beforeDetail,
     users: beforeDetail.users,
@@ -240,7 +253,12 @@ export async function updateErpInvoice(
     p_notes: input.notes ?? undefined,
     p_sales_person_id: input.salesPersonId,
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (isInvoiceNotEditableError(new Error(error.message))) {
+      throw new ErpInvoiceNotEditableError();
+    }
+    throw new Error(error.message);
+  }
 
   const afterDetail = await fetchErpInvoiceDetail(invoiceId);
   const afterSnapshot = salesInvoiceAuditSnapshotFromDetail({
@@ -265,31 +283,6 @@ export async function updateErpInvoice(
       }),
     ),
   );
-}
-
-export function computeErpInvoiceEditable(invoice: {
-  status: string;
-  amount_paid?: number | null;
-  credits_applied?: number | null;
-}): boolean {
-  if (invoice.status === "cancelled") return false;
-  return (
-    Number(invoice.amount_paid ?? 0) === 0 && Number(invoice.credits_applied ?? 0) === 0
-  );
-}
-
-/** @deprecated Prefer `computeErpInvoiceEditable` on a loaded invoice row. */
-export async function getErpInvoiceEditable(invoiceId: string): Promise<boolean> {
-  await requireAdminOrManagerProfile();
-  const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from("invoices")
-    .select("status, amount_paid, credits_applied")
-    .eq("id", invoiceId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Invoice not found");
-  return computeErpInvoiceEditable(data);
 }
 
 const ERP_INVOICE_DETAIL_SELECT = `
@@ -324,6 +317,7 @@ const ERP_INVOICE_DETAIL_SELECT = `
     product_name,
     quantity,
     unit_price,
+    base_price,
     gst_rate,
     gst_amount,
     total_amount,

@@ -57,6 +57,8 @@ export function salesLinesToApiInput(lines: SalesLineFormRow[]) {
       description: l.description || null,
       quantity: l.quantity,
       unitPrice: l.unitPrice,
+      purchasePrice:
+        l.purchasePrice != null && l.purchasePrice > 0 ? l.purchasePrice : null,
       taxRatePercent: l.taxRatePercent,
       unitId: l.unitId,
     }));

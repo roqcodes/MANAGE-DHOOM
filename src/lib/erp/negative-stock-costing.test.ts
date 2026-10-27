@@ -18,6 +18,12 @@ const INV_9C026 = {
 };
 
 describe("INV-9C026 / QA-NEG-STOCK-001 negative-stock costing", () => {
+  it("receipt smaller than the short position still applies and leaves stock negative", () => {
+    const state = applyReceiptAvco(-10, 10, 3, 20);
+    assert.equal(state.stock, -7);
+    assert.equal(state.wac, 20);
+  });
+
   it("WAC ignores negative on-hand and blends only remaining positive stock", () => {
     let state = { stock: 0, wac: 10 as number | null };
     state = { stock: -5, wac: state.wac };

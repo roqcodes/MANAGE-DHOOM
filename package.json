@@ -16,7 +16,8 @@
     "ai:sitemap": "npx tsx scripts/generate-app-sitemap.mjs",
     "test:banking": "tsx --test src/modules/admin/views/banking/banking-display.test.ts",
     "test:erp:neg-stock": "tsx --test src/lib/erp/negative-stock-costing.test.ts",
-    "test:erp:purchase-net": "tsx --test src/modules/purchasing/lib/purchase-net-acquisition-allocation.test.ts"
+    "test:erp:purchase-net": "tsx --test src/modules/purchasing/lib/purchase-net-acquisition-allocation.test.ts",
+    "test:erp:invoice-edit": "tsx --test src/common/erp/invoice-edit-policy.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

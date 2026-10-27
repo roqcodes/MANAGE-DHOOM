@@ -13,6 +13,7 @@ DECLARE
   v_customer uuid;
   v_order_id uuid;
   v_stock numeric;
+  v_cost numeric;
   v_walk_in_id uuid := 'a0000000-0000-4000-8000-000000000001';
 BEGIN
   SELECT id INTO v_store FROM public.stores WHERE is_active = true ORDER BY name LIMIT 1;
@@ -123,6 +124,26 @@ BEGIN
 
   IF v_stock <> 0 THEN
     RAISE EXCEPTION 'TEST_FAIL: expected stock 0 after receipt, got %', v_stock;
+  END IF;
+
+  -- Receipt cost path used by purchase bills: inbound may leave on-hand negative.
+  UPDATE public.store_product_inventory
+  SET stock = -10, purchase_price = 10, updated_at = now()
+  WHERE store_id = v_store AND product_id = v_product;
+
+  PERFORM public.store_product_inventory_apply_receipt_cost(
+    v_store, v_product, 3, 20, v_user
+  );
+
+  SELECT stock, purchase_price INTO v_stock, v_cost
+  FROM public.store_product_inventory
+  WHERE store_id = v_store AND product_id = v_product;
+
+  IF v_stock <> -7 THEN
+    RAISE EXCEPTION 'TEST_FAIL: expected stock -7 after partial receipt, got %', v_stock;
+  END IF;
+  IF v_cost <> 20 THEN
+    RAISE EXCEPTION 'TEST_FAIL: expected WAC 20 after negative on-hand receipt, got %', v_cost;
   END IF;
 
   UPDATE public.app_settings SET allow_negative_store_stock = false WHERE id = 1;

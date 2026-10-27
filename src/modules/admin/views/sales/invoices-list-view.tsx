@@ -331,6 +331,7 @@ export function InvoicesListView() {
                     viewHref={`/admin/erp/invoices/${row.id}`}
                     editHref={`/admin/erp/invoices?form=edit&id=${row.id}`}
                     editDisabled={
+                      !isSalesInvoiceDraft(row.status) ||
                       row.amount_paid > 0 ||
                       row.credits_applied > 0 ||
                       row.status === "cancelled"
