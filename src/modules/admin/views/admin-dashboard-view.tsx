@@ -18,7 +18,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -790,29 +790,37 @@ export function AdminDashboardView() {
   });
   const [granularity, setGranularity] = useState<DashboardChartGranularity>("month");
 
+  /** Header "All dates" leaves from/to empty; API defaults to YTD — match that so the query runs. */
+  const { queryDateFrom, queryDateTo } = useMemo(() => {
+    if (dateFrom && dateTo) {
+      return { queryDateFrom: dateFrom, queryDateTo: dateTo };
+    }
+    const fallback = defaultDashboardDates();
+    return { queryDateFrom: fallback.dateFrom, queryDateTo: fallback.dateTo };
+  }, [dateFrom, dateTo]);
+
   useEffect(() => {
     if (datePreset === "ytd") setGranularity("month");
     else if (datePreset === "this_month") setGranularity("day");
     else if (datePreset !== "custom" && datePreset !== "all") setGranularity("day");
   }, [datePreset]);
 
-  const dashboardEnabled =
-    !erpContextLoading && Boolean(storeId || activeStoreId) && Boolean(dateFrom && dateTo);
+  const dashboardEnabled = !erpContextLoading && Boolean(storeId || activeStoreId);
 
   const {
     data: coreData,
     isError,
     error,
-    isPending,
+    isLoading: coreLoading,
     isFetching: coreFetching,
     isSuccess: coreReady,
   } = useQuery({
-    queryKey: adminQueryKeys.dashboard(storeId, dateFrom, dateTo, granularity, "core"),
+    queryKey: adminQueryKeys.dashboard(storeId, queryDateFrom, queryDateTo, granularity, "core"),
     queryFn: () => {
       const q = new URLSearchParams();
       if (storeId) q.set("storeId", storeId);
-      q.set("dateFrom", dateFrom);
-      q.set("dateTo", dateTo);
+      q.set("dateFrom", queryDateFrom);
+      q.set("dateTo", queryDateTo);
       q.set("granularity", granularity);
       q.set("section", "core");
       return adminGet<AdminDashboardPayload>(`dashboard?${q.toString()}`);
@@ -822,12 +830,12 @@ export function AdminDashboardView() {
   });
 
   const { data: extendedData, isFetching: extendedFetching } = useQuery({
-    queryKey: adminQueryKeys.dashboard(storeId, dateFrom, dateTo, granularity, "extended"),
+    queryKey: adminQueryKeys.dashboard(storeId, queryDateFrom, queryDateTo, granularity, "extended"),
     queryFn: () => {
       const q = new URLSearchParams();
       if (storeId) q.set("storeId", storeId);
-      q.set("dateFrom", dateFrom);
-      q.set("dateTo", dateTo);
+      q.set("dateFrom", queryDateFrom);
+      q.set("dateTo", queryDateTo);
       q.set("granularity", granularity);
       q.set("section", "extended");
       return adminGet<AdminDashboardPayload>(`dashboard?${q.toString()}`);
@@ -859,7 +867,8 @@ export function AdminDashboardView() {
     return () => window.removeEventListener("buyhub:erp-store-changed", onStoreChanged);
   }, [queryClient]);
 
-  const initialLoading = isPending && !data;
+  const initialLoading =
+    !data && (erpContextLoading || (dashboardEnabled && coreLoading));
 
   if (isError) {
     return (
