@@ -8,14 +8,17 @@ import type { BankingAccountRow } from "@/common/erp/finance-types";
 import { PAYMENT_MODE_OPTIONS } from "@/common/erp/finance-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -57,7 +60,11 @@ export function ProfitWithdrawalFormView({
   }
 
   function handleSuccessNavigate() {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.();
       return;
@@ -72,23 +79,24 @@ export function ProfitWithdrawalFormView({
     const storeId = fd.get("storeId") as string;
     const fromAccountId = fd.get("fromAccountId") as string;
     const amount = parseFloat((fd.get("amount") as string) || "0");
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "store", ok: Boolean(storeId), message: "Store is required." },
         { key: "fromAccount", ok: Boolean(fromAccountId), message: "From account is required." },
         { key: "amount", ok: amount > 0, message: "Amount must be greater than zero." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         await adminPost("erp/banking", {
           kind: "profit_withdrawal",

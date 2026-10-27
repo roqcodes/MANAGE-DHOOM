@@ -9,14 +9,17 @@ import { adminGet, adminPost, adminPut } from "@/modules/admin/lib/admin-api-cli
 import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
+  validateBeforeFormSave,
+  formErrorsListAdapter,
+
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
@@ -62,7 +65,11 @@ export function VendorErpFormView({
   }
 
   function handleSuccessNavigate(savedId?: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsListAdapter(setErrors),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(savedId);
       return;
@@ -77,22 +84,24 @@ export function VendorErpFormView({
     const name = (fd.get("name") as string).trim();
     const address = (fd.get("address") as string).trim();
     const vendorType = fd.get("vendorType") as string;
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "name", ok: Boolean(name), message: "Name is required." },
         { key: "address", ok: Boolean(address), message: "Address is required." },
         { key: "vendorType", ok: Boolean(vendorType), message: "Vendor type is required." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setErrors(validationMessages);
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsListAdapter(setErrors),
+        },
+      )
+    ) {
       return;
     }
-    setErrors([]);
 
-    const payload = {
+const payload = {
       name,
       address,
       vendorType,

@@ -11,6 +11,7 @@ import {
   CreditCard,
   FileText,
   Hash,
+  KeyRound,
   Pencil,
   Phone,
   Plus,
@@ -233,6 +234,11 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
               ) : (
                 <Badge variant="destructive">Discontinued</Badge>
               )}
+              {employee.is_salesman ? (
+                <Badge variant="outline" className="border-teal-200 bg-teal-50 text-teal-800">
+                  Salesman
+                </Badge>
+              ) : null}
               <span className="font-mono text-xs text-muted-foreground">{displayId}</span>
             </div>
             <h1 className="mt-2 text-2xl font-semibold tracking-tight">{employee.full_name}</h1>
@@ -267,6 +273,19 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
               <Plus data-icon="inline-start" />
               Record payment
             </Button>
+            {employee.is_salesman ? (
+              <Button
+                size="sm"
+                variant="outline"
+                nativeButton={false}
+                render={
+                  <Link href={`/admin/erp/employees?form=salesman&id=${employeeId}`} />
+                }
+              >
+                <KeyRound data-icon="inline-start" />
+                Edit salesman
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant="outline"
@@ -274,7 +293,7 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
               render={<Link href={`/admin/erp/employees?form=edit&id=${employeeId}`} />}
             >
               <Pencil data-icon="inline-start" />
-              Edit
+              Edit employee
             </Button>
             <Button
               size="sm"
@@ -392,6 +411,11 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
                   </MetaField>
                   <MetaField icon={CreditCard} label="Allowance">
                     {formatCurrencyAmount(employee.allowance)}
+                  </MetaField>
+                  <MetaField icon={KeyRound} label="Salesman PIN">
+                    {employee.is_salesman
+                      ? (employee.sales_pin ?? "—")
+                      : "Not a salesman"}
                   </MetaField>
                 </CardContent>
               </Card>

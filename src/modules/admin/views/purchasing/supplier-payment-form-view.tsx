@@ -21,15 +21,20 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
   PurchaseBillSearchSelect,
+  validateBeforeFormSave,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
 import {
   usePaymentFormAddLineBlocked,
@@ -106,6 +111,7 @@ export function SupplierPaymentFormView({
   const isModal = variant === "modal";
   const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
     useErpPaymentFormErrors(isModal);
+  const fieldValidation = useFormFieldValidation();
 
   const { data: accountOptions } = usePaymentAccountOptions(effectiveStoreId);
   const accounts = accountOptions?.depositAccounts ?? [];
@@ -187,6 +193,10 @@ export function SupplierPaymentFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setFormError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
@@ -309,24 +319,47 @@ export function SupplierPaymentFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitInFlightRef.current || isPending) return;
-    setFormError(null);
-    if (!accountId) return setFormError("Paid through account is required.");
-    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
 
     const fifoOnlyAmount = parsePaymentAmount(lineAmount);
     const useFifoAutoAllocate = lines.length === 0 && vendorId && fifoOnlyAmount > 0;
     const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
 
-    if (!useFifoAutoAllocate && lines.length === 0) {
-      return setFormError(
-        "Add at least one bill payment, or select a vendor and amount to allocate FIFO.",
-      );
-    }
-    if (bankChargesAmount >= paymentTotal) {
-      return setFormError("Bank charges must be less than total payment.");
-    }
-    if (bankChargesAmount > 0 && !bankChargesAccountId) {
-      return setFormError("Expense account is required for bank charges.");
+    if (
+      !validateBeforeFormSave(
+        [
+          { key: "accountId", label: "Paid through", ok: Boolean(accountId) },
+          {
+            key: "store",
+            label: "Store",
+            ok: Boolean(effectiveStoreId),
+            message: storeRequiredMessage ?? undefined,
+          },
+          {
+            key: "lines",
+            label: "Bill payments",
+            ok: useFifoAutoAllocate || lines.length > 0,
+            message:
+              "Add at least one bill payment, or select a vendor and amount to allocate FIFO.",
+          },
+          {
+            key: "bankCharges",
+            ok: bankChargesAmount < paymentTotal,
+            message: "Bank charges must be less than total payment.",
+          },
+          {
+            key: "bankChargesAccountId",
+            label: "Bank charges account",
+            ok: bankChargesAmount <= 0 || Boolean(bankChargesAccountId),
+          },
+        ],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setFormError),
+        },
+      )
+    ) {
+      return;
     }
 
     const paymentVendorId = useFifoAutoAllocate ? vendorId : lines[0].vendorId;
@@ -634,6 +667,7 @@ export function SupplierPaymentFormView({
           </Card>
         ) : null}
 
+        <ErrorsFeedbackBridge errors={inlineError} />
         <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (

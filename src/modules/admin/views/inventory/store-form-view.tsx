@@ -9,14 +9,17 @@ import { adminGet, adminPost, adminPut } from "@/modules/admin/lib/admin-api-cli
 import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
+  validateBeforeFormSave,
+  formErrorsListAdapter,
+
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
@@ -90,6 +93,10 @@ export function StoreFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsListAdapter(setErrors),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
@@ -104,17 +111,20 @@ export function StoreFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationMessages = applyFieldValidation(
-      [{ key: "name", ok: Boolean(name.trim()), message: "Store name is required." }],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setErrors(validationMessages);
+    if (
+      !validateBeforeFormSave(
+        [{ key: "name", ok: Boolean(name.trim()), message: "Store name is required." }],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsListAdapter(setErrors),
+        },
+      )
+    ) {
       return;
     }
-    setErrors([]);
-    const payload = {
+
+const payload = {
       name,
       code: code || null,
       storeType,

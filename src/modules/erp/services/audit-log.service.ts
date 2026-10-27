@@ -21,10 +21,10 @@ const AUDIT_LOG_SELECT = `
     email,
     role
   ),
-  erp_salesmen:erp_salesmen!audit_logs_salesman_id_fkey (
+  erp_employees:erp_employees!audit_logs_salesman_id_fkey (
     id,
-    name,
-    email
+    full_name,
+    mobile
   )
 `;
 
@@ -37,8 +37,8 @@ type AuditLogUserRow = {
 
 type AuditLogSalesmanRow = {
   id: string;
-  name: string;
-  email: string | null;
+  full_name: string;
+  mobile: string | null;
 };
 
 type AuditLogDbRow = Omit<
@@ -49,16 +49,16 @@ type AuditLogDbRow = Omit<
   old_data: Json | null;
   new_data: Json | null;
   users?: AuditLogUserRow | AuditLogUserRow[] | null;
-  erp_salesmen?: AuditLogSalesmanRow | AuditLogSalesmanRow[] | null;
+  erp_employees?: AuditLogSalesmanRow | AuditLogSalesmanRow[] | null;
 };
 
 function mapAuditLogRow(row: AuditLogDbRow): AuditLogEntry {
   const user = Array.isArray(row.users) ? row.users[0] : row.users;
-  const salesman = Array.isArray(row.erp_salesmen) ? row.erp_salesmen[0] : row.erp_salesmen;
+  const salesman = Array.isArray(row.erp_employees) ? row.erp_employees[0] : row.erp_employees;
 
   const user_name =
-    salesman?.name?.trim() || user?.name?.trim() || null;
-  const user_email = salesman?.email ?? user?.email ?? null;
+    salesman?.full_name?.trim() || user?.name?.trim() || null;
+  const user_email = user?.email ?? null;
 
   return {
     id: row.id,
@@ -258,10 +258,10 @@ const ACTIVITY_LOG_REPORT_SELECT = `
     email,
     role
   ),
-  erp_salesmen:erp_salesmen!audit_logs_salesman_id_fkey (
+  erp_employees:erp_employees!audit_logs_salesman_id_fkey (
     id,
-    name,
-    email
+    full_name,
+    mobile
   ),
   stores:stores!audit_logs_store_id_fkey (
     name
@@ -270,9 +270,9 @@ const ACTIVITY_LOG_REPORT_SELECT = `
 
 type ActivityLogReportDbRow = AuditLogDbRow & {
   stores?: { name: string | null } | { name: string | null }[] | null;
-  erp_salesmen?:
-    | { id: string; name: string; email: string | null }
-    | { id: string; name: string; email: string | null }[]
+  erp_employees?:
+    | { id: string; full_name: string; mobile: string | null }
+    | { id: string; full_name: string; mobile: string | null }[]
     | null;
   salesman_id?: string | null;
 };
@@ -306,14 +306,14 @@ function auditEntityReferenceFromRow(
 
 function mapActivityLogReportRow(row: ActivityLogReportDbRow): Record<string, unknown> {
   const user = Array.isArray(row.users) ? row.users[0] : row.users;
-  const salesman = Array.isArray(row.erp_salesmen) ? row.erp_salesmen[0] : row.erp_salesmen;
+  const salesman = Array.isArray(row.erp_employees) ? row.erp_employees[0] : row.erp_employees;
   const store = Array.isArray(row.stores) ? row.stores[0] : row.stores;
   const metadata = (row.metadata as Record<string, unknown>) ?? {};
   const entityType = row.entity_type ?? "";
   const action = row.action ?? "";
 
   const displayName =
-    salesman?.name?.trim() ||
+    salesman?.full_name?.trim() ||
     user?.name?.trim() ||
     user?.email?.trim() ||
     "Unknown user";
@@ -329,7 +329,7 @@ function mapActivityLogReportRow(row: ActivityLogReportDbRow): Record<string, un
     store_name: store?.name ?? null,
     user_id: salesman?.id ?? user?.id ?? row.user_id,
     user_name: displayName,
-    user_email: salesman?.email ?? user?.email ?? null,
+    user_email: user?.email ?? null,
     entity_reference: auditEntityReferenceFromRow(row.entity_id, metadata),
     entity_label: formatAuditEntityLabel(entityType),
     metadata,

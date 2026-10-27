@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { Plus } from "lucide-react";
 
@@ -17,6 +17,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminPageActionBar,
   AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
@@ -33,6 +34,8 @@ import {
 } from "@/modules/admin/ui";
 import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-scope";
 import { EmployeeFormView } from "@/modules/admin/views/hr/employee-form-view";
+import { SalesmanChangePinModal } from "@/modules/admin/views/hr/salesman-change-pin-modal";
+import { SalesmanFormModal } from "@/modules/admin/views/hr/salesman-form-modal";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 
 function formatDisplayDate(value: string | null) {
@@ -45,14 +48,54 @@ function formatDisplayDate(value: string | null) {
 }
 
 export function EmployeesListView() {
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { activeStoreId, storeId } = useActiveStoreScope();
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/employees");
+
+  const salesmanForm = searchParams.get("form");
+  const salesmanEditId = searchParams.get("id")?.trim() || null;
+  const salesmanModalOpen = salesmanForm === "salesman";
+  const salesmanMode = salesmanEditId ? "edit" : "create";
+
+  const salesmanListParams = useMemo(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("form");
+    params.delete("id");
+    return params;
+  }, [searchParams]);
+
+  const closeSalesmanModal = useCallback(() => {
+    const qs = salesmanListParams.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [router, pathname, salesmanListParams]);
+
+  const openSalesmanNew = useCallback(() => {
+    const params = new URLSearchParams(salesmanListParams.toString());
+    params.set("form", "salesman");
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [router, pathname, salesmanListParams]);
+
+  const openSalesmanEdit = useCallback(
+    (id: string) => {
+      const params = new URLSearchParams(salesmanListParams.toString());
+      params.set("form", "salesman");
+      params.set("id", id);
+      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    },
+    [router, pathname, salesmanListParams],
+  );
   const [reloadToken, setReloadToken] = useState(0);
   const [rows, setRows] = useState<ErpEmployeeListRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [changePinTarget, setChangePinTarget] = useState<{
+    id: string;
+    name: string;
+    currentPin: string | null;
+  } | null>(null);
   const { confirm } = useAdminAlert();
   const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const debouncedSearch = useDebouncedValue(search, 350);
@@ -110,12 +153,18 @@ export function EmployeesListView() {
       <AdminPageHeader
         title="Employees"
         breadcrumb={[{ label: "Employees", href: "/admin/erp/employees" }]}
-        description="Manage employee records, salary structure, and employment status by store."
+        description="Manage employees, salary, payslips, and salesman PIN attribution by store. Salesmen do not get a portal login."
         actions={
-          <AdminPrimaryAction onClick={() => openNew()}>
-            <Plus data-icon="inline-start" />
-            Add employee
-          </AdminPrimaryAction>
+          <AdminPageActionBar>
+            <AdminPrimaryAction variant="outline" onClick={() => openSalesmanNew()}>
+              <Plus data-icon="inline-start" />
+              Add salesman
+            </AdminPrimaryAction>
+            <AdminPrimaryAction onClick={() => openNew()}>
+              <Plus data-icon="inline-start" />
+              Add employee
+            </AdminPrimaryAction>
+          </AdminPageActionBar>
         }
       />
 
@@ -134,13 +183,6 @@ export function EmployeesListView() {
             <SortableTableHead
               label="Full name"
               sortKey="full_name"
-              activeKey={sortKey}
-              direction={sortDirection}
-              onSort={toggleSort}
-            />
-            <SortableTableHead
-              label="Store"
-              sortKey="store_name"
               activeKey={sortKey}
               direction={sortDirection}
               onSort={toggleSort}
@@ -190,7 +232,7 @@ export function EmployeesListView() {
               onSort={toggleSort}
               align="right"
             />
-            <TableHead className="w-28 text-right" />
+            <TableHead className="min-w-[11rem] text-right" />
           </AdminTableHeader>
           {initialLoading ? (
             <AdminDataTableRowsSkeleton rows={8} columns={6} />
@@ -199,12 +241,16 @@ export function EmployeesListView() {
             {sorted.map((row) => (
               <AdminTableRow key={row.id}>
                 <AdminTableCell>
-                  <AdminTableLink href={`/admin/erp/employees/${row.id}`}>
-                    {row.full_name}
-                  </AdminTableLink>
-                </AdminTableCell>
-                <AdminTableCell className="max-w-[140px] truncate text-sm">
-                  {row.store_name ?? "—"}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <AdminTableLink href={`/admin/erp/employees/${row.id}`}>
+                      {row.full_name}
+                    </AdminTableLink>
+                    {row.is_salesman ? (
+                      <Badge variant="outline" className="border-teal-200 bg-teal-50 text-teal-800">
+                        Salesman
+                      </Badge>
+                    ) : null}
+                  </div>
                 </AdminTableCell>
                 <AdminTableCell>{row.employee_code ?? row.employee_number}</AdminTableCell>
                 <AdminTableCell className="hidden tabular-nums text-muted-foreground md:table-cell">
@@ -229,10 +275,45 @@ export function EmployeesListView() {
                   {formatCurrencyAmount(row.net_salary)}
                 </AdminTableCell>
                 <AdminTableCell align="right">
-                  <ErpListRowActions
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    {row.is_salesman ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 shrink-0"
+                        onClick={() =>
+                          setChangePinTarget({
+                            id: row.id,
+                            name: row.full_name,
+                            currentPin: row.sales_pin,
+                          })
+                        }
+                      >
+                        Change PIN
+                      </Button>
+                    ) : null}
+                    <ErpListRowActions
                     viewHref={`/admin/erp/employees/${row.id}`}
                     editHref={`/admin/erp/employees?form=edit&id=${row.id}`}
                     menuItems={[
+                      ...(row.is_salesman
+                        ? [
+                            {
+                              label: "Edit salesman",
+                              onClick: () => openSalesmanEdit(row.id),
+                            },
+                            {
+                              label: "Change PIN",
+                              onClick: () =>
+                                setChangePinTarget({
+                                  id: row.id,
+                                  name: row.full_name,
+                                  currentPin: row.sales_pin,
+                                }),
+                            },
+                          ]
+                        : []),
                       {
                         label: "Delete",
                         destructive: true,
@@ -242,6 +323,7 @@ export function EmployeesListView() {
                       },
                     ]}
                   />
+                  </div>
                 </AdminTableCell>
               </AdminTableRow>
             ))}
@@ -265,6 +347,28 @@ export function EmployeesListView() {
           employeeId={editId ?? undefined}
           open={modalProps.open}
           onOpenChange={modalProps.onOpenChange}
+          onSuccess={() => setReloadToken((t) => t + 1)}
+        />
+      ) : null}
+
+      {changePinTarget ? (
+        <SalesmanChangePinModal
+          employeeId={changePinTarget.id}
+          employeeName={changePinTarget.name}
+          currentPin={changePinTarget.currentPin}
+          onClose={() => setChangePinTarget(null)}
+          onChanged={() => setReloadToken((t) => t + 1)}
+        />
+      ) : null}
+
+      {salesmanModalOpen ? (
+        <SalesmanFormModal
+          mode={salesmanMode}
+          employeeId={salesmanEditId ?? undefined}
+          open={salesmanModalOpen}
+          onOpenChange={(open) => {
+            if (!open) closeSalesmanModal();
+          }}
           onSuccess={() => setReloadToken((t) => t + 1)}
         />
       ) : null}

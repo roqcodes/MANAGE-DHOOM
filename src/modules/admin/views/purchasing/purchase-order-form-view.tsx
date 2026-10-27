@@ -54,16 +54,19 @@ import {
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import type { StoreStockShortageRow } from "@/common/erp/stock-shortage-types";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormField,
   AdminFormGrid,
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   ErpDocumentNumberField,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -255,7 +258,11 @@ export function PurchaseOrderFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
-    if (mode === "create") {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (mode === "create") {
       resetCreateForm();
       onSuccess?.(id);
       return;
@@ -276,8 +283,9 @@ export function PurchaseOrderFormView({
       landedAllocationMethod,
     );
     const apiLines = linesToApiInput(linesForSave, landedCosts, landedAllocationMethod);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "landedCosts",
           ok: landedAllocationBalanced,
@@ -291,17 +299,17 @@ export function PurchaseOrderFormView({
         },
         { key: "lines", ok: apiLines.length > 0, message: "Add at least one valid line item." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    const payload = {
+const payload = {
       vendorId,
       storeId: effectiveStoreId,
       poDate,

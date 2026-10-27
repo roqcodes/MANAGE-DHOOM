@@ -9,16 +9,19 @@ import type { PurchaseLineFormRow, PurchaseReceiveAdjustments } from "@/common/e
 import { calcPurchaseLine, roundMoney } from "@/common/erp/purchasing-types";
 import { adminGet, adminPost, adminPut } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormField,
   AdminFormGrid,
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   ErpDocumentNumberField,
   PurchaseBillSearchSelect,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -306,6 +309,10 @@ export function VendorCreditFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
@@ -331,8 +338,9 @@ export function VendorCreditFormView({
   function submit(finalize: boolean) {
     setError(null);
     const apiLines = purchaseLinesToVendorCreditInput(lines);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "vendor", ok: Boolean(vendorId), message: "Supplier is required." },
         {
           key: "store",
@@ -351,17 +359,17 @@ export function VendorCreditFormView({
             "Enter line rates so the credit total is greater than zero before issuing.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    const noteParts = [notes.trim()];
+const noteParts = [notes.trim()];
     if (attachmentUrl) noteParts.push(`Attachment: ${attachmentUrl}`);
     const combinedNotes = noteParts.filter(Boolean).join("\n\n") || undefined;
 

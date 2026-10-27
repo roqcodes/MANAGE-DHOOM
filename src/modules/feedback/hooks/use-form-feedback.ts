@@ -14,22 +14,30 @@ type FormFeedbackOptions = {
  * Standard form handlers: validation and API errors open the global feedback modal.
  */
 export function useFormFeedback(options?: FormFeedbackOptions) {
-  const { showError, showValidationErrors } = useAppFeedback();
+  const { showError, showValidationErrors, dismissFormValidation, dismissFormSaveError } =
+    useAppFeedback();
 
   const validationErrors = useCallback(
     (errors: string | string[] | null | undefined, title?: string) => {
       const list = normalizeFormFooterErrors(errors);
-      if (list.length === 0) return;
+      if (list.length === 0) {
+        dismissFormValidation();
+        return;
+      }
       showValidationErrors(list, title ?? options?.validationTitle);
     },
-    [options?.validationTitle, showValidationErrors],
+    [dismissFormValidation, options?.validationTitle, showValidationErrors],
   );
 
   const submitError = useCallback(
     (error: unknown, title?: string) => {
-      showError(error, title ?? options?.submitErrorTitle);
+      if (error == null || error === "") {
+        dismissFormSaveError();
+        return;
+      }
+      showError(error, title ?? options?.submitErrorTitle, { formSaveContext: true });
     },
-    [options?.submitErrorTitle, showError],
+    [dismissFormSaveError, options?.submitErrorTitle, showError],
   );
 
   return { validationErrors, submitError };

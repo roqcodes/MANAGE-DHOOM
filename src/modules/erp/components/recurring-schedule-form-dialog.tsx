@@ -5,15 +5,18 @@ import { useEffect, useState, useTransition } from "react";
 import type { RecurringScheduleRow } from "@/common/erp/types";
 import { adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormModal,
   AdminFormSection,
-  applyFieldValidation,
   CustomerSearchSelect,
   VendorSearchSelect,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
@@ -145,8 +148,9 @@ export function RecurringScheduleFormDialog({
 
     const unitPrice = parseFloat(amount);
     const documentDate = nullIfEmptyDate(nextRunDate);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "name", ok: Boolean(name.trim()), message: "Schedule name is required." },
         { key: "nextRunDate", ok: Boolean(documentDate), message: "Next run date is required." },
         {
@@ -175,17 +179,17 @@ export function RecurringScheduleFormDialog({
           message: "Vendor is required for recurring bills.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    const linePayload: Record<string, unknown> = {
+const linePayload: Record<string, unknown> = {
       productName: productName.trim(),
       quantity: 1,
       unitPrice,
@@ -220,6 +224,10 @@ export function RecurringScheduleFormDialog({
         } else {
           await adminPost("erp/recurring-schedules", payload);
         }
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         resetForm();
         onOpenChange(false);
         onSuccess();

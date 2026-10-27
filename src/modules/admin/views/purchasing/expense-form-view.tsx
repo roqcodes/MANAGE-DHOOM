@@ -9,17 +9,20 @@ import type { ErpExpenseDetail, PaidThroughAccountOption } from "@/common/erp/pu
 import { adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   CustomerSearchSelect,
   ErpDocumentNumberField,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -125,7 +128,11 @@ export function ExpenseFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
       return;
@@ -136,8 +143,9 @@ export function ExpenseFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const amt = parseFloat(amount);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "store",
           ok: Boolean(effectiveStoreId),
@@ -151,18 +159,17 @@ export function ExpenseFormView({
           message: "Paid through account is required.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
-    setError(null);
 
-    const payload = {
+const payload = {
       storeId: effectiveStoreId,
       expenseDate,
       accountId,

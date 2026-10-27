@@ -6,15 +6,18 @@ import { useRouter } from "next/navigation";
 
 import { adminGet, adminPost, adminPut } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormField,
   AdminFormGrid,
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   ErpDocumentNumberField,
   InvoiceSearchSelect,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -207,7 +210,11 @@ export function CreditNoteFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
       return;
@@ -237,8 +244,9 @@ export function CreditNoteFormView({
       const tax = taxable * (line.taxRatePercent / 100);
       return sum + taxable + tax;
     }, 0);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "sourceInvoice",
           ok: Boolean(selectedInvoiceId),
@@ -262,17 +270,17 @@ export function CreditNoteFormView({
             "Enter line rates so the refund total is greater than zero before issuing.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    const payload = {
+const payload = {
       userId: customerId,
       storeId: effectiveStoreId,
       creditNoteDate,

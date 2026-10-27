@@ -8,12 +8,14 @@ import { Trash2 } from "lucide-react";
 import type { ErpSalesProductSearchRow } from "@/common/erp/sales-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   ErpDocumentNumberField,
   ProductLiveSearch,
   type ErpFormViewBaseProps,
@@ -88,7 +90,11 @@ export function TransferRequestFormView({
   }
 
   function handleSuccessNavigate(id: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
       return;
@@ -121,10 +127,10 @@ export function TransferRequestFormView({
   }
 
   function handleSubmit(submit: boolean) {
-    setError(null);
     const overStockLine = lines.find((line) => line.quantity > line.sourceAvailable);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "stores",
           ok: Boolean(fromStoreId && toStoreId && fromStoreId !== toStoreId),
@@ -138,18 +144,18 @@ export function TransferRequestFormView({
             ? `Quantity exceeds available stock for ${overStockLine.productName}.`
             : "",
         },
-      ].filter((c) => c.message !== ""),
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+      ],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         const res = await adminPost<{ id: string }>("erp/transfer-requests", {
           fromStoreId,

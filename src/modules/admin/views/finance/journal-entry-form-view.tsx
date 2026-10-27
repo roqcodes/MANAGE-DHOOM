@@ -7,14 +7,17 @@ import { Plus, Trash2 } from "lucide-react";
 
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   ErpDocumentNumberField,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import {
@@ -95,7 +98,11 @@ export function JournalEntryFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
       return;
@@ -118,8 +125,9 @@ export function JournalEntryFormView({
         credit: coalesceNumber(l.credit) > 0 ? coalesceNumber(l.credit) : undefined,
         description: l.description || undefined,
       }));
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "store",
           ok: Boolean(effectiveStoreId),
@@ -132,17 +140,17 @@ export function JournalEntryFormView({
         },
         { key: "lines", ok: apiLines.length >= 2, message: "At least two lines required." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    if (submitInFlightRef.current) return;
+if (submitInFlightRef.current) return;
     submitInFlightRef.current = true;
     startTransition(async () => {
       try {

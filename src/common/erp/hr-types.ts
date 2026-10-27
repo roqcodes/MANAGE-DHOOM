@@ -28,6 +28,8 @@ export interface ErpEmployeeListRow {
   salary_balance: number;
   advance_balance: number;
   store_name: string | null;
+  is_salesman: boolean;
+  sales_pin: string | null;
 }
 
 export interface ErpEmployeeDetail extends ErpEmployeeListRow {

@@ -12,7 +12,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
+  clearFormSubmitFeedback,
+  formErrorsListAdapter,
+  validateBeforeFormSave,
   type ErpFormViewBaseProps,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
@@ -85,6 +87,10 @@ export function EmployeeFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsListAdapter(setErrors),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
@@ -95,24 +101,27 @@ export function EmployeeFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
+          {
+            key: "store",
+            label: "Store",
+            ok: Boolean(effectiveStoreId),
+            message: storeRequiredMessage ?? undefined,
+          },
+          { key: "fullName", label: "Full name", ok: Boolean(fullName.trim()) },
+          { key: "mobile", label: "Mobile", ok: Boolean(mobile.trim()) },
+        ],
         {
-          key: "store",
-          ok: Boolean(effectiveStoreId),
-          message: storeRequiredMessage ?? "Store is required.",
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsListAdapter(setErrors),
         },
-        { key: "fullName", ok: Boolean(fullName.trim()), message: "Full name is required." },
-        { key: "mobile", ok: Boolean(mobile.trim()), message: "Mobile is required." },
-      ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setErrors(validationMessages);
+      )
+    ) {
       return;
     }
-    setErrors([]);
 
     const payload = {
       storeId: effectiveStoreId,
@@ -179,7 +188,7 @@ export function EmployeeFormView({
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      description="Employee profile and monthly salary structure."
+      description="Employee profile and monthly salary. Use Add salesman for POS PIN attribution."
       backHref={mode === "edit" && employeeId ? `/admin/erp/employees/${employeeId}` : "/admin/erp/employees"}
       breadcrumb={[
         { label: "Employees", href: "/admin/erp/employees" },
@@ -208,6 +217,9 @@ export function EmployeeFormView({
             </AdminFormField>
             <AdminFormField label="ID expiry date" htmlFor="idExpiryDate">
               <Input id="idExpiryDate" type="date" value={idExpiryDate} onChange={(e) => setIdExpiryDate(e.target.value)} />
+            </AdminFormField>
+            <AdminFormField label="ID number" htmlFor="idNumber">
+              <Input id="idNumber" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} />
             </AdminFormField>
             <AdminFormField label="Full name" htmlFor="fullName" required fieldKey="fullName">
               <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} required />

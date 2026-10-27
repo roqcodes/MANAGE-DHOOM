@@ -36,10 +36,11 @@ import {
   deleteVariantAction,
 } from "@/modules/products/actions/variants.actions";
 import {
-  catalogSimpleProductValidationMessage,
-  isCatalogSimpleProductPricingValid,
+  isNewItemSimpleCreatePricingValid,
+  newItemVariantLayoutPurchaseRequiredMessage,
   normalizeCatalogProductErpFields,
   shouldEnsureDefaultVariantForSimpleProduct,
+  validateNewItemCreatePricing,
 } from "@/modules/products/lib/build-simple-catalog-product-create-input";
 import { useProductCreateSession } from "@/modules/products/lib/product-create-session";
 import type { CatalogProductCreateSetup } from "@/modules/products/types/product-create-result";
@@ -65,6 +66,12 @@ import {
 import { adminGet, adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import { invalidateAdminProductCatalogQueries } from "@/modules/erp/lib/erp-product-live-search.client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
+import {
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
+  validateBeforeFormSave,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { controlBorderInvalid } from "@/lib/form-field-invalid";
 import { RequiredFieldMark, showRequiredMark } from "@/lib/required-field-label";
 import { cn } from "@/lib/utils";
@@ -1259,26 +1266,33 @@ function DetailsStepForm({
   isGroupedLayout = false,
   detailsSubmitAttempted = false,
   simplePricingRequired = false,
+  createVariantLayout = "none",
 }: {
   draft: ProductDraft;
   categories: Category[];
   brands: Brand[];
   itemUnits: ItemUnit[];
   onDraftChange: (next: ProductDraft) => void;
-  error: string | null;
+  error: string | string[] | null;
   showMrp: boolean;
   isGroupedLayout?: boolean;
   detailsSubmitAttempted?: boolean;
   simplePricingRequired?: boolean;
+  createVariantLayout?: "none" | "flat" | "grouped";
 }) {
   const nameInvalid = detailsSubmitAttempted && !draft.name.trim();
   const pricingInvalid =
     detailsSubmitAttempted &&
     simplePricingRequired &&
-    !isCatalogSimpleProductPricingValid(draft.defaultPrice, draft.purchasePrice);
+    (createVariantLayout === "none"
+      ? !isNewItemSimpleCreatePricingValid(
+          draft.defaultPrice,
+          draft.purchasePrice,
+        )
+      : coalesceNumber(draft.purchasePrice) <= 0);
   const pricingHint = isGroupedLayout
-    ? "Pre-fills new SKUs you add later."
-    : "For a simple item, enter a sales price or purchase price (either is enough). Sales price can be set later before you sell.";
+    ? "Enter purchase price on Details; each SKU sales price must exceed that cost."
+    : "Sales and purchase price are required; sales must be higher than purchase.";
 
   const pricingCols = showMrp
     ? "grid-cols-2 sm:grid-cols-3 min-[1200px]:grid-cols-5"
@@ -1368,7 +1382,11 @@ function DetailsStepForm({
                         defaultPrice: parseNumberInputValue(e.target.value),
                       })
                     }
-                    placeholder="Optional"
+                    placeholder={
+                      simplePricingRequired && createVariantLayout === "none"
+                        ? "Required"
+                        : "Optional"
+                    }
                   />
                 </CompactField>
                 {showMrp ? (
@@ -1403,7 +1421,7 @@ function DetailsStepForm({
                         purchasePrice: parseNumberInputValue(e.target.value),
                       })
                     }
-                    placeholder="0.000"
+                    placeholder={simplePricingRequired ? "Required" : "0.000"}
                   />
                 </CompactField>
                 <CompactField label="Tax %">
@@ -1576,8 +1594,9 @@ export function ProductManageModal({
   // Track layout intent during creation before variants are actually added.
   const [createVariantLayout, setCreateVariantLayout] = useState<"none" | "flat" | "grouped">("none");
 
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
   const [detailsSubmitAttempted, setDetailsSubmitAttempted] = useState(false);
+  const fieldValidation = useFormFieldValidation();
 
   const [productDraft, setProductDraft] = useState<ProductDraft>(() =>
     emptyProductDraft(product),
@@ -1662,12 +1681,16 @@ export function ProductManageModal({
 
   const detailsValid =
     productDraft.name.trim().length > 0 &&
-    ((!isCreate && variants.length > 0) ||
-      (isCreate && createVariantLayout !== "none") ||
-      isCatalogSimpleProductPricingValid(
-        productDraft.defaultPrice,
-        productDraft.purchasePrice,
-      ));
+    (!isCreate ||
+      (isCreate &&
+        createVariantLayout !== "none" &&
+        coalesceNumber(productDraft.purchasePrice) > 0) ||
+      (isCreate &&
+        createVariantLayout === "none" &&
+        isNewItemSimpleCreatePricingValid(
+          productDraft.defaultPrice,
+          productDraft.purchasePrice,
+        )));
 
   const variantsValid = useMemo(() => {
     if (variantDrafts.length === 0) return true;
@@ -1774,28 +1797,49 @@ export function ProductManageModal({
     return !groupDraftsEqual(groupDrafts, initialGroupDrafts);
   }, [isGroupedProduct, groupDrafts, initialGroupDrafts]);
 
-  const simplePricingRequired =
-    !((!isCreate && variants.length > 0) ||
-      (isCreate && createVariantLayout !== "none"));
+  const simplePricingRequired = isCreate;
 
   function failDetailsValidation(): boolean {
-    if (detailsValid) {
-      setDetailsSubmitAttempted(false);
-      return false;
+    let pricingOk = true;
+    let pricingMessage = "";
+    if (isCreate) {
+      if (createVariantLayout === "none") {
+        const check = validateNewItemCreatePricing(
+          productDraft.defaultPrice,
+          productDraft.purchasePrice,
+        );
+        pricingOk = check.ok;
+        pricingMessage = check.ok ? "" : check.message;
+      } else if (coalesceNumber(productDraft.purchasePrice) <= 0) {
+        pricingOk = false;
+        pricingMessage = newItemVariantLayoutPurchaseRequiredMessage();
+      }
     }
-    setDetailsSubmitAttempted(true);
-    setError(catalogSimpleProductValidationMessage(isCreate));
-    return true;
+    const ok = validateBeforeFormSave(
+      [
+        { key: "name", label: "Product name", ok: productDraft.name.trim().length > 0 },
+        {
+          key: "pricing",
+          ok: pricingOk,
+          message: pricingMessage || "Check sales and purchase pricing.",
+        },
+      ],
+      {
+        markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+        clearFieldValidation: fieldValidation.clearFieldValidation,
+        setFormErrors: formErrorsAdapter(setError),
+      },
+    );
+    setDetailsSubmitAttempted(!ok);
+    return !ok;
   }
 
   function handleContinueDetails() {
-    setError(null);
     if (failDetailsValidation()) return;
     setActiveTab("variants");
   }
 
   function handleSaveDetails() {
-    setError(null);
     if (failDetailsValidation()) return;
     if (!isDetailsDirty) {
       onClose();
@@ -1918,10 +1962,28 @@ export function ProductManageModal({
       setActiveTab("variants");
       return;
     }
+    if (isCreate && createVariantLayout !== "none") {
+      const purchase = coalesceNumber(productDraft.purchasePrice);
+      const skuRows = layoutGrouped
+        ? groupDrafts.flatMap((g) =>
+            g.rows.filter((r) => r.name.trim().length > 0),
+          )
+        : variantDrafts.filter((v) => v.name.trim().length > 0);
+      for (const row of skuRows) {
+        const check = validateNewItemCreatePricing(row.price, purchase);
+        if (!check.ok) {
+          setError(
+            row.name.trim()
+              ? `${row.name.trim()}: ${check.message}`
+              : check.message,
+          );
+          setActiveTab("variants");
+          return;
+        }
+      }
+    }
     const operationId = beginCreateOperation();
     if (!operationId) return;
-
-    setError(null);
     startTransition(async () => {
       try {
         const orderedProductImages = orderedImages(
@@ -2019,6 +2081,11 @@ export function ProductManageModal({
           return;
         }
 
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
+        setDetailsSubmitAttempted(false);
         showSuccess(result.message);
         onClose();
       } catch (err) {
@@ -2101,6 +2168,7 @@ export function ProductManageModal({
                 isGroupedLayout={isCreate ? layoutGrouped : isGroupedProduct}
                 detailsSubmitAttempted={detailsSubmitAttempted}
                 simplePricingRequired={simplePricingRequired}
+                createVariantLayout={createVariantLayout}
               />
             ) : null}
 

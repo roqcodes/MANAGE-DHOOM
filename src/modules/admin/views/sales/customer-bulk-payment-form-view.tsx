@@ -16,9 +16,13 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
+  clearFormSubmitFeedback,
   CustomerSearchSelect,
+  formErrorsAdapter,
   InvoiceSearchSelect,
+  validateBeforeFormSave,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -38,6 +42,7 @@ import {
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
 import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
+import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
 import {
   usePaymentFormAddLineBlocked,
@@ -91,6 +96,7 @@ export function CustomerBulkPaymentFormView({
   const isModal = variant === "modal";
   const { inlineError, setFormError, notifyAmountIssue, clearFormError } =
     useErpPaymentFormErrors(isModal);
+  const fieldValidation = useFormFieldValidation();
 
   const { data: accountOptions } = usePaymentAccountOptions(effectiveStoreId);
   const accounts = accountOptions?.depositAccounts ?? [];
@@ -151,6 +157,10 @@ export function CustomerBulkPaymentFormView({
   }
 
   function handleSuccessNavigate(batchId?: string) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setFormError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(batchId);
@@ -271,7 +281,6 @@ export function CustomerBulkPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (lines.length === 0) return setFormError("Add at least one invoice payment.");
     const linesBalanceErr = validatePaymentLinesBalance(
       lines.map((l) => ({
         amount: l.amount,
@@ -284,11 +293,41 @@ export function CustomerBulkPaymentFormView({
       notifyAmountIssue(linesBalanceErr);
       return;
     }
-    if (!accountId) return setFormError("Deposit account is required.");
-    if (!effectiveStoreId) return setFormError(storeRequiredMessage ?? "Store is required.");
-    if (bankChargesAmount >= total) return setFormError("Bank charges must be less than total payment.");
-    if (bankChargesAmount > 0 && !bankChargesAccountId) {
-      return setFormError("Expense account is required for bank charges.");
+    if (
+      !validateBeforeFormSave(
+        [
+          {
+            key: "lines",
+            label: "Invoice payments",
+            ok: lines.length > 0,
+            message: "Add at least one invoice payment.",
+          },
+          { key: "accountId", label: "Deposit to", ok: Boolean(accountId) },
+          {
+            key: "store",
+            label: "Store",
+            ok: Boolean(effectiveStoreId),
+            message: storeRequiredMessage ?? undefined,
+          },
+          {
+            key: "bankCharges",
+            ok: bankChargesAmount < total,
+            message: "Bank charges must be less than total payment.",
+          },
+          {
+            key: "bankChargesAccountId",
+            label: "Bank charges account",
+            ok: bankChargesAmount <= 0 || Boolean(bankChargesAccountId),
+          },
+        ],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setFormError),
+        },
+      )
+    ) {
+      return;
     }
 
     startTransition(async () => {
@@ -598,6 +637,7 @@ export function CustomerBulkPaymentFormView({
           </Card>
         ) : null}
 
+        <ErrorsFeedbackBridge errors={inlineError} />
         <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (

@@ -35,6 +35,8 @@ import { presentAppError } from "@/modules/feedback/lib/present-app-error";
 
 type AlertVariant = "error" | "success" | "info" | "warning";
 
+type AlertSource = "form-validation" | "form-save-error" | undefined;
+
 type AlertState = {
   variant: AlertVariant;
   title: string;
@@ -44,6 +46,7 @@ type AlertState = {
   showContactDeveloper?: boolean;
   technicalHint?: string;
   audience?: "user" | "developer" | "network" | "auth";
+  source?: AlertSource;
 };
 
 export type ConfirmOptions = {
@@ -66,12 +69,20 @@ export type PromptOptions = {
 };
 
 type AppFeedbackContextValue = {
-  showError: (error: unknown, title?: string) => void;
+  showError: (
+    error: unknown,
+    title?: string,
+    options?: { formSaveContext?: boolean },
+  ) => void;
   showSuccess: (message: string, title?: string) => void;
   showInfo: (message: string, title?: string) => void;
   showWarning: (message: string, title?: string) => void;
   /** Form validation — lists every issue in one modal. */
   showValidationErrors: (errors: string[], title?: string) => void;
+  /** Closes a validation alert opened from form footers / ErrorsFeedbackBridge. */
+  dismissFormValidation: () => void;
+  /** Closes a save-error alert opened from form footers. */
+  dismissFormSaveError: () => void;
   confirm: (options: ConfirmOptions) => Promise<boolean>;
   prompt: (options: PromptOptions) => Promise<string | null>;
 };
@@ -147,18 +158,38 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
 
   const closeAlert = useCallback(() => setAlert(null), []);
 
-  const showError = useCallback((error: unknown, title?: string) => {
-    const p = presentAppError(error, { title });
-    setAlert({
-      variant: "error",
-      title: p.title,
-      message: p.message,
-      troubleshoot: p.troubleshoot,
-      showContactDeveloper: p.showContactDeveloper,
-      technicalHint: p.technicalHint,
-      audience: p.audience,
-    });
+  const dismissFormValidation = useCallback(() => {
+    setAlert((current) =>
+      current?.source === "form-validation" ? null : current,
+    );
   }, []);
+
+  const dismissFormSaveError = useCallback(() => {
+    setAlert((current) =>
+      current?.source === "form-save-error" ? null : current,
+    );
+  }, []);
+
+  const showError = useCallback(
+    (
+      error: unknown,
+      title?: string,
+      options?: { formSaveContext?: boolean },
+    ) => {
+      const p = presentAppError(error, { title });
+      setAlert({
+        variant: "error",
+        title: p.title,
+        message: p.message,
+        troubleshoot: p.troubleshoot,
+        showContactDeveloper: p.showContactDeveloper,
+        technicalHint: p.technicalHint,
+        audience: p.audience,
+        source: options?.formSaveContext ? "form-save-error" : undefined,
+      });
+    },
+    [],
+  );
 
   const showSuccess = useCallback((message: string, title?: string) => {
     setAlert({
@@ -189,11 +220,14 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
     if (lines.length === 0) return;
     setAlert({
       variant: "warning",
-      title: title ?? "Check the form",
+      source: "form-validation",
+      title:
+        title ??
+        (lines.length > 1 ? "Missing required fields" : "Missing required field"),
       message:
         lines.length === 1
           ? lines[0]
-          : "Please fix the following before saving:",
+          : "Complete these required fields before saving:",
       bulletPoints: lines.length > 1 ? lines : undefined,
     });
   }, []);
@@ -235,10 +269,22 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
       showInfo,
       showWarning,
       showValidationErrors,
+      dismissFormValidation,
+      dismissFormSaveError,
       confirm,
       prompt,
     }),
-    [showError, showSuccess, showInfo, showWarning, showValidationErrors, confirm, prompt],
+    [
+      showError,
+      showSuccess,
+      showInfo,
+      showWarning,
+      showValidationErrors,
+      dismissFormValidation,
+      dismissFormSaveError,
+      confirm,
+      prompt,
+    ],
   );
 
   const variantMeta = alert ? VARIANT_META[alert.variant] : null;

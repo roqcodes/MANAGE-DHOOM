@@ -10,15 +10,18 @@ import { directPrintErpEstimate } from "@/lib/direct-document-print";
 import { adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { useAppFeedback } from "@/modules/feedback/components/app-feedback-provider";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormField,
   AdminFormGrid,
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   CustomerSearchSelect,
   ErpDocumentNumberField,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -161,7 +164,11 @@ export function EstimateFormView({
   }
 
   function handleSuccessNavigate(id?: string, print?: boolean) {
-    if (print && id) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (print && id) {
       if (isModal) onOpenChange?.(false);
       void directPrintErpEstimate(id, "print").catch((err) => {
         showError(err, "Couldn't print");
@@ -184,8 +191,9 @@ export function EstimateFormView({
   function handleSubmit(submitMode: "save" | "draft" | "print") {
     setError(null);
     const apiLines = salesLinesToApiInput(lines);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "customer", ok: Boolean(customerId), message: "Customer is required." },
         {
           key: "store",
@@ -194,17 +202,17 @@ export function EstimateFormView({
         },
         { key: "lines", ok: apiLines.length > 0, message: "Add at least one item." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    const payload = {
+const payload = {
       estimateDate,
       validUntil: validUntil || estimateDate,
       lines: apiLines,

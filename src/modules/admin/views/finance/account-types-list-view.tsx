@@ -17,8 +17,10 @@ import {
   selectCls,
 } from "@/modules/admin/components/modal";
 import {
+  validateBeforeFormSave,
+  formErrorsListAdapter,
+  clearFormSubmitFeedback,
   FormValidationScope,
-  applyFieldValidation,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { adminDelete, adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
@@ -93,21 +95,23 @@ function AccountTypeFormModalBody({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "name", ok: Boolean(name.trim()), message: "Name is required." },
         { key: "description", ok: Boolean(description.trim()), message: "Description is required." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setErrors(validationMessages);
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsListAdapter(setErrors),
+        },
+      )
+    ) {
       return;
     }
-    setErrors([]);
 
-    const payload = {
+const payload = {
       accountCategory,
       name: name.trim(),
       description: description.trim(),
@@ -120,6 +124,10 @@ function AccountTypeFormModalBody({
         } else if (row) {
           await adminPatch(`erp/account-types/${row.id}`, payload);
         }
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsListAdapter(setErrors),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         onSaved();
         onClose();
       } catch (err) {

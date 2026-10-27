@@ -7,13 +7,16 @@ import type { CustomerErpProfile } from "@/common/erp/sales-types";
 import { adminGet, adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
 import {
+  validateBeforeFormSave,
+  formErrorsListAdapter,
+
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -107,6 +110,10 @@ export function CustomerFormView({
   }
 
   function handleSuccessNavigate(savedId?: string) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsListAdapter(setErrors),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(savedId);
@@ -119,24 +126,26 @@ export function CustomerFormView({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const companyName = (fd.get("companyName") as string).trim();
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "companyName",
+          label: "Company name",
           ok: Boolean(companyName),
-          message: "Company name is required.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setErrors(validationMessages);
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsListAdapter(setErrors),
+        },
+      )
+    ) {
       return;
     }
-    setErrors([]);
 
-    const payload = {
+const payload = {
       firstName: (fd.get("firstName") as string).trim() || undefined,
       lastName: (fd.get("lastName") as string).trim() || undefined,
       companyName,

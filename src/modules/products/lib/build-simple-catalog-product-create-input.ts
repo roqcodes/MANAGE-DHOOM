@@ -41,7 +41,47 @@ export function normalizeCatalogProductErpFields(input: {
   };
 }
 
-/** At least one of list or cost price — enough to value inventory / default a SKU. */
+export type NewItemCreatePricingResult =
+  | { ok: true }
+  | { ok: false; message: string };
+
+/**
+ * New catalog item create only (products page + purchase quick-create).
+ * Not used on purchase/sales invoices.
+ */
+export function validateNewItemCreatePricing(
+  salesPrice: number,
+  purchasePrice: number,
+): NewItemCreatePricingResult {
+  const sales = coalesceNumber(salesPrice);
+  const purchase = coalesceNumber(purchasePrice);
+
+  if (sales <= 0) {
+    return {
+      ok: false,
+      message: "Sales price is required when creating a new item.",
+    };
+  }
+  if (purchase <= 0) {
+    return {
+      ok: false,
+      message: "Purchase price is required when creating a new item.",
+    };
+  }
+
+  const salesRounded = roundMoney2(sales);
+  const purchaseRounded = roundMoney2(purchase);
+  if (salesRounded <= purchaseRounded) {
+    return {
+      ok: false,
+      message: "Sales price must be greater than purchase price.",
+    };
+  }
+
+  return { ok: true };
+}
+
+/** @deprecated Use validateNewItemCreatePricing for create flows. */
 export function hasSimpleProductPricingSignal(
   defaultPrice: number,
   purchasePrice: number,
@@ -51,34 +91,32 @@ export function hasSimpleProductPricingSignal(
   );
 }
 
-/** Simple (no SKU rows) products: create default variant when any list or cost price is set. */
 export function shouldEnsureDefaultVariantForSimpleProduct(
   defaultPrice: number,
   purchasePrice: number,
 ): boolean {
-  return hasSimpleProductPricingSignal(defaultPrice, purchasePrice);
+  return validateNewItemCreatePricing(defaultPrice, purchasePrice).ok;
 }
 
-/** Products page: simple item needs cost or list price; SKU layouts only need a name. */
-export function isCatalogSimpleProductPricingValid(
+export function isNewItemSimpleCreatePricingValid(
   defaultPrice: number,
   purchasePrice: number,
 ): boolean {
-  return hasSimpleProductPricingSignal(defaultPrice, purchasePrice);
+  return validateNewItemCreatePricing(defaultPrice, purchasePrice).ok;
 }
 
-/** Purchase quick-create: cost is required (document context). */
-export function isPurchaseQuickCreatePricingValid(purchasePrice: number): boolean {
-  return coalesceNumber(purchasePrice) > 0;
+export function newItemSimpleCreatePricingMessage(
+  defaultPrice: number,
+  purchasePrice: number,
+): string {
+  const result = validateNewItemCreatePricing(defaultPrice, purchasePrice);
+  return result.ok
+    ? ""
+    : result.message;
 }
 
-export function catalogSimpleProductValidationMessage(isCreate: boolean): string {
-  if (!isCreate) return "Product name is required.";
-  return "Enter the product name and at least a sales price or purchase price—or add SKUs on the Variants tab. You can set sales price later before selling.";
-}
-
-export function purchaseQuickCreatePricingMessage(): string {
-  return "Purchase price is required when creating a product from a purchase document.";
+export function newItemVariantLayoutPurchaseRequiredMessage(): string {
+  return "Purchase price is required on the Details tab when creating a new item.";
 }
 
 export type SimpleCatalogProductCreateFields = {

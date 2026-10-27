@@ -36,7 +36,9 @@ import {
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
+  validateBeforeFormSave,
   CustomerSearchSelect,
   ErpDocumentNumberField,
   type ErpFormViewBaseProps,
@@ -297,6 +299,10 @@ export function InvoiceFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     onSuccess?.(id);
     if (mode === "create") {
       resetCreateForm();
@@ -307,44 +313,50 @@ export function InvoiceFormView({
   }
 
   function handleSubmit(finalize: boolean) {
-    setError(null);
     if (creditLimitBlocked) return;
     const apiLines = salesLinesToApiInput(lines);
-    const validationMessages = applyFieldValidation(
-      [
-        { key: "customer", ok: Boolean(customerId), message: "Customer is required." },
+    if (
+      !validateBeforeFormSave(
+        [
+          { key: "customer", label: "Customer", ok: Boolean(customerId) },
+          {
+            key: "store",
+            label: "Store",
+            ok: Boolean(effectiveStoreId),
+            message: storeRequiredMessage ?? undefined,
+          },
+          {
+            key: "lines",
+            label: "Line items",
+            ok: apiLines.length > 0,
+            message: "Add at least one line item.",
+          },
+          {
+            key: "lines",
+            ok: !finalize || totals.total > 0,
+            message:
+              "Enter line rates so the total is greater than zero before finalizing.",
+          },
+          {
+            key: "lines",
+            ok: !finalize || !apiLines.some((line) => !line.productId),
+            message:
+              "Each line must be linked to a product (use product search) before finalizing.",
+          },
+          {
+            key: "salesmanPin",
+            label: "Salesman PIN",
+            ok: Boolean(salesPersonId),
+            message: "Enter a valid salesman PIN.",
+          },
+        ],
         {
-          key: "store",
-          ok: Boolean(effectiveStoreId),
-          message: storeRequiredMessage ?? "Store is required.",
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
         },
-        { key: "lines", ok: apiLines.length > 0, message: "Add at least one item." },
-        {
-          key: "lines",
-          ok: !finalize || totals.total > 0,
-          message:
-            "Enter line rates so the total is greater than zero before finalizing.",
-        },
-        {
-          key: "lines",
-          ok:
-            !finalize || !apiLines.some((line) => !line.productId),
-          message:
-            "Each line must be linked to a product (use product search) before finalizing.",
-        },
-        {
-          key: "salesmanPin",
-          ok: Boolean(salesPersonId),
-          message: "Enter a valid salesman PIN.",
-        },
-      ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+      )
+    ) {
       return;
     }
 

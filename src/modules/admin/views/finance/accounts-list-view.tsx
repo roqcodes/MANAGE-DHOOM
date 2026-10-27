@@ -15,8 +15,10 @@ import {
   selectCls,
 } from "@/modules/admin/components/modal";
 import {
+  validateBeforeFormSave,
+  formErrorsListAdapter,
+  clearFormSubmitFeedback,
   FormValidationScope,
-  applyFieldValidation,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Pagination } from "@/modules/admin/components/pagination";
@@ -110,22 +112,24 @@ function AccountFormModalBody({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "accountTypeId", ok: Boolean(accountTypeId), message: "Account type is required." },
         { key: "code", ok: Boolean(code.trim()), message: "Code is required." },
         { key: "name", ok: Boolean(name.trim()), message: "Name is required." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setErrors(validationMessages);
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsListAdapter(setErrors),
+        },
+      )
+    ) {
       return;
     }
-    setErrors([]);
 
-    const payload = {
+const payload = {
       accountTypeId,
       code: code.trim(),
       name: name.trim(),
@@ -140,6 +144,10 @@ function AccountFormModalBody({
         } else if (row) {
           await adminPatch(`erp/accounts/${row.id}`, payload);
         }
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsListAdapter(setErrors),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         onSaved();
         onClose();
       } catch (err) {

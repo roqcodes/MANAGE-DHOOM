@@ -8,15 +8,18 @@ import { Trash2 } from "lucide-react";
 import type { ErpSalesProductSearchRow } from "@/common/erp/sales-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   ErpDocumentNumberField,
   ProductLiveSearch,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -185,7 +188,11 @@ export function StoreTransferFormView({
   }
 
   function handleSuccessNavigate(id: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
       return;
@@ -218,8 +225,9 @@ export function StoreTransferFormView({
 
   function handleSubmit() {
     setError(null);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "stores",
           ok: Boolean(fromStoreId && toStoreId),
@@ -232,17 +240,17 @@ export function StoreTransferFormView({
         },
         { key: "lines", ok: lines.length > 0, message: "Add at least one item." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         const res = await adminPost<{ id: string }>("erp/store-transfers", {
           fromStoreId,

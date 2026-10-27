@@ -19,7 +19,14 @@ import {
   Modal,
   PrimaryBtn,
   SecondaryBtn,
+  fieldControlCls,
 } from "@/modules/admin/components/modal";
+import {
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
+  validateBeforeFormSave,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import {
@@ -66,7 +73,8 @@ function UnitFormModal({
 }) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -76,16 +84,22 @@ function UnitFormModal({
     const sortOrder = parseInt((fd.get("sortOrder") as string) || "0", 10);
     const isActive = fd.get("isActive") === "on";
 
-    if (!name) {
-      setError("Name is required.");
-      return;
-    }
-    if (!abbreviation) {
-      setError("Abbreviation is required.");
+    if (
+      !validateBeforeFormSave(
+        [
+          { key: "name", label: "Name", ok: Boolean(name) },
+          { key: "abbreviation", label: "Abbreviation", ok: Boolean(abbreviation) },
+        ],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    setError(null);
     startTransition(async () => {
       try {
         const payload = {
@@ -102,6 +116,10 @@ function UnitFormModal({
         }
 
         await queryClient.invalidateQueries({ queryKey: adminQueryKeys.itemUnits() });
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         onClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save.");
@@ -122,11 +140,12 @@ function UnitFormModal({
             Name
           </span>
           <input
-            className={inputCls}
+            className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("name"))}
             name="name"
             defaultValue={unit?.name ?? ""}
             required
             placeholder="e.g. Piece"
+            aria-invalid={fieldValidation.isFieldInvalid("name") || undefined}
           />
         </label>
 
@@ -135,12 +154,16 @@ function UnitFormModal({
             Abbreviation
           </span>
           <input
-            className={cn(inputCls, "uppercase")}
+            className={fieldControlCls(
+              cn(inputCls, "uppercase"),
+              fieldValidation.isFieldInvalid("abbreviation"),
+            )}
             name="abbreviation"
             defaultValue={unit?.abbreviation ?? ""}
             required
             placeholder="e.g. PCS"
             maxLength={12}
+            aria-invalid={fieldValidation.isFieldInvalid("abbreviation") || undefined}
           />
           <span className="text-[11px] text-slate-400">
             Short code shown on documents (saved uppercase).

@@ -7,8 +7,7 @@
 -- KEEPS (master / config):
 --   products, variants, categories, brands, media, vendors, customers (users),
 --   companies, stores, staff/RBAC, chart of accounts (accounts, account_types),
---   erp_posting_rules, erp_landed_cost_items, erp_employees (profiles),
---   erp_salesmen (PIN sellers; not transactional),
+--   erp_posting_rules, erp_landed_cost_items, erp_employees (profiles, including salesman PIN employees),
 --   item_units, tax_rates, pricing_rules, app_settings, erp_purchasing_settings,
 --   push_templates, push_tokens, notification_preferences,
 --   customer_credit_limits (limits only), addresses (optional).

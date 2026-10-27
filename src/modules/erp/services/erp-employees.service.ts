@@ -47,6 +47,8 @@ function mapEmployeeRow(row: Record<string, unknown>): ErpEmployeeListRow {
     salary_balance: Number(row.salary_balance ?? 0),
     advance_balance: Number(row.advance_balance ?? 0),
     store_name: store?.name ?? null,
+    is_salesman: Boolean(row.is_salesman),
+    sales_pin: (row.sales_pin as string | null) ?? null,
   };
 }
 
@@ -166,6 +168,8 @@ export async function createEmployee(input: {
   dateOfBirth?: string;
   isActive?: boolean;
   notes?: string;
+  isSalesman?: boolean;
+  salesPin?: string;
 }): Promise<string> {
   const profile = await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
@@ -190,6 +194,8 @@ export async function createEmployee(input: {
     p_date_of_birth: nullIfEmptyDate(input.dateOfBirth),
     p_is_active: input.isActive ?? true,
     p_notes: input.notes ?? null,
+    p_is_salesman: input.isSalesman ?? false,
+    p_sales_pin: input.isSalesman ? (input.salesPin ?? null) : null,
     p_created_by: profile.id,
   });
 
@@ -221,6 +227,8 @@ export async function updateEmployee(
     isActive?: boolean;
     discontinuationDate?: string;
     notes?: string;
+    isSalesman?: boolean;
+    salesPin?: string;
   },
 ): Promise<void> {
   const profile = await requireAdminOrManagerProfile();
@@ -247,6 +255,8 @@ export async function updateEmployee(
     p_is_active: input.isActive ?? null,
     p_discontinuation_date: nullIfEmptyDate(input.discontinuationDate),
     p_notes: input.notes ?? null,
+    p_is_salesman: input.isSalesman ?? null,
+    p_sales_pin: input.isSalesman === false ? null : (input.salesPin ?? null),
     p_actor: profile.id,
   });
 

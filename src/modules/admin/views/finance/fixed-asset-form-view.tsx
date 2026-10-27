@@ -18,15 +18,18 @@ import {
   updateFixedAssetAction,
 } from "@/modules/erp/actions/fixed-assets.actions";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import {
@@ -181,7 +184,11 @@ export function FixedAssetFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
       return;
@@ -193,8 +200,9 @@ export function FixedAssetFormView({
     e.preventDefault();
     const purchaseAmount = parseFloat(form.purchaseAmount);
     const resolvedStoreId = form.storeId || activeStoreId;
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "store",
           ok: Boolean(resolvedStoreId),
@@ -212,18 +220,17 @@ export function FixedAssetFormView({
           message: "Paid through account is required.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
-    setError(null);
 
-    const taxPercent = parseFloat(form.taxPercent) || 0;
+const taxPercent = parseFloat(form.taxPercent) || 0;
     const taxAmount = Math.round(((purchaseAmount * taxPercent) / 100) * 100) / 100;
 
     const payload = {

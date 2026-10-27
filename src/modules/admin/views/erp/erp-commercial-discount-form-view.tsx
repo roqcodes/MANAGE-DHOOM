@@ -9,15 +9,18 @@ import { parsePaymentAmount } from "@/lib/decimal-precision";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormField,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   CustomerSearchSelect,
   InvoiceSearchSelect,
   PurchaseBillSearchSelect,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import {
@@ -165,9 +168,9 @@ export function ErpCommercialDiscountFormView({
   }
 
   function submit() {
-    setError(null);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "party",
           ok: Boolean(partyId),
@@ -193,17 +196,17 @@ export function ErpCommercialDiscountFormView({
             "Choose a posted document. Draft and cancelled documents cannot take a discount.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         const res = await adminPost<{ id: string; side: CommercialDiscountSide }>("erp/discounts", {
           side,
@@ -216,6 +219,10 @@ export function ErpCommercialDiscountFormView({
           discountAccountId: discountAccountId || undefined,
           reference: reference || undefined,
           notes: notes || undefined,
+        });
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
         });
         if (isModal) {
           onOpenChange?.(false);

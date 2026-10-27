@@ -12,7 +12,6 @@ import { UsersMetricsBar } from "@/modules/users/components/users-metrics-bar";
 import { exportPortalUsersCsv } from "@/modules/users/components/users-data-table";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
-import type { ErpSalesmanRow } from "@/modules/users/services/erp-salesmen.service";
 import type { TeamCatalogStats } from "@/modules/users/services/users.service";
 import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
 import { ROLES_HREF } from "@/modules/rbac/lib/permission-catalog";
@@ -37,7 +36,6 @@ export function AdminUsersView() {
         primary: "users";
         page: number;
         stats: TeamCatalogStats;
-        salesmen: ErpSalesmanRow[];
         content: UsersApiContent;
       }>(`users?${q.toString()}`);
     },
@@ -50,7 +48,6 @@ export function AdminUsersView() {
   }
   const stats = data?.stats ?? EMPTY_TEAM_CATALOG_STATS;
   const content = data?.content ?? { kind: "team" as const, data: [], total: 0 };
-  const salesmen = data?.salesmen ?? [];
 
   function handleExport() {
     if (content.kind === "team") {
@@ -77,7 +74,6 @@ export function AdminUsersView() {
       <UsersMetricsBar stats={stats} onExport={handleExport} valuesLoading={initialLoading} />
       <UsersListPanel
         content={content}
-        salesmen={salesmen}
         page={page}
         initialLoading={initialLoading}
       />

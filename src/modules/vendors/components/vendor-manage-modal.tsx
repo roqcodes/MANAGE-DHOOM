@@ -20,8 +20,11 @@ import {
   inputCls,
 } from "@/modules/admin/components/modal";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   FormValidationScope,
-  applyFieldValidation,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 
@@ -36,7 +39,7 @@ function VendorManageModalForm({
 }) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
   const fieldValidation = useFormFieldValidation();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -44,17 +47,20 @@ function VendorManageModalForm({
     const fd = new FormData(e.currentTarget);
     const name = (fd.get("name") as string).trim();
     const contact = (fd.get("contact") as string).trim();
-    const validationMessages = applyFieldValidation(
-      [{ key: "name", ok: Boolean(name), message: "Name is required." }],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(validationMessages[0]);
+    if (
+      !validateBeforeFormSave(
+        [{ key: "name", ok: Boolean(name), message: "Name is required." }],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
-    setError(null);
-    startTransition(async () => {
+
+startTransition(async () => {
       try {
         if (mode === "edit" && vendor) {
           await updateVendorAction(vendor.id, { name, contact });
@@ -62,6 +68,10 @@ function VendorManageModalForm({
           await createVendorAction({ name, contact });
         }
         void invalidateAdminVendorCatalogQueries(queryClient);
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         onClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.");

@@ -21,16 +21,19 @@ import { salesOrderResourceScope } from "@/modules/orders/types/sales-order-upda
 import type { SalesOrderDetail } from "@/modules/orders/services/sales-order-detail.service";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormField,
   AdminFormGrid,
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   CustomerSearchSelect,
   ErpDocumentNumberField,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import {
@@ -175,7 +178,11 @@ export function SalesOrderFormView({
   }
 
   function handleSuccessNavigate() {
-    if (!isEdit) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (!isEdit) {
       onSuccess?.();
       resetCreateForm();
       return;
@@ -200,8 +207,9 @@ export function SalesOrderFormView({
         taxRatePercent: l.taxRatePercent,
       }));
     const lineWithoutPrice = items.find((i) => !i.unitPrice || i.unitPrice <= 0);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "customer", ok: Boolean(customerId), message: "Customer is required." },
         {
           key: "store",
@@ -226,17 +234,17 @@ export function SalesOrderFormView({
           message: "Enter a valid salesman PIN.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         const supabase = createSupabaseBrowserClient();
         const staffUserId = await resolveOutboxUserId(supabase);

@@ -9,13 +9,16 @@ import type { LastFiledVatReturnSummary, VatReturnPreview } from "@/common/erp/f
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -126,7 +129,11 @@ export function VatReturnFormView({
   }
 
   function handleSuccessNavigate() {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.();
       return;
@@ -136,8 +143,9 @@ export function VatReturnFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "store",
           ok: Boolean(effectiveStoreId),
@@ -154,18 +162,17 @@ export function VatReturnFormView({
           message: "End date must be on or after start date.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
-    setError(null);
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         await adminPost("erp/vat-returns", {
           storeId: effectiveStoreId,

@@ -13,13 +13,20 @@ import {
 
 import type { Brand } from "@/common/admin/types";
 import { getBrandLogo } from "@/modules/products/lib/brands.utils";
-import { AdminDataTableRowsSkeleton } from "@/modules/admin/ui";
+import {
+  AdminDataTableRowsSkeleton,
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
+  validateBeforeFormSave,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import {
   ModalFormFooter,
   Modal,
   PrimaryBtn,
   SecondaryBtn,
+  fieldControlCls,
 } from "@/modules/admin/components/modal";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
@@ -80,11 +87,12 @@ function BrandFormModal({
 }) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
   const [imageUrl, setImageUrl] = useState(
     brand?.image_url?.trim() || brand?.logo_url?.trim() || "",
   );
   const [uploading, setUploading] = useState(false);
+  const fieldValidation = useFormFieldValidation();
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -95,12 +103,19 @@ function BrandFormModal({
     const slug = (fd.get("slug") as string).trim() || null;
     const description = (fd.get("description") as string).trim() || null;
 
-    if (!name) {
-      setError("Name is required.");
+    if (
+      !validateBeforeFormSave(
+        [{ key: "name", label: "Name", ok: Boolean(name) }],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    setError(null);
     startTransition(async () => {
       try {
         const payload = {
@@ -119,6 +134,10 @@ function BrandFormModal({
         }
 
         await queryClient.invalidateQueries({ queryKey: ["admin", "brands"] });
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         onClose();
       } catch (err) {
         setError(actionErrorMessage(err, "Failed to save."));
@@ -138,11 +157,12 @@ function BrandFormModal({
             Name
           </span>
           <input
-            className={inputCls}
+            className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("name"))}
             name="name"
             defaultValue={brand?.name ?? ""}
             required
             placeholder="e.g. Prestige"
+            aria-invalid={fieldValidation.isFieldInvalid("name") || undefined}
           />
         </label>
 

@@ -9,13 +9,16 @@ import type { PaidThroughAccountOption } from "@/common/erp/purchasing-types";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
@@ -122,7 +125,11 @@ export function SalaryBulkPaymentFormView({
   }
 
   function handleSuccessNavigate() {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.();
       return;
@@ -143,8 +150,9 @@ export function SalaryBulkPaymentFormView({
       }))
       .filter((l) => l.totalPayment > 0);
 
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "store",
           ok: Boolean(effectiveStoreId),
@@ -156,17 +164,17 @@ export function SalaryBulkPaymentFormView({
           message: "Enter at least one salary payment amount.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         await adminPost("erp/salary-bulk-payments", {
           storeId: effectiveStoreId,

@@ -9,8 +9,11 @@ import { useAdminSession } from "@/modules/admin/providers/admin-session-provide
 import type { RbacRoleRow } from "@/modules/rbac/services/rbac-admin.service";
 import { Modal, SecondaryBtn } from "@/modules/admin/components/modal";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   FormValidationScope,
-  applyFieldValidation,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button } from "@/components/ui/button";
@@ -61,7 +64,7 @@ function UsersCreateStaffModalForm({
   const [roleId, setRoleId] = useState("");
   const [storeIds, setStoreIds] = useState<string[]>([]);
   const [defaultStoreId, setDefaultStoreId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const { data: rolesData } = useQuery({
@@ -92,21 +95,25 @@ function UsersCreateStaffModalForm({
   }
 
   function handleCreate() {
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "name", ok: name.trim().length > 0, message: "Name is required." },
         { key: "email", ok: email.trim().length > 0, message: "Email is required." },
         { key: "password", ok: password.length >= 8, message: "Password must be at least 8 characters." },
         { key: "roleId", ok: Boolean(roleId), message: "Role is required." },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(validationMessages[0]);
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
-    startTransition(async () => {
+
+startTransition(async () => {
       setError(null);
       try {
         await adminPost("users", {
@@ -120,6 +127,10 @@ function UsersCreateStaffModalForm({
           defaultStoreId,
         });
         void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         onCreated?.();
         onClose();
       } catch (e) {

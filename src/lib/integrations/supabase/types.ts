@@ -288,7 +288,7 @@ export type Database = {
             foreignKeyName: "audit_logs_salesman_id_fkey"
             columns: ["salesman_id"]
             isOneToOne: false
-            referencedRelation: "erp_salesmen"
+            referencedRelation: "erp_employees"
             referencedColumns: ["id"]
           },
         ]
@@ -1363,6 +1363,8 @@ export type Database = {
           net_salary: number
           notes: string | null
           salary_balance: number
+          is_salesman: boolean
+          sales_pin: string | null
           store_id: string
           updated_at: string
         }
@@ -1386,6 +1388,8 @@ export type Database = {
           net_salary?: number
           notes?: string | null
           salary_balance?: number
+          is_salesman?: boolean
+          sales_pin?: string | null
           store_id: string
           updated_at?: string
         }
@@ -1409,6 +1413,8 @@ export type Database = {
           net_salary?: number
           notes?: string | null
           salary_balance?: number
+          is_salesman?: boolean
+          sales_pin?: string | null
           store_id?: string
           updated_at?: string
         }
@@ -3684,7 +3690,7 @@ export type Database = {
             foreignKeyName: "invoices_sales_person_id_fkey"
             columns: ["sales_person_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "erp_employees"
             referencedColumns: ["id"]
           },
           {
@@ -4227,7 +4233,7 @@ export type Database = {
             foreignKeyName: "orders_sales_person_id_fkey"
             columns: ["sales_person_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "erp_employees"
             referencedColumns: ["id"]
           },
           {
@@ -6028,9 +6034,11 @@ export type Database = {
           p_id_expiry_date?: string | null
           p_id_number?: string | null
           p_is_active?: boolean
+          p_is_salesman?: boolean
           p_joining_date: string
           p_mobile: string
           p_notes?: string | null
+          p_sales_pin?: string | null
           p_store_id: string
         }
         Returns: string
@@ -6890,9 +6898,11 @@ export type Database = {
           p_id_expiry_date?: string | null
           p_id_number?: string | null
           p_is_active?: boolean | null
+          p_is_salesman?: boolean | null
           p_joining_date?: string | null
           p_mobile?: string | null
           p_notes?: string | null
+          p_sales_pin?: string | null
           p_store_id?: string | null
         }
         Returns: undefined

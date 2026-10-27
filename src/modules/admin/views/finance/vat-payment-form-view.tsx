@@ -15,13 +15,16 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { validateVatRefundAmount } from "@/lib/erp/vat-refund-eligibility";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -116,7 +119,11 @@ export function VatPaymentFormView({
   }
 
   function handleSuccessNavigate() {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.();
       return;
@@ -137,8 +144,9 @@ export function VatPaymentFormView({
         : null;
     const vatErr =
       vatReturn && !isRefund ? validateVatPaymentAmount(amt, vatReturn.balance_due) : null;
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         { key: "vatReturn", ok: Boolean(vatReturnId), message: "VAT return is required." },
         {
           key: "paidFromAccount",
@@ -151,18 +159,17 @@ export function VatPaymentFormView({
         ...(refundErr ? [{ key: "amount", ok: false, message: refundErr }] : []),
         ...(vatErr ? [{ key: "amount", ok: false, message: vatErr }] : []),
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
-    setError(null);
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         await adminPost("erp/vat-payments", {
           vatReturnId,

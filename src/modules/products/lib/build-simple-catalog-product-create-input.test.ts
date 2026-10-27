@@ -3,11 +3,9 @@ import { describe, it } from "node:test";
 
 import {
   buildSimpleCatalogProductCreateInput,
-  hasSimpleProductPricingSignal,
-  isCatalogSimpleProductPricingValid,
-  isPurchaseQuickCreatePricingValid,
   normalizeCatalogProductErpFields,
   shouldEnsureDefaultVariantForSimpleProduct,
+  validateNewItemCreatePricing,
 } from "./build-simple-catalog-product-create-input";
 
 describe("normalizeCatalogProductErpFields", () => {
@@ -37,24 +35,20 @@ describe("normalizeCatalogProductErpFields", () => {
   });
 });
 
-describe("shouldEnsureDefaultVariantForSimpleProduct", () => {
-  it("is true when list or purchase price is set", () => {
-    assert.equal(shouldEnsureDefaultVariantForSimpleProduct(0, 0), false);
-    assert.equal(shouldEnsureDefaultVariantForSimpleProduct(10, 0), true);
-    assert.equal(shouldEnsureDefaultVariantForSimpleProduct(0, 8), true);
+describe("validateNewItemCreatePricing", () => {
+  it("requires both prices and sales greater than purchase", () => {
+    assert.equal(validateNewItemCreatePricing(0, 10).ok, false);
+    assert.equal(validateNewItemCreatePricing(10, 0).ok, false);
+    assert.equal(validateNewItemCreatePricing(10, 10).ok, false);
+    assert.equal(validateNewItemCreatePricing(10, 11).ok, false);
+    assert.equal(validateNewItemCreatePricing(11, 10).ok, true);
   });
 });
 
-describe("pricing validation policy", () => {
-  it("catalog simple item accepts cost-only or list-only", () => {
-    assert.equal(hasSimpleProductPricingSignal(0, 0), false);
-    assert.equal(isCatalogSimpleProductPricingValid(0, 25), true);
-    assert.equal(isCatalogSimpleProductPricingValid(99, 0), true);
-  });
-
-  it("purchase quick-create requires cost", () => {
-    assert.equal(isPurchaseQuickCreatePricingValid(0), false);
-    assert.equal(isPurchaseQuickCreatePricingValid(0.01), true);
+describe("shouldEnsureDefaultVariantForSimpleProduct", () => {
+  it("follows new-item pricing rules", () => {
+    assert.equal(shouldEnsureDefaultVariantForSimpleProduct(0, 0), false);
+    assert.equal(shouldEnsureDefaultVariantForSimpleProduct(20, 10), true);
   });
 });
 
@@ -63,6 +57,7 @@ describe("buildSimpleCatalogProductCreateInput", () => {
     const input = buildSimpleCatalogProductCreateInput({
       operationId: "00000000-0000-4000-8000-000000000001",
       name: "Tomatoes",
+      defaultPrice: 50,
       purchasePrice: 40,
       taxRatePercent: 15,
       hsnSac: "0702",
@@ -73,8 +68,8 @@ describe("buildSimpleCatalogProductCreateInput", () => {
       ensureDefaultVariant: true,
     });
     assert.equal(input.purchasePrice, 40);
+    assert.equal(input.price, 50);
     assert.equal(input.taxRatePercent, 15);
-    assert.equal(input.price, null);
     assert.equal(input.hsnSac, "0702");
   });
 });

@@ -13,8 +13,11 @@ import {
   SecondaryBtn,
 } from "@/modules/admin/components/modal";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   FormValidationScope,
-  applyFieldValidation,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { UserRoleBadge } from "@/modules/users/components/users-ui";
@@ -61,7 +64,7 @@ function UsersStaffAccessModalForm({
   const [roleId, setRoleId] = useState("");
   const [storeIds, setStoreIds] = useState<string[]>([]);
   const [defaultStoreId, setDefaultStoreId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const { data: rolesData } = useQuery({
@@ -113,17 +116,20 @@ function UsersStaffAccessModalForm({
   }
 
   function handleSave() {
-    const validationMessages = applyFieldValidation(
-      [{ key: "roleId", ok: Boolean(roleId), message: "Role is required." }],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(validationMessages[0]);
+    if (
+      !validateBeforeFormSave(
+        [{ key: "roleId", ok: Boolean(roleId), message: "Role is required." }],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
+
     startTransition(async () => {
-      setError(null);
       try {
         await adminPost("rbac/mutate", {
           action: "assign_user",
@@ -134,6 +140,10 @@ function UsersStaffAccessModalForm({
         });
         void queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
         void queryClient.invalidateQueries({ queryKey: adminQueryKeys.session() });
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         onUpdated?.();
         onClose();
       } catch (e) {

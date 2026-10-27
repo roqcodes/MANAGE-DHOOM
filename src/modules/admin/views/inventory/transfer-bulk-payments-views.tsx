@@ -28,8 +28,12 @@ import {
   AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
   useErpFormModal,
+  validateBeforeFormSave,
   type ErpFormViewBaseProps,
+  useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { StoreSelect, useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
@@ -140,7 +144,8 @@ export function TransferBulkPaymentFormView({
   const prefillTransferId = searchParams.get("transferId") ?? "";
   const { stores } = useErpStores();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
+  const fieldValidation = useFormFieldValidation();
   const isModal = variant === "modal";
 
   const [fromStoreId, setFromStoreId] = useState("");
@@ -182,6 +187,10 @@ export function TransferBulkPaymentFormView({
   }
 
   function handleSuccessNavigate() {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     if (isModal) {
       onOpenChange?.(false);
       onSuccess?.();
@@ -192,18 +201,12 @@ export function TransferBulkPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     const items = Object.entries(allocations)
       .filter(([, amt]) => coalesceNumber(amt) > 0)
       .map(([transferId, amount]) => ({
         transferId,
         amount: coalesceNumber(amount),
       }));
-
-    if (items.length === 0) {
-      setError("Select at least one transfer with a payment amount");
-      return;
-    }
 
     for (const item of items) {
       const row = pendingRows.find((r) => r.transfer_id === item.transferId);
@@ -217,6 +220,26 @@ export function TransferBulkPaymentFormView({
         setError(allocErr);
         return;
       }
+    }
+
+    if (
+      !validateBeforeFormSave(
+        [
+          {
+            key: "allocations",
+            label: "Transfer payments",
+            ok: items.length > 0,
+            message: "Select at least one transfer with a payment amount.",
+          },
+        ],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
+      return;
     }
 
     startTransition(async () => {

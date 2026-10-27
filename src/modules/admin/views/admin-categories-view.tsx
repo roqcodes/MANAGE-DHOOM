@@ -13,13 +13,20 @@ import {
 
 import type { Category } from "@/common/admin/types";
 import { getCategoryThumbnail } from "@/modules/products/lib/categories.utils";
-import { AdminDataTableRowsSkeleton } from "@/modules/admin/ui";
+import {
+  AdminDataTableRowsSkeleton,
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
+  validateBeforeFormSave,
+  useFormFieldValidation,
+} from "@/modules/admin/ui";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import {
   ModalFormFooter,
   Modal,
   PrimaryBtn,
   SecondaryBtn,
+  fieldControlCls,
 } from "@/modules/admin/components/modal";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { actionErrorMessage } from "@/modules/admin/lib/form-submit-errors";
@@ -84,11 +91,12 @@ function CategoryFormModal({
 }) {
   const queryClient = useQueryClient();
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | string[] | null>(null);
   const [imageUrl, setImageUrl] = useState(
     category?.image_url?.trim() || category?.thumbnail_url?.trim() || "",
   );
   const [uploading, setUploading] = useState(false);
+  const fieldValidation = useFormFieldValidation();
 
   const parentOptions = categories.filter(
     (c) => c.id !== category?.id && !c.parent_id,
@@ -104,12 +112,19 @@ function CategoryFormModal({
     const slug = (fd.get("slug") as string).trim() || null;
     const description = (fd.get("description") as string).trim() || null;
 
-    if (!name) {
-      setError("Name is required.");
+    if (
+      !validateBeforeFormSave(
+        [{ key: "name", label: "Name", ok: Boolean(name) }],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    setError(null);
     startTransition(async () => {
       try {
         const payload = {
@@ -129,6 +144,10 @@ function CategoryFormModal({
         }
 
         await queryClient.invalidateQueries({ queryKey: ["admin", "categories"] });
+        clearFormSubmitFeedback({
+          setFormErrors: formErrorsAdapter(setError),
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+        });
         onClose();
       } catch (err) {
         setError(actionErrorMessage(err, "Failed to save."));
@@ -148,11 +167,12 @@ function CategoryFormModal({
             Name
           </span>
           <input
-            className={inputCls}
+            className={fieldControlCls(inputCls, fieldValidation.isFieldInvalid("name"))}
             name="name"
             defaultValue={category?.name ?? ""}
             required
             placeholder="e.g. Cookware"
+            aria-invalid={fieldValidation.isFieldInvalid("name") || undefined}
           />
         </label>
 

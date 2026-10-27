@@ -9,14 +9,14 @@
 --   • Clears payments, VAT returns/payments, journals, payslips, payroll runs
 --   • Removes all products, variants, media, categories, brands, pricing rules
 --   • Truncates inventory rows (SPI, store_inventory, online inventory)
---   • Deletes all erp_employees
+--   • Deletes all erp_employees (including salesman employees)
 --   • Deletes every store except the main store (stores.is_default = true)
 --     — typically removes "Store A" / "Store B" if they are not default
 --
 -- KEEPS:
 --   companies, main store (is_default), chart of accounts, vendors, customers,
 --   staff users, RBAC, app_settings (default_store_id repointed to main),
---   erp_landed_cost_items, erp_salesmen, tax_rates, item_units, push templates
+--   erp_landed_cost_items, tax_rates, item_units, push templates
 --
 -- BEFORE RUNNING — confirm which store is kept:
 --   SELECT id, name, code, is_default FROM public.stores ORDER BY is_default DESC, name;

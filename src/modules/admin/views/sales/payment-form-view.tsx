@@ -21,7 +21,9 @@ import {
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
+  validateBeforeFormSave,
   CustomerSearchSelect,
   InvoiceSearchSelect,
   type ErpFormViewBaseProps,
@@ -194,6 +196,10 @@ export function PaymentFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setFormError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
     if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
@@ -318,44 +324,46 @@ export function PaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setFormError(null);
 
     const fifoOnlyAmount = parsePaymentAmount(lineAmount);
     const useFifoAutoAllocate = lines.length === 0 && userId && fifoOnlyAmount > 0;
     const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
 
-    const validationMessages = applyFieldValidation(
-      [
-        { key: "accountId", ok: Boolean(accountId), message: "Deposit account is required." },
+    if (
+      !validateBeforeFormSave(
+        [
+          { key: "accountId", label: "Deposit to", ok: Boolean(accountId) },
+          {
+            key: "store",
+            label: "Store",
+            ok: Boolean(effectiveStoreId),
+            message: storeRequiredMessage ?? undefined,
+          },
+          {
+            key: "lines",
+            label: "Invoice payments",
+            ok: useFifoAutoAllocate || lines.length > 0,
+            message:
+              "Add at least one invoice payment, or select a customer and amount to allocate FIFO.",
+          },
+          {
+            key: "bankCharges",
+            ok: bankChargesAmount < paymentTotal,
+            message: "Bank charges must be less than total payment.",
+          },
+          {
+            key: "bankChargesAccountId",
+            label: "Bank charges account",
+            ok: bankChargesAmount <= 0 || Boolean(bankChargesAccountId),
+          },
+        ],
         {
-          key: "store",
-          ok: Boolean(effectiveStoreId),
-          message: storeRequiredMessage ?? "Store is required.",
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setFormError),
         },
-        {
-          key: "lines",
-          ok: useFifoAutoAllocate || lines.length > 0,
-          message:
-            "Add at least one invoice payment, or select a customer and amount to allocate FIFO.",
-        },
-        {
-          key: "bankCharges",
-          ok: bankChargesAmount < paymentTotal,
-          message: "Bank charges must be less than total payment.",
-        },
-        {
-          key: "bankChargesAccountId",
-          ok: bankChargesAmount <= 0 || Boolean(bankChargesAccountId),
-          message: "Expense account is required for bank charges.",
-        },
-      ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setFormError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+      )
+    ) {
       return;
     }
 
@@ -699,7 +707,7 @@ export function PaymentFormView({
           </Card>
         ) : null}
 
-        <ErrorsFeedbackBridge errors={inlineError} title="Fix this issue" />
+        <ErrorsFeedbackBridge errors={inlineError} />
         <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (

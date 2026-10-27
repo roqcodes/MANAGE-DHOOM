@@ -41,15 +41,18 @@ import {
 } from "@/modules/erp/types/purchase-payload";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormField,
   AdminFormGrid,
   AdminFormModalLayout,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   ErpDocumentNumberField,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -409,7 +412,11 @@ export function PurchaseBillFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
-    onSuccess?.(id);
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        onSuccess?.(id);
     if (mode === "create") {
       if (isModal) {
         resetCreateForm();
@@ -440,8 +447,9 @@ export function PurchaseBillFormView({
       landedAllocationMethod,
     );
     const apiLines = linesToApiInput(linesForSave, landedCosts, landedAllocationMethod);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "landedCosts",
           ok: !shouldFinalize || landedAllocationBalanced,
@@ -463,17 +471,17 @@ export function PurchaseBillFormView({
             "Enter line rates so the grand total is greater than zero before finalizing.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    const payload = {
+const payload = {
       vendorId,
       storeId: effectiveStoreId,
       purchaseDate,

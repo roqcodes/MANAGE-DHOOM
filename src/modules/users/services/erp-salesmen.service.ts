@@ -19,16 +19,22 @@ export async function listErpSalesmen(options?: {
 }): Promise<ErpSalesmanRow[]> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
-  const columns = options?.includePin
-    ? "id, name, email, phone, pin, is_active, created_at"
-    : "id, name, email, phone, is_active, created_at";
   const { data, error } = await supabase
-    .from("erp_salesmen")
-    .select(columns)
-    .order("name", { ascending: true });
+    .from("erp_employees")
+    .select("id, full_name, mobile, sales_pin, is_active, created_at")
+    .eq("is_salesman", true)
+    .order("full_name", { ascending: true });
 
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as ErpSalesmanRow[];
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    name: row.full_name,
+    email: null,
+    phone: row.mobile && row.mobile !== "—" ? row.mobile : null,
+    is_active: row.is_active,
+    created_at: row.created_at,
+    pin: options?.includePin ? (row.sales_pin ?? null) : undefined,
+  }));
 }
 
 export async function verifyErpSalesmanPin(

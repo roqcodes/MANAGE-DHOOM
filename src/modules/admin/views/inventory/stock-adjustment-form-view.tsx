@@ -8,12 +8,14 @@ import { Trash2 } from "lucide-react";
 import type { ErpSalesProductSearchRow } from "@/common/erp/sales-types";
 import { adminPost } from "@/modules/admin/lib/admin-api-client";
 import {
+  validateBeforeFormSave,
+  clearFormSubmitFeedback,
+  formErrorsAdapter,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   ErpDocumentNumberField,
   ProductLiveSearch,
   type ErpFormViewBaseProps,
@@ -75,7 +77,11 @@ export function StockAdjustmentFormView({
   }
 
   function handleSuccessNavigate(id: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
       return;
@@ -98,12 +104,12 @@ export function StockAdjustmentFormView({
   }
 
   function handleSubmit(finalize: boolean) {
-    setError(null);
     const missingCostLine = lines.find(
       (line) => line.direction === "add" && (!line.purchaseCost || line.purchaseCost <= 0),
     );
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "store",
           ok: Boolean(effectiveStoreId),
@@ -122,18 +128,18 @@ export function StockAdjustmentFormView({
             ? `Purchase cost is required when adding stock (${missingCostLine.productName}).`
             : "",
         },
-      ].filter((c) => c.message !== ""),
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+      ],
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    if (submitInFlightRef.current) return;
+if (submitInFlightRef.current) return;
     submitInFlightRef.current = true;
     startTransition(async () => {
       try {

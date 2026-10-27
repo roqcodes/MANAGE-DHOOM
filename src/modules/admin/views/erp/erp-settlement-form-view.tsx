@@ -12,16 +12,19 @@ import { formatDisplayDecimal, parsePaymentAmount } from "@/lib/decimal-precisio
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
+  validateBeforeFormSave,
+  formErrorsAdapter,
+
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
   AdminFormSection,
   AdminFormShell,
-  applyFieldValidation,
   CustomerSearchSelect,
   VendorSearchSelect,
   type ErpFormViewBaseProps,
+  clearFormSubmitFeedback,
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
@@ -199,7 +202,11 @@ export function ErpSettlementFormView({
   }
 
   function handleSuccessNavigate(id?: string) {
-    if (isModal) {
+    clearFormSubmitFeedback({
+      setFormErrors: formErrorsAdapter(setError),
+      clearFieldValidation: fieldValidation.clearFieldValidation,
+    });
+        if (isModal) {
       onOpenChange?.(false);
       onSuccess?.(id);
       return;
@@ -210,8 +217,9 @@ export function ErpSettlementFormView({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const validationMessages = applyFieldValidation(
-      [
+    if (
+      !validateBeforeFormSave(
+        [
         {
           key: "party",
           ok: Boolean(partyId),
@@ -259,17 +267,17 @@ export function ErpSettlementFormView({
             : "Select an expense account for the settlement discount.",
         },
       ],
-      fieldValidation.markFieldValidationFailed,
-      fieldValidation.clearFieldValidation,
-    );
-    if (validationMessages) {
-      setError(
-        validationMessages.length === 1 ? validationMessages[0] : validationMessages,
-      );
+        {
+          markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
+          clearFieldValidation: fieldValidation.clearFieldValidation,
+          setFormErrors: formErrorsAdapter(setError),
+        },
+      )
+    ) {
       return;
     }
 
-    startTransition(async () => {
+startTransition(async () => {
       try {
         const body = isSupplier
           ? {
