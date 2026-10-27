@@ -150,29 +150,74 @@ export async function createBankingAccount(input: {
   });
 }
 
-function recomputeRunningBalances(
-  rows: AccountTransactionRow[],
-  scope: "account" | "store_filter",
-): AccountTransactionRow[] {
-  if (scope !== "store_filter" || rows.length === 0) return rows;
+function compareCashBookChronology(
+  a: { transaction_date: string; created_at?: string | null },
+  b: { transaction_date: string; created_at?: string | null },
+): number {
+  const d = String(a.transaction_date).localeCompare(String(b.transaction_date));
+  if (d !== 0) return d;
+  return String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""));
+}
 
-  const asc = [...rows].sort((a, b) => {
-    const d = String(a.transaction_date).localeCompare(String(b.transaction_date));
-    if (d !== 0) return d;
-    return String(a.created_at ?? "").localeCompare(String(b.created_at ?? ""));
-  });
+/** Store-scoped cash book: running balance from movements in the result set only (starts at 0). */
+function recomputeStoreScopedRunningBalances<
+  T extends {
+    id: string;
+    account_id?: string | null;
+    transaction_date: string;
+    created_at?: string | null;
+    debit_amount: number;
+    credit_amount: number;
+    running_balance: number | null;
+  },
+>(rows: T[], groupByAccount: boolean): T[] {
+  if (rows.length === 0) return rows;
 
-  let running = 0;
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = groupByAccount ? (row.account_id ?? "") : "";
+    const list = groups.get(key) ?? [];
+    list.push(row);
+    groups.set(key, list);
+  }
+
   const balanceById = new Map<string, number>();
-  for (const row of asc) {
-    running += row.debit_amount - row.credit_amount;
-    balanceById.set(row.id, running);
+  for (const list of groups.values()) {
+    const asc = [...list].sort(compareCashBookChronology);
+    let running = 0;
+    for (const row of asc) {
+      running += row.debit_amount - row.credit_amount;
+      balanceById.set(row.id, running);
+    }
   }
 
   return rows.map((row) => ({
     ...row,
     running_balance: balanceById.get(row.id) ?? row.running_balance,
   }));
+}
+
+function endingBalanceAcrossAccounts<
+  T extends {
+    account_id?: string | null;
+    transaction_date: string;
+    created_at?: string | null;
+    running_balance: number | null;
+  },
+>(rows: T[]): number {
+  const lastByAccount = new Map<string, T>();
+  for (const row of rows) {
+    const aid = row.account_id ?? "";
+    const prev = lastByAccount.get(aid);
+    if (!prev || compareCashBookChronology(prev, row) < 0) {
+      lastByAccount.set(aid, row);
+    }
+  }
+  let sum = 0;
+  for (const row of lastByAccount.values()) {
+    sum += row.running_balance ?? 0;
+  }
+  return sum;
 }
 
 export async function listAccountTransactions(
@@ -233,10 +278,9 @@ export async function listAccountTransactions(
     updated_at: row.updated_at,
   }));
 
-  return recomputeRunningBalances(
-    mapped,
-    filterStoreId ? "store_filter" : "account",
-  );
+  return filterStoreId
+    ? recomputeStoreScopedRunningBalances(mapped, false)
+    : mapped;
 }
 
 export async function getAccountStoreBalances(
@@ -377,8 +421,11 @@ export async function listPaymentStatements(filters?: {
     for (const s of stores ?? []) storeNameById.set(s.id, s.name);
   }
 
-  let rows = (data ?? []).map((row) => ({
+  type StmtRow = PaymentStatementRow & { account_id: string | null };
+
+  let rows: StmtRow[] = (data ?? []).map((row) => ({
       id: row.id,
+      account_id: row.account_id,
       transaction_date: row.transaction_date,
       store_name: row.store_id ? (storeNameById.get(row.store_id) ?? null) : null,
       account_name: row.account_id
@@ -394,6 +441,10 @@ export async function listPaymentStatements(filters?: {
       updated_at: row.updated_at,
     }));
 
+  if (activeStoreId) {
+    rows = recomputeStoreScopedRunningBalances(rows, !filters?.accountId);
+  }
+
   if (filters?.search?.trim()) {
     const q = filters.search.trim().toLowerCase();
     rows = rows.filter(
@@ -407,7 +458,6 @@ export async function listPaymentStatements(filters?: {
 
   const debit = rows.reduce((s, r) => s + r.debit_amount, 0);
   const credit = rows.reduce((s, r) => s + r.credit_amount, 0);
-  const lastBalance = rows.length > 0 ? rows[rows.length - 1].running_balance ?? 0 : 0;
 
   let openingBalance = 0;
   if (filters?.accountId) {
@@ -415,10 +465,27 @@ export async function listPaymentStatements(filters?: {
     openingBalance = account?.opening_balance ?? 0;
   }
 
+  let balanceTotal: number;
+  if (activeStoreId && !filters?.accountId) {
+    balanceTotal = endingBalanceAcrossAccounts(rows);
+  } else if (filters?.accountId) {
+    const asc = [...rows].sort(compareCashBookChronology);
+    const last = asc[asc.length - 1];
+    balanceTotal =
+      last?.running_balance ??
+      (activeStoreId ? debit - credit : openingBalance + debit - credit);
+  } else {
+    const asc = [...rows].sort(compareCashBookChronology);
+    const last = asc[asc.length - 1];
+    balanceTotal = Number(last?.running_balance) || openingBalance + debit - credit;
+  }
+
+  const rowsOut: PaymentStatementRow[] = rows.map(({ account_id: _a, ...r }) => r);
+
   return {
-    rows,
+    rows: rowsOut,
     openingBalance,
-    totals: { debit, credit, balance: Number(lastBalance) || openingBalance + debit - credit },
+    totals: { debit, credit, balance: balanceTotal },
   };
 }
 

@@ -156,13 +156,13 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
       reference: (fd.get("reference") as string).trim() || undefined,
       debitAmount:
         txKind === "owner_contribution" ||
-        (txKind === "generic" && fd.get("direction") === "in")
+        (txKind === "generic" && genericDirection === "in")
           ? amount
           : 0,
       creditAmount:
         txKind === "owner_drawing" ||
         txKind === "account_transfer" ||
-        (txKind === "generic" && fd.get("direction") === "out")
+        (txKind === "generic" && genericDirection === "out")
           ? amount
           : 0,
     };
@@ -399,7 +399,9 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
                     </TableCell>
                     <TableCell>
                       <div>
-                        <p className="text-sm font-medium">{formatBankingType(tx.transaction_type)}</p>
+                        <p className="text-sm font-medium">
+                          {formatBankingType(tx.transaction_type, tx)}
+                        </p>
                         <p className="text-xs text-muted-foreground">
                           {tx.reference || tx.details || "—"}
                         </p>

@@ -17,13 +17,13 @@ import type { BankingTxKind } from "@/modules/admin/lib/admin-quick-create-confi
 import {
   AdminFormActions,
   AdminFormColumns,
+  AdminFormField,
+  AdminFormGrid,
   AdminFormModal,
-  AdminFormModalLayout,
-} from "@/modules/admin/ui/admin-form-modal";
-import { AdminFormSection } from "@/modules/admin/ui";
+  AdminFormSection,
+} from "@/modules/admin/ui";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   BalanceBadge,
@@ -74,8 +74,8 @@ const TX_META: Record<
   },
 };
 
-const selectClass =
-  "flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const SELECT_CLS =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs";
 
 export type BankingTransactionFormModalProps = {
   open: boolean;
@@ -143,13 +143,69 @@ export function BankingTransactionFormModal({
   const counterAccounts = allAccounts.filter((a) => a.id !== accountId);
   const formId = `banking-tx-${txKind}`;
 
+  const counterField = txKind === "owner_drawing" ? (
+    <AdminFormField
+      label="Offset account"
+      hint="Leave as default to post against the standard drawings account."
+    >
+      <select
+        id={`${formId}-counter`}
+        name="counterAccountId"
+        className={SELECT_CLS}
+        defaultValue=""
+      >
+        <option value="">Drawings (default)</option>
+        {counterAccounts.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name} ({a.code})
+          </option>
+        ))}
+      </select>
+    </AdminFormField>
+  ) : (
+    <AdminFormField
+      label={
+        txKind === "account_transfer"
+          ? "Transfer to account"
+          : txKind === "owner_contribution"
+            ? "From account"
+            : "Counter account"
+      }
+      required={txKind === "account_transfer"}
+      hint={
+        txKind === "owner_contribution"
+          ? "Usually owner's equity or capital — credited when cash is received."
+          : undefined
+      }
+    >
+      <select
+        id={`${formId}-counter`}
+        name="counterAccountId"
+        className={SELECT_CLS}
+        defaultValue=""
+        required={txKind === "account_transfer"}
+      >
+        <option value="">
+          {txKind === "owner_contribution"
+            ? "Equity / source (optional)"
+            : "Select account"}
+        </option>
+        {counterAccounts.map((a) => (
+          <option key={a.id} value={a.id}>
+            {a.name} ({a.code})
+          </option>
+        ))}
+      </select>
+    </AdminFormField>
+  );
+
   return (
     <AdminFormModal
       open={open}
       onOpenChange={onOpenChange}
       title={meta.title}
       description={meta.description}
-      size="md"
+      size="landscape"
       formId={formId}
       footer={
         <AdminFormActions
@@ -162,49 +218,48 @@ export function BankingTransactionFormModal({
       }
     >
       <form id={formId} onSubmit={onSubmit} key={`${txKind}-${genericDirection}-${open}`}>
-        <AdminFormModalLayout
-          sidebar={
-            <div className="space-y-3 rounded-lg border border-dashed border-border bg-muted/30 p-4">
-              <div className="flex items-start gap-3">
-                <span className={bankingTxModalAccentClass(meta.accent)}>
-                  <Icon className="size-4" aria-hidden />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {account.code}
-                  </p>
-                  <p className="truncate text-sm font-semibold">{account.name}</p>
-                </div>
-              </div>
-              <div className="space-y-1 border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">Current balance</p>
-                <BalanceBadge amount={account.current_balance} />
-              </div>
-              {amountPreview > 0 ? (
-                <div className="space-y-1 border-t border-border pt-3">
-                  <p className="text-xs text-muted-foreground">
-                    {moneyIn ? "After deposit" : "After withdrawal"}
-                  </p>
-                  <p className="text-sm font-semibold tabular-nums">
-                    {formatCurrencyAmount(projectedBalance)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {moneyIn ? "+" : "−"}
-                    {formatCurrencyAmount(amountPreview)} on this account
-                  </p>
-                </div>
-              ) : null}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className={bankingTxModalAccentClass(meta.accent)}>
+              <Icon className="size-4" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {account.code}
+              </p>
+              <p className="truncate text-sm font-semibold">{account.name}</p>
             </div>
-          }
-        >
-          <AdminFormSection title="Details" description="Where and when this movement applies.">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor={`${formId}-store`}>Store *</Label>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-6 text-right">
+            <div>
+              <p className="text-xs text-muted-foreground">Current balance</p>
+              <BalanceBadge amount={account.current_balance} />
+            </div>
+            {amountPreview > 0 ? (
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {moneyIn ? "After deposit" : "After withdrawal"}
+                </p>
+                <p className="text-sm font-semibold tabular-nums">
+                  {formatCurrencyAmount(projectedBalance)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {moneyIn ? "+" : "−"}
+                  {formatCurrencyAmount(amountPreview)}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <AdminFormSection title="Transaction">
+          <AdminFormColumns cols={2}>
+            <AdminFormGrid cols={2}>
+              <AdminFormField label="Store" required className="sm:col-span-2">
                 <select
                   id={`${formId}-store`}
                   name="storeId"
-                  className={selectClass}
+                  className={SELECT_CLS}
                   required
                   defaultValue={defaultStoreId}
                 >
@@ -215,98 +270,37 @@ export function BankingTransactionFormModal({
                     </option>
                   ))}
                 </select>
-              </div>
-
-              {txKind === "owner_drawing" ? (
-                <div className="space-y-2">
-                  <Label htmlFor={`${formId}-counter`}>Offset account</Label>
-                  <select
-                    id={`${formId}-counter`}
-                    name="counterAccountId"
-                    className={selectClass}
-                    defaultValue=""
-                  >
-                    <option value="">Drawings (default)</option>
-                    {counterAccounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.code})
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">
-                    Leave as default to post against the standard drawings account.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor={`${formId}-counter`}>
-                    {txKind === "account_transfer"
-                      ? "Transfer to account *"
-                      : txKind === "owner_contribution"
-                        ? "From account"
-                        : "Counter account"}
-                  </Label>
-                  <select
-                    id={`${formId}-counter`}
-                    name="counterAccountId"
-                    className={selectClass}
-                    defaultValue=""
-                    required={txKind === "account_transfer"}
-                  >
-                    <option value="">
-                      {txKind === "owner_contribution"
-                        ? "Equity / source (optional)"
-                        : "Select account"}
-                    </option>
-                    {counterAccounts.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name} ({a.code})
-                      </option>
-                    ))}
-                  </select>
-                  {txKind === "owner_contribution" ? (
-                    <p className="text-xs text-muted-foreground">
-                      Usually owner&apos;s equity or capital — credited when cash is received.
-                    </p>
-                  ) : null}
-                </div>
-              )}
-
-              <AdminFormColumns>
-                <div className="space-y-2">
-                  <Label htmlFor={`${formId}-date`}>Date *</Label>
-                  <Input
-                    id={`${formId}-date`}
-                    name="transactionDate"
-                    type="date"
-                    defaultValue={new Date().toISOString().slice(0, 10)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`${formId}-amount`}>Amount *</Label>
-                  <Input
-                    id={`${formId}-amount`}
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    placeholder="0.00"
-                    required
-                    onChange={(e) =>
-                      setAmountPreview(Math.max(0, parseFloat(e.target.value) || 0))
-                    }
-                  />
-                </div>
-              </AdminFormColumns>
-
+              </AdminFormField>
+              {counterField}
+              <AdminFormField label="Date" required>
+                <Input
+                  id={`${formId}-date`}
+                  name="transactionDate"
+                  type="date"
+                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  required
+                />
+              </AdminFormField>
+              <AdminFormField label="Amount" required>
+                <Input
+                  id={`${formId}-amount`}
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  placeholder="0.00"
+                  required
+                  onChange={(e) =>
+                    setAmountPreview(Math.max(0, parseFloat(e.target.value) || 0))
+                  }
+                />
+              </AdminFormField>
               {txKind === "generic" ? (
-                <div className="space-y-2">
-                  <Label htmlFor={`${formId}-direction`}>Direction</Label>
+                <AdminFormField label="Direction" className="sm:col-span-2">
                   <select
                     id={`${formId}-direction`}
                     name="direction"
-                    className={selectClass}
+                    className={SELECT_CLS}
                     value={genericDirection}
                     onChange={(e) =>
                       onGenericDirectionChange(e.target.value as "in" | "out")
@@ -315,24 +309,19 @@ export function BankingTransactionFormModal({
                     <option value="in">Money in (deposit)</option>
                     <option value="out">Money out (withdrawal)</option>
                   </select>
-                </div>
+                </AdminFormField>
               ) : null}
-            </div>
-          </AdminFormSection>
+            </AdminFormGrid>
 
-          <AdminFormSection
-            title="Payment & notes"
-            description="Optional reference and narrative for your cash book."
-          >
-            <AdminFormColumns>
-              <div className="space-y-2">
-                <Label htmlFor={`${formId}-payment`}>
-                  {moneyIn ? "Received via" : "Paid via"}
-                </Label>
+            <AdminFormGrid cols={2}>
+              <AdminFormField
+                label={moneyIn ? "Received via" : "Paid via"}
+                className="sm:col-span-2"
+              >
                 <select
                   id={`${formId}-payment`}
                   name="paymentType"
-                  className={selectClass}
+                  className={SELECT_CLS}
                   defaultValue="Cash"
                 >
                   {PAYMENT_MODE_OPTIONS.map((mode) => (
@@ -341,27 +330,26 @@ export function BankingTransactionFormModal({
                     </option>
                   ))}
                 </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor={`${formId}-reference`}>Reference #</Label>
+              </AdminFormField>
+              <AdminFormField label="Reference #" optional className="sm:col-span-2">
                 <Input
                   id={`${formId}-reference`}
                   name="reference"
                   placeholder="Cheque / UTR / receipt no."
                 />
-              </div>
-            </AdminFormColumns>
-            <div className="mt-4 space-y-2">
-              <Label htmlFor={`${formId}-description`}>Description</Label>
-              <Textarea
-                id={`${formId}-description`}
-                name="description"
-                rows={3}
-                placeholder="Short note for auditors and your team"
-              />
-            </div>
-          </AdminFormSection>
-        </AdminFormModalLayout>
+              </AdminFormField>
+              <AdminFormField label="Description" optional className="sm:col-span-2">
+                <Textarea
+                  id={`${formId}-description`}
+                  name="description"
+                  rows={3}
+                  placeholder="Short note for auditors and your team"
+                  className="min-h-[5rem] resize-y"
+                />
+              </AdminFormField>
+            </AdminFormGrid>
+          </AdminFormColumns>
+        </AdminFormSection>
       </form>
     </AdminFormModal>
   );

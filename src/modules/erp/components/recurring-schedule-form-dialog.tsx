@@ -5,21 +5,15 @@ import { useEffect, useState, useTransition } from "react";
 import type { RecurringScheduleRow } from "@/common/erp/types";
 import { adminPatch, adminPost } from "@/modules/admin/lib/admin-api-client";
 import {
+  AdminFormActions,
+  AdminFormColumns,
   AdminFormField,
   AdminFormGrid,
+  AdminFormModal,
   AdminFormSection,
   CustomerSearchSelect,
   VendorSearchSelect,
 } from "@/modules/admin/ui";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ProductLiveSearch, type ProductLiveSearchRow } from "@/modules/admin/ui";
@@ -34,6 +28,9 @@ const FREQUENCY_OPTIONS: { value: RecurringScheduleRow["frequency"]; label: stri
   { value: "quarterly", label: "Quarterly" },
   { value: "yearly", label: "Yearly" },
 ];
+
+const SELECT_CLS =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm shadow-xs";
 
 function lineFromSchedule(schedule: RecurringScheduleRow) {
   const lines =
@@ -83,6 +80,8 @@ export function RecurringScheduleFormDialog({
   const [notes, setNotes] = useState("");
   const [salesmanPin, setSalesmanPin] = useState("");
   const [salesPersonId, setSalesPersonId] = useState<string | null>(null);
+
+  const formId = "recurring-schedule-form";
 
   useEffect(() => {
     if (!open) return;
@@ -222,20 +221,28 @@ export function RecurringScheduleFormDialog({
       : "Set up a repeating vendor purchase bill. Run it manually anytime from the list.";
 
   return (
-    <Dialog
+    <AdminFormModal
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
         if (!next) resetForm();
       }}
+      title={dialogTitle}
+      description={dialogDescription}
+      size="landscape"
+      formId={formId}
+      footer={
+        <AdminFormActions
+          formId={formId}
+          onCancel={() => onOpenChange(false)}
+          submitLabel={isEdit ? "Save changes" : "Create schedule"}
+          pending={pending}
+          errors={error}
+        />
+      }
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{dialogTitle}</DialogTitle>
-          <DialogDescription>{dialogDescription}</DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+      <form id={formId} onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
+        <AdminFormColumns cols={2} columnRatio="1:1">
           <AdminFormSection title="Schedule">
             <AdminFormGrid cols={2}>
               <AdminFormField label="Schedule name" required className="sm:col-span-2">
@@ -253,7 +260,7 @@ export function RecurringScheduleFormDialog({
               {!lockScheduleType ? (
                 <AdminFormField label="Document type" required>
                   <select
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    className={SELECT_CLS}
                     value={scheduleType}
                     onChange={(e) =>
                       setScheduleType(e.target.value as "invoice" | "purchase_bill")
@@ -270,7 +277,7 @@ export function RecurringScheduleFormDialog({
                 className={lockScheduleType ? "sm:col-span-2" : undefined}
               >
                 <select
-                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  className={SELECT_CLS}
                   value={frequency}
                   onChange={(e) =>
                     setFrequency(e.target.value as RecurringScheduleRow["frequency"])
@@ -333,10 +340,10 @@ export function RecurringScheduleFormDialog({
             <AdminFormGrid cols={2}>
               {scheduleType === "purchase_bill" ? (
                 <AdminFormField
-                  label="Link product (optional)"
+                  label="Link product"
                   optional
                   className="sm:col-span-2"
-                  hint="For rent, fees, or subscriptions leave blank — the bill will post without stock. Link a product only when each run should increase inventory."
+                  hint="For rent or subscriptions leave blank. Link a product only when each run should increase inventory."
                 >
                   <ProductLiveSearch
                     catalog="purchase"
@@ -388,7 +395,7 @@ export function RecurringScheduleFormDialog({
                   required
                 />
               </AdminFormField>
-              <AdminFormField label="Tax %">
+              <AdminFormField label="Tax %" optional>
                 <Input
                   type="number"
                   min="0"
@@ -397,30 +404,24 @@ export function RecurringScheduleFormDialog({
                   onChange={(e) => setTaxPercent(e.target.value)}
                 />
               </AdminFormField>
-              <AdminFormField label="Notes" className="sm:col-span-2">
-                <Textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
-                  placeholder="Optional notes on generated documents"
-                />
-              </AdminFormField>
             </AdminFormGrid>
           </AdminFormSection>
+        </AdminFormColumns>
 
-          <ErrorsFeedbackBridge errors={error} />
+        <AdminFormSection title="Notes">
+          <AdminFormField label="Document notes" optional>
+            <Textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={2}
+              placeholder="Optional notes on generated documents"
+              className="min-h-[4rem] resize-y"
+            />
+          </AdminFormField>
+        </AdminFormSection>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Saving…" : isEdit ? "Save changes" : "Create schedule"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        <ErrorsFeedbackBridge errors={error} />
+      </form>
+    </AdminFormModal>
   );
 }
-

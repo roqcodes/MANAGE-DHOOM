@@ -4,7 +4,16 @@ import { BANKING_TRANSACTION_TYPES } from "@/common/erp/finance-types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export function formatBankingType(type: string) {
+export function formatBankingType(
+  type: string,
+  amounts?: { debit_amount?: number; credit_amount?: number },
+) {
+  if (type === "generic" && amounts) {
+    const credit = Number(amounts.credit_amount ?? 0);
+    const debit = Number(amounts.debit_amount ?? 0);
+    if (credit > 0 && debit <= 0) return "Other payment";
+    if (debit > 0) return "Other income";
+  }
   return (
     BANKING_TRANSACTION_TYPES[type as keyof typeof BANKING_TRANSACTION_TYPES] ??
     type.replace(/_/g, " ")

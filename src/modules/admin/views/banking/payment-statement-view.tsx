@@ -227,7 +227,9 @@ export function PaymentStatementView() {
                 </TableCell>
                 <TableCell className="text-sm">{row.store_name ?? "—"}</TableCell>
                 <TableCell className="text-sm font-medium">{row.account_name}</TableCell>
-                <TableCell className="text-sm">{formatBankingType(row.transaction_type)}</TableCell>
+                <TableCell className="text-sm">
+                  {formatBankingType(row.transaction_type, row)}
+                </TableCell>
                 <TableCell className="hidden max-w-[200px] truncate text-sm text-muted-foreground lg:table-cell">
                   {row.details || "—"}
                 </TableCell>
