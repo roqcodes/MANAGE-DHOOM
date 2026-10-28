@@ -85,7 +85,7 @@ export function MinusStockDetailModal({ row, storeId, onClose }: Props) {
   });
 
   const title = row?.product_name ? String(row.product_name) : "Minus stock detail";
-  const codeLabel = formatReportProductCode(row?.product_code, row);
+  const codeLabel = formatReportProductCode(row?.product_code, row ?? undefined);
   const subtitleParts = [codeLabel, row?.store_name].filter(Boolean).join(" · ");
   const preview = row ? previewDetailFromRow(row, storeId) : null;
   const detail =

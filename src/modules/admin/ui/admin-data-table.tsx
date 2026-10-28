@@ -46,17 +46,21 @@ export function AdminTableRow({
   className,
   onClick,
   onMouseEnter,
+  onFocus,
 }: {
   children: ReactNode;
   className?: string;
   onClick?: () => void;
   onMouseEnter?: () => void;
+  onFocus?: () => void;
 }) {
   return (
     <TableRow
       className={cn(onClick && "cursor-pointer", "hover:bg-muted/30", className)}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
+      onFocus={onFocus}
+      tabIndex={onClick || onFocus ? 0 : undefined}
     >
       {children}
     </TableRow>

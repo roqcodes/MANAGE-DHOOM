@@ -35,7 +35,7 @@ export type ReportColumn = {
   key: string;
   label: string;
   align?: "left" | "right";
-  format?: "currency" | "number" | "date" | "text";
+  format?: "currency" | "number" | "date" | "text" | "percent";
 };
 
 export type ReportDefinition = {

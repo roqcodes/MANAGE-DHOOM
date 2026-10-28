@@ -10,6 +10,12 @@ export function normalizeReportUuid(value?: string | null): string | null {
 
 type Supabase = Awaited<ReturnType<typeof createSupabaseServerClient>>;
 
+function rpcClient(supabase: Supabase) {
+  return supabase as unknown as {
+    rpc: (fn: string, args: Record<string, unknown>) => ReturnType<typeof supabase.rpc>;
+  };
+}
+
 function asJsonRows(data: unknown): Record<string, unknown>[] {
   if (data == null) return [];
   if (Array.isArray(data)) return data as Record<string, unknown>[];
@@ -170,7 +176,7 @@ async function buildBrandCategoryMix(
       .select("id, name, logo_url, image_url")
       .in("id", brandIds.slice(0, 200));
     for (const b of data ?? []) {
-      brandMeta.set(b.id, { name: b.name, image_url: b.logo_url ?? b.image_url ?? null });
+      brandMeta.set(b.id, { name: b.name ?? "Brand", image_url: b.logo_url ?? b.image_url ?? null });
     }
   }
 
@@ -182,7 +188,7 @@ async function buildBrandCategoryMix(
       .in("id", categoryIds.slice(0, 200));
     for (const c of data ?? []) {
       categoryMeta.set(c.id, {
-        name: c.name,
+        name: c.name ?? "Category",
         image_url: c.thumbnail_url ?? c.image_url ?? null,
       });
     }
@@ -258,30 +264,30 @@ async function loadCompositePerformanceDashboard(
     vendBalRes,
     purchasesRes,
   ] = await Promise.all([
-    supabase.rpc("get_erp_sales_by_item", rpcBase),
-    supabase.rpc("get_erp_sales_by_salesman", rpcBase),
-    supabase.rpc("get_erp_sales_by_customer", rpcBase),
-    supabase.rpc("get_erp_daily_collection_report", {
+    rpcClient(supabase).rpc("get_erp_sales_by_item", rpcBase),
+    rpcClient(supabase).rpc("get_erp_sales_by_salesman", rpcBase),
+    rpcClient(supabase).rpc("get_erp_sales_by_customer", rpcBase),
+    rpcClient(supabase).rpc("get_erp_daily_collection_report", {
       p_date_from: params.from,
       p_date_to: params.to,
       p_store_id: params.storeId,
     }),
-    supabase.rpc("get_erp_payments_received_report", {
+    rpcClient(supabase).rpc("get_erp_payments_received_report", {
       p_date_from: params.from,
       p_date_to: params.to,
       p_store_id: params.storeId,
       p_salesman_id: params.salesmanId,
     }),
-    supabase.rpc("get_erp_customer_balance_report", {
+    rpcClient(supabase).rpc("get_erp_customer_balance_report", {
       p_store_id: params.storeId,
       p_search: null,
       p_salesman_id: params.salesmanId,
     }),
-    supabase.rpc("get_erp_vendor_balance_report", {
+    rpcClient(supabase).rpc("get_erp_vendor_balance_report", {
       p_store_id: params.storeId,
       p_search: null,
     }),
-    supabase.rpc("get_erp_purchase_by_vendor_report", {
+    rpcClient(supabase).rpc("get_erp_purchase_by_vendor_report", {
       p_date_from: params.from,
       p_date_to: params.to,
       p_store_id: params.storeId,
@@ -504,7 +510,7 @@ export async function loadPerformanceDashboard(
   const limit = params.limit ?? 8;
   const days = periodDaysInclusive(params.from, params.to);
 
-  const mono = await supabase.rpc("get_erp_performance_dashboard", {
+  const mono = await rpcClient(supabase).rpc("get_erp_performance_dashboard", {
     p_date_from: params.from,
     p_date_to: params.to,
     p_store_id: params.storeId,

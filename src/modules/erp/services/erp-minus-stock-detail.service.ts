@@ -17,7 +17,11 @@ export async function getMinusStockDetail(
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("get_erp_minus_stock_detail", {
+  const { data, error } = await (
+    supabase as unknown as {
+      rpc: (fn: string, args: Record<string, unknown>) => ReturnType<typeof supabase.rpc>;
+    }
+  ).rpc("get_erp_minus_stock_detail", {
     p_store_id: activeStoreId,
     p_product_id: trimmedProduct,
   });

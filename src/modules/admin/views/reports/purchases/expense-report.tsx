@@ -508,7 +508,7 @@ function HierarchicalCategoryTable({
   return (
     <AdminDataTable>
       <AdminTableHeader>
-        <AdminTableCell className="w-8 p-2" />
+        <AdminTableCell className="w-8 p-2">{" "}</AdminTableCell>
         {CATEGORY_COLUMNS.map((col) => (
           <AdminTableCell
             key={col.key}
