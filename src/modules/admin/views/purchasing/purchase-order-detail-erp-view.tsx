@@ -9,7 +9,9 @@ import type { ErpPurchaseOrderDetail } from "@/common/erp/purchasing-types";
 import { matchPoLineToBillLine } from "@/common/erp/match-po-bill-line";
 import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
-import { dispatchOutboxChanged } from "@/lib/sync/outbox-browser-events";
+import { dispatchOutboxChanged, OUTBOX_CHANGED_EVENT } from "@/lib/sync/outbox-browser-events";
+import { useOutboxQueueActivity } from "@/lib/sync/hooks/use-outbox-queue-activity";
+import { pendingPurchaseOrderOutboxActivity } from "@/lib/sync/purchase-order-outbox-pending";
 import { OutboxEnqueueError } from "@/lib/sync/outbox-errors";
 import { createOutboxStore } from "@/lib/sync/outbox-store";
 import { getOrCreateErpTerminalId } from "@/lib/sync/erp-terminal-id";
@@ -137,6 +139,11 @@ function buildTimeline(po: ErpPurchaseOrderDetail) {
 export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
   const { confirm } = useAdminAlert();
   const [pending, startTransition] = useTransition();
+  const { operations: outboxOperations } = useOutboxQueueActivity();
+  const outboxPending = useMemo(
+    () => pendingPurchaseOrderOutboxActivity(outboxOperations, poId),
+    [outboxOperations, poId],
+  );
   const [po, setPo] = useState<ErpPurchaseOrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
@@ -169,6 +176,14 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     reload()
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
+  }, [poId]);
+
+  useEffect(() => {
+    const onOutboxChange = () => {
+      void reload().catch(() => undefined);
+    };
+    window.addEventListener(OUTBOX_CHANGED_EVENT, onOutboxChange);
+    return () => window.removeEventListener(OUTBOX_CHANGED_EVENT, onOutboxChange);
   }, [poId]);
 
   const previewDiscrepancies = useMemo(() => {
@@ -219,7 +234,8 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     !hasOpenDraftBill &&
     po.status !== "cancelled" &&
     po.purchase_order_items.length > 0 &&
-    (!po.linked_bill || hasRemainingToReceive);
+    (!po.linked_bill || hasRemainingToReceive) &&
+    !outboxPending.draftBillPending;
 
   async function handleCancel() {
     const ok = await confirm({
@@ -241,6 +257,16 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
 
   async function submitDelivery() {
     if (!po || !po.delivery.canSubmitDelivery) return;
+    if (outboxPending.draftBillPending) {
+      setError(
+        "Draft invoice is still syncing. Wait for sync to finish (see activity queue), then submit delivery.",
+      );
+      return;
+    }
+    if (outboxPending.deliveryPending) {
+      setError("Delivery submission is already queued or syncing.");
+      return;
+    }
     const ok = await confirm({
       title: "Submit delivery?",
       message:
@@ -374,6 +400,20 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
 
       <ErrorsFeedbackBridge errors={error} />
 
+      {outboxPending.draftBillPending ||
+      outboxPending.deliveryPending ||
+      outboxPending.poUpdatePending ? (
+        <Card className="border-sky-200 bg-sky-50">
+          <CardContent className="py-3 text-sm text-sky-900">
+            {outboxPending.draftBillPending
+              ? "Draft purchase invoice is syncing to the server. This page will update when it completes."
+              : outboxPending.deliveryPending
+                ? "Delivery and finalize is syncing. Stock and accounting will post when sync completes."
+                : "Purchase order changes are syncing."}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {po.status === "delivered" && !po.delivery.deliverySubmitted ? (
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="py-3 text-sm text-amber-900">
@@ -504,7 +544,14 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
                 </tbody>
               </table>
             </div>
-            <Button disabled={pending} onClick={submitDelivery}>
+            <Button
+              disabled={
+                pending ||
+                outboxPending.draftBillPending ||
+                outboxPending.deliveryPending
+              }
+              onClick={submitDelivery}
+            >
               {pending ? "Submitting…" : "Submit deliver & finalize invoice"}
             </Button>
           </CardContent>

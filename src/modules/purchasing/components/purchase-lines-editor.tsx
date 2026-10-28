@@ -214,12 +214,12 @@ export function PurchaseLinesEditor({
           <TableHeader>
             <TableRow>
               {showSerial ? <TableHead className="w-10">Sl#</TableHead> : null}
-              <TableHead>Item name</TableHead>
-              <TableHead>Qty</TableHead>
-              <TableHead>Rate</TableHead>
-              <TableHead>Tax %</TableHead>
-              {showExpiry ? <TableHead>Expiry</TableHead> : null}
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead className="w-[38%] min-w-[14rem]">Item name</TableHead>
+              <TableHead className="w-20">Qty</TableHead>
+              <TableHead className="w-28">Rate</TableHead>
+              <TableHead className="w-20">Tax %</TableHead>
+              {showExpiry ? <TableHead className="w-32">Expiry</TableHead> : null}
+              <TableHead className="w-28 text-right">Amount</TableHead>
               <TableHead className="w-[88px]">Details</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -245,8 +245,9 @@ export function PurchaseLinesEditor({
                     {showSerial ? (
                       <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
                     ) : null}
-                    <TableCell className="min-w-[200px]">
+                    <TableCell className="min-w-0">
                       <Input
+                        className="w-full min-w-0"
                         value={line.productName}
                         onChange={(e) => updateLine(index, { productName: e.target.value })}
                         placeholder="Product name"

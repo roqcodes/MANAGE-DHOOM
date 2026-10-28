@@ -45,7 +45,7 @@ export const purchaseOrderUpdatePayloadSchema = purchaseOrderCreatePayloadSchema
 
 export const purchaseOrderDeliverLineSchema = z.object({
   poLineId: z.string().uuid(),
-  deliveredQty: z.number(),
+  deliveredQty: z.number().min(0),
 });
 
 export const purchaseOrderDeliverFinalizePayloadSchema = z.object({

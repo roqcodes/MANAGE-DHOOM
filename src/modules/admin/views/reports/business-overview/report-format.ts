@@ -70,17 +70,41 @@ export function formatExpiredDaysRange(expiredMinDays?: number, expiredMaxDays?:
   return `≤ ${expiredMaxDays} days${suffix}`;
 }
 
+export function formatDaysUntilExpiryRange(minDays?: number, maxDays?: number) {
+  if (minDays == null && maxDays == null) return "";
+  const suffix = " until expiry";
+  if (minDays != null && maxDays != null) {
+    if (minDays === maxDays) {
+      return `${minDays} day${minDays === 1 ? "" : "s"}${suffix}`;
+    }
+    return `${minDays}–${maxDays} days${suffix}`;
+  }
+  if (minDays != null) return `≥ ${minDays} days${suffix}`;
+  return `≤ ${maxDays} days${suffix}`;
+}
+
 export function formatDeadStockReportSubtitle(filters: {
   asOf: string;
   ageMinDays?: number;
   ageMaxDays?: number;
   expiredFilterDescription?: string;
+  expiryView?: "expired" | "near_expiry";
+  expiryWindowDays?: number;
 }) {
   const parts = [`As of ${formatReportAsOf(filters.asOf)}`];
-  const range =
-    filters.expiredFilterDescription?.trim() ||
-    formatExpiredDaysRange(filters.ageMinDays, filters.ageMaxDays);
-  if (range) parts.push(range);
+  if (filters.expiryView === "near_expiry") {
+    const window = filters.expiryWindowDays ?? 30;
+    parts.push(`Expiring within ${window} days`);
+    const until =
+      filters.expiredFilterDescription?.trim() ||
+      formatDaysUntilExpiryRange(filters.ageMinDays, filters.ageMaxDays);
+    if (until) parts.push(until);
+  } else {
+    const range =
+      filters.expiredFilterDescription?.trim() ||
+      formatExpiredDaysRange(filters.ageMinDays, filters.ageMaxDays);
+    if (range) parts.push(range);
+  }
   return parts.join(" · ");
 }
 
@@ -223,6 +247,26 @@ export function groupRowsByTypeName(rows: TrialBalanceRow[]) {
     groups.set(key, list);
   }
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+}
+
+const UUID_LIKE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Catalog-style code for inventory reports (avoid full product UUIDs in grids). */
+export function formatReportProductCode(
+  value: unknown,
+  row?: { product_id?: unknown; product_barcode?: unknown },
+) {
+  const raw = value == null || value === "" ? "" : String(value).trim();
+  if (raw && !UUID_LIKE.test(raw)) return raw;
+  const barcode = row?.product_barcode ? String(row.product_barcode).trim() : "";
+  if (barcode) return barcode;
+  const productId = row?.product_id ? String(row.product_id) : raw;
+  if (productId && UUID_LIKE.test(productId)) {
+    return `PRD-${productId.slice(0, 8).toUpperCase()}`;
+  }
+  if (raw) return raw;
+  return "—";
 }
 
 export function matchesReportSearch(row: Record<string, unknown>, query: string) {

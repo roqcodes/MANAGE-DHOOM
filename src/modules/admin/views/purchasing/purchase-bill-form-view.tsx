@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import type {
@@ -36,6 +36,7 @@ import { resolveOutboxUserId } from "@/lib/sync/resolve-outbox-user-id.client";
 import { notifyErpLocalFormSaved } from "@/modules/erp/lib/erp-form-save-feedback.client";
 import {
   purchaseBillResourceScope,
+  purchaseOrderResourceScope,
   type PurchaseBillCreatePayload,
   type PurchaseBillUpdatePayload,
 } from "@/modules/erp/types/purchase-payload";
@@ -183,6 +184,7 @@ export function PurchaseBillFormView({
   onSuccess,
 }: PurchaseBillFormViewProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const formId = useId();
   const { stores, activeStoreId, storeId, setStoreId, effectiveStoreId, storeRequiredMessage } =
@@ -378,7 +380,8 @@ export function PurchaseBillFormView({
     [lines, landedCosts, landedAllocationMethod],
   );
 
-  const saveDraftDisabled = pending;
+  const saveDraftDisabled =
+    pending || (Boolean(poId) && landedCosts.length > 0 && !landedAllocationBalanced);
   const finalizeDisabled = pending || !landedAllocationBalanced;
 
   function handleCancel() {
@@ -411,6 +414,16 @@ export function PurchaseBillFormView({
     setError(null);
   }
 
+  function closePoLinkedInvoiceModal() {
+    onOpenChange?.(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("form");
+    params.delete("id");
+    params.delete("poId");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
+
   function handleSuccessNavigate(id?: string) {
     clearFormSubmitFeedback({
       setFormErrors: formErrorsAdapter(setError),
@@ -419,10 +432,11 @@ export function PurchaseBillFormView({
         onSuccess?.(id);
     if (mode === "create") {
       if (isModal) {
-        resetCreateForm();
         if (poIdParam) {
-          setPoPrefillToken((t) => t + 1);
+          closePoLinkedInvoiceModal();
+          return;
         }
+        resetCreateForm();
         return;
       }
       if (poIdParam) {
@@ -452,9 +466,12 @@ export function PurchaseBillFormView({
         [
         {
           key: "landedCosts",
-          ok: !shouldFinalize || landedAllocationBalanced,
-          message:
-            "Landed cost allocation must match the landed cost total before finalizing this invoice.",
+          ok: shouldFinalize
+            ? landedAllocationBalanced
+            : landedAllocationBalanced || !poId,
+          message: poId
+            ? "Landed cost allocation must match the landed cost total before saving this PO invoice."
+            : "Landed cost allocation must match the landed cost total before finalizing this invoice.",
         },
         { key: "vendor", ok: Boolean(vendorId), message: "Vendor is required." },
         {
@@ -538,13 +555,17 @@ const payload = {
               });
             }
           } else {
+            const createPayload = payload as PurchaseBillCreatePayload;
             await store.enqueue({
               operationType: ERP_CLIENT_OPERATION_TYPES.purchaseBill.create,
               schemaVersion: 1,
-              payload: payload as PurchaseBillCreatePayload,
+              payload: createPayload,
               userId: staffUserId,
               storeId: effectiveStoreId,
               terminalId: getOrCreateErpTerminalId(),
+              resourceScope: createPayload.poId
+                ? purchaseOrderResourceScope(createPayload.poId)
+                : undefined,
             });
           }
         } catch (enqueueErr) {
@@ -739,6 +760,9 @@ const payload = {
                   value={poId ?? ""}
                   onChange={(e) => setPoId(e.target.value || null)}
                   placeholder="PO id (optional)"
+                  readOnly={Boolean(poIdParam)}
+                  disabled={Boolean(poIdParam)}
+                  className={poIdParam ? "bg-muted" : undefined}
                 />
               </AdminFormField>
               <AdminFormField label="Reference">

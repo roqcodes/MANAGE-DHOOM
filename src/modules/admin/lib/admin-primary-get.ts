@@ -29,6 +29,7 @@ export function isAdminPrimaryGetPath(pathAndQuery: string): boolean {
     const qs = full.includes("?") ? full.slice(full.indexOf("?") + 1) : "";
     if (/(?:^|&)section=extended(?:&|$)/.test(qs)) return false;
   }
+  if (base === "erp/minus-stock-detail") return false;
   return true;
 }
 

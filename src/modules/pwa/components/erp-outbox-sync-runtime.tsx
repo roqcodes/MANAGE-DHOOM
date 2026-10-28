@@ -10,6 +10,7 @@ import { invalidateAdminErpGetQueries } from "@/modules/admin/lib/invalidate-adm
 import type { SalesOrderCancelPayload } from "@/modules/orders/types/sales-order-cancel-payload";
 import type { SalesOrderUpdatePayload } from "@/modules/orders/types/sales-order-update-payload";
 import { OperationHandlerRegistry } from "@/lib/sync/operation-handler";
+import type { OutboxOperationRecord } from "@/lib/sync/outbox-types";
 import { OutboxSyncRuntime } from "@/lib/sync/outbox-sync-runtime";
 import { registerErpSyncHandlers } from "@/lib/sync/handlers/register-erp-sync-handlers";
 import { resolveOutboxUserId } from "@/lib/sync/resolve-outbox-user-id.client";
@@ -30,7 +31,7 @@ export function ErpOutboxSyncRuntime() {
   const handlers = useMemo(() => createErpHandlerRegistry(), []);
 
   const onOperationCommitted = useCallback(
-    (operation: { operationType: string; payload?: unknown }) => {
+    (operation: OutboxOperationRecord) => {
       if (
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.salesOrder.create ||
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.salesOrder.update ||
@@ -84,6 +85,19 @@ export function ErpOutboxSyncRuntime() {
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.purchaseBill.cancel
       ) {
         void invalidateAdminErpGetQueries(queryClient, "erp/purchase-bills");
+        const poId = (operation.payload as { poId?: string } | undefined)?.poId;
+        if (poId) {
+          void queryClient.invalidateQueries({ queryKey: ["admin", "purchase-orders"] });
+          void invalidateAdminErpGetQueries(queryClient, `erp/purchase-orders/${poId}`);
+        }
+      }
+      if (operation.operationType === ERP_CLIENT_OPERATION_TYPES.purchaseOrder.create) {
+        const poId = (
+          operation.serverResult as { poId?: string } | undefined
+        )?.poId;
+        if (poId) {
+          void invalidateAdminErpGetQueries(queryClient, `erp/purchase-orders/${poId}`);
+        }
       }
       if (
         operation.operationType === ERP_CLIENT_OPERATION_TYPES.salesOrder.update ||

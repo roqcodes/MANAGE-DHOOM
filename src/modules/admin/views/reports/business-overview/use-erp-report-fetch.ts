@@ -59,6 +59,8 @@ export function useErpReportFetch(
       params.ageMinDays,
       params.ageMaxDays,
       params.salesmanId,
+      params.expiryView,
+      params.expiryWindowDays,
     ],
   );
 

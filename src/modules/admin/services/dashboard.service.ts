@@ -252,11 +252,29 @@ export async function getAdminDashboardPayload(
     : Promise.resolve({ data: [] });
 
   const extendedPromise = wantExtended
-    ? Promise.all([
-        getStoreFinancialDashboard(activeStoreId, periodFrom, periodTo),
-        listAuditLogs({ storeId: activeStoreId, limit: 15, skipCount: true }),
-        buildStorePlSeries(activeStoreId, periodFrom, periodTo, granularity),
-      ]).catch(() => null)
+    ? (async () => {
+        const [financialResult, activityResult, seriesResult] = await Promise.allSettled([
+          getStoreFinancialDashboard(activeStoreId, periodFrom, periodTo),
+          listAuditLogs({ storeId: activeStoreId, limit: 15, skipCount: true }),
+          buildStorePlSeries(activeStoreId, periodFrom, periodTo, granularity),
+        ]);
+        if (activityResult.status === "rejected") {
+          console.error("dashboard activity logs failed:", activityResult.reason);
+        }
+        if (financialResult.status === "rejected") {
+          console.error("dashboard financial snapshot failed:", financialResult.reason);
+        }
+        if (seriesResult.status === "rejected") {
+          console.error("dashboard P&L series failed:", seriesResult.reason);
+        }
+        return [
+          financialResult.status === "fulfilled" ? financialResult.value : null,
+          activityResult.status === "fulfilled"
+            ? activityResult.value
+            : { data: [] as AuditLogEntry[], total: 0 },
+          seriesResult.status === "fulfilled" ? seriesResult.value : emptySeries(),
+        ] as const;
+      })()
     : Promise.resolve(null);
 
   const [opsResult, recentResult, extendedResult] = await Promise.all([

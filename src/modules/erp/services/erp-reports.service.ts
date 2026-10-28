@@ -30,6 +30,9 @@ export type ReportQuery = {
   ageMinDays?: number;
   ageMaxDays?: number;
   salesmanId?: string;
+  /** dead-stock: expired | near_expiry */
+  expiryView?: "expired" | "near_expiry";
+  expiryWindowDays?: number;
 };
 
 function normalizeAgeRange(
@@ -87,6 +90,11 @@ function defaultDateRange() {
   };
 }
 
+function normalizeReportUuid(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 function normalizeJsonbReportRows(data: unknown): unknown {
   if (data == null) return [];
   if (typeof data === "string") {
@@ -137,7 +145,7 @@ export async function runErpReport(
       ? query.storeId ?? undefined
       : await requireErpStoreId(query.storeId);
   const channel = query.channel ?? "all";
-  const salesmanId = query.salesmanId ?? null;
+  const salesmanId = normalizeReportUuid(query.salesmanId);
   const { ageMin, ageMax } = normalizeAgeRange(query.ageMinDays, query.ageMaxDays);
 
   if (report.slug === "finance-summary") {
@@ -185,6 +193,19 @@ export async function runErpReport(
         p_date_to: to,
         p_store_id: storeId,
       });
+    case "get_erp_performance_dashboard": {
+      const { loadPerformanceDashboard } = await import(
+        "@/modules/erp/services/erp-performance-dashboard.service"
+      );
+      return loadPerformanceDashboard(supabase, {
+        from,
+        to,
+        storeId: storeId!,
+        channel,
+        salesmanId,
+        limit: 8,
+      });
+    }
     case "get_erp_customer_balance_report":
       return callRpc(supabase, report.rpc, {
         p_store_id: storeId,
@@ -209,7 +230,13 @@ export async function runErpReport(
         p_brand_id: query.brandId ?? null,
         p_category_id: query.categoryId ?? null,
       });
-    case "get_erp_dead_stock_report":
+    case "get_erp_dead_stock_report": {
+      const expiryView =
+        query.expiryView === "near_expiry" ? "near_expiry" : "expired";
+      const windowDays =
+        query.expiryWindowDays != null && query.expiryWindowDays > 0
+          ? query.expiryWindowDays
+          : 30;
       return callRpc(supabase, report.rpc, {
         p_as_of: asOf,
         p_store_id: storeId ?? null,
@@ -218,7 +245,10 @@ export async function runErpReport(
         p_days_expired_min: ageMin,
         p_days_expired_max: ageMax,
         p_search: query.search ?? null,
+        p_expiry_view: expiryView,
+        p_expiry_window_days: windowDays,
       });
+    }
     case "get_erp_stock_transfer_report":
       return callRpc(supabase, report.rpc, {
         p_date_from: from,
@@ -333,6 +363,12 @@ export async function runErpReport(
         p_date_to: to,
         p_store_id: storeId,
       });
+    case "get_erp_expense_report": {
+      const { listExpenseReportRows } = await import(
+        "@/modules/erp/services/erp-expenses.service"
+      );
+      return listExpenseReportRows({ dateFrom: from, dateTo: to, storeId });
+    }
     case "get_erp_vat_return_summary_report":
     case "get_erp_vat_return_details_report":
       return callRpc(supabase, report.rpc, {

@@ -358,31 +358,37 @@ export async function listAuditLogs(filters?: {
   const page = filters?.page ?? 0;
   const limit = filters?.limit ?? 50;
   const from = page * limit;
+  let lastError: string | null = null;
 
-  let query = filters?.skipCount
-    ? supabase
-        .from("audit_logs")
-        .select(AUDIT_LOG_SELECT)
-        .order("created_at", { ascending: false })
-        .range(from, from + limit - 1)
-    : supabase
-        .from("audit_logs")
-        .select(AUDIT_LOG_SELECT, { count: "exact" })
-        .order("created_at", { ascending: false })
-        .range(from, from + limit - 1);
+  for (const select of AUDIT_LOG_SELECT_VARIANTS) {
+    let query = filters?.skipCount
+      ? supabase
+          .from("audit_logs")
+          .select(select)
+          .order("created_at", { ascending: false })
+          .range(from, from + limit - 1)
+      : supabase
+          .from("audit_logs")
+          .select(select, { count: "exact" })
+          .order("created_at", { ascending: false })
+          .range(from, from + limit - 1);
 
-  if (filters?.storeId) query = query.eq("store_id", filters.storeId);
-  if (filters?.dateFrom) query = query.gte("created_at", `${filters.dateFrom}T00:00:00`);
-  if (filters?.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
+    if (filters?.storeId) query = query.eq("store_id", filters.storeId);
+    if (filters?.dateFrom) query = query.gte("created_at", `${filters.dateFrom}T00:00:00`);
+    if (filters?.dateTo) query = query.lte("created_at", `${filters.dateTo}T23:59:59`);
 
-  const { data, error, count } = await query;
-  if (error) throw new Error(error.message);
+    const { data, error, count } = await query;
+    if (!error) {
+      const rawRows = (data ?? []) as unknown as AuditLogDbRow[];
+      return {
+        data: await mapAndEnrichAuditLogRows(rawRows),
+        total: count ?? 0,
+      };
+    }
+    lastError = error.message;
+  }
 
-  const rawRows = (data ?? []) as AuditLogDbRow[];
-  return {
-    data: await mapAndEnrichAuditLogRows(rawRows),
-    total: count ?? 0,
-  };
+  throw new Error(lastError ?? "Failed to load audit logs");
 }
 
 const ACTIVITY_LOG_REPORT_SELECT = `

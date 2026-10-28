@@ -10,13 +10,13 @@ import { cn } from "@/lib/utils";
 
 const CATEGORY_HINTS: Partial<Record<string, string>> = {
   "Business Overview":
-    "P&L, balance sheet, cash flow, finance snapshot, and day book — with date range, store, and search.",
+    "P&L, balance sheet, cash flow, finance snapshot, performance dashboard, and day book — with date range, store, and search.",
   Sales:
     "Collections, customer and item sales, credit notes, and salesman performance — filter by store, channel, and date.",
   Inventory:
     "Stock levels, minus (negative) stock, store summaries, and transfer requests — filter by store, brand, and category.",
   "Purchases and Expenses":
-    "Purchase by item (bills plus inbound transfers) and purchase by vendor (expenses, bills, credits) — by store and date.",
+    "Purchase by item, purchase by vendor, and the expense report (by category, vendor, paid-through, and transaction detail) — by store and date.",
   Receivables:
     "Customer balance, aging summary (counts and amounts), and invoice-level aging details — by store and due date.",
   "Payments Received":

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import type { ReportDefinition } from "@/common/erp/report-types";
 import { extractReportRows } from "@/common/erp/report-types";
@@ -24,25 +25,34 @@ import { BusinessReportLayout } from "../business-overview/business-report-layou
 import {
   buildReportExportSource,
   formatReportCell,
+  formatReportProductCode,
   matchesReportSearch,
   reportFiltersSubtitle,
 } from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useInventoryReportFilters } from "./use-inventory-report-filters";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import {
+  MinusStockDetailModal,
+  type MinusStockTableRow,
+} from "./minus-stock-detail-modal";
+import { prefetchMinusStockDetail } from "./minus-stock-detail-query";
 
-type MinusStockRow = Record<string, unknown> & {
-  stock?: number;
-  shortage_qty?: number;
-  shortage_cost?: number;
-  stock_purchase_value?: number;
-  stock_sales_value?: number;
-  purchase_price?: number;
-  sales_price?: number;
-};
+type MinusStockRow = MinusStockTableRow &
+  Record<string, unknown> & {
+    stock?: number;
+    shortage_qty?: number;
+    shortage_cost?: number;
+    stock_purchase_value?: number;
+    stock_sales_value?: number;
+    purchase_price?: number;
+    sales_price?: number;
+  };
 
 export function MinusStockReport({ report }: { report: ReportDefinition }) {
   const filters = useInventoryReportFilters(report);
+  const queryClient = useQueryClient();
+  const [selectedRow, setSelectedRow] = useState<MinusStockTableRow | null>(null);
   const { loading, error, rawData, reload } = useErpReportFetch(report, {
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
@@ -102,9 +112,20 @@ export function MinusStockReport({ report }: { report: ReportDefinition }) {
     slug: report.slug,
     title: report.title,
     columns: report.columns,
-    getRows: () => sorted,
+    getRows: () =>
+      sorted.map((row) => ({
+        ...row,
+        product_code: formatReportProductCode(row.product_code, row),
+      })),
     getSubtitle: () => reportFiltersSubtitle(filters, "asOf"),
   });
+
+  const detailStoreId = filters.storeId || String(sorted[0]?.store_id ?? "");
+
+  function warmDetail(row: MinusStockRow) {
+    const pid = row.product_id ? String(row.product_id) : "";
+    prefetchMinusStockDetail(queryClient, detailStoreId, pid);
+  }
 
   return (
     <BusinessReportLayout
@@ -127,7 +148,7 @@ export function MinusStockReport({ report }: { report: ReportDefinition }) {
         <Link href="/admin/erp/stock-adjustments" className="font-medium text-primary hover:underline">
           stock adjustments
         </Link>{" "}
-        or receive stock to correct balances.
+        or receive stock to correct balances. Click a row for invoices that drove the shortage.
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
         <span>
@@ -159,20 +180,39 @@ export function MinusStockReport({ report }: { report: ReportDefinition }) {
           </AdminTableHeader>
           <AdminTableBody>
             {sorted.map((row, i) => (
-                <AdminTableRow key={String(row.product_id ?? i)}>
-                  {report.columns.map((col) => (
-                    <AdminTableCell
-                      key={col.key}
-                      className={cn(
-                        col.align === "right" && "text-right tabular-nums",
-                        (col.key === "stock" || col.key === "shortage_qty") &&
-                          "font-semibold text-destructive",
-                      )}
-                    >
-                      {formatReportCell(row[col.key], col.format)}
-                    </AdminTableCell>
-                  ))}
-                </AdminTableRow>
+              <AdminTableRow
+                key={String(row.product_id ?? i)}
+                className="cursor-pointer"
+                onClick={() => setSelectedRow(row)}
+                onMouseEnter={() => warmDetail(row)}
+                onFocus={() => warmDetail(row)}
+              >
+                {report.columns.map((col) => (
+                  <AdminTableCell
+                    key={col.key}
+                    className={cn(
+                      col.align === "right" && "text-right tabular-nums",
+                      (col.key === "stock" || col.key === "shortage_qty") &&
+                        "font-semibold text-destructive",
+                      col.key === "product_code" && "font-mono text-xs",
+                      col.key === "product_name" && "max-w-[220px] truncate font-medium",
+                      col.key === "category_name" &&
+                        row.category_name &&
+                        "text-xs",
+                    )}
+                  >
+                    {col.key === "product_code" ? (
+                      formatReportProductCode(row.product_code, row)
+                    ) : col.key === "category_name" && row.category_name ? (
+                      <span className="rounded-md bg-muted px-2 py-0.5">
+                        {String(row.category_name)}
+                      </span>
+                    ) : (
+                      formatReportCell(row[col.key], col.format)
+                    )}
+                  </AdminTableCell>
+                ))}
+              </AdminTableRow>
             ))}
             <ReportTableTotalsRow columns={report.columns} rows={sorted} />
           </AdminTableBody>
@@ -182,6 +222,13 @@ export function MinusStockReport({ report }: { report: ReportDefinition }) {
         <div className="border-t px-3 py-2">
           <AdminListFooter total={sorted.length} label="items" page={0} pageSize={sorted.length} />
         </div>
+      ) : null}
+      {selectedRow && detailStoreId ? (
+        <MinusStockDetailModal
+          row={selectedRow}
+          storeId={detailStoreId}
+          onClose={() => setSelectedRow(null)}
+        />
       ) : null}
     </BusinessReportLayout>
   );

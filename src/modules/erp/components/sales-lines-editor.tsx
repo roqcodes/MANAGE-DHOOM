@@ -182,12 +182,12 @@ export function SalesLinesEditor({
           <TableHeader>
             <TableRow>
               {showSerial ? <TableHead className="w-10">#</TableHead> : null}
-              <TableHead>Item</TableHead>
+              <TableHead className="w-[34%] min-w-[14rem]">Item</TableHead>
               <TableHead className="w-20">Qty</TableHead>
               <TableHead className="w-28">Rate</TableHead>
               <TableHead className="w-20">Tax %</TableHead>
-              <TableHead className="w-28 text-right">Tax amount</TableHead>
-              <TableHead className="w-28 text-right">Total</TableHead>
+              <TableHead className="w-24 text-right">Tax amount</TableHead>
+              <TableHead className="w-24 text-right">Total</TableHead>
               <TableHead className="w-[88px]">Details</TableHead>
               <TableHead className="w-10" />
             </TableRow>
@@ -214,8 +214,9 @@ export function SalesLinesEditor({
                     {showSerial ? (
                       <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                     ) : null}
-                    <TableCell>
+                    <TableCell className="min-w-0">
                       <Input
+                        className="w-full min-w-0"
                         value={line.productName}
                         onChange={(e) => updateLine(line.key, { productName: e.target.value })}
                         placeholder="Product name"

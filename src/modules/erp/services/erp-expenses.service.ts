@@ -437,6 +437,136 @@ export async function updateExpense(
   });
 }
 
+/** Same source as the expenses list — used by the Expense Report (no extra RPC). */
+export async function listExpenseReportRows(opts: {
+  dateFrom: string;
+  dateTo: string;
+  storeId?: string;
+}): Promise<Record<string, unknown>[]> {
+  await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+  const storeId = await requireErpStoreId(opts.storeId);
+
+  const { data, error } = await supabase
+    .from("erp_expenses")
+    .select(
+      "id, expense_number, expense_date, store_id, account_id, paid_through_account_id, vendor_id, user_id, billable_customer_id, created_by, reference, notes, tax_mode, tax_percent, tax_amount, total_amount, amount, is_billable, billed_invoice_id, attachment_url, stores(name)",
+    )
+    .eq("store_id", storeId)
+    .gte("expense_date", opts.dateFrom)
+    .lte("expense_date", opts.dateTo)
+    .order("expense_date", { ascending: false })
+    .order("expense_number", { ascending: false })
+    .limit(5000);
+
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+
+  const accountIds = [
+    ...new Set(
+      rows.flatMap((r) =>
+        [r.account_id as string, r.paid_through_account_id as string | null].filter(Boolean) as string[],
+      ),
+    ),
+  ];
+  const userIds = [
+    ...new Set(
+      rows.flatMap((r) =>
+        [
+          r.user_id as string | null,
+          r.billable_customer_id as string | null,
+          r.created_by as string | null,
+        ].filter(Boolean) as string[],
+      ),
+    ),
+  ];
+
+  const [accounts, vendorNames, userNames] = await Promise.all([
+    accountIds.length
+      ? supabase
+          .from("accounts")
+          .select("id, code, name, account_types(name)")
+          .in("id", accountIds)
+          .then(({ data: accs, error: accErr }) => {
+            if (accErr) throw new Error(accErr.message);
+            return accs ?? [];
+          })
+      : Promise.resolve([]),
+    loadNameMap(
+      supabase,
+      "vendors",
+      rows.map((r) => r.vendor_id as string | null).filter(Boolean) as string[],
+    ),
+    loadNameMap(supabase, "users", userIds),
+  ]);
+
+  const accountById = new Map(
+    accounts.map((a) => {
+      const type = a.account_types as { name: string } | null;
+      return [
+        a.id as string,
+        {
+          code: (a.code as string | null) ?? "",
+          name: (a.name as string | null) ?? "Uncategorized",
+          typeName: type?.name ?? "Expense",
+        },
+      ];
+    }),
+  );
+
+  return rows.map((row) => {
+    const accountId = row.account_id as string;
+    const paidId = row.paid_through_account_id as string | null;
+    const vendorId = (row.vendor_id as string | null) ?? null;
+    const customerId =
+      (row.billable_customer_id as string | null) ?? (row.user_id as string | null) ?? null;
+    const createdBy = (row.created_by as string | null) ?? null;
+    const acc = accountById.get(accountId);
+    const paid = paidId ? accountById.get(paidId) : undefined;
+    const taxMode = String(row.tax_mode ?? "none");
+    const taxAmount = Number(row.tax_amount ?? 0);
+    const totalAmount = Number(row.total_amount ?? 0);
+    const amount = Number(row.amount ?? 0);
+    const untaxed =
+      taxMode === "inclusive" ? Math.round((totalAmount - taxAmount) * 100) / 100 : amount;
+    const isBillable = Boolean(row.is_billable);
+    const billedId = row.billed_invoice_id as string | null;
+    const attachment = (row.attachment_url as string | null) ?? null;
+    const store = row.stores as { name: string } | null;
+    const billingStatus = billedId ? "Invoiced" : isBillable ? "Billable" : "Non-billable";
+
+    return {
+      id: row.id,
+      expense_number: row.expense_number,
+      expense_date: row.expense_date,
+      store_id: row.store_id,
+      store_name: store?.name ?? null,
+      account_id: accountId,
+      account_code: acc?.code ?? "",
+      account_name: acc?.name ?? "Uncategorized",
+      account_type_name: acc?.typeName ?? "Expense",
+      paid_through_account_id: paidId,
+      paid_through_name: paid?.name ?? "Unassigned",
+      vendor_id: vendorId,
+      vendor_name: vendorId ? vendorNames.get(vendorId) ?? "No vendor" : "No vendor",
+      customer_id: customerId,
+      customer_name: customerId ? userNames.get(customerId) ?? "Unassigned" : "Unassigned",
+      recorded_by: createdBy ? userNames.get(createdBy) ?? "—" : "—",
+      reference: (row.reference as string | null) ?? null,
+      notes: (row.notes as string | null) ?? null,
+      tax_mode: taxMode,
+      tax_percent: Number(row.tax_percent ?? 0),
+      tax_amount: taxAmount,
+      total_amount: totalAmount,
+      untaxed_amount: untaxed,
+      is_billable: isBillable,
+      billed_invoice_id: billedId,
+      billing_status: billingStatus,
+      has_receipt: Boolean(attachment && attachment.trim().length > 0),
+    };
+  });
+}
+
 export async function deleteExpense(expenseId: string): Promise<void> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();

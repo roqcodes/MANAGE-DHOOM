@@ -52,6 +52,15 @@ export async function GET(request: Request) {
       ageMinDays: parseOptionalInt(url.searchParams.get("ageMinDays")),
       ageMaxDays: parseOptionalInt(url.searchParams.get("ageMaxDays")),
       salesmanId: url.searchParams.get("salesmanId") ?? undefined,
+      expiryView:
+        url.searchParams.get("slug") === "dead-stock" &&
+        url.searchParams.get("expiryView") === "near_expiry"
+          ? "near_expiry"
+          : undefined,
+      expiryWindowDays:
+        url.searchParams.get("slug") === "dead-stock"
+          ? parseOptionalInt(url.searchParams.get("expiryWindowDays"))
+          : undefined,
       },
       { authenticated: true },
     );

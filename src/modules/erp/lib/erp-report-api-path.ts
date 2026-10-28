@@ -23,6 +23,8 @@ export type ErpReportFetchParams = {
   ageMinDays?: number;
   ageMaxDays?: number;
   salesmanId?: string;
+  expiryView?: "expired" | "near_expiry";
+  expiryWindowDays?: number;
 };
 
 /** Stable admin API path for TanStack Query cache keys and fetch. */
@@ -73,6 +75,12 @@ export function buildErpReportApiPath(
   }
   if (report.filters.salesman && params.salesmanId) {
     q.set("salesmanId", params.salesmanId);
+  }
+  if (report.slug === "dead-stock") {
+    q.set("expiryView", params.expiryView === "near_expiry" ? "near_expiry" : "expired");
+    if (params.expiryWindowDays != null && params.expiryWindowDays > 0) {
+      q.set("expiryWindowDays", String(params.expiryWindowDays));
+    }
   }
   return `erp/reports?${q.toString()}`;
 }

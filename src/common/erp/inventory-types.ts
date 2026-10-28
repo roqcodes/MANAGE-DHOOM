@@ -133,6 +133,35 @@ export interface ItemTransactionRow {
   invoice_number: string | null;
 }
 
+export type MinusStockDetailInvoiceRow = {
+  invoice_id: string;
+  invoice_number: string;
+  invoice_status: string;
+  salesman_name: string;
+  issued_at: string | null;
+  movement_at: string;
+  quantity: number;
+  unit_price: number;
+  line_amount: number;
+  balance_after: number;
+};
+
+export type MinusStockDetailPayload = {
+  product_id: string;
+  store_id: string;
+  product_code: string;
+  product_barcode: string | null;
+  product_name: string;
+  category_name: string | null;
+  brand_name: string | null;
+  store_name: string;
+  current_stock: number;
+  opening_stock_before_negative: number;
+  first_negative_at: string | null;
+  latest_invoice_id: string | null;
+  invoices: MinusStockDetailInvoiceRow[];
+};
+
 export interface ErpTransferPaymentListRow {
   id: string;
   payment_number: string;

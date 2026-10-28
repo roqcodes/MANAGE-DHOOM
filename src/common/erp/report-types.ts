@@ -25,6 +25,8 @@ export type ReportFilterConfig = {
   salesman?: boolean;
   /** Dead stock: days since expiry (min/max). */
   expiredDaysRange?: boolean;
+  /** Dead stock / expiry: expiring-soon window (days). */
+  expiryWindowDays?: boolean;
 };
 
 export type ReportStockLevel = "all" | "in_stock" | "out_of_stock" | "low_stock";
@@ -193,6 +195,22 @@ export const ERP_REPORTS: ReportDefinition[] = [
     category: "Business Overview",
     filters: { dateRange: true, store: true },
     rpc: "get_erp_financial_dashboard",
+    columns: [],
+  },
+  {
+    slug: "performance-report",
+    title: "Performance Report",
+    description:
+      "At-a-glance sales, margin, collections, AR/AP, and ranked leaders and laggards for items, salespeople, customers, vendors, brands, and categories.",
+    category: "Business Overview",
+    filters: {
+      dateRange: true,
+      store: true,
+      channel: true,
+      salesman: true,
+      customerSearch: true,
+    },
+    rpc: "get_erp_performance_dashboard",
     columns: [],
   },
   {
@@ -397,9 +415,9 @@ export const ERP_REPORTS: ReportDefinition[] = [
   },
   {
     slug: "dead-stock",
-    title: "Dead Stock",
+    title: "Expiry & Dead Stock",
     description:
-      "Expired inventory lots with estimated on-hand quantity (from purchase bills and receives).",
+      "Expired on-hand stock and lots expiring soon, with estimated quantities from purchase bill and receive expiry dates.",
     category: "Inventory",
     filters: {
       asOfDate: true,
@@ -408,21 +426,23 @@ export const ERP_REPORTS: ReportDefinition[] = [
       category: true,
       customerSearch: true,
       expiredDaysRange: true,
+      expiryWindowDays: true,
     },
     rpc: "get_erp_dead_stock_report",
     columns: [
-      { key: "product_code", label: "Code" },
-      { key: "product_name", label: "Name" },
+      { key: "product_code", label: "Item code" },
+      { key: "product_name", label: "Item name" },
       { key: "category_name", label: "Category" },
       { key: "brand_name", label: "Brand" },
       { key: "store_name", label: "Store" },
-      { key: "expiry_date", label: "Expiry", format: "date" },
+      { key: "expiry_date", label: "Expiry date", format: "date" },
       { key: "days_expired", label: "Days expired", align: "right", format: "number" },
-      { key: "quantity", label: "Est. qty", align: "right", format: "number" },
+      { key: "days_to_expiry", label: "Days to expiry", align: "right", format: "number" },
+      { key: "quantity", label: "Est. on-hand qty", align: "right", format: "number" },
       { key: "purchase_price", label: "Unit cost", align: "right", format: "currency" },
       { key: "stock_purchase_value", label: "Value at cost", align: "right", format: "currency" },
-      { key: "source_ref", label: "Source #" },
-      { key: "source_type", label: "Source" },
+      { key: "source_ref", label: "Source document" },
+      { key: "source_type", label: "Source type" },
     ],
   },
   {
@@ -481,6 +501,28 @@ export const ERP_REPORTS: ReportDefinition[] = [
         align: "right",
         format: "currency",
       },
+    ],
+  },
+  {
+    slug: "expense-report",
+    title: "Expense Report",
+    description:
+      "Recorded expenses by category, vendor, paid-through account, and billing status — with tax, totals, and a transaction register.",
+    category: "Purchases and Expenses",
+    filters: { dateRange: true, store: true },
+    rpc: "get_erp_expense_report",
+    rowsKey: "details",
+    columns: [
+      { key: "expense_date", label: "Date", format: "date" },
+      { key: "expense_number", label: "Expense #" },
+      { key: "account_name", label: "Category" },
+      { key: "vendor_name", label: "Vendor" },
+      { key: "paid_through_name", label: "Paid through" },
+      { key: "customer_name", label: "Customer" },
+      { key: "billing_status", label: "Status" },
+      { key: "untaxed_amount", label: "Untaxed", align: "right", format: "currency" },
+      { key: "tax_amount", label: "Tax", align: "right", format: "currency" },
+      { key: "total_amount", label: "Total", align: "right", format: "currency" },
     ],
   },
   {
@@ -839,6 +881,9 @@ export function extractReportRows(data: unknown, rowsKey?: string): Record<strin
 
   if (rowsKey && Array.isArray(obj[rowsKey])) {
     return obj[rowsKey] as Record<string, unknown>[];
+  }
+  if (rowsKey && typeof obj[rowsKey] === "string") {
+    return extractReportRows(obj[rowsKey], rowsKey);
   }
 
   if (Array.isArray(obj.rows)) return obj.rows as Record<string, unknown>[];

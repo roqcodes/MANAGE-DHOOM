@@ -6,9 +6,12 @@ import { CashFlowReport } from "./business-overview/cash-flow-report";
 import { DayBookReport } from "./business-overview/day-book-report";
 import { FinanceSummaryReport } from "./business-overview/finance-summary-report";
 import { ProfitAndLossReport } from "./business-overview/profit-and-loss-report";
+import { PerformanceReport } from "./business-overview/performance-report";
 
 export function BusinessOverviewReport({ report }: { report: ReportDefinition }) {
   switch (report.slug) {
+    case "performance-report":
+      return <PerformanceReport report={report} />;
     case "profit-and-loss":
       return <ProfitAndLossReport report={report} />;
     case "balance-sheet":

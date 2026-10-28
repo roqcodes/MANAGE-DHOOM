@@ -195,6 +195,7 @@ export function PurchaseOrderFormView({
         setLandedCosts(formLanded);
         setLandedAllocationMethod(inferLandedAllocationMethod(formLines, formLanded));
       })
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load purchase order"))
       .finally(() => setLoading(false));
   }, [poId, mode]);
 
@@ -265,6 +266,9 @@ export function PurchaseOrderFormView({
         if (mode === "create") {
       resetCreateForm();
       onSuccess?.(id);
+      if (!isModal) {
+        router.push("/admin/purchase-orders");
+      }
       return;
     }
     if (isModal) {
