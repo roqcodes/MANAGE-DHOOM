@@ -8,6 +8,9 @@ import { useAdminDateRange, useDebouncedValue, type AdminListFilter } from "@/mo
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { formatReportAsOf, formatReportPeriodRange } from "./report-format";
 import { useSalesmanReportFilter } from "./use-salesman-report-filter";
+import { useAddressHierarchyFilters } from "@/modules/customers/hooks/use-address-hierarchy-filters";
+import { reportUsesAddressHierarchyFilters } from "@/modules/customers/lib/address-hierarchy-filter";
+import type { AddressHierarchyFilterFieldsProps } from "@/modules/customers/components/address-hierarchy-filter-fields";
 
 export function useBusinessReportFilters(report: ReportDefinition) {
   const { stores, activeStoreId } = useErpStores();
@@ -33,6 +36,8 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);
   const salesman = useSalesmanReportFilter(report);
+  const address = useAddressHierarchyFilters();
+  const showAddressFilters = reportUsesAddressHierarchyFilters(report);
 
   useEffect(() => {
     if (activeStoreId) setStoreId(activeStoreId);
@@ -95,5 +100,13 @@ export function useBusinessReportFilters(report: ReportDefinition) {
     listFilters,
     salesmanId: salesman.salesmanId,
     setSalesmanId: salesman.setSalesmanId,
+    addressCityId: address.params.cityId,
+    addressStreetId: address.params.streetId,
+    addressMallId: address.params.mallId,
+    addressFilterFields: showAddressFilters
+      ? (address.toolbarProps as AddressHierarchyFilterFieldsProps)
+      : null,
+    clearAddressFilters: address.clearAddressFilters,
+    isAddressFiltering: address.isAddressFiltering,
   };
 }

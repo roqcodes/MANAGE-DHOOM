@@ -1,6 +1,12 @@
 import "server-only";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
+import type { AddressHierarchyFilterParams } from "@/modules/customers/lib/address-hierarchy-filter";
+import {
+  applyUserIdInFilter,
+  parseAddressFilterFromQuery,
+  resolveUserIdsForAddressFilter,
+} from "@/modules/customers/services/customer-address-filter.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import { resolveErpStoreId } from "@/modules/erp/services/store-context.service";
@@ -132,11 +138,17 @@ export async function getOrders(
   page = 0,
   channel: OrderChannel = "online",
   storeId?: string | null,
+  address?: AddressHierarchyFilterParams,
 ): Promise<Paginated<Order>> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const from = page * PAGE_SIZE;
   const activeStoreId = await resolveErpStoreId(storeId);
+
+  const addressUserIds = await resolveUserIdsForAddressFilter(
+    supabase,
+    parseAddressFilterFromQuery(address ?? {}),
+  );
 
   let query = applyOrderChannelFilter(
     supabase
@@ -152,6 +164,7 @@ export async function getOrders(
 
   if (status !== "all") query = query.eq("status", status);
   if (userId) query = query.eq("user_id", userId);
+  else query = applyUserIdInFilter(query, "user_id", addressUserIds);
   query = applyOrderStoreScope(query, channel, activeStoreId);
 
   const { data, count } = await query;

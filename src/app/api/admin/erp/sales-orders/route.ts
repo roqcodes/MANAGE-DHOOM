@@ -44,9 +44,12 @@ export async function GET(request: Request) {
   const userId = rawUser && rawUser.length > 0 ? rawUser : null;
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const storeId = searchParams.get("storeId") ?? undefined;
+  const cityId = searchParams.get("cityId") ?? undefined;
+  const streetId = searchParams.get("streetId") ?? undefined;
+  const mallId = searchParams.get("mallId") ?? undefined;
 
   const [{ data, total }, stats] = await Promise.all([
-    getOrders(status, userId, page, "erp", storeId),
+    getOrders(status, userId, page, "erp", storeId, { cityId, streetId, mallId }),
     getOrdersCatalogStats("erp", storeId),
   ]);
 

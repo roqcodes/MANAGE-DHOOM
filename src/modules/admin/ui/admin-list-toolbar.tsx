@@ -62,6 +62,7 @@ export function AdminListCard({
   inlineDateRange,
   inlineAsOf,
   toolbarExtra,
+  addressFilters,
   emptyMessage,
   isEmpty,
   isLoading,
@@ -87,6 +88,8 @@ export function AdminListCard({
   /** As-of date (after date range when both are shown). `false` = hidden. */
   inlineAsOf?: AdminListAsOfLeadProps | false;
   toolbarExtra?: ReactNode;
+  /** City / street / mall segments rendered inside the search InputGroup. */
+  addressFilters?: ReactNode;
   emptyMessage: string;
   isEmpty: boolean;
   /** Initial fetch: show table shell + row skeletons instead of the empty state. */
@@ -110,8 +113,9 @@ export function AdminListCard({
     inlineAsOf === false || !inlineAsOf ? null : inlineAsOf;
 
   const hasToolbarFilters = (filters?.length ?? 0) > 0;
+  const hasAddressFilters = Boolean(addressFilters);
   const showLeadDividerBeforeSearch = Boolean(
-    resolvedInlineDate || resolvedInlineAsOf || hasToolbarFilters,
+    resolvedInlineDate || resolvedInlineAsOf || hasToolbarFilters || hasAddressFilters,
   );
 
   return (
@@ -172,6 +176,13 @@ export function AdminListCard({
                 </InputGroupAddon>
               </span>
             ))}
+            {(resolvedInlineDate || resolvedInlineAsOf || hasToolbarFilters) &&
+            addressFilters ? (
+              <InputGroupAddon align="inline-start" className="px-0">
+                <div className="h-4 w-px bg-border" aria-hidden />
+              </InputGroupAddon>
+            ) : null}
+            {addressFilters}
             {showLeadDividerBeforeSearch ? (
               <InputGroupAddon align="inline-start" className="px-0">
                 <div className="h-4 w-px bg-border" aria-hidden />
@@ -195,6 +206,18 @@ export function AdminListCard({
                   aria-label="Clear search"
                 >
                   <X className="size-3.5" />
+                </InputGroupButton>
+              </InputGroupAddon>
+            ) : null}
+            {isFiltering && onClearFilters && !toolbarExtra ? (
+              <InputGroupAddon align="inline-end" className="pr-1">
+                <InputGroupButton
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={onClearFilters}
+                >
+                  Clear
                 </InputGroupButton>
               </InputGroupAddon>
             ) : null}

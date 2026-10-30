@@ -44,13 +44,24 @@ export function SalesOrdersListView() {
   );
 
   const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: adminQueryKeys.salesOrders(status, userId, page, activeStoreId),
+    queryKey: [
+      ...adminQueryKeys.salesOrders(status, userId, page, activeStoreId),
+      searchParams.get("cityId") ?? "",
+      searchParams.get("streetId") ?? "",
+      searchParams.get("mallId") ?? "",
+    ],
     queryFn: () => {
       const q = new URLSearchParams();
       if (status !== "all") q.set("status", status);
       if (userId) q.set("userId", userId);
       if (page > 0) q.set("page", String(page));
       if (activeStoreId) q.set("storeId", activeStoreId);
+      const cityId = searchParams.get("cityId");
+      const streetId = searchParams.get("streetId");
+      const mallId = searchParams.get("mallId");
+      if (cityId) q.set("cityId", cityId);
+      if (streetId) q.set("streetId", streetId);
+      if (mallId) q.set("mallId", mallId);
       const qs = q.toString();
       return adminGet<{
         data: Order[];

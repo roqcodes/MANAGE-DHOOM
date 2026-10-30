@@ -68,6 +68,9 @@ export function CustomerAgingSummaryDetailsView({
     accountId: "",
     customerId,
     salesmanId: filters.salesmanId,
+    cityId: filters.addressCityId ?? undefined,
+    streetId: filters.addressStreetId ?? undefined,
+    mallId: filters.addressMallId ?? undefined,
   });
 
   const payload = (rawData ?? {}) as DetailsPayload;

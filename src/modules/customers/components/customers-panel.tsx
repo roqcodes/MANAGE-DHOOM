@@ -35,6 +35,7 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { AddressHierarchyFilterInline } from "@/modules/customers/components/address-hierarchy-filter-fields";
 
 export function CustomersPanel({
   users,
@@ -43,6 +44,7 @@ export function CustomersPanel({
   stats,
   onAddCustomer,
   initialLoading = false,
+  addressFilterFields,
 }: {
   users: AdminUser[];
   total: number;
@@ -50,6 +52,7 @@ export function CustomersPanel({
   stats: CustomerStats;
   onAddCustomer?: () => void;
   initialLoading?: boolean;
+  addressFilterFields?: import("@/modules/customers/components/address-hierarchy-filter-fields").AddressHierarchyFilterFieldsProps;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<CustomerStatusFilter>("all");
@@ -147,6 +150,14 @@ export function CustomersPanel({
                   </DropdownMenuContent>
                 </DropdownMenu>
               </InputGroupAddon>
+              {addressFilterFields ? (
+                <>
+                  <InputGroupAddon align="inline-start" className="px-0">
+                    <div className="h-4 w-px bg-border" aria-hidden />
+                  </InputGroupAddon>
+                  <AddressHierarchyFilterInline {...addressFilterFields} />
+                </>
+              ) : null}
               <InputGroupAddon align="inline-start" className="px-0">
                 <div className="h-4 w-px bg-border" aria-hidden />
               </InputGroupAddon>

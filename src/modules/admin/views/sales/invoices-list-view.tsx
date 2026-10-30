@@ -46,6 +46,7 @@ import {
   useSortableData,
 } from "@/modules/admin/ui";
 import { InvoiceFormView } from "@/modules/admin/views/sales/invoice-form-view";
+import { AddressHierarchyFilterInline } from "@/modules/customers/components/address-hierarchy-filter-fields";
 import { enqueueSalesInvoiceIssue } from "@/modules/erp/lib/enqueue-sales-invoice-issue.client";
 import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 import { useErpInvoicePrintModal } from "@/modules/erp/components/use-erp-invoice-print-modal";
@@ -84,6 +85,7 @@ export function InvoicesListView() {
     clearFilters,
     activeStoreId,
     erpContextLoading,
+    addressFilterFields,
   } = useErpListState();
   const listPath = adminListPath("erp/invoices", { page, ...listParams });
   const { data, isPending, refetch } = useAdminGetQuery<{
@@ -181,6 +183,9 @@ export function InvoicesListView() {
         emptyMessage="No invoices found."
         isFiltering={isFiltering}
         onClearFilters={clearFilters}
+        addressFilters={
+          <AddressHierarchyFilterInline {...addressFilterFields} />
+        }
         filters={[
           {
             id: "status",

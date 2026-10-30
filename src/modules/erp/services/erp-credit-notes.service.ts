@@ -6,6 +6,11 @@ import type { ErpCreditNoteListRow, ErpLineInput } from "@/common/erp/sales-type
 import { roundMoney } from "@/common/erp/purchasing-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
+import {
+  applyUserIdInFilter,
+  parseAddressFilterFromQuery,
+  resolveUserIdsForAddressFilter,
+} from "@/modules/customers/services/customer-address-filter.service";
 import type { Json } from "@/lib/integrations/supabase/types";
 
 function linesToJson(lines: ErpLineInput[]): Json {
@@ -29,6 +34,9 @@ export async function listCreditNotes(
     dateFrom?: string;
     dateTo?: string;
     creditKind?: string;
+    cityId?: string;
+    streetId?: string;
+    mallId?: string;
   },
 ): Promise<{
   data: ErpCreditNoteListRow[];
@@ -38,6 +46,11 @@ export async function listCreditNotes(
   const supabase = await createSupabaseServerClient();
   const from = page * limit;
   const activeStoreId = await resolveErpStoreId(filters?.storeId);
+
+  const addressUserIds = await resolveUserIdsForAddressFilter(
+    supabase,
+    parseAddressFilterFromQuery(filters ?? {}),
+  );
 
   let query = supabase
     .from("erp_credit_notes")
@@ -50,6 +63,7 @@ export async function listCreditNotes(
     .range(from, from + limit - 1);
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
+  query = applyUserIdInFilter(query, "user_id", addressUserIds);
   if (filters?.status && filters.status !== "all") query = query.eq("status", filters.status);
   if (filters?.creditKind && filters.creditKind !== "all") {
     query = query.eq("credit_kind", filters.creditKind);

@@ -177,6 +177,9 @@ export function DeadStockReport({ report }: { report: ReportDefinition }) {
     ageMaxDays: age.ageMaxDays,
     expiryView,
     expiryWindowDays,
+    cityId: filters.addressCityId ?? undefined,
+    streetId: filters.addressStreetId ?? undefined,
+    mallId: filters.addressMallId ?? undefined,
   });
 
   const columns = useMemo(

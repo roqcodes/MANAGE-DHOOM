@@ -289,6 +289,9 @@ export function PerformanceReport({ report }: { report: ReportDefinition }) {
     accountId: "",
     search: filters.debouncedSearch,
     salesmanId: filters.salesmanId,
+    cityId: filters.addressCityId ?? undefined,
+    streetId: filters.addressStreetId ?? undefined,
+    mallId: filters.addressMallId ?? undefined,
   });
 
   const payload = useMemo(() => parsePayload(rawData), [rawData]);

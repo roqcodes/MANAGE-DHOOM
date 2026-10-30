@@ -69,7 +69,7 @@ type EntitySearchSelectProps = {
   elevatedDropdown?: boolean;
   /** Highlight when save was attempted without a valid selection. */
   invalid?: boolean;
-  /** Show party balance under the field when a row is selected (customer/vendor). */
+  /** Show party balance inside the field (right) when a row is selected (customer/vendor). */
   showSelectedBalance?: boolean;
 };
 
@@ -276,6 +276,9 @@ export function EntitySearchSelect({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
+  const showInlineBalance =
+    showSelectedBalance && Boolean(value) && !open && !disabled;
+
   const dropdown =
     open && menuStyle ? (
       <div
@@ -376,7 +379,10 @@ export function EntitySearchSelect({
           data-lpignore="true"
           data-form-type="other"
           placeholder={value && !open ? placeholder : searchPlaceholder}
-          className="h-10 pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
+          className={cn(
+            "h-10 pl-9 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden",
+            showInlineBalance ? "pr-28" : "pr-9",
+          )}
           role="combobox"
           aria-expanded={open}
           aria-controls={listboxId}
@@ -397,6 +403,26 @@ export function EntitySearchSelect({
         />
         {showBackgroundFetch ? (
           <Loader2 className="pointer-events-none absolute top-1/2 right-9 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+        ) : null}
+        {showInlineBalance ? (
+          <div
+            className="pointer-events-none absolute top-1/2 right-9 flex max-w-[min(45%,9rem)] -translate-y-1/2 items-center justify-end"
+            aria-live="polite"
+          >
+            {committedOption?.id === value ? (
+              <span
+                className="truncate text-xs font-semibold tabular-nums text-muted-foreground"
+                title={`Balance ${formatCurrencyAmount(committedOption.amount ?? 0)}`}
+              >
+                {formatCurrencyAmount(committedOption.amount ?? 0)}
+              </span>
+            ) : (
+              <Loader2
+                className="size-3.5 shrink-0 animate-spin text-muted-foreground opacity-70"
+                aria-label="Loading balance"
+              />
+            )}
+          </div>
         ) : null}
         {value ? (
           <Button
@@ -420,19 +446,6 @@ export function EntitySearchSelect({
       {typeof document !== "undefined" && dropdown
         ? createPortal(dropdown, document.body)
         : null}
-
-      {showSelectedBalance && value && !open && !disabled ? (
-        <p className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>Balance</span>
-          {committedOption?.id === value ? (
-            <span className="font-semibold tabular-nums text-foreground">
-              {formatCurrencyAmount(committedOption.amount ?? 0)}
-            </span>
-          ) : (
-            <Loader2 className="size-3.5 animate-spin opacity-70" aria-label="Loading balance" />
-          )}
-        </p>
-      ) : null}
     </div>
   );
 }

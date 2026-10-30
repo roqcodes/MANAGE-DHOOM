@@ -58,6 +58,9 @@ export function DeletedInvoicesReport({ report }: { report: ReportDefinition }) 
     accountId: "",
     search: filters.debouncedSearch,
     salesmanId: filters.salesmanId,
+    cityId: filters.addressCityId ?? undefined,
+    streetId: filters.addressStreetId ?? undefined,
+    mallId: filters.addressMallId ?? undefined,
   });
 
   const rows = useMemo(

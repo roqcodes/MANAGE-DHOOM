@@ -6,6 +6,11 @@ import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import { PAGE_SIZE, type AdminUser, type Order, type Paginated } from "@/common/admin/types";
 import { CUSTOMER_ROLE_OR_FILTER } from "@/modules/customers/lib/customer-query";
 import { searchCustomersTypeahead } from "@/modules/customers/lib/customer-typeahead-query";
+import {
+  applyUserIdInFilter,
+  parseAddressFilterFromQuery,
+  resolveUserIdsForAddressFilter,
+} from "@/modules/customers/services/customer-address-filter.service";
 
 export interface CustomerStats {
   total: number;
@@ -76,21 +81,33 @@ export async function searchCustomers(query: string, limit = 20): Promise<
   return searchCustomersTypeahead(supabase, query, limit);
 }
 
-export async function getAllCustomers(page = 0): Promise<Paginated<AdminUser> & { stats: CustomerStats }> {
+export async function getAllCustomers(
+  page = 0,
+  address?: { cityId?: string; streetId?: string; mallId?: string },
+): Promise<Paginated<AdminUser> & { stats: CustomerStats }> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const from = page * PAGE_SIZE;
 
+  const addressUserIds = await resolveUserIdsForAddressFilter(
+    supabase,
+    parseAddressFilterFromQuery(address ?? {}),
+  );
+
+  let usersRequest = supabase
+    .from("users")
+    .select(
+      "id,name,email,phone,avatar_url,role,is_verified,created_at,customer_number,company_name,location,opening_balance",
+      { count: "exact" },
+    )
+    .or(CUSTOMER_ROLE_OR_FILTER)
+    .order("created_at", { ascending: false })
+    .range(from, from + PAGE_SIZE - 1);
+
+  usersRequest = applyUserIdInFilter(usersRequest, "id", addressUserIds);
+
   const [usersResult, activeCountResult] = await Promise.all([
-    supabase
-      .from("users")
-      .select(
-        "id,name,email,phone,avatar_url,role,is_verified,created_at,customer_number,company_name,location,opening_balance",
-        { count: "exact" },
-      )
-      .or(CUSTOMER_ROLE_OR_FILTER)
-      .order("created_at", { ascending: false })
-      .range(from, from + PAGE_SIZE - 1),
+    usersRequest,
     supabase
       .from("users")
       .select("id", { count: "exact", head: true })

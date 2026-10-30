@@ -16,6 +16,9 @@ export async function GET(request: Request) {
       dateFrom: searchParams.get("dateFrom") ?? undefined,
       dateTo: searchParams.get("dateTo") ?? undefined,
       creditKind: searchParams.get("creditKind") ?? undefined,
+      cityId: searchParams.get("cityId") ?? undefined,
+      streetId: searchParams.get("streetId") ?? undefined,
+      mallId: searchParams.get("mallId") ?? undefined,
     });
     return NextResponse.json(result);
   } catch (error) {

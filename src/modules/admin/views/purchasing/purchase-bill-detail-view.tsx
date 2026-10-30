@@ -55,6 +55,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LineProductImageThumb } from "@/modules/erp/components/line-product-image-thumb";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
   landedAllocFromStoredLine,
@@ -94,6 +95,8 @@ type BillDetail = {
   stores: { name: string | null } | null;
   purchase_orders: { po_number: string | null } | null;
   erp_purchase_bill_lines: Array<{
+    id?: string;
+    product_id?: string | null;
     product_name: string;
     quantity: number;
     purchase_price: number;
@@ -574,6 +577,9 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead className="w-12 px-2">
+                          <span className="sr-only">Image</span>
+                        </TableHead>
                         <TableHead className="w-10">#</TableHead>
                         <TableHead>Product</TableHead>
                         <TableHead className="text-right">Qty</TableHead>
@@ -599,7 +605,13 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
                           unit_loaded_cost: line.unit_loaded_cost,
                         });
                         return (
-                          <TableRow key={index}>
+                          <TableRow key={line.id ?? index}>
+                            <TableCell className="w-12 px-2 align-middle">
+                              <LineProductImageThumb
+                                productId={line.product_id ?? null}
+                                productName={line.product_name}
+                              />
+                            </TableCell>
                             <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                             <TableCell className="font-medium">{line.product_name}</TableCell>
                             <TableCell className="text-right tabular-nums">{line.quantity}</TableCell>

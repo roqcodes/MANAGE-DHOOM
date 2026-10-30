@@ -11,6 +11,11 @@ import {
 import { withSalesmanDocumentAudit } from "@/modules/erp/lib/log-sales-document-audit";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
+import {
+  applyUserIdInFilter,
+  parseAddressFilterFromQuery,
+  resolveUserIdsForAddressFilter,
+} from "@/modules/customers/services/customer-address-filter.service";
 import type { Json } from "@/lib/integrations/supabase/types";
 import {
   assertErpInvoiceEditable,
@@ -46,6 +51,9 @@ export async function listErpInvoices(filters?: {
   openOnly?: boolean;
   page?: number;
   limit?: number;
+  cityId?: string;
+  streetId?: string;
+  mallId?: string;
 }): Promise<{ data: ErpInvoiceListRow[]; total: number }> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
@@ -53,6 +61,11 @@ export async function listErpInvoices(filters?: {
   const limit = filters?.limit ?? 20;
   const from = page * limit;
   const activeStoreId = await resolveErpStoreId(filters?.storeId);
+
+  const addressUserIds = await resolveUserIdsForAddressFilter(
+    supabase,
+    parseAddressFilterFromQuery(filters ?? {}),
+  );
 
   let query = supabase
     .from("invoices")
@@ -64,6 +77,7 @@ export async function listErpInvoices(filters?: {
     .range(from, from + limit - 1);
 
   if (activeStoreId) query = query.eq("store_id", activeStoreId);
+  query = applyUserIdInFilter(query, "user_id", addressUserIds);
   if (filters?.userId) query = query.eq("user_id", filters.userId);
   if (filters?.status && filters.status !== "all") {
     if (filters.status === "draft") {

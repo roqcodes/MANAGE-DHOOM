@@ -23,6 +23,8 @@ export type ReportFilterConfig = {
   ageRange?: boolean;
   /** Filter by ERP salesman (invoice sales_person_id / activity attribution). */
   salesman?: boolean;
+  /** City → street → mall on customer default address (serial filters). */
+  addressHierarchy?: boolean;
   /** Dead stock: days since expiry (min/max). */
   expiredDaysRange?: boolean;
   /** Dead stock / expiry: expiring-soon window (days). */

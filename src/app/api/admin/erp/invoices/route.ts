@@ -29,6 +29,9 @@ export async function GET(request: Request) {
   const dateFrom = searchParams.get("dateFrom") ?? undefined;
   const dateTo = searchParams.get("dateTo") ?? undefined;
   const openOnly = searchParams.get("openOnly") === "1";
+  const cityId = searchParams.get("cityId") ?? undefined;
+  const streetId = searchParams.get("streetId") ?? undefined;
+  const mallId = searchParams.get("mallId") ?? undefined;
   const limit = searchParams.get("limit")
     ? Math.min(50, parseInt(searchParams.get("limit")!, 10))
     : undefined;
@@ -43,6 +46,9 @@ export async function GET(request: Request) {
       dateTo,
       openOnly,
       limit,
+      cityId,
+      streetId,
+      mallId,
     });
     return NextResponse.json(result);
   } catch (error) {

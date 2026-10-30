@@ -66,6 +66,9 @@ function ActivityLogReport({ report }: { report: ReportDefinition }) {
     action,
     userId,
     salesmanId: filters.salesmanId,
+    cityId: filters.addressCityId ?? undefined,
+    streetId: filters.addressStreetId ?? undefined,
+    mallId: filters.addressMallId ?? undefined,
   });
 
   useEffect(() => {

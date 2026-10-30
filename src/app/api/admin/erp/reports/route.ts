@@ -61,6 +61,9 @@ export async function GET(request: Request) {
         url.searchParams.get("slug") === "dead-stock"
           ? parseOptionalInt(url.searchParams.get("expiryWindowDays"))
           : undefined,
+      cityId: url.searchParams.get("cityId") ?? undefined,
+      streetId: url.searchParams.get("streetId") ?? undefined,
+      mallId: url.searchParams.get("mallId") ?? undefined,
       },
       { authenticated: true },
     );

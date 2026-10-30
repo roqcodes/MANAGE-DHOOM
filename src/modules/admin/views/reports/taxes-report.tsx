@@ -34,6 +34,9 @@ function useVatReportFetch(report: ReportDefinition, filters: ReturnType<typeof 
     channel: "all",
     accountId: "",
     search: serverSearch ? filters.debouncedSearch : undefined,
+    cityId: filters.addressCityId ?? undefined,
+    streetId: filters.addressStreetId ?? undefined,
+    mallId: filters.addressMallId ?? undefined,
   });
 }
 

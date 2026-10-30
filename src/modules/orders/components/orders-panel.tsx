@@ -47,6 +47,8 @@ import {
 } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
+import { useAddressHierarchyFilters } from "@/modules/customers/hooks/use-address-hierarchy-filters";
+import { AddressHierarchyFilterInline } from "@/modules/customers/components/address-hierarchy-filter-fields";
 
 function orderMatchesDateRange(
   order: Order,
@@ -96,6 +98,32 @@ export function OrdersPanel({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const address = useAddressHierarchyFilters({
+    initial: {
+      cityId: searchParams.get("cityId"),
+      streetId: searchParams.get("streetId"),
+      mallId: searchParams.get("mallId"),
+    },
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("cityId");
+    params.delete("streetId");
+    params.delete("mallId");
+    for (const [key, value] of Object.entries(address.listParams)) {
+      params.set(key, value);
+    }
+    if (Object.keys(address.listParams).length > 0) {
+      params.delete("page");
+    }
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(next ? `${basePath}?${next}` : basePath);
+    }
+  }, [address.listParams, basePath, router, searchParams]);
+
   const [search, setSearch] = useState("");
   const [viewFilter, setViewFilter] = useState<OrdersViewFilter>("all");
   const {
@@ -119,7 +147,7 @@ export function OrdersPanel({
       .catch(() => setCustomerFilterLabel(""));
   }, [selectedUserId]);
 
-  const listParams: Record<string, string> = {};
+  const listParams: Record<string, string> = { ...address.listParams };
   if (statusFilter !== "all") listParams.status = statusFilter;
   if (selectedUserId) listParams.userId = selectedUserId;
 
@@ -155,6 +183,7 @@ export function OrdersPanel({
     search.trim().length > 0 ||
     viewFilter !== "all" ||
     selectedUserId !== null ||
+    address.isAddressFiltering ||
     isDateFiltering;
 
   const activeFilterLabel =
@@ -240,6 +269,10 @@ export function OrdersPanel({
                   </DropdownMenuContent>
                 </DropdownMenu>
               </InputGroupAddon>
+              <InputGroupAddon align="inline-start" className="px-0">
+                <div className="h-4 w-px bg-border" aria-hidden />
+              </InputGroupAddon>
+              <AddressHierarchyFilterInline {...address.toolbarProps} />
               <InputGroupAddon align="inline-start" className="px-0">
                 <div className="h-4 w-px bg-border" aria-hidden />
               </InputGroupAddon>

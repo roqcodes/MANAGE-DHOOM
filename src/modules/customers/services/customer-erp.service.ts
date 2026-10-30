@@ -2,10 +2,13 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseAdminClient } from "@/lib/integrations/supabase/admin";
 import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import type { Database } from "@/lib/integrations/supabase/types";
 import type {
   CustomerErpProfile,
   CustomerErpSummary,
@@ -20,6 +23,11 @@ import {
 } from "@/lib/erp/master-name-uniqueness";
 import { staffCustomerCreditLimitsClient } from "@/lib/erp/customer-credit-limits-db";
 import { assertCreditLimitAtLeastExposure } from "@/modules/credit/services/credit-limits.service";
+import {
+  assertCustomerAddressHierarchy,
+  normalizeCustomerAddressSelection,
+  resolveCustomerAddressProfile,
+} from "@/modules/customers/services/customer-address-lookup.service";
 
 async function upsertCustomerCreditLimit(userId: string, creditLimit: number) {
   await assertCreditLimitAtLeastExposure(userId, creditLimit);
@@ -51,6 +59,9 @@ export interface CustomerProfileInput {
   openingBalanceDate?: string | null;
   creditLimit?: number | null;
   address?: string | null;
+  addressCityId?: string | null;
+  addressMallId?: string | null;
+  addressStreetId?: string | null;
   avatarUrl?: string | null;
 }
 
@@ -80,6 +91,77 @@ function buildCustomerName(input: CustomerProfileInput): string {
   return parts.join(" ").trim();
 }
 
+async function upsertPrimaryCustomerAddress(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  input: CustomerProfileInput,
+): Promise<void> {
+  const structuredProvided =
+    input.addressCityId !== undefined ||
+    input.addressMallId !== undefined ||
+    input.addressStreetId !== undefined;
+  const legacyLine = input.address?.trim();
+
+  if (!structuredProvided && !legacyLine) return;
+
+  const cityId = structuredProvided ? (input.addressCityId ?? null) : null;
+  const mallId = structuredProvided ? (input.addressMallId ?? null) : null;
+  const streetId = structuredProvided ? (input.addressStreetId ?? null) : null;
+
+  if (cityId || streetId || mallId) {
+    await assertCustomerAddressHierarchy(supabase, { cityId, streetId, mallId });
+  }
+
+  const names = cityId || mallId || streetId
+    ? await resolveAddressLookupNames({
+        cityId,
+        mallId,
+        streetId,
+      })
+    : { city: input.location?.trim() || null, mall: null, street: null };
+
+  const line1 =
+    composeCustomerAddressLine({
+      mall: names.mall,
+      street: names.street,
+      city: names.city,
+      legacyLine1: legacyLine,
+    }) ?? "—";
+
+  const phone = input.phone?.trim() || input.landline?.trim() || "—";
+
+  const { data: existing } = await supabase
+    .from("addresses")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("is_default", true)
+    .maybeSingle();
+
+  const row = {
+    city_id: cityId,
+    mall_id: mallId,
+    street_id: streetId,
+    city: names.city?.trim() || input.location?.trim() || "—",
+    line1,
+    label: "Primary",
+    phone,
+    state: "—",
+    pincode: "—",
+  } as never;
+
+  if (existing?.id) {
+    const { error } = await supabase.from("addresses").update(row).eq("id", existing.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from("addresses").insert({
+      user_id: userId,
+      is_default: true,
+      ...row,
+    });
+    if (error) throw new Error(error.message);
+  }
+}
+
 export async function createCustomer(input: CustomerProfileInput): Promise<string> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
@@ -97,6 +179,12 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
   const customerNumber = await nextCustomerNumber(supabase);
   const id = randomUUID();
 
+  let locationValue = input.location?.trim() || null;
+  if (input.addressCityId) {
+    const { city } = await resolveAddressLookupNames({ cityId: input.addressCityId });
+    if (city?.trim()) locationValue = city.trim();
+  }
+
   const { error } = await supabase.from("users").insert({
     id,
     name,
@@ -108,7 +196,7 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
     company_name: companyName,
     trn: input.trn?.trim() || null,
     contact_display_name: input.contactDisplayName?.trim() || name,
-    location: input.location?.trim() || null,
+    location: locationValue,
     po_box: input.poBox?.trim() || null,
     customer_notes: input.customerNotes?.trim() || null,
     opening_balance: openingBalance,
@@ -120,22 +208,14 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
     throw new Error(error.message);
   }
 
-  if (input.address?.trim()) {
-    const { error: addressError } = await supabase.from("addresses").insert({
-      user_id: id,
-      label: "Primary",
-      line1: input.address.trim(),
-      city: input.location?.trim() || "—",
-      state: "—",
-      pincode: "—",
-      phone: input.phone?.trim() || input.landline?.trim() || "—",
-      is_default: true,
-    });
-    if (addressError) {
-      throw new Error(
-        `Customer was created, but the address could not be saved. Open the customer record to add the address. (${addressError.message})`,
-      );
-    }
+  try {
+    await upsertPrimaryCustomerAddress(supabase, id, input);
+  } catch (addressError) {
+    throw new Error(
+      addressError instanceof Error
+        ? `Customer was created, but the address could not be saved. Open the customer record to add the address. (${addressError.message})`
+        : "Customer was created, but the address could not be saved.",
+    );
   }
 
   if (input.creditLimit != null && input.creditLimit > 0) {
@@ -152,20 +232,77 @@ export async function createCustomer(input: CustomerProfileInput): Promise<strin
   return id;
 }
 
-export async function getCustomerProfile(userId: string): Promise<CustomerErpProfile> {
-  await requireAdminOrManagerProfile();
-  const supabase = await createSupabaseServerClient();
+function isMissingCustomerProfileRpc(errorMessage: string): boolean {
+  return /get_customer_erp_profile|does not exist|Could not find the function/i.test(
+    errorMessage,
+  );
+}
 
-  const { data: user, error } = await supabase
-    .from("users")
-    .select(
-      "id, name, email, phone, avatar_url, customer_number, company_name, trn, contact_display_name, location, po_box, customer_notes, opening_balance, opening_balance_date, is_verified, created_at",
-    )
-    .eq("id", userId)
-    .single();
-  if (error) throw new Error(error.message);
+function mapCustomerErpProfileFromRpc(raw: unknown): CustomerErpProfile {
+  const row = raw as Record<string, unknown>;
+  if (!row?.id) {
+    throw new Error("Customer not found.");
+  }
+  return {
+    id: String(row.id),
+    customerNumber: (row.customer_number as string | null) ?? null,
+    name: (row.name as string | null) ?? null,
+    email: (row.email as string | null) ?? null,
+    phone: (row.phone as string | null) ?? null,
+    avatarUrl: (row.avatar_url as string | null)?.trim() || null,
+    companyName: (row.company_name as string | null) ?? null,
+    trn: (row.trn as string | null) ?? null,
+    contactDisplayName: (row.contact_display_name as string | null) ?? null,
+    location: (row.location as string | null) ?? null,
+    poBox: (row.po_box as string | null) ?? null,
+    customerNotes: (row.customer_notes as string | null) ?? null,
+    openingBalance: Number(row.opening_balance ?? 0),
+    openingBalanceDate: (row.opening_balance_date as string | null) ?? null,
+    creditLimit: row.credit_limit != null ? Number(row.credit_limit) : null,
+    outstandingBalance: Number(row.outstanding_balance ?? 0),
+    address: (row.address as string | null) ?? null,
+    addressCityId: (row.address_city_id as string | null) ?? null,
+    addressCityName: (row.address_city_name as string | null) ?? null,
+    addressMallId: (row.address_mall_id as string | null) ?? null,
+    addressMallName: (row.address_mall_name as string | null) ?? null,
+    addressStreetId: (row.address_street_id as string | null) ?? null,
+    addressStreetName: (row.address_street_name as string | null) ?? null,
+    isVerified: row.is_verified !== false,
+    createdAt: (row.created_at as string | null) ?? null,
+  };
+}
 
-  const [{ data: creditRow }, { data: addressRow }, exposure] = await Promise.all([
+async function loadCustomerProfileViaRpc(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<CustomerErpProfile | "missing_rpc"> {
+  const { data, error } = await supabase.rpc("get_customer_erp_profile", {
+    p_user_id: userId,
+  });
+  if (error) {
+    if (isMissingCustomerProfileRpc(error.message)) {
+      return "missing_rpc";
+    }
+    throw new Error(error.message);
+  }
+  if (!data) {
+    throw new Error("Customer not found.");
+  }
+  return mapCustomerErpProfileFromRpc(data);
+}
+
+async function loadCustomerProfileLegacy(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<CustomerErpProfile> {
+  const [userResult, creditResult, addressResult, exposure] = await Promise.all([
+    supabase
+      .from("users")
+      .select(
+        "id, name, email, phone, avatar_url, customer_number, company_name, trn, contact_display_name, location, po_box, customer_notes, opening_balance, opening_balance_date, is_verified, created_at",
+      )
+      .eq("id", userId)
+      .single(),
     supabase
       .from("customer_credit_limits")
       .select("credit_limit")
@@ -173,7 +310,7 @@ export async function getCustomerProfile(userId: string): Promise<CustomerErpPro
       .maybeSingle(),
     supabase
       .from("addresses")
-      .select("line1, line2, city, state, pincode")
+      .select("line1, line2, city, state, pincode, city_id, mall_id, street_id")
       .eq("user_id", userId)
       .eq("is_default", true)
       .maybeSingle(),
@@ -182,13 +319,32 @@ export async function getCustomerProfile(userId: string): Promise<CustomerErpPro
       p_exclude_invoice_id: null,
     }),
   ]);
+
+  if (userResult.error) throw new Error(userResult.error.message);
   if (exposure.error) throw new Error(exposure.error.message);
 
-  const addressParts = addressRow
-    ? [addressRow.line1, addressRow.line2, addressRow.city, addressRow.state, addressRow.pincode]
-        .filter(Boolean)
-        .join(", ")
-    : null;
+  const user = userResult.data;
+  const creditRow = creditResult.data;
+  const addressRowTyped = addressResult.data as {
+    line1?: string | null;
+    line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    pincode?: string | null;
+    city_id?: string | null;
+    mall_id?: string | null;
+    street_id?: string | null;
+  } | null;
+
+  const { normalized, lookupNames, composedAddress } = await resolveCustomerAddressProfile(
+    supabase,
+    {
+      cityId: addressRowTyped?.city_id,
+      streetId: addressRowTyped?.street_id,
+      mallId: addressRowTyped?.mall_id,
+    },
+    addressRowTyped ?? undefined,
+  );
 
   return {
     id: user.id,
@@ -207,10 +363,33 @@ export async function getCustomerProfile(userId: string): Promise<CustomerErpPro
     openingBalanceDate: user.opening_balance_date,
     creditLimit: creditRow?.credit_limit != null ? Number(creditRow.credit_limit) : null,
     outstandingBalance: Number(exposure.data ?? 0),
-    address: addressParts || null,
+    address: composedAddress || null,
+    addressCityId: normalized.cityId,
+    addressCityName: lookupNames.city ?? addressRowTyped?.city ?? user.location,
+    addressMallId: normalized.mallId,
+    addressMallName: lookupNames.mall,
+    addressStreetId: normalized.streetId,
+    addressStreetName: lookupNames.street,
     isVerified: user.is_verified !== false,
     createdAt: user.created_at,
   };
+}
+
+export async function getCustomerProfile(
+  userId: string,
+  options?: { skipAuth?: boolean; supabase?: SupabaseClient<Database> },
+): Promise<CustomerErpProfile> {
+  if (!options?.skipAuth) {
+    await requireAdminOrManagerProfile();
+  }
+  const supabase = options?.supabase ?? (await createSupabaseServerClient());
+
+  const fromRpc = await loadCustomerProfileViaRpc(supabase, userId);
+  if (fromRpc !== "missing_rpc") {
+    return fromRpc;
+  }
+
+  return loadCustomerProfileLegacy(supabase, userId);
 }
 
 export async function updateCustomerProfile(
@@ -237,6 +416,18 @@ export async function updateCustomerProfile(
     await assertUniqueCustomerCompanyName(supabase, companyName, userId);
   }
 
+  let locationPatch: string | null | undefined;
+  if (input.addressCityId !== undefined) {
+    if (input.addressCityId) {
+      const { city } = await resolveAddressLookupNames({ cityId: input.addressCityId });
+      locationPatch = city?.trim() || null;
+    } else {
+      locationPatch = null;
+    }
+  } else if (input.location !== undefined) {
+    locationPatch = input.location?.trim() || null;
+  }
+
   const { error } = await supabase
     .from("users")
     .update({
@@ -250,7 +441,7 @@ export async function updateCustomerProfile(
       ...(input.contactDisplayName !== undefined
         ? { contact_display_name: input.contactDisplayName?.trim() || null }
         : {}),
-      ...(input.location !== undefined ? { location: input.location?.trim() || null } : {}),
+      ...(locationPatch !== undefined ? { location: locationPatch } : {}),
       ...(input.poBox !== undefined ? { po_box: input.poBox?.trim() || null } : {}),
       ...(input.customerNotes !== undefined
         ? { customer_notes: input.customerNotes?.trim() || null }
@@ -269,35 +460,13 @@ export async function updateCustomerProfile(
     throw new Error(error.message);
   }
 
-  if (input.address !== undefined) {
-    const { data: existing } = await supabase
-      .from("addresses")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("is_default", true)
-      .maybeSingle();
-
-    if (input.address?.trim()) {
-      if (existing?.id) {
-        const { error: addressUpdateError } = await supabase
-          .from("addresses")
-          .update({ line1: input.address.trim(), label: "Primary" })
-          .eq("id", existing.id);
-        if (addressUpdateError) throw new Error(addressUpdateError.message);
-      } else {
-        const { error: addressInsertError } = await supabase.from("addresses").insert({
-          user_id: userId,
-          label: "Primary",
-          line1: input.address.trim(),
-          city: input.location?.trim() || "—",
-          state: "—",
-          pincode: "—",
-          phone: input.phone?.trim() || input.landline?.trim() || "—",
-          is_default: true,
-        });
-        if (addressInsertError) throw new Error(addressInsertError.message);
-      }
-    }
+  if (
+    input.address !== undefined ||
+    input.addressCityId !== undefined ||
+    input.addressMallId !== undefined ||
+    input.addressStreetId !== undefined
+  ) {
+    await upsertPrimaryCustomerAddress(supabase, userId, input);
   }
 
   if (input.creditLimit !== undefined) {

@@ -7,6 +7,7 @@ import type { AdminDatePreset } from "@/modules/admin/lib/admin-date-range";
 import { useAdminDateRange } from "@/modules/admin/ui/use-admin-date-range";
 import { useDebouncedValue } from "@/modules/admin/ui/use-debounced-value";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
+import { useAddressHierarchyFilters } from "@/modules/customers/hooks/use-address-hierarchy-filters";
 
 export function useErpListState(options?: {
   defaultStatus?: string;
@@ -36,6 +37,13 @@ export function useErpListState(options?: {
 
   const debouncedSearch = useDebouncedValue(search, 350);
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
+  const address = useAddressHierarchyFilters({
+    initial: {
+      cityId: searchParams.get("cityId"),
+      streetId: searchParams.get("streetId"),
+      mallId: searchParams.get("mallId"),
+    },
+  });
 
   useEffect(() => {
     if (activeStoreId) {
@@ -51,13 +59,15 @@ export function useErpListState(options?: {
     if (status !== "all") params.status = status;
     if (effectiveStoreId) params.storeId = effectiveStoreId;
     if (debouncedSearch.trim()) params.search = debouncedSearch.trim();
+    Object.assign(params, address.listParams);
     return params;
-  }, [status, effectiveStoreId, debouncedSearch, dateListParams]);
+  }, [status, effectiveStoreId, debouncedSearch, dateListParams, address.listParams]);
 
   const isFiltering =
     Boolean(debouncedSearch.trim()) ||
     status !== "all" ||
     isDateFiltering ||
+    address.isAddressFiltering ||
     (allowAllStores && Boolean(storeId) && storeId !== activeStoreId);
 
   function clearFilters() {
@@ -65,6 +75,7 @@ export function useErpListState(options?: {
     setStatus(options?.defaultStatus ?? "all");
     setStoreId(activeStoreId ?? "");
     clearDateRange();
+    address.clearAddressFilters();
   }
 
   return {
@@ -85,5 +96,6 @@ export function useErpListState(options?: {
     activeStoreId,
     allowAllStores,
     erpContextLoading,
+    addressFilterFields: address.toolbarProps,
   };
 }

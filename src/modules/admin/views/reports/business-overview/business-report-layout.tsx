@@ -14,6 +14,7 @@ import {
   AdminSecondaryIconAction,
 } from "@/modules/admin/ui";
 import type { useBusinessReportFilters } from "./use-business-report-filters";
+import { AddressHierarchyFilterInline } from "@/modules/customers/components/address-hierarchy-filter-fields";
 
 export type BusinessReportFilters = ReturnType<typeof useBusinessReportFilters>;
 
@@ -132,6 +133,11 @@ export function BusinessReportLayout({
             : false
         }
         toolbarExtra={toolbarExtra}
+        addressFilters={
+          filters.addressFilterFields ? (
+            <AddressHierarchyFilterInline {...filters.addressFilterFields} />
+          ) : null
+        }
       >
         {children}
       </AdminListCard>

@@ -6437,6 +6437,27 @@ export type Database = {
         Args: { p_user_id: string; p_exclude_invoice_id?: string | null }
         Returns: number
       }
+      get_customer_erp_profile: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
+      erp_filter_user_ids_by_address: {
+        Args: {
+          p_city_id?: string | null
+          p_street_id?: string | null
+          p_mall_id?: string | null
+        }
+        Returns: string[]
+      }
+      erp_user_matches_address_filter: {
+        Args: {
+          p_user_id: string
+          p_city_id?: string | null
+          p_street_id?: string | null
+          p_mall_id?: string | null
+        }
+        Returns: boolean
+      }
       assert_customer_credit_headroom: {
         Args: {
           p_user_id: string

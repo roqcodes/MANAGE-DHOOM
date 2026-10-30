@@ -18,8 +18,11 @@ export async function GET(request: Request) {
     }
 
     const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
+    const cityId = searchParams.get("cityId") ?? undefined;
+    const streetId = searchParams.get("streetId") ?? undefined;
+    const mallId = searchParams.get("mallId") ?? undefined;
 
-    const result = await getAllCustomers(page);
+    const result = await getAllCustomers(page, { cityId, streetId, mallId });
     return NextResponse.json(result);
   } catch (error) {
     console.error("[GET /api/admin/customers]", error);

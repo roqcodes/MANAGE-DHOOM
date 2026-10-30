@@ -1,7 +1,8 @@
 "use client";
 
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import type { AdminUser } from "@/common/admin/types";
 import { AdminPageLoadError } from "@/modules/feedback/components/admin-page-load-error";
 import { EMPTY_CUSTOMER_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
@@ -11,6 +12,7 @@ import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { useErpFormModal } from "@/modules/admin/ui";
 import type { CustomerStats } from "@/modules/customers/services/customers.service";
 import { AdminCustomerFormView } from "@/modules/admin/views/admin-customer-form-view";
+import { useAddressHierarchyFilters } from "@/modules/customers/hooks/use-address-hierarchy-filters";
 
 type CustomersPayload = {
   data: AdminUser[];
@@ -20,13 +22,44 @@ type CustomersPayload = {
 
 export function AdminCustomersView() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/customers");
+  const address = useAddressHierarchyFilters({
+    initial: {
+      cityId: searchParams.get("cityId"),
+      streetId: searchParams.get("streetId"),
+      mallId: searchParams.get("mallId"),
+    },
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("cityId");
+    params.delete("streetId");
+    params.delete("mallId");
+    for (const [key, value] of Object.entries(address.listParams)) {
+      params.set(key, value);
+    }
+    if (Object.keys(address.listParams).length > 0) {
+      params.delete("page");
+    }
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(next ? `/admin/customers?${next}` : "/admin/customers");
+    }
+  }, [address.listParams, router, searchParams]);
+
+  const listQuery = new URLSearchParams({ page: String(page) });
+  for (const [key, value] of Object.entries(address.listParams)) {
+    listQuery.set(key, value);
+  }
 
   const { data, isPending, isError, error } = useQuery({
-    queryKey: adminQueryKeys.customersList(page),
-    queryFn: () => adminGet<CustomersPayload>(`customers?page=${page}`),
+    queryKey: [...adminQueryKeys.customersList(page), address.listParams],
+    queryFn: () => adminGet<CustomersPayload>(`customers?${listQuery.toString()}`),
     placeholderData: keepPreviousData,
   });
   const initialLoading = isPending && !data;
@@ -55,6 +88,7 @@ export function AdminCustomersView() {
         page={page}
         stats={data?.stats ?? EMPTY_CUSTOMER_STATS}
         onAddCustomer={() => openNew()}
+        addressFilterFields={address.toolbarProps}
       />
 
       {isOpen ? (

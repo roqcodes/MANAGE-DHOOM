@@ -141,7 +141,14 @@ export interface CustomerErpProfile {
   creditLimit: number | null;
   /** Opening balance + open invoice balances (matches credit enforcement). */
   outstandingBalance?: number;
+  /** Composed billing address for display. */
   address: string | null;
+  addressCityId?: string | null;
+  addressCityName?: string | null;
+  addressMallId?: string | null;
+  addressMallName?: string | null;
+  addressStreetId?: string | null;
+  addressStreetName?: string | null;
   isVerified: boolean;
   createdAt: string | null;
 }

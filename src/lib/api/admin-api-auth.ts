@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { User } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { UserProfile } from "@/common/auth/types";
 import { canAccessRolePath } from "@/modules/auth/access.control";
@@ -10,6 +11,7 @@ import {
   isSupabaseConnectivityError,
   SupabaseConnectivityError,
 } from "@/lib/integrations/supabase/connectivity-error";
+import type { Database } from "@/lib/integrations/supabase/types";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { isAdminAreaRole } from "@/modules/rbac/lib/admin-area";
 import { canReadAdminPath } from "@/modules/rbac/lib/permission-catalog";
@@ -70,7 +72,7 @@ export async function requireAdminApiProfile(): Promise<
  * RPCs such as `verify_erp_salesman_pin` enforce staff again server-side.
  */
 export async function requireStaffErpApiSession(): Promise<
-  | { ok: true; user: User }
+  | { ok: true; user: User; supabase: SupabaseClient<Database> }
   | { ok: false; response: NextResponse }
 > {
   try {
@@ -104,7 +106,7 @@ export async function requireStaffErpApiSession(): Promise<
       return { ok: false, response: adminForbidden() };
     }
 
-    return { ok: true, user };
+    return { ok: true, user, supabase };
   } catch (error) {
     if (error instanceof SupabaseConnectivityError) {
       return { ok: false, response: adminServiceUnavailable(error.message) };

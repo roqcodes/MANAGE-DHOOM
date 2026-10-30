@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
+import { requireAdminApiProfile, requireStaffErpApiSession } from "@/lib/api/admin-api-auth";
 import {
   getCustomerErpBundle,
   getCustomerProfile,
@@ -11,15 +11,20 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireAdminApiProfile();
-  if (!auth.ok) return auth.response;
   const { id } = await params;
   const view = new URL(request.url).searchParams.get("view");
   try {
     if (view === "profile") {
-      const profile = await getCustomerProfile(id);
+      const auth = await requireStaffErpApiSession();
+      if (!auth.ok) return auth.response;
+      const profile = await getCustomerProfile(id, {
+        skipAuth: true,
+        supabase: auth.supabase,
+      });
       return NextResponse.json({ profile });
     }
+    const auth = await requireAdminApiProfile();
+    if (!auth.ok) return auth.response;
     const bundle = await getCustomerErpBundle(id);
     return NextResponse.json(bundle);
   } catch (error) {

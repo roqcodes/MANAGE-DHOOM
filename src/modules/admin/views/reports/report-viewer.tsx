@@ -31,6 +31,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAdminDateRange, useDebouncedValue } from "@/modules/admin/ui";
 import { useErpReportFetch } from "@/modules/admin/views/reports/business-overview/use-erp-report-fetch";
 import { useSalesmanReportFilter } from "@/modules/admin/views/reports/business-overview/use-salesman-report-filter";
+import { useAddressHierarchyFilters } from "@/modules/customers/hooks/use-address-hierarchy-filters";
+import { reportUsesAddressHierarchyFilters } from "@/modules/customers/lib/address-hierarchy-filter";
+import { AddressHierarchyFilterInline } from "@/modules/customers/components/address-hierarchy-filter-fields";
+import { InputGroup } from "@/components/ui/input-group";
 import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -179,6 +183,8 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
     : debouncedCustomerSearch;
 
   const { salesmanId } = useSalesmanReportFilter(report);
+  const address = useAddressHierarchyFilters();
+  const showAddressFilters = reportUsesAddressHierarchyFilters(report);
   const { loading, error, rawData, reload } = useErpReportFetch(report, {
     dateFrom,
     dateTo,
@@ -191,6 +197,9 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
         ? serverSearch
         : undefined,
     salesmanId,
+    cityId: address.params.cityId ?? undefined,
+    streetId: address.params.streetId ?? undefined,
+    mallId: address.params.mallId ?? undefined,
   });
 
   const rows = useMemo(
@@ -252,6 +261,13 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
           <CardTitle className="text-sm">Filters</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
+          {showAddressFilters ? (
+            <div className="w-full min-w-0 basis-full">
+              <InputGroup className="h-9 max-w-2xl">
+                <AddressHierarchyFilterInline {...address.toolbarProps} />
+              </InputGroup>
+            </div>
+          ) : null}
           {report.filters.dateRange ? (
             <p className="text-xs text-muted-foreground self-center">
               Date range: use the picker in the top header (next to search).

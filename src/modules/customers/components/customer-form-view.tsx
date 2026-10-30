@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 import type { CustomerErpProfile } from "@/common/erp/sales-types";
@@ -23,6 +23,12 @@ import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleto
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomerPhotoField } from "@/modules/customers/components/customer-photo-field";
+import {
+  AddressLookupField,
+  type AddressLookupFieldHandle,
+  type AddressLookupSelectionMeta,
+  type AddressLookupValue,
+} from "@/modules/customers/components/address-lookup-field";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { cn } from "@/lib/utils";
 
@@ -90,6 +96,11 @@ export function CustomerFormView({
   const [loading, setLoading] = useState(mode === "edit");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [addressCity, setAddressCity] = useState<AddressLookupValue>({ id: null, name: "" });
+  const [addressMall, setAddressMall] = useState<AddressLookupValue>({ id: null, name: "" });
+  const [addressStreet, setAddressStreet] = useState<AddressLookupValue>({ id: null, name: "" });
+  const streetFieldRef = useRef<AddressLookupFieldHandle>(null);
+  const mallFieldRef = useRef<AddressLookupFieldHandle>(null);
 
   useEffect(() => {
     if (mode !== "edit" || !customerId) return;
@@ -97,6 +108,18 @@ export function CustomerFormView({
       .then((res) => {
         setProfile(res.profile);
         setAvatarUrl(res.profile.avatarUrl ?? "");
+        setAddressCity({
+          id: res.profile.addressCityId ?? null,
+          name: res.profile.addressCityName ?? res.profile.location ?? "",
+        });
+        setAddressMall({
+          id: res.profile.addressMallId ?? null,
+          name: res.profile.addressMallName ?? "",
+        });
+        setAddressStreet({
+          id: res.profile.addressStreetId ?? null,
+          name: res.profile.addressStreetName ?? "",
+        });
       })
       .finally(() => setLoading(false));
   }, [mode, customerId]);
@@ -122,6 +145,53 @@ export function CustomerFormView({
     router.push(savedId ? `/admin/customers/${savedId}` : "/admin/customers");
   }
 
+  function focusNextAddressField(meta: AddressLookupSelectionMeta) {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (meta.kind === "city") {
+          streetFieldRef.current?.open();
+        } else if (meta.kind === "street") {
+          mallFieldRef.current?.open();
+        }
+      });
+    });
+  }
+
+  function handleCityChange(next: AddressLookupValue) {
+    setAddressCity((prev) => {
+      if (prev.id !== next.id) {
+        setAddressStreet({ id: null, name: "" });
+        setAddressMall({ id: null, name: "" });
+      }
+      return next;
+    });
+  }
+
+  function handleStreetChange(next: AddressLookupValue) {
+    setAddressStreet((prev) => {
+      if (prev.id !== next.id) {
+        setAddressMall({ id: null, name: "" });
+      }
+      return next;
+    });
+  }
+
+  function handleAddressSelectionComplete(
+    _option: { id: string; name: string },
+    meta: AddressLookupSelectionMeta,
+  ) {
+    focusNextAddressField(meta);
+  }
+
+  const streetParentContext = useMemo(
+    () => ({ cityId: addressCity.id }),
+    [addressCity.id],
+  );
+  const mallParentContext = useMemo(
+    () => ({ cityId: addressCity.id, streetId: addressStreet.id }),
+    [addressCity.id, addressStreet.id],
+  );
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -145,14 +215,35 @@ export function CustomerFormView({
       return;
     }
 
+    const lookupErrors = [
+      addressCity.name.trim() && !addressCity.id
+        ? "City: pick an existing city or use “Add city and save”."
+        : null,
+      (addressStreet.name.trim() || addressStreet.id) && !addressCity.id
+        ? "Street: select a city first."
+        : null,
+      addressStreet.name.trim() && !addressStreet.id
+        ? "Street: pick an existing street or use “Add street and save”."
+        : null,
+      (addressMall.name.trim() || addressMall.id) && !addressStreet.id
+        ? "Mall: select a street first."
+        : null,
+      addressMall.name.trim() && !addressMall.id
+        ? "Mall: pick an existing mall or use “Add mall and save”."
+        : null,
+    ].filter(Boolean) as string[];
+
+    if (lookupErrors.length > 0) {
+      setErrors(lookupErrors);
+      return;
+    }
+
 const payload = {
       firstName: (fd.get("firstName") as string).trim() || undefined,
       lastName: (fd.get("lastName") as string).trim() || undefined,
       companyName,
-      address: (fd.get("address") as string).trim() || undefined,
       trn: (fd.get("trn") as string).trim() || undefined,
       contactDisplayName: (fd.get("contactDisplayName") as string).trim() || undefined,
-      location: (fd.get("location") as string).trim() || undefined,
       email: (fd.get("email") as string).trim() || undefined,
       phone: (fd.get("mobile") as string).trim() || undefined,
       landline: (fd.get("phone") as string).trim() || undefined,
@@ -162,6 +253,9 @@ const payload = {
       openingBalance: parseFloat((fd.get("openingBalance") as string) || "0"),
       openingBalanceDate: (fd.get("openingBalanceDate") as string) || null,
       avatarUrl: avatarUrl.trim() || null,
+      addressCityId: addressCity.id,
+      addressMallId: addressMall.id,
+      addressStreetId: addressStreet.id,
     };
 
     startTransition(async () => {
@@ -317,14 +411,6 @@ const payload = {
             <AdminFormField label="Phone">
               <Input name="phone" type="tel" placeholder="Landline" autoComplete="tel-national" />
             </AdminFormField>
-            <AdminFormField label="Location">
-              <Input
-                name="location"
-                placeholder="City / area"
-                autoComplete="address-level2"
-                defaultValue={profile?.location ?? ""}
-              />
-            </AdminFormField>
             <AdminFormField label="PO box">
               <Input name="poBox" placeholder="PO box" defaultValue={profile?.poBox ?? ""} />
             </AdminFormField>
@@ -333,18 +419,45 @@ const payload = {
 
         <AdminFormSection
           title="Address & tax"
-          description="Billing address and tax registration."
+          description="City → street → mall (shown on documents as mall, street, city)."
           className="h-full"
         >
           <FieldGrid>
-            <AdminFormField label="Address" className="sm:col-span-2">
-              <Textarea
-                name="address"
-                placeholder="Street, building, area"
-                autoComplete="street-address"
-                defaultValue={profile?.address ?? ""}
-                rows={4}
-                className="min-h-[6.5rem] resize-y"
+            <AdminFormField label="City" className="sm:col-span-2">
+              <AddressLookupField
+                kind="city"
+                label="City"
+                placeholder="Search or add city…"
+                value={addressCity}
+                onChange={handleCityChange}
+                onSelectionComplete={handleAddressSelectionComplete}
+                disabled={saving}
+              />
+            </AdminFormField>
+            <AdminFormField label="Street" className="sm:col-span-2">
+              <AddressLookupField
+                ref={streetFieldRef}
+                kind="street"
+                label="Street"
+                placeholder="Streets in selected city…"
+                value={addressStreet}
+                onChange={handleStreetChange}
+                onSelectionComplete={handleAddressSelectionComplete}
+                disabled={saving}
+                parentContext={streetParentContext}
+              />
+            </AdminFormField>
+            <AdminFormField label="Mall" className="sm:col-span-2">
+              <AddressLookupField
+                ref={mallFieldRef}
+                kind="mall"
+                label="Mall"
+                placeholder="Malls on selected street…"
+                value={addressMall}
+                onChange={setAddressMall}
+                onSelectionComplete={handleAddressSelectionComplete}
+                disabled={saving}
+                parentContext={mallParentContext}
               />
             </AdminFormField>
             <AdminFormField label="TRN" className="sm:col-span-2">

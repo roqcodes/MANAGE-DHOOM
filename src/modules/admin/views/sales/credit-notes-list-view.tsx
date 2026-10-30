@@ -44,6 +44,7 @@ import { CreditNoteFormView } from "@/modules/admin/views/sales/credit-note-form
 import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
 import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
 import { useErpListState } from "@/modules/admin/ui/use-erp-list-state";
+import { AddressHierarchyFilterInline } from "@/modules/customers/components/address-hierarchy-filter-fields";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All statuses" },
@@ -87,6 +88,7 @@ export function CreditNotesListView() {
     isFiltering: baseFiltering,
     clearFilters,
     erpContextLoading,
+    addressFilterFields,
   } = useErpListState();
 
   const kindFilterActive = creditKind !== "all";
@@ -185,6 +187,9 @@ export function CreditNotesListView() {
         emptyMessage="No credit notes found."
         isFiltering={isFiltering}
         onClearFilters={handleClearFilters}
+        addressFilters={
+          <AddressHierarchyFilterInline {...addressFilterFields} />
+        }
         filters={[
           {
             id: "status",

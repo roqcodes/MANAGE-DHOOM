@@ -25,6 +25,9 @@ export type ErpReportFetchParams = {
   salesmanId?: string;
   expiryView?: "expired" | "near_expiry";
   expiryWindowDays?: number;
+  cityId?: string;
+  streetId?: string;
+  mallId?: string;
 };
 
 /** Stable admin API path for TanStack Query cache keys and fetch. */
@@ -76,6 +79,9 @@ export function buildErpReportApiPath(
   if (report.filters.salesman && params.salesmanId) {
     q.set("salesmanId", params.salesmanId);
   }
+  if (params.cityId) q.set("cityId", params.cityId);
+  if (params.streetId) q.set("streetId", params.streetId);
+  if (params.mallId) q.set("mallId", params.mallId);
   if (report.slug === "dead-stock") {
     q.set("expiryView", params.expiryView === "near_expiry" ? "near_expiry" : "expired");
     if (params.expiryWindowDays != null && params.expiryWindowDays > 0) {

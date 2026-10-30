@@ -5,6 +5,12 @@ import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { ReportChannel, ReportStockLevel } from "@/common/erp/report-types";
 import { getReportBySlug } from "@/common/erp/report-types";
 import { requireErpStoreId } from "@/modules/erp/services/store-context.service";
+import {
+  parseAddressFilterFromQuery,
+  resolveUserIdsForAddressFilter,
+} from "@/modules/customers/services/customer-address-filter.service";
+import { filterReportPayloadByUserIds } from "@/modules/erp/services/erp-report-address-filter.service";
+import { reportUsesAddressHierarchyFilters } from "@/modules/customers/lib/address-hierarchy-filter";
 
 export type ReportQuery = {
   slug: string;
@@ -33,6 +39,9 @@ export type ReportQuery = {
   /** dead-stock: expired | near_expiry */
   expiryView?: "expired" | "near_expiry";
   expiryWindowDays?: number;
+  cityId?: string;
+  streetId?: string;
+  mallId?: string;
 };
 
 function normalizeAgeRange(
@@ -147,89 +156,102 @@ export async function runErpReport(
   const channel = query.channel ?? "all";
   const salesmanId = normalizeReportUuid(query.salesmanId);
   const { ageMin, ageMax } = normalizeAgeRange(query.ageMinDays, query.ageMaxDays);
+  const addressFilter = parseAddressFilterFromQuery(query);
+  const usesAddressFilter = reportUsesAddressHierarchyFilters(report);
+  const addressUserIds =
+    usesAddressFilter && (addressFilter.cityId || addressFilter.streetId || addressFilter.mallId)
+      ? await resolveUserIdsForAddressFilter(supabase, addressFilter)
+      : null;
+
+  async function finishReport(data: unknown | Promise<unknown>): Promise<unknown> {
+    const resolved = await data;
+    return filterReportPayloadByUserIds(resolved, addressUserIds);
+  }
 
   if (report.slug === "finance-summary") {
     if (!storeId) throw new Error("Store is required");
     const { getStoreFinancialDashboard } = await import(
       "@/modules/erp/services/erp-finance-dashboard.service"
     );
-    return getStoreFinancialDashboard(storeId, from, to);
+    return finishReport(getStoreFinancialDashboard(storeId, from, to));
   }
 
   if (report.slug === "balance-sheet") {
-    return callRpc(supabase, "get_erp_trial_balance", { p_as_of: asOf, p_store_id: storeId });
+    return finishReport(callRpc(supabase, "get_erp_trial_balance", { p_as_of: asOf, p_store_id: storeId }));
   }
 
   if (report.slug === "general-ledger" && query.accountId) {
-    return callRpc(supabase, "get_erp_general_ledger", {
+    return finishReport(callRpc(supabase, "get_erp_general_ledger", {
       p_account_id: query.accountId,
       p_date_from: from,
       p_date_to: to,
       p_store_id: storeId,
-    });
+    }));
   }
 
   switch (report.rpc) {
     case "get_erp_trial_balance":
-      return callRpc(supabase, report.rpc, { p_as_of: asOf, p_store_id: storeId });
+      return finishReport(callRpc(supabase, report.rpc, { p_as_of: asOf, p_store_id: storeId }));
     case "get_erp_general_ledger_summary":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
-      });
+      }));
     case "get_erp_account_transaction_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
         p_account_id: query.accountId ?? null,
         p_account_type_id: query.accountTypeId ?? null,
-      });
+      }));
     case "get_erp_profit_and_loss":
     case "get_erp_cash_flow_statement":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
-      });
+      }));
     case "get_erp_performance_dashboard": {
       const { loadPerformanceDashboard } = await import(
         "@/modules/erp/services/erp-performance-dashboard.service"
       );
-      return loadPerformanceDashboard(supabase, {
+      return finishReport(
+        loadPerformanceDashboard(supabase, {
         from,
         to,
         storeId: storeId!,
         channel,
         salesmanId,
         limit: 8,
-      });
+        }),
+      );
     }
     case "get_erp_customer_balance_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_store_id: storeId,
         p_search: query.search ?? null,
         p_salesman_id: salesmanId,
-      });
+      }));
     case "get_erp_vendor_balance_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_store_id: storeId,
         p_search: query.search ?? null,
-      });
+      }));
     case "get_erp_item_stock_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_store_id: storeId,
         p_brand_id: query.brandId ?? null,
         p_category_id: query.categoryId ?? null,
         p_stock_level: query.stockLevel ?? "all",
-      });
+      }));
     case "get_erp_minus_stock_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_store_id: storeId,
         p_brand_id: query.brandId ?? null,
         p_category_id: query.categoryId ?? null,
-      });
+      }));
     case "get_erp_dead_stock_report": {
       const expiryView =
         query.expiryView === "near_expiry" ? "near_expiry" : "expired";
@@ -237,7 +259,7 @@ export async function runErpReport(
         query.expiryWindowDays != null && query.expiryWindowDays > 0
           ? query.expiryWindowDays
           : 30;
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_as_of: asOf,
         p_store_id: storeId ?? null,
         p_brand_id: query.brandId ?? null,
@@ -247,36 +269,36 @@ export async function runErpReport(
         p_search: query.search ?? null,
         p_expiry_view: expiryView,
         p_expiry_window_days: windowDays,
-      });
+      }));
     }
     case "get_erp_stock_transfer_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_from_store_id: query.fromStoreId ?? null,
         p_to_store_id: query.toStoreId ?? null,
         p_status: query.status ?? "all",
-      });
+      }));
     case "get_erp_customer_aging":
     case "get_erp_customer_aging_summary_counts":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_as_of: asOf,
         p_store_id: storeId,
         p_search: query.search ?? null,
         p_age_min: ageMin,
         p_age_max: ageMax,
         p_salesman_id: salesmanId,
-      });
+      }));
     case "get_erp_customer_aging_summary_customer_details":
       if (!query.customerId) throw new Error("Customer is required");
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_customer_id: query.customerId,
         p_as_of: asOf,
         p_store_id: storeId,
         p_salesman_id: salesmanId,
-      });
+      }));
     case "get_erp_customer_aging_details":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_as_of: asOf,
         p_store_id: storeId,
         p_date_from: null,
@@ -285,25 +307,25 @@ export async function runErpReport(
         p_age_min: ageMin,
         p_age_max: ageMax,
         p_salesman_id: salesmanId,
-      });
+      }));
     case "get_erp_vendor_aging":
     case "get_erp_vendor_aging_summary_counts":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_as_of: asOf,
         p_store_id: storeId,
         p_search: query.search ?? null,
         p_age_min: ageMin,
         p_age_max: ageMax,
-      });
+      }));
     case "get_erp_vendor_aging_summary_vendor_details":
       if (!query.vendorId) throw new Error("Vendor is required");
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_vendor_id: query.vendorId,
         p_as_of: asOf,
         p_store_id: storeId,
-      });
+      }));
     case "get_erp_vendor_aging_details":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_as_of: asOf,
         p_store_id: storeId,
         p_date_from: null,
@@ -311,92 +333,93 @@ export async function runErpReport(
         p_search: query.search ?? null,
         p_age_min: ageMin,
         p_age_max: ageMax,
-      });
+      }));
     case "get_erp_sales_by_customer":
     case "get_erp_sales_by_item":
     case "get_erp_sales_by_salesman":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
         p_channel: channel,
         p_salesman_id: salesmanId,
-      });
+      }));
     case "get_erp_daily_collection_report":
     case "get_erp_monthly_collection_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
-      });
+      }));
     case "get_erp_payments_received_report":
     case "get_erp_credit_note_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
         p_salesman_id: salesmanId,
-      });
+      }));
     case "get_erp_day_book":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
-      });
+      }));
     case "get_erp_store_wise_stock_report": {
       const { listStoreWiseStockReportRows } = await import(
         "@/modules/erp/services/store-wise-stock-report.service"
       );
-      return listStoreWiseStockReportRows();
+      return finishReport(listStoreWiseStockReportRows());
     }
     case "get_erp_purchase_by_item_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
         p_brand_id: query.brandId ?? null,
         p_category_id: query.categoryId ?? null,
-      });
+      }));
     case "get_erp_purchase_by_vendor_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
-      });
+      }));
     case "get_erp_expense_report": {
       const { listExpenseReportRows } = await import(
         "@/modules/erp/services/erp-expenses.service"
       );
-      return listExpenseReportRows({ dateFrom: from, dateTo: to, storeId });
+      return finishReport(listExpenseReportRows({ dateFrom: from, dateTo: to, storeId }));
     }
     case "get_erp_vat_return_summary_report":
     case "get_erp_vat_return_details_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
         p_search: query.search ?? null,
-      });
+      }));
     case "get_erp_customer_statement_report":
     case "get_erp_vendor_statement_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
         p_search: query.search ?? null,
-      });
+      }));
     case "get_erp_ar_ap_gl_recon_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_as_of: asOf,
         p_store_id: storeId,
-      });
+      }));
     case "get_erp_stock_gl_wac_recon_report":
-      return callRpc(supabase, report.rpc, { p_store_id: storeId });
+      return finishReport(callRpc(supabase, report.rpc, { p_store_id: storeId }));
     case "get_erp_activity_log_report": {
       const { listActivityLogReportRows } = await import(
         "@/modules/erp/services/audit-log.service"
       );
-      return listActivityLogReportRows({
+      return finishReport(
+        listActivityLogReportRows({
         dateFrom: from,
         dateTo: to,
         storeId,
@@ -406,17 +429,18 @@ export async function runErpReport(
         salesmanId: query.salesmanId,
         search: query.search,
         limit: 500,
-      });
+        }),
+      );
     }
     case "get_erp_deleted_invoices_report":
-      return callRpc(supabase, report.rpc, {
+      return finishReport(callRpc(supabase, report.rpc, {
         p_date_from: from,
         p_date_to: to,
         p_store_id: storeId,
         p_search: query.search ?? null,
         p_limit: 200,
         p_salesman_id: salesmanId,
-      });
+      }));
     default:
       throw new Error(`Report RPC not wired: ${report.rpc}`);
   }

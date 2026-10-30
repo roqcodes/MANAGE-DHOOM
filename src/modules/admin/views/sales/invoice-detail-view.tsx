@@ -65,6 +65,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { LineProductImageThumb } from "@/modules/erp/components/line-product-image-thumb";
 
 type InvoiceDetail = {
   id: string;
@@ -90,6 +91,7 @@ type InvoiceDetail = {
   stores: { name: string } | null;
   invoice_items: Array<{
     id: string;
+    product_id?: string | null;
     product_name: string;
     quantity: number;
     unit_price: number;
@@ -550,6 +552,9 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableHead className="w-12 px-2">
+                          <span className="sr-only">Image</span>
+                        </TableHead>
                         <TableHead className="w-10">#</TableHead>
                         <TableHead>Item</TableHead>
                         <TableHead className="text-right">Rate</TableHead>
@@ -562,6 +567,12 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                     <TableBody>
                       {detail.invoice_items.map((item, index) => (
                         <TableRow key={item.id}>
+                          <TableCell className="w-12 px-2 align-middle">
+                            <LineProductImageThumb
+                              productId={item.product_id ?? null}
+                              productName={item.product_name}
+                            />
+                          </TableCell>
                           <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                           <TableCell>
                             <p className="font-medium">{item.product_name}</p>
