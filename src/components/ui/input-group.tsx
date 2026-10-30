@@ -63,9 +63,12 @@ function InputGroupAddon({
           localInput.focus()
           return
         }
-        e.currentTarget.parentElement
-          ?.querySelector('[data-slot="input-group-control"]')
-          ?.focus()
+        const mainControl = e.currentTarget.parentElement?.querySelector(
+          '[data-slot="input-group-control"]',
+        )
+        if (mainControl instanceof HTMLElement) {
+          mainControl.focus()
+        }
       }}
       {...props}
     />

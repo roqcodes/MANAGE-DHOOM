@@ -121,6 +121,9 @@ export type Database = {
           state: string | null
           updated_at: string
           user_id: string | null
+          city_id: string | null
+          street_id: string | null
+          mall_id: string | null
         }
         Insert: {
           address_line?: string | null
@@ -138,6 +141,9 @@ export type Database = {
           state?: string | null
           updated_at?: string
           user_id?: string | null
+          city_id?: string | null
+          street_id?: string | null
+          mall_id?: string | null
         }
         Update: {
           address_line?: string | null
@@ -155,6 +161,9 @@ export type Database = {
           state?: string | null
           updated_at?: string
           user_id?: string | null
+          city_id?: string | null
+          street_id?: string | null
+          mall_id?: string | null
         }
         Relationships: [
           {
@@ -162,6 +171,27 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "erp_address_cities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_street_id_fkey"
+            columns: ["street_id"]
+            isOneToOne: false
+            referencedRelation: "erp_address_streets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "addresses_mall_id_fkey"
+            columns: ["mall_id"]
+            isOneToOne: false
+            referencedRelation: "erp_address_malls"
             referencedColumns: ["id"]
           },
         ]
@@ -683,6 +713,82 @@ export type Database = {
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_address_cities: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      erp_address_malls: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          street_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          street_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          street_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_address_malls_street_id_fkey"
+            columns: ["street_id"]
+            isOneToOne: false
+            referencedRelation: "erp_address_streets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_address_streets: {
+        Row: {
+          city_id: string | null
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          city_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          city_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_address_streets_city_id_fkey"
+            columns: ["city_id"]
+            isOneToOne: false
+            referencedRelation: "erp_address_cities"
             referencedColumns: ["id"]
           },
         ]
@@ -6448,6 +6554,19 @@ export type Database = {
           p_mall_id?: string | null
         }
         Returns: string[]
+      }
+      erp_search_address_lookups: {
+        Args: {
+          p_kind: string
+          p_query?: string
+          p_limit?: number
+          p_city_id?: string | null
+          p_street_id?: string | null
+        }
+        Returns: {
+          id: string
+          name: string
+        }[]
       }
       erp_user_matches_address_filter: {
         Args: {

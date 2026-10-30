@@ -22,6 +22,16 @@ export async function listProductImages(productId: string) {
   return data ?? [];
 }
 
+/** Preview / primary image URL for admin line-item thumbs and API. */
+export async function getProductPrimaryImageUrl(
+  productId: string,
+): Promise<string | null> {
+  const images = await listProductImages(productId);
+  if (images.length === 0) return null;
+  const preview = images.find((row) => row.is_preview);
+  return (preview ?? images[0]).url;
+}
+
 export async function listProductVideos(productId: string) {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();

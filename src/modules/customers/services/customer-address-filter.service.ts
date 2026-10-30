@@ -70,9 +70,9 @@ export function applyUserIdInFilter<T extends { in: (col: string, values: string
 }
 
 export function parseAddressFilterFromQuery(query: {
-  cityId?: string;
-  streetId?: string;
-  mallId?: string;
+  cityId?: string | null;
+  streetId?: string | null;
+  mallId?: string | null;
 }): AddressHierarchyFilterParams {
   return {
     cityId: query.cityId?.trim() || null,

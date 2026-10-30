@@ -25,7 +25,9 @@ import { staffCustomerCreditLimitsClient } from "@/lib/erp/customer-credit-limit
 import { assertCreditLimitAtLeastExposure } from "@/modules/credit/services/credit-limits.service";
 import {
   assertCustomerAddressHierarchy,
+  composeCustomerAddressLine,
   normalizeCustomerAddressSelection,
+  resolveAddressLookupNames,
   resolveCustomerAddressProfile,
 } from "@/modules/customers/services/customer-address-lookup.service";
 
@@ -137,7 +139,7 @@ async function upsertPrimaryCustomerAddress(
     .eq("is_default", true)
     .maybeSingle();
 
-  const row = {
+  const row: Database["public"]["Tables"]["addresses"]["Update"] = {
     city_id: cityId,
     mall_id: mallId,
     street_id: streetId,
@@ -147,7 +149,7 @@ async function upsertPrimaryCustomerAddress(
     phone,
     state: "—",
     pincode: "—",
-  } as never;
+  };
 
   if (existing?.id) {
     const { error } = await supabase.from("addresses").update(row).eq("id", existing.id);
@@ -156,7 +158,15 @@ async function upsertPrimaryCustomerAddress(
     const { error } = await supabase.from("addresses").insert({
       user_id: userId,
       is_default: true,
-      ...row,
+      line1: row.line1 ?? "—",
+      phone: row.phone ?? "—",
+      state: row.state ?? "—",
+      pincode: row.pincode ?? "—",
+      label: row.label ?? "Primary",
+      city: row.city ?? "—",
+      city_id: row.city_id,
+      mall_id: row.mall_id,
+      street_id: row.street_id,
     });
     if (error) throw new Error(error.message);
   }

@@ -4,6 +4,7 @@ import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.serv
 import { buildIlikePattern, buildPrefixIlikePattern } from "@/lib/postgrest-search";
 import { invokeRpc } from "@/lib/integrations/supabase/rpc";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import type { Database } from "@/lib/integrations/supabase/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type AddressLookupKind = "city" | "mall" | "street";
@@ -15,7 +16,10 @@ export type AddressLookupContext = {
   streetId?: string | null;
 };
 
-const TABLE_BY_KIND: Record<AddressLookupKind, string> = {
+const TABLE_BY_KIND: Record<AddressLookupKind, keyof Pick<
+  Database["public"]["Tables"],
+  "erp_address_cities" | "erp_address_streets" | "erp_address_malls"
+>> = {
   city: "erp_address_cities",
   mall: "erp_address_malls",
   street: "erp_address_streets",
@@ -51,7 +55,7 @@ export async function assertCustomerAddressHierarchy(
 
   if (streetId && cityId) {
     const { data: street, error } = await supabase
-      .from("erp_address_streets" as "erp_address_cities")
+      .from("erp_address_streets")
       .select("city_id")
       .eq("id", streetId)
       .maybeSingle();
@@ -63,7 +67,7 @@ export async function assertCustomerAddressHierarchy(
 
   if (mallId && streetId) {
     const { data: mall, error } = await supabase
-      .from("erp_address_malls" as "erp_address_cities")
+      .from("erp_address_malls")
       .select("street_id")
       .eq("id", mallId)
       .maybeSingle();
@@ -89,7 +93,7 @@ export async function normalizeCustomerAddressSelection(
 
   if (streetId) {
     const { data: street } = await supabase
-      .from("erp_address_streets" as "erp_address_cities")
+      .from("erp_address_streets")
       .select("city_id")
       .eq("id", streetId)
       .maybeSingle();
@@ -103,7 +107,7 @@ export async function normalizeCustomerAddressSelection(
 
   if (mallId) {
     const { data: mall } = await supabase
-      .from("erp_address_malls" as "erp_address_cities")
+      .from("erp_address_malls")
       .select("street_id")
       .eq("id", mallId)
       .maybeSingle();
@@ -113,7 +117,7 @@ export async function normalizeCustomerAddressSelection(
       streetId = mall.street_id;
       if (!cityId) {
         const { data: street } = await supabase
-          .from("erp_address_streets" as "erp_address_cities")
+          .from("erp_address_streets")
           .select("city_id")
           .eq("id", streetId)
           .maybeSingle();
@@ -165,14 +169,14 @@ export async function resolveCustomerAddressProfile(
       : Promise.resolve({ data: null, error: null }),
     streetId
       ? supabase
-          .from("erp_address_streets" as "erp_address_cities")
+          .from("erp_address_streets")
           .select("name, city_id")
           .eq("id", streetId)
           .maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     mallId
       ? supabase
-          .from("erp_address_malls" as "erp_address_cities")
+          .from("erp_address_malls")
           .select("name, street_id")
           .eq("id", mallId)
           .maybeSingle()
@@ -211,7 +215,7 @@ export async function resolveCustomerAddressProfile(
         if (!cityId) cityId = streetRow.city_id ?? null;
       } else if (streetId) {
         const { data: impliedStreet, error } = await supabase
-          .from("erp_address_streets" as "erp_address_cities")
+          .from("erp_address_streets")
           .select("name, city_id")
           .eq("id", streetId)
           .maybeSingle();
@@ -293,35 +297,55 @@ async function searchCustomerAddressLookupsFallback(
   ctx: AddressLookupContext,
   limit: number,
 ): Promise<AddressLookupRow[]> {
-  const table = TABLE_BY_KIND[kind];
   const cityId = ctx.cityId ?? null;
   const streetId = ctx.streetId ?? null;
 
-  let request = supabase
-    .from(table as "erp_address_cities")
-    .select("id, name")
-    .order("name", { ascending: true })
-    .limit(limit);
+  const applyNameFilter = <T extends { ilike: (col: string, pattern: string) => T }>(
+    request: T,
+  ): T => {
+    if (!trimmed) return request;
+    const prefix = buildPrefixIlikePattern(trimmed);
+    if (prefix) return request.ilike("name", prefix);
+    const contains = buildIlikePattern(trimmed);
+    if (contains) return request.ilike("name", contains);
+    return request;
+  };
+
+  if (kind === "city") {
+    const { data, error } = await applyNameFilter(
+      supabase
+        .from("erp_address_cities")
+        .select("id, name")
+        .order("name", { ascending: true })
+        .limit(limit),
+    );
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row) => ({ id: row.id, name: row.name }));
+  }
 
   if (kind === "street") {
     if (!cityId) return [];
-    request = request.eq("city_id" as never, cityId);
-  } else if (kind === "mall") {
-    if (!streetId) return [];
-    request = request.eq("street_id" as never, streetId);
+    const { data, error } = await applyNameFilter(
+      supabase
+        .from("erp_address_streets")
+        .select("id, name")
+        .eq("city_id", cityId)
+        .order("name", { ascending: true })
+        .limit(limit),
+    );
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row) => ({ id: row.id, name: row.name }));
   }
 
-  if (trimmed) {
-    const prefix = buildPrefixIlikePattern(trimmed);
-    if (prefix) {
-      request = request.ilike("name", prefix);
-    } else {
-      const contains = buildIlikePattern(trimmed);
-      if (contains) request = request.ilike("name", contains);
-    }
-  }
-
-  const { data, error } = await request;
+  if (!streetId) return [];
+  const { data, error } = await applyNameFilter(
+    supabase
+      .from("erp_address_malls")
+      .select("id, name")
+      .eq("street_id", streetId)
+      .order("name", { ascending: true })
+      .limit(limit),
+  );
   if (error) throw new Error(error.message);
   return (data ?? []).map((row) => ({ id: row.id, name: row.name }));
 }
@@ -360,7 +384,7 @@ export async function createCustomerAddressLookup(
         : { name, street_id: streetId };
 
   const { data: inserted, error: insertError } = await supabase
-    .from(table as "erp_address_cities")
+    .from(table)
     .insert(insertPayload as never)
     .select("id, name")
     .maybeSingle();
@@ -373,15 +397,34 @@ export async function createCustomerAddressLookup(
     throw new Error(insertError.message);
   }
 
-  let findRequest = supabase.from(table as "erp_address_cities").select("id, name").ilike("name", buildIlikePattern(name)!);
+  let candidates: AddressLookupRow[] | null = null;
+  let findError: { message: string } | null = null;
 
-  if (kind === "street" && cityId) {
-    findRequest = findRequest.eq("city_id" as never, cityId);
+  if (kind === "city") {
+    const res = await supabase
+      .from("erp_address_cities")
+      .select("id, name")
+      .ilike("name", buildIlikePattern(name)!);
+    candidates = res.data;
+    findError = res.error;
+  } else if (kind === "street" && cityId) {
+    const res = await supabase
+      .from("erp_address_streets")
+      .select("id, name")
+      .eq("city_id", cityId)
+      .ilike("name", buildIlikePattern(name)!);
+    candidates = res.data;
+    findError = res.error;
   } else if (kind === "mall" && streetId) {
-    findRequest = findRequest.eq("street_id" as never, streetId);
+    const res = await supabase
+      .from("erp_address_malls")
+      .select("id, name")
+      .eq("street_id", streetId)
+      .ilike("name", buildIlikePattern(name)!);
+    candidates = res.data;
+    findError = res.error;
   }
 
-  const { data: candidates, error: findError } = await findRequest;
   if (findError) throw new Error(findError.message);
 
   const existing = (candidates ?? []).find(
