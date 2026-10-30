@@ -149,10 +149,14 @@ export async function runErpReport(
 
   const { from, to } = resolveReportDateBounds(query);
   const asOf = query.asOf ?? to;
+  const storeOptional =
+    report.slug === "activity-logs" || report.slug === "deleted-invoices";
   const storeId =
     report.slug === "stock-transfer-report"
       ? query.storeId ?? undefined
-      : await requireErpStoreId(query.storeId);
+      : storeOptional
+        ? normalizeReportUuid(query.storeId) ?? undefined
+        : await requireErpStoreId(query.storeId);
   const channel = query.channel ?? "all";
   const salesmanId = normalizeReportUuid(query.salesmanId);
   const { ageMin, ageMax } = normalizeAgeRange(query.ageMinDays, query.ageMaxDays);

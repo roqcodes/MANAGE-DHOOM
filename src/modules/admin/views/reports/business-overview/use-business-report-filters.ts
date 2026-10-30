@@ -40,7 +40,8 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   const showAddressFilters = reportUsesAddressHierarchyFilters(report);
 
   useEffect(() => {
-    if (activeStoreId) setStoreId(activeStoreId);
+    if (!activeStoreId || report.category === "Activity") return;
+    setStoreId(activeStoreId);
   }, [activeStoreId, report.category, report.slug]);
 
   useEffect(() => {

@@ -42,6 +42,7 @@ type ReadonlyURLSearchParamsLike = {
 
 /** Reports and lists tied to customer billing address. */
 export function reportUsesAddressHierarchyFilters(report: ReportDefinition): boolean {
+  if (report.category === "Activity") return false;
   if (report.filters.addressHierarchy === false) return false;
   if (report.filters.addressHierarchy === true) return true;
   if (report.filters.vendorSearch && !report.filters.customerSearch) return false;

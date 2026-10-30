@@ -11,6 +11,25 @@ import {
   type ErpReportFetchParams,
 } from "@/modules/erp/lib/erp-report-api-path";
 
+/** Activity reports default to all stores (optional store filter). */
+const REPORTS_WITH_OPTIONAL_STORE = new Set(["activity-logs", "deleted-invoices"]);
+
+function isErpReportFetchEnabled(
+  report: ReportDefinition,
+  params: ErpReportFetchParams,
+): boolean {
+  if (report.slug === "stock-transfer-report") {
+    return Boolean(params.fromStoreId && params.toStoreId);
+  }
+  if (REPORTS_WITH_OPTIONAL_STORE.has(report.slug)) {
+    return true;
+  }
+  if (report.filters.store) {
+    return Boolean(params.storeId);
+  }
+  return true;
+}
+
 export function useErpReportFetch(
   report: ReportDefinition,
   params: ErpReportFetchParams,
@@ -73,7 +92,7 @@ export function useErpReportFetch(
       const res = await adminGet<{ data: unknown }>(path);
       return res.data;
     },
-    enabled: report.slug === "stock-transfer-report" || Boolean(params.storeId),
+    enabled: isErpReportFetchEnabled(report, params),
     placeholderData: keepPreviousData,
     staleTime: 45_000,
     gcTime: 10 * 60_000,
