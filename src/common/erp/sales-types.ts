@@ -255,6 +255,8 @@ export interface SalesLineFormRow {
   purchasePrice?: number | null;
   taxRatePercent: number;
   unitId: string | null;
+  /** Cached for line thumbnail; optional hint from catalog pick. */
+  imageUrl?: string | null;
 }
 
 export interface ErpSalesProductSearchRow {
@@ -265,6 +267,7 @@ export interface ErpSalesProductSearchRow {
   purchase_price: number | null;
   tax_rate_percent: number | null;
   available_stock: number;
+  image_url?: string | null;
 }
 
 /** Variant-level row for online → store transfer catalog. */

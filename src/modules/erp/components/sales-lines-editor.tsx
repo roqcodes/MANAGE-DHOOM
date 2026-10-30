@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { LineProductImageThumb } from "@/modules/erp/components/line-product-image-thumb";
 import {
   resolveSalesLineDefaultsFromSelection,
   salesLineDefaultsFromSearchRow,
@@ -85,8 +86,8 @@ export function SalesLinesEditor({
     linesRef.current = lines;
   }, [lines]);
 
-  /** Item + qty + rate + tax% + tax amount + total + details + delete (+ optional #). */
-  const colSpan = 8 + (showSerial ? 1 : 0);
+  /** Image + item + qty + rate + tax% + tax amount + total + details + delete (+ optional #). */
+  const colSpan = 9 + (showSerial ? 1 : 0);
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -131,6 +132,7 @@ export function SalesLinesEditor({
       unitPrice: 0,
       taxRatePercent,
       unitId: null,
+      imageUrl: row.image_url ?? null,
     };
     const next = [...lines.filter((l) => l.productName.trim()), newLine];
     linesRef.current = next;
@@ -181,6 +183,9 @@ export function SalesLinesEditor({
         <Table className="w-full table-fixed">
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12 px-2">
+                <span className="sr-only">Image</span>
+              </TableHead>
               {showSerial ? <TableHead className="w-10">#</TableHead> : null}
               <TableHead className="w-[34%] min-w-[14rem]">Item</TableHead>
               <TableHead className="w-20">Qty</TableHead>
@@ -211,6 +216,13 @@ export function SalesLinesEditor({
               return (
                 <Fragment key={line.key}>
                   <TableRow>
+                    <TableCell className="w-12 px-2 align-middle">
+                      <LineProductImageThumb
+                        productId={line.productId}
+                        productName={line.productName}
+                        imageUrl={line.imageUrl}
+                      />
+                    </TableCell>
                     {showSerial ? (
                       <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                     ) : null}

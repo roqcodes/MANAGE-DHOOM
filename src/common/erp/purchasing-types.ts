@@ -191,6 +191,7 @@ export interface ErpProductSearchRow {
   tax_rate_percent: number | null;
   /** Store on-hand when `storeId` was passed to catalog search. */
   available_stock?: number;
+  image_url?: string | null;
 }
 
 /** @deprecated Use ErpProductSearchRow — ERP purchasing is product-level */
@@ -206,6 +207,8 @@ export interface PurchaseLineFormRow {
   quantity: number;
   purchasePrice: number;
   taxRatePercent: number;
+  /** Cached for line thumbnail. */
+  imageUrl?: string | null;
   /** When set, overrides pro-rata landed allocation for this line (document total unchanged). */
   landedCostAllocated?: number | null;
 }

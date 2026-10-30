@@ -15,6 +15,7 @@ import {
   fetchCustomerSearchOptions,
   fetchVendorSearchOptions,
   resolveCustomerPickerOption,
+  resolveVendorPickerOption,
   type EntitySearchOption,
 } from "@/modules/erp/lib/entity-live-search.client";
 import type { ErpSalesProductSearchRow } from "@/common/erp/sales-types";
@@ -68,6 +69,8 @@ type EntitySearchSelectProps = {
   elevatedDropdown?: boolean;
   /** Highlight when save was attempted without a valid selection. */
   invalid?: boolean;
+  /** Show party balance under the field when a row is selected (customer/vendor). */
+  showSelectedBalance?: boolean;
 };
 
 export function EntitySearchSelect({
@@ -88,6 +91,7 @@ export function EntitySearchSelect({
   loadOnFocus = true,
   elevatedDropdown = false,
   invalid = false,
+  showSelectedBalance = false,
 }: EntitySearchSelectProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
@@ -106,6 +110,7 @@ export function EntitySearchSelect({
   } | null>(null);
   const debouncedQuery = useDebouncedValue(query, ENTITY_SEARCH_DEBOUNCE_MS);
   const listboxId = useId();
+  const [committedOption, setCommittedOption] = useState<EntitySearchOption | null>(null);
 
   const trimmedDebounced = debouncedQuery.trim();
   const searchQuery =
@@ -140,6 +145,36 @@ export function EntitySearchSelect({
     }
   }, [queryError]);
 
+  useEffect(() => {
+    if (!value) {
+      setCommittedOption(null);
+      return;
+    }
+    if (!showSelectedBalance) return;
+    if (committedOption?.id === value) return;
+
+    const resolver = resolveSelectedRef.current;
+    if (resolver) {
+      let cancelled = false;
+      void resolver(value)
+        .then((resolved) => {
+          if (!cancelled) setCommittedOption(resolved);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setCommittedOption(
+              selectedLabel ? { id: value, label: selectedLabel, amount: 0 } : null,
+            );
+          }
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setCommittedOption(selectedLabel ? { id: value, label: selectedLabel, amount: 0 } : null);
+  }, [value, selectedLabel, committedOption?.id, showSelectedBalance]);
+
   const selectableCount =
     open &&
     !loading &&
@@ -154,6 +189,7 @@ export function EntitySearchSelect({
       if (!option) return;
 
       const commit = (resolved: EntitySearchOption) => {
+        if (showSelectedBalance) setCommittedOption(resolved);
         onChange(resolved.id, resolved);
         setOpen(false);
         setQuery("");
@@ -165,12 +201,14 @@ export function EntitySearchSelect({
         commit(option);
         void resolver(option.id)
           .then((resolved) => {
+            if (showSelectedBalance) setCommittedOption(resolved);
             if (entityOptionDisplayChanged(option, resolved)) {
               onChange(resolved.id, resolved);
             }
           })
           .catch((err: unknown) => {
             setFetchError(err instanceof Error ? err.message : "Could not load selection");
+            setCommittedOption(null);
             onChange(null);
           });
         return;
@@ -178,7 +216,7 @@ export function EntitySearchSelect({
 
       commit(option);
     },
-    [onChange, options],
+    [onChange, options, showSelectedBalance],
   );
 
   const closeDropdown = useCallback(() => {
@@ -368,6 +406,7 @@ export function EntitySearchSelect({
             className="absolute top-1/2 right-1 -translate-y-1/2"
             onClick={() => {
               onChange(null);
+              setCommittedOption(null);
               setQuery("");
               setOpen(false);
             }}
@@ -381,6 +420,19 @@ export function EntitySearchSelect({
       {typeof document !== "undefined" && dropdown
         ? createPortal(dropdown, document.body)
         : null}
+
+      {showSelectedBalance && value && !open && !disabled ? (
+        <p className="mt-1.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>Balance</span>
+          {committedOption?.id === value ? (
+            <span className="font-semibold tabular-nums text-foreground">
+              {formatCurrencyAmount(committedOption.amount ?? 0)}
+            </span>
+          ) : (
+            <Loader2 className="size-3.5 animate-spin opacity-70" aria-label="Loading balance" />
+          )}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -410,6 +462,7 @@ export function CustomerSearchSelect({
       className={className}
       disabled={disabled}
       invalid={invalid}
+      showSelectedBalance
       cacheScope="customer"
       placeholder={placeholder ?? "Select customer"}
       searchPlaceholder="Search by name, phone, or customer #…"
@@ -447,12 +500,14 @@ export function VendorSearchSelect({
       className={className}
       disabled={disabled}
       invalid={invalid}
+      showSelectedBalance
       cacheScope="vendor"
       placeholder={placeholder ?? "Select vendor"}
       searchPlaceholder="Search vendor name, TRN, phone…"
       emptyText="No vendors found"
       minChars={1}
       loadOnFocus
+      resolveSelectedOption={resolveVendorPickerOption}
       fetchOptions={fetchVendorSearchOptions}
     />
   );

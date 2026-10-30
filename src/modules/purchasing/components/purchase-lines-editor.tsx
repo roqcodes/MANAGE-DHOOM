@@ -16,6 +16,7 @@ import {
   LineProductDetailsPanel,
   LineProductDetailsToggle,
 } from "@/modules/erp/components/line-product-details-panel";
+import { LineProductImageThumb } from "@/modules/erp/components/line-product-image-thumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
@@ -85,7 +86,7 @@ export function PurchaseLinesEditor({
   }, [lines]);
 
   /** Item + qty + rate + tax% + [expiry] + amount + details + delete (+ optional Sl#). */
-  const colSpan = 7 + (showSerial ? 1 : 0) + (showExpiry ? 1 : 0);
+  const colSpan = 8 + (showSerial ? 1 : 0) + (showExpiry ? 1 : 0);
 
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -126,6 +127,7 @@ export function PurchaseLinesEditor({
       quantity: 1,
       purchasePrice: catalogPurchasePrice,
       taxRatePercent,
+      imageUrl: row.image_url ?? null,
     };
     const next = [...lines, newLine];
     linesRef.current = next;
@@ -213,6 +215,9 @@ export function PurchaseLinesEditor({
         <Table className="w-full table-fixed">
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12 px-2">
+                <span className="sr-only">Image</span>
+              </TableHead>
               {showSerial ? <TableHead className="w-10">Sl#</TableHead> : null}
               <TableHead className="w-[38%] min-w-[14rem]">Item name</TableHead>
               <TableHead className="w-20">Qty</TableHead>
@@ -242,6 +247,13 @@ export function PurchaseLinesEditor({
               return (
                 <Fragment key={line.key}>
                   <TableRow>
+                    <TableCell className="w-12 px-2 align-middle">
+                      <LineProductImageThumb
+                        productId={line.productId}
+                        productName={line.productName}
+                        imageUrl={line.imageUrl}
+                      />
+                    </TableCell>
                     {showSerial ? (
                       <TableCell className="text-muted-foreground tabular-nums">{index + 1}</TableCell>
                     ) : null}
