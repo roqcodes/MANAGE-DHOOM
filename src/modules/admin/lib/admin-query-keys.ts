@@ -84,4 +84,5 @@ export const adminQueryKeys = {
     ["admin", "entity-search", scope, query] as const,
   /** Full admin GET path including query string — must match the page request. */
   erpGet: (pathAndQuery: string) => ["admin", "get", pathAndQuery] as const,
+  reportFavorites: () => ["admin", "report-favorites"] as const,
 };

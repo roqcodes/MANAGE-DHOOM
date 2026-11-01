@@ -16,7 +16,9 @@ export function useBusinessReportFilters(report: ReportDefinition) {
   const { stores, activeStoreId } = useErpStores();
   const today = new Date().toISOString().slice(0, 10);
   const defaultPreset =
-    report.filters.asOfDate && !report.filters.dateRange
+    report.slug === "activity-logs"
+      ? "last_30"
+      : report.filters.asOfDate && !report.filters.dateRange
       ? "this_month"
       : report.category === "Sales" ||
           report.category === "Inventory" ||
@@ -31,7 +33,9 @@ export function useBusinessReportFilters(report: ReportDefinition) {
         : "ytd";
   const dateRange = useAdminDateRange({ defaultPreset });
   const [asOf, setAsOf] = useState(today);
-  const [storeId, setStoreId] = useState(activeStoreId ?? "");
+  const [storeId, setStoreId] = useState(() =>
+    report.category === "Activity" ? "" : (activeStoreId ?? ""),
+  );
   const [channel, setChannel] = useState<ReportChannel>("all");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);

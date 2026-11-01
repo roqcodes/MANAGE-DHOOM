@@ -7,6 +7,8 @@ import { ERP_REPORT_CATEGORIES, getReportsByCategory } from "@/common/erp/report
 import { AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { ReportFavoriteButton } from "./report-favorite-button";
+import { ReportFavoritesBar } from "./report-favorites-bar";
 
 const CATEGORY_HINTS: Partial<Record<string, string>> = {
   "Business Overview":
@@ -43,6 +45,8 @@ export function ReportsHubView() {
         description="Financial, sales, inventory, and receivables. Open a report to filter by store, date range, and search line items."
       />
 
+      <ReportFavoritesBar />
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {ERP_REPORT_CATEGORIES.map((category) => {
           const reports = byCategory[category] ?? [];
@@ -73,24 +77,29 @@ export function ReportsHubView() {
               </CardHeader>
               <CardContent className="space-y-1">
                 {reports.map((report) => (
-                  <Link
+                  <div
                     key={report.slug}
-                    href={`/admin/erp/reports/${report.slug}`}
-                    className="group flex items-start justify-between gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border hover:bg-muted/50"
+                    className="group flex items-start gap-1 rounded-lg border border-transparent px-1.5 py-1 transition-colors hover:border-border hover:bg-muted/50"
                   >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-medium text-foreground group-hover:text-primary">
-                        {report.title}
+                    <Link
+                      href={`/admin/erp/reports/${report.slug}`}
+                      className="flex min-w-0 flex-1 items-start justify-between gap-2 px-1 py-1"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-foreground group-hover:text-primary">
+                          {report.title}
+                        </span>
+                        <span className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                          {report.description}
+                        </span>
                       </span>
-                      <span className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                        {report.description}
-                      </span>
-                    </span>
-                    <ChevronRight
-                      className="mt-0.5 size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-                      aria-hidden
-                    />
-                  </Link>
+                      <ChevronRight
+                        className="mt-0.5 size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                        aria-hidden
+                      />
+                    </Link>
+                    <ReportFavoriteButton slug={report.slug} className="mt-0.5 shrink-0" />
+                  </div>
                 ))}
               </CardContent>
             </Card>

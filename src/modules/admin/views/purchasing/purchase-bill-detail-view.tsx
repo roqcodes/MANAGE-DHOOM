@@ -105,6 +105,7 @@ type BillDetail = {
     line_total: number;
     landed_cost_allocated?: number;
     unit_loaded_cost?: number | null;
+    expiry_date?: string | null;
   }>;
   erp_purchase_bill_landed_costs: Array<{
     name: string;
@@ -583,6 +584,7 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
                         <TableHead className="w-10">#</TableHead>
                         <TableHead>Product</TableHead>
                         <TableHead className="text-right">Qty</TableHead>
+                        <TableHead>Expiry</TableHead>
                         <TableHead className="text-right">Rate</TableHead>
                         {bill.landed_cost_total > 0 ? (
                           <TableHead className="text-right">Loaded unit</TableHead>
@@ -615,6 +617,9 @@ export function PurchaseBillDetailView({ billId }: { billId: string }) {
                             <TableCell className="text-muted-foreground">{index + 1}</TableCell>
                             <TableCell className="font-medium">{line.product_name}</TableCell>
                             <TableCell className="text-right tabular-nums">{line.quantity}</TableCell>
+                            <TableCell className="whitespace-nowrap text-muted-foreground">
+                              {formatDisplayDate(line.expiry_date)}
+                            </TableCell>
                             <TableCell className="text-right tabular-nums">
                               {formatCurrencyAmount(line.purchase_price)}
                             </TableCell>

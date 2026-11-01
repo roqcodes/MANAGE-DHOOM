@@ -122,6 +122,139 @@ function auditEntityTypesForLookup(entityType: string): string[] {
   return [entityType];
 }
 
+/** Journal GL source type → audit_logs.entity_type (when they differ). */
+function auditEntityTypeForJournalSource(sourceType: string): string | null {
+  const explicit: Record<string, string> = {
+    customer_payment: "erp_payment",
+    fixed_asset: "asset",
+  };
+  if (explicit[sourceType]) return explicit[sourceType];
+  if (sourceType.startsWith("invoice")) return "invoice";
+  if (sourceType.startsWith("credit_note")) return "credit_note";
+  if (sourceType.startsWith("vendor_credit")) return "vendor_credit";
+  if (sourceType === "manual_client_operation") return null;
+  return sourceType;
+}
+
+async function resolveAuditTargetsForJournal(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  journalId: string,
+): Promise<Array<{ entityType: string; entityId: string }>> {
+  const { data: je, error } = await supabase
+    .from("journal_entries")
+    .select("source_entity_type, source_entity_id")
+    .eq("id", journalId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  const targets: Array<{ entityType: string; entityId: string }> = [
+    { entityType: "journal_entry", entityId: journalId },
+  ];
+
+  const sourceType = je?.source_entity_type?.trim() ?? "";
+  const sourceId = je?.source_entity_id?.trim() ?? "";
+  if (!sourceType || !sourceId || sourceType === "manual_client_operation") {
+    return targets;
+  }
+
+  if (sourceType === "credit_note_application") {
+    const { data: app } = await supabase
+      .from("erp_credit_note_applications")
+      .select("credit_note_id")
+      .eq("id", sourceId)
+      .maybeSingle();
+    if (app?.credit_note_id) {
+      targets.push({
+        entityType: "credit_note",
+        entityId: app.credit_note_id as string,
+      });
+    }
+    return targets;
+  }
+
+  if (sourceType === "vendor_credit_application") {
+    const { data: app } = await supabase
+      .from("erp_vendor_credit_applications")
+      .select("vendor_credit_id")
+      .eq("id", sourceId)
+      .maybeSingle();
+    if (app?.vendor_credit_id) {
+      targets.push({
+        entityType: "vendor_credit",
+        entityId: app.vendor_credit_id as string,
+      });
+    }
+    return targets;
+  }
+
+  const auditType = auditEntityTypeForJournalSource(sourceType);
+  if (auditType) {
+    targets.push({ entityType: auditType, entityId: sourceId });
+  }
+
+  return targets;
+}
+
+async function listAuditLogsForSingleEntity(
+  entityType: string,
+  entityId: string,
+  limit: number,
+): Promise<AuditLogEntry[]> {
+  const supabase = await createSupabaseServerClient();
+  const trimmed = entityId.trim();
+  const { entityId: lookupId } = normalizeAuditEntityId(trimmed);
+  const entityTypes = auditEntityTypesForLookup(entityType);
+
+  const rows = await fetchAuditLogRows((select) => {
+    let query = supabase.from("audit_logs").select(select).in("entity_type", entityTypes);
+
+    if (lookupId) {
+      query = query.eq("entity_id", lookupId);
+    } else {
+      query = query.or(
+        `metadata->>batch_ref.eq.${trimmed},metadata->>reference.eq.${trimmed}`,
+      );
+    }
+
+    return query.order("created_at", { ascending: false }).limit(limit);
+  });
+
+  return mapAndEnrichAuditLogRows(rows);
+}
+
+/** Auto-posted journals log activity on the source document, not on journal_entry. */
+async function listAuditLogsForJournalEntry(
+  journalId: string,
+  limit: number,
+): Promise<AuditLogEntry[]> {
+  const supabase = await createSupabaseServerClient();
+  const targets = await resolveAuditTargetsForJournal(supabase, journalId);
+  const cap = Math.min(Math.max(limit, 1), 100);
+  const perTarget = Math.max(cap, 30);
+
+  const seen = new Set<string>();
+  const merged: AuditLogEntry[] = [];
+
+  for (const target of targets) {
+    const batch =
+      target.entityType === "journal_entry"
+        ? await listAuditLogsForSingleEntity("journal_entry", target.entityId, perTarget)
+        : await listAuditLogsForEntity(target.entityType, target.entityId, perTarget);
+
+    for (const entry of batch) {
+      if (seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      merged.push(entry);
+    }
+  }
+
+  merged.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+  return merged.slice(0, cap);
+}
+
 async function resolveSalesmanDisplayNames(salesmanIds: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(salesmanIds.filter(Boolean))];
   const names = new Map<string, string>();
@@ -409,11 +542,192 @@ const ACTIVITY_LOG_REPORT_SELECT = `
   )
 `;
 
+const ACTIVITY_LOG_REPORT_SELECT_SALESMEN = `
+  *,
+  users:users!audit_logs_user_fkey (
+    id,
+    name,
+    email,
+    role
+  ),
+  erp_salesmen:erp_salesmen!audit_logs_salesman_id_fkey (
+    id,
+    name,
+    phone
+  ),
+  stores:stores!audit_logs_store_id_fkey (
+    name
+  )
+`;
+
+const ACTIVITY_LOG_REPORT_SELECT_USERS_STORE = `
+  *,
+  users:users!audit_logs_user_fkey (
+    id,
+    name,
+    email,
+    role
+  ),
+  stores:stores!audit_logs_store_id_fkey (
+    name
+  )
+`;
+
+const ACTIVITY_LOG_REPORT_SELECT_VARIANTS = [
+  ACTIVITY_LOG_REPORT_SELECT,
+  ACTIVITY_LOG_REPORT_SELECT_SALESMEN,
+  ACTIVITY_LOG_REPORT_SELECT_USERS_STORE,
+  ...AUDIT_LOG_SELECT_VARIANTS,
+] as const;
+
+async function resolveStoreNamesForAuditRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  storeIds: string[],
+): Promise<Map<string, string>> {
+  const unique = [...new Set(storeIds.filter(Boolean))];
+  const names = new Map<string, string>();
+  if (unique.length === 0) return names;
+
+  const { data, error } = await supabase.from("stores").select("id, name").in("id", unique);
+  if (error) {
+    console.error("resolveStoreNamesForAuditRows failed:", error.message);
+    return names;
+  }
+  for (const row of data ?? []) {
+    if (row.name?.trim()) names.set(row.id, row.name.trim());
+  }
+  return names;
+}
+
+async function fetchActivityLogReportDbRows(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  filters: {
+    dateFrom: string;
+    dateTo: string;
+    storeId?: string;
+    entityType?: string;
+    action?: string;
+    userId?: string;
+    salesmanId?: string;
+    search?: string;
+    limit: number;
+  },
+): Promise<ActivityLogReportDbRow[]> {
+  let lastError: string | null = null;
+
+  for (const select of ACTIVITY_LOG_REPORT_SELECT_VARIANTS) {
+    let query = supabase
+      .from("audit_logs")
+      .select(select)
+      .gte("created_at", `${filters.dateFrom}T00:00:00`)
+      .lte("created_at", `${filters.dateTo}T23:59:59.999`)
+      .order("created_at", { ascending: false });
+
+    if (filters.storeId) query = query.eq("store_id", filters.storeId);
+    if (filters.entityType && filters.entityType !== "all") {
+      query = query.eq("entity_type", filters.entityType);
+    }
+    if (filters.action && filters.action !== "all") {
+      query = query.eq("action", filters.action);
+    }
+    if (filters.userId && filters.userId !== "all") {
+      query = query.or(`user_id.eq.${filters.userId},salesman_id.eq.${filters.userId}`);
+    }
+    if (filters.salesmanId) {
+      query = query.eq("salesman_id", filters.salesmanId);
+    }
+    if (filters.search) {
+      const term = filters.search.replace(/[%_,()]/g, " ").trim().slice(0, 80);
+      if (term) {
+        query = query.or(
+          `description.ilike.%${term}%,entity_type.ilike.%${term}%,action.ilike.%${term}%`,
+        );
+      }
+    }
+
+    const { data, error } = await query.limit(filters.limit);
+    if (!error) {
+      return (data ?? []) as unknown as ActivityLogReportDbRow[];
+    }
+    lastError = error.message;
+  }
+
+  throw new Error(lastError ?? "Failed to load activity log");
+}
+
+function parseActivityLogRpcPayload(data: unknown): Record<string, unknown>[] {
+  if (data == null) return [];
+  if (typeof data === "string") {
+    try {
+      return parseActivityLogRpcPayload(JSON.parse(data));
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(data)) return data as Record<string, unknown>[];
+  return [];
+}
+
+function normalizeActivityReportFilter(value?: string): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed || trimmed === "all") return null;
+  return trimmed;
+}
+
+async function listActivityLogReportRowsViaRpc(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  filters: {
+    dateFrom: string;
+    dateTo: string;
+    storeId?: string;
+    entityType?: string;
+    action?: string;
+    userId?: string;
+    salesmanId?: string;
+    search?: string;
+    limit: number;
+  },
+  search: string,
+): Promise<Record<string, unknown>[]> {
+  const { data, error } = await (
+    supabase as unknown as {
+      rpc: (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => ReturnType<typeof supabase.rpc>;
+    }
+  ).rpc("get_erp_activity_log_report", {
+    p_date_from: filters.dateFrom,
+    p_date_to: filters.dateTo,
+    p_store_id: filters.storeId ?? null,
+    p_entity_type: normalizeActivityReportFilter(filters.entityType),
+    p_action: normalizeActivityReportFilter(filters.action),
+    p_user_id: normalizeActivityReportFilter(filters.userId),
+    p_search: search || null,
+    p_limit: filters.limit,
+  });
+
+  if (error) throw new Error(error.message);
+
+  let rows = parseActivityLogRpcPayload(data);
+  if (filters.salesmanId) {
+    rows = rows.filter(
+      (row) =>
+        row.salesman_id === filters.salesmanId || row.user_id === filters.salesmanId,
+    );
+  }
+  return rows;
+}
+
 type ActivityLogReportDbRow = AuditLogDbRow & {
   stores?: { name: string | null } | { name: string | null }[] | null;
   erp_employees?:
     | { id: string; full_name: string; mobile: string | null }
     | { id: string; full_name: string; mobile: string | null }[]
+    | null;
+  erp_salesmen?:
+    | { id: string; name: string; phone: string | null }
+    | { id: string; name: string; phone: string | null }[]
     | null;
   salesman_id?: string | null;
 };
@@ -445,9 +759,13 @@ function auditEntityReferenceFromRow(
   return "—";
 }
 
-function mapActivityLogReportRow(row: ActivityLogReportDbRow): Record<string, unknown> {
+function mapActivityLogReportRow(
+  row: ActivityLogReportDbRow,
+  storeNames?: Map<string, string>,
+): Record<string, unknown> {
   const user = Array.isArray(row.users) ? row.users[0] : row.users;
   const salesman = Array.isArray(row.erp_employees) ? row.erp_employees[0] : row.erp_employees;
+  const salesmanLegacy = Array.isArray(row.erp_salesmen) ? row.erp_salesmen[0] : row.erp_salesmen;
   const store = Array.isArray(row.stores) ? row.stores[0] : row.stores;
   const metadata = (row.metadata as Record<string, unknown>) ?? {};
   const entityType = row.entity_type ?? "";
@@ -455,9 +773,15 @@ function mapActivityLogReportRow(row: ActivityLogReportDbRow): Record<string, un
 
   const displayName =
     salesman?.full_name?.trim() ||
+    salesmanLegacy?.name?.trim() ||
     user?.name?.trim() ||
     user?.email?.trim() ||
     "Unknown user";
+
+  const storeName =
+    store?.name?.trim() ||
+    (row.store_id && storeNames?.get(row.store_id)) ||
+    null;
 
   return {
     id: row.id,
@@ -467,7 +791,7 @@ function mapActivityLogReportRow(row: ActivityLogReportDbRow): Record<string, un
     entity_id: row.entity_id,
     description: row.description,
     store_id: row.store_id,
-    store_name: store?.name ?? null,
+    store_name: storeName,
     user_id: salesman?.id ?? user?.id ?? row.user_id,
     user_name: displayName,
     user_email: user?.email ?? null,
@@ -497,43 +821,46 @@ export async function listActivityLogReportRows(filters: {
   const limit = Math.min(Math.max(filters.limit ?? 500, 1), 1000);
   const search = filters.search?.trim().toLowerCase() ?? "";
 
-  let query = supabase
-    .from("audit_logs")
-    .select(ACTIVITY_LOG_REPORT_SELECT)
-    .gte("created_at", `${filters.dateFrom}T00:00:00`)
-    .lte("created_at", `${filters.dateTo}T23:59:59.999`)
-    .order("created_at", { ascending: false });
+  try {
+    const rows = await fetchActivityLogReportDbRows(supabase, {
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      storeId: filters.storeId,
+      entityType: filters.entityType,
+      action: filters.action,
+      userId: filters.userId,
+      salesmanId: filters.salesmanId,
+      search,
+      limit,
+    });
 
-  if (filters.storeId) query = query.eq("store_id", filters.storeId);
-  if (filters.entityType && filters.entityType !== "all") {
-    query = query.eq("entity_type", filters.entityType);
-  }
-  if (filters.action && filters.action !== "all") {
-    query = query.eq("action", filters.action);
-  }
-  if (filters.userId && filters.userId !== "all") {
-    query = query.or(`user_id.eq.${filters.userId},salesman_id.eq.${filters.userId}`);
-  }
-  if (filters.salesmanId) {
-    query = query.eq("salesman_id", filters.salesmanId);
-  }
-  if (search) {
-    const term = search.replace(/[%_,()]/g, " ").trim().slice(0, 80);
-    if (term) {
-      query = query.or(
-        `description.ilike.%${term}%,entity_type.ilike.%${term}%,action.ilike.%${term}%`,
-      );
-    }
-  }
+    const needsStoreLookup = rows.some((row) => row.store_id && !row.stores);
+    const storeNames = needsStoreLookup
+      ? await resolveStoreNamesForAuditRows(
+          supabase,
+          rows.map((row) => row.store_id).filter((id): id is string => Boolean(id)),
+        )
+      : undefined;
 
-  query = query.limit(limit);
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-
-  return (data ?? []).map((row) =>
-    mapActivityLogReportRow(row as ActivityLogReportDbRow),
-  );
+    return rows.map((row) => mapActivityLogReportRow(row, storeNames));
+  } catch (postgrestError) {
+    console.error("Activity log PostgREST load failed, falling back to RPC:", postgrestError);
+    return listActivityLogReportRowsViaRpc(
+      supabase,
+      {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        storeId: filters.storeId,
+        entityType: filters.entityType,
+        action: filters.action,
+        userId: filters.userId,
+        salesmanId: filters.salesmanId,
+        search,
+        limit,
+      },
+      search,
+    );
+  }
 }
 
 async function listAuditLogsByPartyRpc(
@@ -621,6 +948,9 @@ export async function listAuditLogsForEntity(
   entityId: string,
   limit = 20,
 ): Promise<AuditLogEntry[]> {
+  if (entityType === "journal_entry") {
+    return listAuditLogsForJournalEntry(entityId, limit);
+  }
   if (entityType === "vendor") {
     return listAuditLogsForVendorParty(entityId, Math.max(limit, 50));
   }
@@ -628,24 +958,5 @@ export async function listAuditLogsForEntity(
     return listAuditLogsForCustomerParty(entityId, Math.max(limit, 50));
   }
 
-  const supabase = await createSupabaseServerClient();
-  const trimmed = entityId.trim();
-  const { entityId: lookupId } = normalizeAuditEntityId(trimmed);
-  const entityTypes = auditEntityTypesForLookup(entityType);
-
-  const rows = await fetchAuditLogRows((select) => {
-    let query = supabase.from("audit_logs").select(select).in("entity_type", entityTypes);
-
-    if (lookupId) {
-      query = query.eq("entity_id", lookupId);
-    } else {
-      query = query.or(
-        `metadata->>batch_ref.eq.${trimmed},metadata->>reference.eq.${trimmed}`,
-      );
-    }
-
-    return query.order("created_at", { ascending: false }).limit(limit);
-  });
-
-  return mapAndEnrichAuditLogRows(rows);
+  return listAuditLogsForSingleEntity(entityType, entityId, limit);
 }

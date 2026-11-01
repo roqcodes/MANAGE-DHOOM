@@ -15,6 +15,7 @@ import {
 } from "@/modules/admin/ui";
 import type { useBusinessReportFilters } from "./use-business-report-filters";
 import { AddressHierarchyFilterInline } from "@/modules/customers/components/address-hierarchy-filter-fields";
+import { ReportFavoriteButton } from "../report-favorite-button";
 
 export type BusinessReportFilters = ReturnType<typeof useBusinessReportFilters>;
 
@@ -68,6 +69,7 @@ export function BusinessReportLayout({
         ]}
         actions={
           <>
+            <ReportFavoriteButton slug={report.slug} />
             {onRefresh ? (
               <AdminSecondaryIconAction
                 onClick={onRefresh}

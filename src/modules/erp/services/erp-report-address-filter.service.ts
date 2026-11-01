@@ -31,6 +31,14 @@ function filterNestedRankRows(
   return next;
 }
 
+function arrayHasPartyUserKeys(rows: unknown[]): boolean {
+  return rows.some((row) => {
+    if (!row || typeof row !== "object") return false;
+    const rec = row as Record<string, unknown>;
+    return typeof rec.customer_id === "string" || typeof rec.user_id === "string";
+  });
+}
+
 /** Trim customer-linked report payloads after RPC when address filters are active. */
 export function filterReportPayloadByUserIds(
   data: unknown,
@@ -39,6 +47,7 @@ export function filterReportPayloadByUserIds(
   if (!allowedUserIds) return data;
   const allowed = new Set(allowedUserIds);
   if (allowed.size === 0) {
+    if (Array.isArray(data) && !arrayHasPartyUserKeys(data)) return data;
     if (Array.isArray(data)) return [];
     if (data && typeof data === "object" && Array.isArray((data as { rows?: unknown[] }).rows)) {
       return { ...(data as object), rows: [] };
@@ -47,6 +56,7 @@ export function filterReportPayloadByUserIds(
   }
 
   if (Array.isArray(data)) {
+    if (!arrayHasPartyUserKeys(data)) return data;
     return filterRowArray(data, allowed);
   }
 

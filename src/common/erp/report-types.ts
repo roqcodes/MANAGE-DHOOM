@@ -346,8 +346,8 @@ export const ERP_REPORTS: ReportDefinition[] = [
   },
   {
     slug: "minus-stock",
-    title: "Minus Stock Report",
-    description: "Products with negative on-hand quantity by store (oversold or adjustment).",
+    title: "Zero & Minus Stock",
+    description: "Store SKUs with zero or negative on-hand quantity.",
     category: "Inventory",
     filters: { store: true, brand: true, category: true },
     rpc: "get_erp_minus_stock_report",
@@ -427,6 +427,7 @@ export const ERP_REPORTS: ReportDefinition[] = [
       brand: true,
       category: true,
       customerSearch: true,
+      addressHierarchy: false,
       expiredDaysRange: true,
       expiryWindowDays: true,
     },

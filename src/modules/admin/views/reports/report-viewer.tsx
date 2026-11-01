@@ -38,6 +38,8 @@ import { InputGroup } from "@/components/ui/input-group";
 import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AdminPageActionBar } from "@/modules/admin/ui";
+import { ReportFavoriteButton } from "@/modules/admin/views/reports/report-favorite-button";
 import {
   Table,
   TableBody,
@@ -251,9 +253,12 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
           <h1 className="text-xl font-semibold">{report.title}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{report.description}</p>
         </div>
-        {sorted.length > 0 ? (
-          <DataExportMenu source={exportSource} />
-        ) : null}
+        <AdminPageActionBar className="ml-auto shrink-0">
+          <ReportFavoriteButton slug={report.slug} />
+          {sorted.length > 0 ? (
+            <DataExportMenu source={exportSource} />
+          ) : null}
+        </AdminPageActionBar>
       </div>
 
       <Card>

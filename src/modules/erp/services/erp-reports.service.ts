@@ -263,7 +263,7 @@ export async function runErpReport(
         query.expiryWindowDays != null && query.expiryWindowDays > 0
           ? query.expiryWindowDays
           : 30;
-      return finishReport(callRpc(supabase, report.rpc, {
+      const modernArgs = {
         p_as_of: asOf,
         p_store_id: storeId ?? null,
         p_brand_id: query.brandId ?? null,
@@ -273,7 +273,26 @@ export async function runErpReport(
         p_search: query.search ?? null,
         p_expiry_view: expiryView,
         p_expiry_window_days: windowDays,
-      }));
+      };
+      try {
+        return finishReport(callRpc(supabase, report.rpc, modernArgs));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        const missingFn =
+          /PGRST202|Could not find the function|does not exist/i.test(msg);
+        if (!missingFn || expiryView !== "expired") throw err;
+        return finishReport(
+          callRpc(supabase, report.rpc, {
+            p_as_of: asOf,
+            p_store_id: storeId ?? null,
+            p_brand_id: query.brandId ?? null,
+            p_category_id: query.categoryId ?? null,
+            p_days_expired_min: ageMin,
+            p_days_expired_max: ageMax,
+            p_search: query.search ?? null,
+          }),
+        );
+      }
     }
     case "get_erp_stock_transfer_report":
       return finishReport(callRpc(supabase, report.rpc, {

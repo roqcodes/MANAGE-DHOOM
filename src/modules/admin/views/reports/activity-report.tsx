@@ -190,6 +190,7 @@ function ActivityLogReport({ report }: { report: ReportDefinition }) {
       report={report}
       filters={filters}
       loading={loading}
+      error={error}
       isEmpty={isEmpty}
       onRefresh={reload}
       exportSource={exportSource}

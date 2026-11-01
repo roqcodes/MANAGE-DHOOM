@@ -8,6 +8,7 @@ import type {
   SourceJournalGroup,
 } from "@/common/erp/finance-types";
 import { requireErpStoreId, resolveErpStoreId } from "@/modules/erp/services/store-context.service";
+import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 
 export async function listJournalEntries(
   page = 0,
@@ -237,5 +238,38 @@ export async function createManualJournalEntry(input: {
   });
 
   if (error) throw new Error(error.message);
-  return data as string;
+
+  const journalId = data as string;
+
+  // Retrieve the generated document reference (journal_number) to log a rich audit event
+  try {
+    const { data: jeRow } = await supabase
+      .from("journal_entries")
+      .select("journal_number, total_debit")
+      .eq("id", journalId)
+      .maybeSingle();
+
+    const journalNumber = jeRow?.journal_number ?? undefined;
+    const totalDebit = jeRow?.total_debit ?? undefined;
+
+    await logAuditEvent({
+      action: "create",
+      entityType: "journal_entry",
+      entityId: journalId,
+      description: input.description
+        ? `Manual journal created: ${input.description}`
+        : "Manual journal created",
+      storeId,
+      metadata: {
+        journal_number: journalNumber,
+        transaction_date: input.transactionDate,
+        total_amount: totalDebit,
+        line_count: input.lines.length,
+      },
+    });
+  } catch (auditErr) {
+    console.error("Failed to log audit event for manual journal entry:", auditErr);
+  }
+
+  return journalId;
 }

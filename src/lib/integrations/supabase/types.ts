@@ -5345,16 +5345,19 @@ export type Database = {
       user_erp_preferences: {
         Row: {
           active_store_id: string | null
+          favorite_report_slugs: string[]
           updated_at: string
           user_id: string
         }
         Insert: {
           active_store_id?: string | null
+          favorite_report_slugs?: string[]
           updated_at?: string
           user_id: string
         }
         Update: {
           active_store_id?: string | null
+          favorite_report_slugs?: string[]
           updated_at?: string
           user_id?: string
         }

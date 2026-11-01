@@ -30,6 +30,7 @@ import {
 import { ReportTableTotalsRow } from "./business-overview/report-table-totals-row";
 import { useBusinessReportFilters } from "./business-overview/use-business-report-filters";
 import { useErpReportFetch } from "./business-overview/use-erp-report-fetch";
+import { ReportFavoriteButton } from "./report-favorite-button";
 
 const report = CUSTOMER_AGING_SUMMARY_DETAILS_REPORT;
 
@@ -119,6 +120,7 @@ export function CustomerAgingSummaryDetailsView({
         ]}
         actions={
           <>
+            <ReportFavoriteButton slug="customer-aging-summary" />
             <AdminSecondaryIconAction
               onClick={reload}
               disabled={loading}
