@@ -8,5 +8,9 @@ export function PayablesReport({ report }: { report: ReportDefinition }) {
   if (report.slug === "vendor-aging-summary") {
     return <VendorAgingSummaryReport report={report} />;
   }
-  return <SalesTabularReport report={report} />;
+  const footnote =
+    report.slug === "vendor-aging-details"
+      ? "Age (days) counts from bill date to the as-of date. Aging Summary bucket reports use days past due."
+      : undefined;
+  return <SalesTabularReport report={report} footnote={footnote} />;
 }
