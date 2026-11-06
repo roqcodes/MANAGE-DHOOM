@@ -37,7 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
 import { usePaymentAccountOptions } from "@/modules/erp/components/use-payment-account-options";
 import {
   ActiveStoreFormField,
@@ -561,7 +561,7 @@ startTransition(async () => {
           </AdminFormSection>
         </AdminFormColumns>
 
-        <ErrorsFeedbackBridge errors={error} />
+        <PaymentFormInlineAlert message={error} />
       </form>
     </AdminFormShell>
   );

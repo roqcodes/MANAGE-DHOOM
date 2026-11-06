@@ -32,7 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
 import {
   ActiveStoreFormField,
   useActiveStoreFormField,
@@ -220,7 +220,7 @@ startTransition(async () => {
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        <ErrorsFeedbackBridge errors={error} />
+        <PaymentFormInlineAlert message={error} />
 
         <AdminFormSection title="Batch details">
           <AdminFormGrid>

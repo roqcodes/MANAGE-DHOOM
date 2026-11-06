@@ -46,7 +46,6 @@ import {
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
 import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
 import {
   usePaymentFormAddLineBlocked,
@@ -725,12 +724,13 @@ export function PaymentFormView({
                   ))}
                 </TableBody>
               </Table>
-              <p className="mt-3 text-sm font-medium">Total: {formatCurrencyAmount(total)}</p>
+              <p className="mt-3 flex justify-end text-base font-semibold tabular-nums">
+                Total: {formatCurrencyAmount(total)}
+              </p>
             </CardContent>
           </Card>
         ) : null}
 
-        <ErrorsFeedbackBridge errors={inlineError} />
         <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (

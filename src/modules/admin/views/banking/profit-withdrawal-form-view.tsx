@@ -25,7 +25,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
 
 export type ProfitWithdrawalFormViewProps = ErpFormViewBaseProps;
 
@@ -218,7 +218,7 @@ startTransition(async () => {
           </AdminFormColumns>
         </AdminFormSection>
 
-        <ErrorsFeedbackBridge errors={error} />
+        <PaymentFormInlineAlert message={error} />
 
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">

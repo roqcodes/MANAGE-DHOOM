@@ -36,7 +36,7 @@ import {
   useFormFieldValidation,
 } from "@/modules/admin/ui";
 import { StoreSelect, useErpStores } from "@/modules/erp/components/use-erp-stores";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
 import { validateTransferAllocationAmount } from "@/modules/erp/lib/payment-balance-validation";
 
 export function TransferBulkPaymentsListView() {
@@ -391,7 +391,7 @@ export function TransferBulkPaymentFormView({
           </AdminFormSection>
         </AdminFormColumns>
 
-        <ErrorsFeedbackBridge errors={error} />
+        <PaymentFormInlineAlert message={error} />
 
         {!isModal ? (
           <div className="flex gap-2">

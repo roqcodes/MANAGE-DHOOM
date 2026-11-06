@@ -42,7 +42,6 @@ import {
   useActiveStoreFormField,
 } from "@/modules/erp/components/use-active-store-form-field";
 import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 import { useErpPaymentFormErrors } from "@/modules/erp/hooks/use-erp-payment-form-errors";
 import {
   usePaymentFormAddLineBlocked,
@@ -679,14 +678,16 @@ export function CustomerBulkPaymentFormView({
                 </TableBody>
                 <TableFooter>
                   <TableRow>
-                    <TableCell colSpan={3} className="font-medium">Total</TableCell>
-                    <TableCell className="text-right font-medium tabular-nums">
+                    <TableCell colSpan={3} className="text-right text-base font-semibold">
+                      Total
+                    </TableCell>
+                    <TableCell className="text-right text-base font-medium tabular-nums">
                       {formatCurrencyAmount(lineTotals.due)}
                     </TableCell>
-                    <TableCell className="text-right font-bold tabular-nums">
+                    <TableCell className="text-right text-base font-bold tabular-nums">
                       {formatCurrencyAmount(lineTotals.paying)}
                     </TableCell>
-                    <TableCell className="text-right font-medium tabular-nums text-muted-foreground">
+                    <TableCell className="text-right text-base font-medium tabular-nums text-muted-foreground">
                       {formatCurrencyAmount(lineTotals.remaining)}
                     </TableCell>
                     <TableCell />
@@ -697,7 +698,6 @@ export function CustomerBulkPaymentFormView({
           </Card>
         ) : null}
 
-        <ErrorsFeedbackBridge errors={inlineError} />
         <PaymentFormInlineAlert message={inlineError} />
 
         {!isModal ? (

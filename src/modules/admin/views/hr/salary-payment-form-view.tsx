@@ -23,7 +23,7 @@ import {
 } from "@/modules/admin/ui";
 import { Input } from "@/components/ui/input";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
 
 export type SalaryPaymentPrefill = {
   employeeId: string;
@@ -205,7 +205,7 @@ startTransition(async () => {
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        <ErrorsFeedbackBridge errors={error} />
+        <PaymentFormInlineAlert message={error} />
 
         <AdminFormSection title="Payment details">
           <AdminFormGrid>

@@ -30,7 +30,7 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { PaymentFormInlineAlert } from "@/modules/erp/components/payment-form-inline-alert";
 import { validateVatPaymentAmount } from "@/modules/erp/lib/payment-balance-validation";
 import {
   Table,
@@ -402,7 +402,7 @@ startTransition(async () => {
           </AdminFormGrid>
         </AdminFormSection>
 
-        <ErrorsFeedbackBridge errors={error} />
+        <PaymentFormInlineAlert message={error} />
 
         {!isModal ? (
           <div className="flex flex-wrap justify-end gap-2">
