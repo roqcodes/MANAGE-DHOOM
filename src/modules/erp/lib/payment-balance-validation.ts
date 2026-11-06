@@ -49,9 +49,9 @@ export function fifoPaymentExceedsOpenBalanceMessage(
 ): string {
   const plural = documentKind === "invoice" ? "invoices" : "bills";
   if (allocatedTotal <= PAYMENT_BALANCE_TOLERANCE) {
-    return `No open ${plural} to apply this payment to.`;
+    return `No open ${plural} or opening balance to apply this payment to.`;
   }
-  return `The payment ${formatCurrencyAmount(requestedAmount)} is more than the total open balance of ${formatCurrencyAmount(allocatedTotal)} across open ${plural}.`;
+  return `The payment ${formatCurrencyAmount(requestedAmount)} is more than the total open balance of ${formatCurrencyAmount(allocatedTotal)} (open ${plural} + opening).`;
 }
 
 export function sumPaymentAmounts(lines: { amount: number }[]): number {
@@ -77,6 +77,65 @@ export function fifoRemainderAmount(
   const remainder =
     quantizePaymentAmount(requestedAmount) - sumPaymentAmounts(allocatedLines);
   return remainder > PAYMENT_BALANCE_TOLERANCE ? quantizePaymentAmount(remainder) : 0;
+}
+
+/**
+ * Opening leftover FIFO may use: never more than unpaid opening, never more than
+ * net outstanding after open documents. Credit / overpaid parties get 0.
+ */
+export function remainingOpeningDueFromBalances(input: {
+  openingBalance: number;
+  unallocatedPayments: number;
+  netOutstanding: number;
+  openDocumentBalances: number;
+}): number {
+  const openingLeftover = quantizePaymentAmount(
+    Math.max(0, Number(input.openingBalance) - Number(input.unallocatedPayments)),
+  );
+  const netAfterDocs = quantizePaymentAmount(
+    Number(input.netOutstanding) - Number(input.openDocumentBalances),
+  );
+  return quantizePaymentAmount(Math.max(0, Math.min(openingLeftover, netAfterDocs)));
+}
+
+/**
+ * FIFO may apply leftover cash only up to remaining opening due (not unlimited advance).
+ * `alreadyReservedOpening` is opening already queued on the form for this party.
+ */
+export function resolveFifoOpeningRemainder(
+  requestedAmount: number,
+  allocatedLines: { amount: number }[],
+  remainingOpeningDue: number,
+  alreadyReservedOpening = 0,
+  documentKind: PaymentDocumentKind = "invoice",
+): { ok: true; openingAmount: number } | { ok: false; message: string } {
+  if (!Number.isFinite(requestedAmount) || requestedAmount <= PAYMENT_BALANCE_TOLERANCE) {
+    return { ok: false, message: "Enter a positive amount." };
+  }
+  const docs = sumPaymentAmounts(allocatedLines);
+  const openingCap = quantizePaymentAmount(
+    Math.max(
+      0,
+      (Number.isFinite(remainingOpeningDue) ? remainingOpeningDue : 0) -
+        (Number.isFinite(alreadyReservedOpening) ? alreadyReservedOpening : 0),
+    ),
+  );
+  const maxTotal = quantizePaymentAmount(docs + openingCap);
+  if (moneyExceeds(requestedAmount, maxTotal)) {
+    return {
+      ok: false,
+      message: fifoPaymentExceedsOpenBalanceMessage(requestedAmount, maxTotal, documentKind),
+    };
+  }
+  const remainder = fifoRemainderAmount(requestedAmount, allocatedLines);
+  const openingAmount = quantizePaymentAmount(Math.min(remainder, openingCap));
+  if (docs + openingAmount <= PAYMENT_BALANCE_TOLERANCE) {
+    return {
+      ok: false,
+      message: fifoPaymentExceedsOpenBalanceMessage(requestedAmount, 0, documentKind),
+    };
+  }
+  return { ok: true, openingAmount };
 }
 
 /** Matches RPC: charges of 0 are always ok; otherwise charges must be strictly less than cash. */

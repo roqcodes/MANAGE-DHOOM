@@ -23,7 +23,10 @@ import {
   resolveErpStoreId,
   withAccountStoreScope,
 } from "@/modules/erp/services/store-context.service";
-import { getVendorPayables } from "@/modules/vendors/services/vendor-erp.service";
+import {
+  getVendorErpSummary,
+  getVendorPayables,
+} from "@/modules/vendors/services/vendor-erp.service";
 import {
   listExpenseAccounts,
   listIncomeAccounts,
@@ -31,9 +34,11 @@ import {
 import type { Json } from "@/lib/integrations/supabase/types";
 import { quantizePaymentAmount } from "@/lib/decimal-precision";
 import {
+  fifoPaymentExceedsOpenBalanceMessage,
   normalizePaymentAllocationAmount,
   PAYMENT_BALANCE_TOLERANCE,
   paymentAmountExceedsBalance,
+  remainingOpeningDueFromBalances,
 } from "@/modules/erp/lib/payment-balance-validation";
 
 const BULK_REF_PREFIX = "BULK:";
@@ -418,6 +423,36 @@ export async function listSupplierSettlementDiscountAccounts(storeId?: string) {
   return listIncomeAccounts(storeId);
 }
 
+export async function getVendorRemainingOpeningDue(
+  vendorId: string,
+  storeId?: string,
+): Promise<number> {
+  const summary = await getVendorErpSummary(vendorId);
+  const bills = await listPayableBillsForVendor(vendorId, storeId);
+  const openDocs = bills.reduce((s, b) => s + Number(b.balance_due ?? 0), 0);
+  return remainingOpeningDueFromBalances({
+    openingBalance: summary.openingBalance,
+    unallocatedPayments: summary.unallocatedPayments,
+    netOutstanding: summary.balanceDue,
+    openDocumentBalances: openDocs,
+  });
+}
+
+async function assertVendorUnallocatedWithinOpening(
+  vendorId: string,
+  storeId: string,
+  totalAmount: number,
+  allocTotal: number,
+  unallocatedAmount: number,
+): Promise<void> {
+  if (unallocatedAmount <= PAYMENT_BALANCE_TOLERANCE) return;
+  const cap = await getVendorRemainingOpeningDue(vendorId, storeId);
+  const maxTotal = quantizePaymentAmount(allocTotal + cap);
+  if (paymentAmountExceedsBalance(totalAmount, maxTotal)) {
+    throw new Error(fifoPaymentExceedsOpenBalanceMessage(totalAmount, maxTotal, "bill"));
+  }
+}
+
 export async function buildFifoAllocationsForBills(
   storeId: string,
   amount: number,
@@ -591,6 +626,9 @@ export async function recordSupplierPayment(input: {
   }
 
   const totalAmount = quantizePaymentAmount(input.totalAmount);
+  if (totalAmount <= PAYMENT_BALANCE_TOLERANCE) {
+    throw new Error("Payment amount must be positive");
+  }
 
   let allocations = input.allocations;
   if (allocations.length === 0 && input.autoAllocate) {
@@ -613,6 +651,15 @@ export async function recordSupplierPayment(input: {
     }
   } else if (allocTotal > totalAmount) {
     throw new Error("Allocation total exceeds payment amount");
+  } else {
+    const unallocated = quantizePaymentAmount(Math.max(0, totalAmount - allocTotal));
+    await assertVendorUnallocatedWithinOpening(
+      input.vendorId,
+      storeId,
+      totalAmount,
+      allocTotal,
+      unallocated,
+    );
   }
 
   if (allocations.length > 0) {

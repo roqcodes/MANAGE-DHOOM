@@ -27,9 +27,13 @@ import {
 } from "@/modules/erp/services/store-context.service";
 import type { Json } from "@/lib/integrations/supabase/types";
 import { quantizePaymentAmount } from "@/lib/decimal-precision";
+import { getCustomerErpSummary } from "@/modules/customers/services/customer-erp.service";
 import {
+  fifoPaymentExceedsOpenBalanceMessage,
   normalizePaymentAllocationAmount,
+  PAYMENT_BALANCE_TOLERANCE,
   paymentAmountExceedsBalance,
+  remainingOpeningDueFromBalances,
 } from "@/modules/erp/lib/payment-balance-validation";
 
 const CUSTOMER_BULK_REF_PREFIX = "CBPB:";
@@ -253,6 +257,9 @@ export async function recordCustomerPayment(input: {
   if (!input.accountId) throw new Error("Deposit account is required");
 
   const totalAmount = quantizePaymentAmount(input.totalAmount);
+  if (totalAmount <= PAYMENT_BALANCE_TOLERANCE) {
+    throw new Error("Payment amount must be positive");
+  }
 
   let allocations = input.allocations;
   if (allocations.length === 0 && input.autoAllocate) {
@@ -280,6 +287,15 @@ export async function recordCustomerPayment(input: {
     }
   } else if (allocTotal > totalAmount) {
     throw new Error("Allocation total exceeds payment amount");
+  } else {
+    const unallocated = quantizePaymentAmount(Math.max(0, totalAmount - allocTotal));
+    await assertCustomerUnallocatedWithinOpening(
+      input.userId,
+      storeId,
+      totalAmount,
+      allocTotal,
+      unallocated,
+    );
   }
 
   if (allocations.length > 0) {
@@ -603,6 +619,36 @@ async function buildAutoAllocationsForCustomer(
     remaining -= alloc;
   }
   return allocations;
+}
+
+export async function getCustomerRemainingOpeningDue(
+  userId: string,
+  storeId?: string,
+): Promise<number> {
+  const summary = await getCustomerErpSummary(userId);
+  const invoices = await listReceivableInvoicesForCustomer(userId, storeId);
+  const openDocs = invoices.reduce((s, i) => s + Number(i.balance_due ?? 0), 0);
+  return remainingOpeningDueFromBalances({
+    openingBalance: summary.openingBalance,
+    unallocatedPayments: summary.unallocatedPayments,
+    netOutstanding: summary.balanceDue,
+    openDocumentBalances: openDocs,
+  });
+}
+
+async function assertCustomerUnallocatedWithinOpening(
+  userId: string,
+  storeId: string,
+  totalAmount: number,
+  allocTotal: number,
+  unallocatedAmount: number,
+): Promise<void> {
+  if (unallocatedAmount <= PAYMENT_BALANCE_TOLERANCE) return;
+  const cap = await getCustomerRemainingOpeningDue(userId, storeId);
+  const maxTotal = quantizePaymentAmount(allocTotal + cap);
+  if (paymentAmountExceedsBalance(totalAmount, maxTotal)) {
+    throw new Error(fifoPaymentExceedsOpenBalanceMessage(totalAmount, maxTotal, "invoice"));
+  }
 }
 
 export async function buildFifoAllocationsForAmount(

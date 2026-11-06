@@ -41,8 +41,8 @@ import {
 } from "@/modules/erp/hooks/use-payment-form-submit-blocked";
 import {
   bankChargesWithinPaymentTotal,
-  fifoRemainderAmount,
   isUnallocatedLineId,
+  resolveFifoOpeningRemainder,
   sumPaymentAmounts,
   unallocatedLineId,
   validatePaymentLinesBalance,
@@ -95,12 +95,11 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
 
 function withUnallocatedRemainder(
   fifoLines: PendingLine[],
-  requestedAmount: number,
+  openingAmount: number,
   vendor: string,
   vendorName: string | null,
 ): PendingLine[] {
-  const remainder = fifoRemainderAmount(requestedAmount, fifoLines);
-  if (remainder <= 0) return fifoLines;
+  if (openingAmount <= 0) return fifoLines;
   return [
     ...fifoLines,
     {
@@ -108,8 +107,8 @@ function withUnallocatedRemainder(
       billNumber: "Opening / unallocated",
       vendorId: vendor,
       vendorName,
-      balanceDue: remainder,
-      amount: remainder,
+      balanceDue: openingAmount,
+      amount: openingAmount,
     },
   ];
 }
@@ -236,8 +235,8 @@ export function SupplierPaymentFormView({
   async function buildFifoLines(
     amount: number,
     excludeBillIds: string[],
-  ): Promise<PendingLine[]> {
-    if (!effectiveStoreId) return [];
+  ): Promise<{ lines: PendingLine[]; remainingOpeningDue: number }> {
+    if (!effectiveStoreId) return { lines: [], remainingOpeningDue: 0 };
     const exclude = excludeBillIds.join(",");
     const res = await adminGet<{
       allocations: Array<{
@@ -247,6 +246,7 @@ export function SupplierPaymentFormView({
         purchaseBillNumber?: string;
         balanceDue?: number;
       }>;
+      remainingOpeningDue?: number;
     }>(
       `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&vendorId=${encodeURIComponent(vendorId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
     );
@@ -265,7 +265,7 @@ export function SupplierPaymentFormView({
       });
     }
 
-    return pending;
+    return { lines: pending, remainingOpeningDue: Number(res.remainingOpeningDue ?? 0) };
   }
 
   async function addLine() {
@@ -283,12 +283,29 @@ export function SupplierPaymentFormView({
     setIsAddingLine(true);
     try {
       if (!selectedBillId) {
-        const fifoLines = await buildFifoLines(
+        const { lines: fifoLines, remainingOpeningDue } = await buildFifoLines(
           amt,
           lines.map((l) => l.purchaseBillId).filter((id) => !isUnallocatedLineId(id)),
         );
+        const reservedOpening = sumPaymentAmounts(
+          lines.filter((l) => isUnallocatedLineId(l.purchaseBillId)),
+        );
+        const resolved = resolveFifoOpeningRemainder(
+          amt,
+          fifoLines,
+          remainingOpeningDue,
+          reservedOpening,
+          "bill",
+        );
+        if (!resolved.ok) {
+          notifyAmountIssue(resolved.message);
+          return;
+        }
         setLines((prev) =>
-          mergePendingLines(prev, withUnallocatedRemainder(fifoLines, amt, vendorId, vendorLabel || null)),
+          mergePendingLines(
+            prev,
+            withUnallocatedRemainder(fifoLines, resolved.openingAmount, vendorId, vendorLabel || null),
+          ),
         );
         setLineAmount("");
         setFormError(null);
@@ -405,25 +422,72 @@ export function SupplierPaymentFormView({
     submitInFlightRef.current = true;
     startTransition(async () => {
       try {
+        let allocations = documentLines.map((l) => ({
+          purchaseBillId: l.purchaseBillId,
+          amount: quantizePaymentAmount(l.amount),
+        }));
+        let totalAmount = quantizePaymentAmount(paymentTotal);
+
+        if (useFifoAutoAllocate) {
+          const { lines: fifoLines, remainingOpeningDue } = await buildFifoLines(
+            fifoOnlyAmount,
+            [],
+          );
+          const resolved = resolveFifoOpeningRemainder(
+            fifoOnlyAmount,
+            fifoLines,
+            remainingOpeningDue,
+            0,
+            "bill",
+          );
+          if (!resolved.ok) {
+            notifyAmountIssue(resolved.message);
+            return;
+          }
+          allocations = fifoLines.map((l) => ({
+            purchaseBillId: l.purchaseBillId,
+            amount: quantizePaymentAmount(l.amount),
+          }));
+          totalAmount = quantizePaymentAmount(
+            sumPaymentAmounts(fifoLines) + resolved.openingAmount,
+          );
+        } else {
+          const reservedOpening = sumPaymentAmounts(
+            lines.filter((l) => isUnallocatedLineId(l.purchaseBillId)),
+          );
+          if (reservedOpening > 0) {
+            const { remainingOpeningDue } = await buildFifoLines(
+              reservedOpening,
+              documentLines.map((l) => l.purchaseBillId),
+            );
+            const openingCheck = resolveFifoOpeningRemainder(
+              totalAmount,
+              documentLines,
+              remainingOpeningDue,
+              0,
+              "bill",
+            );
+            if (!openingCheck.ok) {
+              notifyAmountIssue(openingCheck.message);
+              return;
+            }
+          }
+        }
+
         const res = await adminPost<{ id: string }>("erp/supplier-payments", {
           vendorId: paymentVendorId,
           storeId: effectiveStoreId,
           paymentDate,
           paymentMode,
           accountId,
-          totalAmount: quantizePaymentAmount(paymentTotal),
+          totalAmount,
           bankCharges: bankChargesAmount,
           bankChargesAccountId: bankChargesAccountId || undefined,
           reference: reference.trim() || paymentIdempotencyRef.current,
           notes: notes || undefined,
           isBulk: false,
-          autoAllocate: useFifoAutoAllocate,
-          allocations: useFifoAutoAllocate
-            ? []
-            : documentLines.map((l) => ({
-                purchaseBillId: l.purchaseBillId,
-                amount: quantizePaymentAmount(l.amount),
-              })),
+          autoAllocate: false,
+          allocations,
         });
         handleSuccessNavigate(res.id);
       } catch (err) {

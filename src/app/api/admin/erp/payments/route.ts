@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
 import {
   buildFifoAllocationsForAmount,
+  getCustomerRemainingOpeningDue,
   listErpPayments,
   listExpenseAccounts,
   listPaidThroughAccounts,
@@ -126,13 +127,11 @@ export async function GET(request: Request) {
       if (!userId) {
         return NextResponse.json({ error: "userId required" }, { status: 400 });
       }
-      const allocations = await buildFifoAllocationsForAmount(
-        storeId,
-        amount,
-        exclude,
-        userId,
-      );
-      return NextResponse.json({ allocations });
+      const [allocations, remainingOpeningDue] = await Promise.all([
+        buildFifoAllocationsForAmount(storeId, amount, exclude, userId),
+        getCustomerRemainingOpeningDue(userId, storeId),
+      ]);
+      return NextResponse.json({ allocations, remainingOpeningDue });
     } catch (error) {
       const msg = error instanceof Error ? error.message : "Failed to build FIFO allocations";
       return NextResponse.json({ error: msg }, { status: 400 });

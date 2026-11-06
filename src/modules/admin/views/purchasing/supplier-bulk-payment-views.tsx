@@ -59,8 +59,8 @@ import {
 } from "@/modules/erp/hooks/use-payment-form-submit-blocked";
 import {
   bankChargesWithinPaymentTotal,
-  fifoRemainderAmount,
   isUnallocatedLineId,
+  resolveFifoOpeningRemainder,
   sumPaymentAmounts,
   unallocatedLineId,
   validatePaymentLinesBalance,
@@ -101,12 +101,11 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
 
 function withUnallocatedRemainder(
   fifoLines: PendingLine[],
-  requestedAmount: number,
+  openingAmount: number,
   vendor: string,
   vendorName: string | null,
 ): PendingLine[] {
-  const remainder = fifoRemainderAmount(requestedAmount, fifoLines);
-  if (remainder <= 0) return fifoLines;
+  if (openingAmount <= 0) return fifoLines;
   return [
     ...fifoLines,
     {
@@ -114,8 +113,8 @@ function withUnallocatedRemainder(
       billNumber: "Opening / unallocated",
       vendorId: vendor,
       vendorName,
-      balanceDue: remainder,
-      amount: remainder,
+      balanceDue: openingAmount,
+      amount: openingAmount,
     },
   ];
 }
@@ -212,8 +211,11 @@ export function SupplierBulkPaymentFormView({
     );
   }
 
-  async function buildFifoLines(amount: number, excludeBillIds: string[]): Promise<PendingLine[]> {
-    if (!effectiveStoreId || !vendorId) return [];
+  async function buildFifoLines(
+    amount: number,
+    excludeBillIds: string[],
+  ): Promise<{ lines: PendingLine[]; remainingOpeningDue: number }> {
+    if (!effectiveStoreId || !vendorId) return { lines: [], remainingOpeningDue: 0 };
     const exclude = excludeBillIds.join(",");
     const res = await adminGet<{
       allocations: Array<{
@@ -223,6 +225,7 @@ export function SupplierBulkPaymentFormView({
         purchaseBillNumber?: string;
         balanceDue?: number;
       }>;
+      remainingOpeningDue?: number;
     }>(
       `erp/supplier-payments?view=fifo&storeId=${encodeURIComponent(effectiveStoreId)}&vendorId=${encodeURIComponent(vendorId)}&amount=${amount}&exclude=${encodeURIComponent(exclude)}`,
     );
@@ -241,7 +244,7 @@ export function SupplierBulkPaymentFormView({
       });
     }
 
-    return pending;
+    return { lines: pending, remainingOpeningDue: Number(res.remainingOpeningDue ?? 0) };
   }
 
   async function addLine() {
@@ -257,12 +260,29 @@ export function SupplierBulkPaymentFormView({
     setIsAddingLine(true);
     try {
       if (!selectedBillId) {
-        const fifoLines = await buildFifoLines(
+        const { lines: fifoLines, remainingOpeningDue } = await buildFifoLines(
           amt,
           lines.map((l) => l.purchaseBillId).filter((id) => !isUnallocatedLineId(id)),
         );
+        const reservedOpening = sumPaymentAmounts(
+          lines.filter((l) => isUnallocatedLineId(l.purchaseBillId) && l.vendorId === vendorId),
+        );
+        const resolved = resolveFifoOpeningRemainder(
+          amt,
+          fifoLines,
+          remainingOpeningDue,
+          reservedOpening,
+          "bill",
+        );
+        if (!resolved.ok) {
+          notifyAmountIssue(resolved.message);
+          return;
+        }
         setLines((prev) =>
-          mergePendingLines(prev, withUnallocatedRemainder(fifoLines, amt, vendorId, vendorLabel || null)),
+          mergePendingLines(
+            prev,
+            withUnallocatedRemainder(fifoLines, resolved.openingAmount, vendorId, vendorLabel || null),
+          ),
         );
         setLineAmount("");
         setFormError(null);
@@ -372,13 +392,48 @@ export function SupplierBulkPaymentFormView({
       try {
         let pendingLines = lines;
         if (useFifoAutoAllocate) {
-          const fifoLines = await buildFifoLines(fifoOnlyAmount, []);
+          const { lines: fifoLines, remainingOpeningDue } = await buildFifoLines(
+            fifoOnlyAmount,
+            [],
+          );
+          const resolved = resolveFifoOpeningRemainder(
+            fifoOnlyAmount,
+            fifoLines,
+            remainingOpeningDue,
+            0,
+            "bill",
+          );
+          if (!resolved.ok) {
+            notifyAmountIssue(resolved.message);
+            return;
+          }
           pendingLines = withUnallocatedRemainder(
             fifoLines,
-            fifoOnlyAmount,
+            resolved.openingAmount,
             vendorId,
             vendorLabel || null,
           );
+        } else {
+          const reservedOpening = sumPaymentAmounts(
+            lines.filter((l) => isUnallocatedLineId(l.purchaseBillId)),
+          );
+          if (reservedOpening > 0) {
+            const { remainingOpeningDue } = await buildFifoLines(
+              reservedOpening,
+              documentLines.map((l) => l.purchaseBillId),
+            );
+            const openingCheck = resolveFifoOpeningRemainder(
+              paymentTotal,
+              documentLines,
+              remainingOpeningDue,
+              0,
+              "bill",
+            );
+            if (!openingCheck.ok) {
+              notifyAmountIssue(openingCheck.message);
+              return;
+            }
+          }
         }
         const res = await adminPost<{ batchId: string }>("erp/supplier-payments", {
           bulk: true,

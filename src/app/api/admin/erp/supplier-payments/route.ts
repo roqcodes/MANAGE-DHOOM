@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
 import {
   buildFifoAllocationsForBills,
+  getVendorRemainingOpeningDue,
   listBulkPaymentBatches,
   listPaidThroughAccounts,
   listPayableBillsForVendor,
@@ -110,13 +111,11 @@ export async function GET(request: Request) {
       if (!vendorId) {
         return NextResponse.json({ error: "vendorId required" }, { status: 400 });
       }
-      const allocations = await buildFifoAllocationsForBills(
-        storeId,
-        amount,
-        exclude,
-        vendorId,
-      );
-      return NextResponse.json({ allocations });
+      const [allocations, remainingOpeningDue] = await Promise.all([
+        buildFifoAllocationsForBills(storeId, amount, exclude, vendorId),
+        getVendorRemainingOpeningDue(vendorId, storeId),
+      ]);
+      return NextResponse.json({ allocations, remainingOpeningDue });
     }
 
     if (view === "bulk") {
