@@ -996,6 +996,7 @@ export async function recordBulkCustomerPaymentBatch(input: {
 
   type CustomerBulkLine = {
     invoiceId?: string;
+    userId?: string;
     amount: number;
     receiptRef?: string;
   };
@@ -1008,7 +1009,13 @@ export async function recordBulkCustomerPaymentBatch(input: {
 
   const invoiceById = new Map<
     string,
-    { id: string; user_id: string; store_id: string; balance_due: number | null; invoice_number: string }
+    {
+      id: string;
+      user_id: string;
+      store_id: string | null;
+      balance_due: number | null;
+      invoice_number: string;
+    }
   >();
   if (invoiceIds.length > 0) {
     const { data: invoices, error: invoiceError } = await supabase
@@ -1036,6 +1043,7 @@ export async function recordBulkCustomerPaymentBatch(input: {
 
     const invoice = invoiceById.get(line.invoiceId);
     if (!invoice) throw new Error("Invoice not found");
+    if (!invoice.store_id) throw new Error("Invoice has no store");
     if (invoice.store_id !== storeId) throw new Error("Invoice belongs to a different store");
     const balance = Number(invoice.balance_due ?? 0);
     if (paymentAmountExceedsBalance(amount, balance)) {

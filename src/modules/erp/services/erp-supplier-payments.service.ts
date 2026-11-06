@@ -711,7 +711,7 @@ export async function recordBulkSupplierPaymentBatch(input: {
     throw new Error("Add at least one bill payment, or a vendor amount to leave unallocated.");
   }
 
-  type VendorBulkLine = { purchaseBillId?: string; amount: number };
+  type VendorBulkLine = { purchaseBillId?: string; vendorId?: string; amount: number };
   const billIds = [
     ...new Set(
       input.billLines.map((l) => l.purchaseBillId).filter((id): id is string => Boolean(id)),
@@ -727,7 +727,7 @@ export async function recordBulkSupplierPaymentBatch(input: {
     {
       id: string;
       vendor_id: string;
-      store_id: string;
+      store_id: string | null;
       balance_due: number | null;
       purchase_bill_number: string;
     }
@@ -758,6 +758,7 @@ export async function recordBulkSupplierPaymentBatch(input: {
 
     const bill = billById.get(line.purchaseBillId);
     if (!bill) throw new Error("Purchase bill not found");
+    if (!bill.store_id) throw new Error("Purchase bill has no store");
     if (bill.store_id !== storeId) throw new Error("Bill belongs to a different store");
     const balance = Number(bill.balance_due ?? 0);
     if (paymentAmountExceedsBalance(amount, balance)) {
