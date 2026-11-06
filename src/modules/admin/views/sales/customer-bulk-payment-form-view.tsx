@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
@@ -48,8 +48,12 @@ import {
   usePaymentFormAddLineBlocked,
   usePaymentFormSubmitBlocked,
 } from "@/modules/erp/hooks/use-payment-form-submit-blocked";
+import { parsePaymentAmount } from "@/lib/decimal-precision";
 import {
-  validateFifoAllocationAmount,
+  bankChargesWithinPaymentTotal,
+  fifoRemainderAmount,
+  isUnallocatedLineId,
+  unallocatedLineId,
   validatePaymentLinesBalance,
   validateSingleDocumentPaymentAmount,
 } from "@/modules/erp/lib/payment-balance-validation";
@@ -57,6 +61,7 @@ import {
 type PendingLine = {
   invoiceId: string;
   invoiceNumber: string;
+  userId: string;
   customerName: string | null;
   balanceDue: number;
   amount: number;
@@ -72,11 +77,39 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
       byInvoiceId.set(line.invoiceId, line);
       continue;
     }
+    if (isUnallocatedLineId(line.invoiceId)) {
+      const amount = existing.amount + line.amount;
+      byInvoiceId.set(line.invoiceId, { ...existing, amount, balanceDue: amount });
+      continue;
+    }
     const amount = Math.min(existing.balanceDue, existing.amount + line.amount);
     byInvoiceId.set(line.invoiceId, { ...existing, amount });
   }
 
   return Array.from(byInvoiceId.values());
+}
+
+function withUnallocatedRemainder(
+  fifoLines: PendingLine[],
+  requestedAmount: number,
+  customerUserId: string,
+  customerName: string | null,
+  receiptRef: string,
+): PendingLine[] {
+  const remainder = fifoRemainderAmount(requestedAmount, fifoLines);
+  if (remainder <= 0) return fifoLines;
+  return [
+    ...fifoLines,
+    {
+      invoiceId: unallocatedLineId(customerUserId),
+      invoiceNumber: "Opening / unallocated",
+      userId: customerUserId,
+      customerName,
+      balanceDue: remainder,
+      amount: remainder,
+      receiptRef,
+    },
+  ];
 }
 
 export type CustomerBulkPaymentFormViewProps = ErpFormViewBaseProps;
@@ -195,6 +228,7 @@ export function CustomerBulkPaymentFormView({
       pending.push({
         invoiceId,
         invoiceNumber: alloc.invoiceNumber ?? invoiceId,
+        userId,
         customerName: customerLabel || null,
         balanceDue: Number(alloc.balanceDue ?? alloc.amount),
         amount: alloc.amount,
@@ -219,17 +253,16 @@ export function CustomerBulkPaymentFormView({
       }
 
       if (!selectedInvoiceId) {
-        const fifoLines = await buildFifoLines(amt, lines.map((l) => l.invoiceId));
-        if (fifoLines.length === 0) {
-          setFormError("No open invoices available for FIFO allocation.");
-          return;
-        }
-        const fifoErr = validateFifoAllocationAmount(amt, fifoLines, "invoice");
-        if (fifoErr) {
-          notifyAmountIssue(fifoErr);
-          return;
-        }
-        setLines((prev) => mergePendingLines(prev, fifoLines));
+        const fifoLines = await buildFifoLines(
+          amt,
+          lines.map((l) => l.invoiceId).filter((id) => !isUnallocatedLineId(id)),
+        );
+        setLines((prev) =>
+          mergePendingLines(
+            prev,
+            withUnallocatedRemainder(fifoLines, amt, userId, customerLabel || null, receiptRef.trim()),
+          ),
+        );
         setLineAmount("");
         setFormError(null);
         return;
@@ -254,6 +287,7 @@ export function CustomerBulkPaymentFormView({
           {
             invoiceId: selectedInvoiceId,
             invoiceNumber: invoiceLabel,
+            userId,
             customerName: selectedInvoiceCustomer ?? (customerLabel || null),
             balanceDue: selectedInvoiceBalance,
             amount: amt,
@@ -281,15 +315,20 @@ export function CustomerBulkPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const fifoOnlyAmount = parsePaymentAmount(lineAmount);
+    const useFifoAutoAllocate = lines.length === 0 && userId && fifoOnlyAmount > 0;
+    const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
+
+    const documentLines = lines.filter((l) => !isUnallocatedLineId(l.invoiceId));
     const linesBalanceErr = validatePaymentLinesBalance(
-      lines.map((l) => ({
+      documentLines.map((l) => ({
         amount: l.amount,
         balanceDue: l.balanceDue,
         label: l.invoiceNumber,
       })),
       "invoice",
     );
-    if (linesBalanceErr) {
+    if (!useFifoAutoAllocate && linesBalanceErr) {
       notifyAmountIssue(linesBalanceErr);
       return;
     }
@@ -299,8 +338,9 @@ export function CustomerBulkPaymentFormView({
           {
             key: "lines",
             label: "Invoice payments",
-            ok: lines.length > 0,
-            message: "Add at least one invoice payment.",
+            ok: useFifoAutoAllocate || lines.length > 0,
+            message:
+              "Add at least one invoice payment, or select a customer and amount to allocate FIFO.",
           },
           { key: "accountId", label: "Deposit to", ok: Boolean(accountId) },
           {
@@ -311,7 +351,7 @@ export function CustomerBulkPaymentFormView({
           },
           {
             key: "bankCharges",
-            ok: bankChargesAmount < total,
+            ok: bankChargesWithinPaymentTotal(bankChargesAmount, paymentTotal),
             message: "Bank charges must be less than total payment.",
           },
           {
@@ -332,6 +372,17 @@ export function CustomerBulkPaymentFormView({
 
     startTransition(async () => {
       try {
+        let pendingLines = lines;
+        if (useFifoAutoAllocate) {
+          const fifoLines = await buildFifoLines(fifoOnlyAmount, []);
+          pendingLines = withUnallocatedRemainder(
+            fifoLines,
+            fifoOnlyAmount,
+            userId,
+            customerLabel || null,
+            receiptRef.trim(),
+          );
+        }
         const res = await adminPost<{ batchId: string }>("erp/customer-bulk-payments", {
           storeId: effectiveStoreId,
           paymentDate,
@@ -340,11 +391,20 @@ export function CustomerBulkPaymentFormView({
           bankCharges: bankChargesAmount,
           bankChargesAccountId: bankChargesAmount > 0 ? bankChargesAccountId : undefined,
           notes: notes || undefined,
-          lines: lines.map((l) => ({
-            invoiceId: l.invoiceId,
-            amount: l.amount,
-            receiptRef: l.receiptRef || undefined,
-          })),
+          lines: pendingLines.map((l) =>
+            isUnallocatedLineId(l.invoiceId)
+              ? {
+                  userId: l.userId,
+                  amount: l.amount,
+                  receiptRef: l.receiptRef || undefined,
+                }
+              : {
+                  invoiceId: l.invoiceId,
+                  userId: l.userId,
+                  amount: l.amount,
+                  receiptRef: l.receiptRef || undefined,
+                },
+          ),
         });
         handleSuccessNavigate(res.batchId);
       } catch (err) {

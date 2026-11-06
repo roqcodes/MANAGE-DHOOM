@@ -261,9 +261,6 @@ export async function recordCustomerPayment(input: {
       totalAmount,
       storeId,
     );
-    if (allocations.length === 0) {
-      throw new Error("No open invoices available for FIFO allocation.");
-    }
   }
 
   const bankCharges = input.bankCharges ?? 0;
@@ -982,47 +979,77 @@ export async function recordBulkCustomerPaymentBatch(input: {
   bankCharges?: number;
   bankChargesAccountId?: string | null;
   notes?: string;
-  lines: Array<{ invoiceId: string; amount: number; receiptRef?: string }>;
+  lines: Array<{
+    invoiceId?: string;
+    userId?: string;
+    amount: number;
+    receiptRef?: string;
+  }>;
 }): Promise<string> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(input.storeId);
   if (!input.accountId) throw new Error("Deposit account is required");
-  if (input.lines.length === 0) throw new Error("Add at least one invoice payment");
+  if (input.lines.length === 0) {
+    throw new Error("Add at least one invoice payment, or a customer amount to leave unallocated.");
+  }
 
-  const invoiceIds = input.lines.map((l) => l.invoiceId);
-  if (new Set(invoiceIds).size !== invoiceIds.length) {
+  type CustomerBulkLine = {
+    invoiceId?: string;
+    amount: number;
+    receiptRef?: string;
+  };
+  const invoiceIds = [
+    ...new Set(input.lines.map((l) => l.invoiceId).filter((id): id is string => Boolean(id))),
+  ];
+  if (invoiceIds.length !== input.lines.filter((l) => l.invoiceId).length) {
     throw new Error("Duplicate invoice in bulk payment");
   }
 
-  const { data: invoices, error: invoiceError } = await supabase
-    .from("invoices")
-    .select("id, user_id, store_id, balance_due, invoice_number")
-    .in("id", invoiceIds);
-
-  if (invoiceError) throw new Error(invoiceError.message);
-
-  const invoiceById = new Map((invoices ?? []).map((row) => [row.id, row]));
-  const byCustomer = new Map<
+  const invoiceById = new Map<
     string,
-    Array<{ invoiceId: string; amount: number; receiptRef?: string }>
+    { id: string; user_id: string; store_id: string; balance_due: number | null; invoice_number: string }
   >();
+  if (invoiceIds.length > 0) {
+    const { data: invoices, error: invoiceError } = await supabase
+      .from("invoices")
+      .select("id, user_id, store_id, balance_due, invoice_number")
+      .in("id", invoiceIds);
+    if (invoiceError) throw new Error(invoiceError.message);
+    for (const row of invoices ?? []) invoiceById.set(row.id, row);
+  }
+
+  const byCustomer = new Map<string, CustomerBulkLine[]>();
 
   for (const line of input.lines) {
     if (line.amount <= 0) throw new Error("Payment amount must be positive");
+    const amount = quantizePaymentAmount(line.amount);
+
+    if (!line.invoiceId) {
+      const userId = line.userId;
+      if (!userId) throw new Error("Customer is required for unallocated payment");
+      const existing = byCustomer.get(userId) ?? [];
+      existing.push({ amount, receiptRef: line.receiptRef });
+      byCustomer.set(userId, existing);
+      continue;
+    }
+
     const invoice = invoiceById.get(line.invoiceId);
     if (!invoice) throw new Error("Invoice not found");
     if (invoice.store_id !== storeId) throw new Error("Invoice belongs to a different store");
     const balance = Number(invoice.balance_due ?? 0);
-    const amount = quantizePaymentAmount(line.amount);
     if (paymentAmountExceedsBalance(amount, balance)) {
       throw new Error(`Amount exceeds balance for invoice ${invoice.invoice_number}`);
+    }
+    if (line.userId && line.userId !== invoice.user_id) {
+      throw new Error(`Invoice ${invoice.invoice_number} does not belong to this customer`);
     }
 
     const existing = byCustomer.get(invoice.user_id) ?? [];
     existing.push({
-      ...line,
+      invoiceId: line.invoiceId,
       amount: normalizePaymentAllocationAmount(amount, balance),
+      receiptRef: line.receiptRef,
     });
     byCustomer.set(invoice.user_id, existing);
   }
@@ -1033,10 +1060,12 @@ export async function recordBulkCustomerPaymentBatch(input: {
 
   for (const [userId, customerLines] of byCustomer) {
     const totalAmount = customerLines.reduce((sum, line) => sum + line.amount, 0);
-    const allocations = customerLines.map((line) => ({
-      invoiceId: line.invoiceId,
-      amount: line.amount,
-    }));
+    const allocations = customerLines
+      .filter((line): line is CustomerBulkLine & { invoiceId: string } => Boolean(line.invoiceId))
+      .map((line) => ({
+        invoiceId: line.invoiceId,
+        amount: line.amount,
+      }));
     const receiptRefs = customerLines
       .map((line) => line.receiptRef?.trim())
       .filter((ref): ref is string => Boolean(ref));

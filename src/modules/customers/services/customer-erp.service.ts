@@ -562,11 +562,15 @@ export async function getCustomerErpSummary(
         .select("credit_limit")
         .eq("user_id", userId)
         .maybeSingle(),
-      supabase
-        .from("erp_customer_payments")
-        .select("unallocated_amount")
-        .eq("user_id", userId)
-        .gt("unallocated_amount", 0),
+      (() => {
+        let paymentsQuery = supabase
+          .from("erp_customer_payments")
+          .select("unallocated_amount")
+          .eq("user_id", userId)
+          .gt("unallocated_amount", 0);
+        if (storeId) paymentsQuery = paymentsQuery.eq("store_id", storeId);
+        return paymentsQuery;
+      })(),
     ]);
 
   const invoiceTotal = (invoices ?? []).reduce((s, i) => s + Number(i.total_amount ?? 0), 0);
@@ -583,11 +587,11 @@ export async function getCustomerErpSummary(
   );
 
   const openingBalance = Number(user.opening_balance ?? 0);
-  const balanceDue = openingBalance + receivables - creditBalance;
   const unallocatedPayments = (payments ?? []).reduce(
     (s, p) => s + Number(p.unallocated_amount ?? 0),
     0,
   );
+  const balanceDue = openingBalance + receivables - creditBalance - unallocatedPayments;
 
   return {
     openingBalance,
@@ -669,11 +673,11 @@ export async function getCustomerErpBundle(userId: string): Promise<{
   const creditNoteTotal = creditNotes.reduce((s, c) => s + Number(c.total_amount ?? 0), 0);
   const creditBalance = creditNotes.reduce((s, c) => s + Number(c.balance_remaining ?? 0), 0);
   const openingBalance = Number(user.opening_balance ?? 0);
-  const balanceDue = openingBalance + receivables - creditBalance;
   const unallocatedPayments = payments.reduce(
     (s, p) => s + Number(p.unallocated_amount ?? 0),
     0,
   );
+  const balanceDue = openingBalance + receivables - creditBalance - unallocatedPayments;
 
   const summary: CustomerErpSummary = {
     openingBalance,

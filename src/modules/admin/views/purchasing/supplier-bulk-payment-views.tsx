@@ -59,8 +59,11 @@ import {
   usePaymentFormSubmitBlocked,
 } from "@/modules/erp/hooks/use-payment-form-submit-blocked";
 import {
+  bankChargesWithinPaymentTotal,
+  fifoRemainderAmount,
+  isUnallocatedLineId,
   sumPaymentAmounts,
-  validateFifoAllocationAmount,
+  unallocatedLineId,
   validatePaymentLinesBalance,
   validateSingleDocumentPaymentAmount,
 } from "@/modules/erp/lib/payment-balance-validation";
@@ -68,6 +71,7 @@ import {
 type PendingLine = {
   purchaseBillId: string;
   billNumber: string;
+  vendorId: string;
   vendorName: string | null;
   balanceDue: number;
   amount: number;
@@ -82,6 +86,11 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
       byBillId.set(line.purchaseBillId, line);
       continue;
     }
+    if (isUnallocatedLineId(line.purchaseBillId)) {
+      const amount = quantizePaymentAmount(existing.amount + line.amount);
+      byBillId.set(line.purchaseBillId, { ...existing, amount, balanceDue: amount });
+      continue;
+    }
     const amount = quantizePaymentAmount(
       Math.min(existing.balanceDue, existing.amount + line.amount),
     );
@@ -89,6 +98,27 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
   }
 
   return Array.from(byBillId.values());
+}
+
+function withUnallocatedRemainder(
+  fifoLines: PendingLine[],
+  requestedAmount: number,
+  vendor: string,
+  vendorName: string | null,
+): PendingLine[] {
+  const remainder = fifoRemainderAmount(requestedAmount, fifoLines);
+  if (remainder <= 0) return fifoLines;
+  return [
+    ...fifoLines,
+    {
+      purchaseBillId: unallocatedLineId(vendor),
+      billNumber: "Opening / unallocated",
+      vendorId: vendor,
+      vendorName,
+      balanceDue: remainder,
+      amount: remainder,
+    },
+  ];
 }
 
 export type SupplierBulkPaymentFormViewProps = ErpFormViewBaseProps;
@@ -205,6 +235,7 @@ export function SupplierBulkPaymentFormView({
       pending.push({
         purchaseBillId,
         billNumber: alloc.purchaseBillNumber ?? purchaseBillId,
+        vendorId,
         vendorName: vendorLabel || null,
         balanceDue: Number(alloc.balanceDue ?? alloc.amount),
         amount: alloc.amount,
@@ -227,17 +258,13 @@ export function SupplierBulkPaymentFormView({
     setIsAddingLine(true);
     try {
       if (!selectedBillId) {
-        const fifoLines = await buildFifoLines(amt, lines.map((l) => l.purchaseBillId));
-        if (fifoLines.length === 0) {
-          setFormError("No open bills available for FIFO allocation.");
-          return;
-        }
-        const fifoErr = validateFifoAllocationAmount(amt, fifoLines, "bill");
-        if (fifoErr) {
-          notifyAmountIssue(fifoErr);
-          return;
-        }
-        setLines((prev) => mergePendingLines(prev, fifoLines));
+        const fifoLines = await buildFifoLines(
+          amt,
+          lines.map((l) => l.purchaseBillId).filter((id) => !isUnallocatedLineId(id)),
+        );
+        setLines((prev) =>
+          mergePendingLines(prev, withUnallocatedRemainder(fifoLines, amt, vendorId, vendorLabel || null)),
+        );
         setLineAmount("");
         setFormError(null);
         return;
@@ -262,6 +289,7 @@ export function SupplierBulkPaymentFormView({
           {
             purchaseBillId: selectedBillId,
             billNumber: billLabel,
+            vendorId,
             vendorName: vendorLabel || null,
             balanceDue: selectedBillBalance,
             amount: amt,
@@ -286,15 +314,20 @@ export function SupplierBulkPaymentFormView({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const fifoOnlyAmount = parsePaymentAmount(lineAmount);
+    const useFifoAutoAllocate = lines.length === 0 && vendorId && fifoOnlyAmount > 0;
+    const paymentTotal = useFifoAutoAllocate ? fifoOnlyAmount : total;
+
+    const documentLines = lines.filter((l) => !isUnallocatedLineId(l.purchaseBillId));
     const linesBalanceErr = validatePaymentLinesBalance(
-      lines.map((l) => ({
+      documentLines.map((l) => ({
         amount: l.amount,
         balanceDue: l.balanceDue,
         label: l.billNumber,
       })),
       "bill",
     );
-    if (linesBalanceErr) {
+    if (!useFifoAutoAllocate && linesBalanceErr) {
       notifyAmountIssue(linesBalanceErr);
       return;
     }
@@ -304,8 +337,9 @@ export function SupplierBulkPaymentFormView({
           {
             key: "lines",
             label: "Bill payments",
-            ok: lines.length > 0,
-            message: "Add at least one bill payment.",
+            ok: useFifoAutoAllocate || lines.length > 0,
+            message:
+              "Add at least one bill payment, or select a vendor and amount to allocate FIFO.",
           },
           { key: "accountId", label: "Paid through", ok: Boolean(accountId) },
           {
@@ -316,7 +350,7 @@ export function SupplierBulkPaymentFormView({
           },
           {
             key: "bankCharges",
-            ok: bankChargesAmount < total,
+            ok: bankChargesWithinPaymentTotal(bankChargesAmount, paymentTotal),
             message: "Bank charges must be less than total payment.",
           },
           {
@@ -337,6 +371,16 @@ export function SupplierBulkPaymentFormView({
 
     startTransition(async () => {
       try {
+        let pendingLines = lines;
+        if (useFifoAutoAllocate) {
+          const fifoLines = await buildFifoLines(fifoOnlyAmount, []);
+          pendingLines = withUnallocatedRemainder(
+            fifoLines,
+            fifoOnlyAmount,
+            vendorId,
+            vendorLabel || null,
+          );
+        }
         const res = await adminPost<{ batchId: string }>("erp/supplier-payments", {
           bulk: true,
           storeId: effectiveStoreId,
@@ -346,10 +390,18 @@ export function SupplierBulkPaymentFormView({
           bankCharges: bankChargesAmount,
           bankChargesAccountId: bankChargesAccountId || undefined,
           notes: notes || undefined,
-          billLines: lines.map((l) => ({
-            purchaseBillId: l.purchaseBillId,
-            amount: quantizePaymentAmount(l.amount),
-          })),
+          billLines: pendingLines.map((l) =>
+            isUnallocatedLineId(l.purchaseBillId)
+              ? {
+                  vendorId: l.vendorId,
+                  amount: quantizePaymentAmount(l.amount),
+                }
+              : {
+                  purchaseBillId: l.purchaseBillId,
+                  vendorId: l.vendorId,
+                  amount: quantizePaymentAmount(l.amount),
+                },
+          ),
         });
         handleSuccessNavigate(res.batchId);
       } catch (err) {

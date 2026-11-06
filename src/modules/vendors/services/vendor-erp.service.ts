@@ -197,7 +197,18 @@ export async function getVendorErpSummary(
     .in("status", ["issued", "applied"]);
   if (storeId) creditsQuery = creditsQuery.eq("store_id", storeId);
 
-  const [{ data: bills }, { data: credits }] = await Promise.all([billsQuery, creditsQuery]);
+  let paymentsQuery = supabase
+    .from("erp_supplier_payments")
+    .select("unallocated_amount")
+    .eq("vendor_id", vendorId)
+    .gt("unallocated_amount", 0);
+  if (storeId) paymentsQuery = paymentsQuery.eq("store_id", storeId);
+
+  const [{ data: bills }, { data: credits }, { data: payments }] = await Promise.all([
+    billsQuery,
+    creditsQuery,
+    paymentsQuery,
+  ]);
 
   const billTotal = (bills ?? []).reduce((s, b) => s + Number(b.total_amount ?? 0), 0);
   const payables = (bills ?? []).reduce((s, b) => s + Number(b.balance_due ?? 0), 0);
@@ -209,7 +220,11 @@ export async function getVendorErpSummary(
   );
 
   const openingBalance = Number(vendor.opening_balance ?? 0);
-  const balanceDue = openingBalance + payables - creditBalance;
+  const unallocatedPayments = (payments ?? []).reduce(
+    (s, p) => s + Number(p.unallocated_amount ?? 0),
+    0,
+  );
+  const balanceDue = openingBalance + payables - creditBalance - unallocatedPayments;
 
   return {
     openingBalance,
@@ -220,7 +235,8 @@ export async function getVendorErpSummary(
     creditBalance,
     refundTotal: 0,
     balanceDue,
-    payables,
+    payables: balanceDue,
+    unallocatedPayments,
   };
 }
 
@@ -445,7 +461,7 @@ export async function getVendorErpDetailBundle(
   let paymentsQuery = supabase
     .from("erp_supplier_payments")
     .select(
-      "payment_date, payment_number, total_amount, settlement_discount, created_at, stores(name)",
+      "payment_date, payment_number, total_amount, settlement_discount, unallocated_amount, created_at, stores(name)",
     )
     .eq("vendor_id", vendorId);
   if (storeId) paymentsQuery = paymentsQuery.eq("store_id", storeId);
@@ -470,6 +486,11 @@ export async function getVendorErpDetailBundle(
   const creditTotal = credits.reduce((s, c) => s + Number(c.total_amount ?? 0), 0);
   const creditBalance = credits.reduce((s, c) => s + Number(c.balance_remaining ?? 0), 0);
   const openingBalance = Number(vendor.opening_balance ?? 0);
+  const unallocatedPayments = payments.reduce(
+    (s, p) => s + Number(p.unallocated_amount ?? 0),
+    0,
+  );
+  const balanceDue = openingBalance + payables - creditBalance - unallocatedPayments;
 
   const summary: VendorErpSummary = {
     openingBalance,
@@ -479,8 +500,9 @@ export async function getVendorErpDetailBundle(
     creditTotal,
     creditBalance,
     refundTotal: 0,
-    balanceDue: openingBalance + payables - creditBalance,
-    payables,
+    balanceDue,
+    payables: balanceDue,
+    unallocatedPayments,
   };
 
   type StmtEvent = {

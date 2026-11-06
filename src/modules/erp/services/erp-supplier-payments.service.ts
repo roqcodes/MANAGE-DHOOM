@@ -599,9 +599,6 @@ export async function recordSupplierPayment(input: {
       totalAmount,
       storeId,
     );
-    if (allocations.length === 0) {
-      throw new Error("No open bills available for FIFO allocation.");
-    }
   }
 
   const settlementDiscount = input.settlementDiscount ?? 0;
@@ -705,38 +702,69 @@ export async function recordBulkSupplierPaymentBatch(input: {
   bankCharges?: number;
   bankChargesAccountId?: string | null;
   notes?: string;
-  billLines: Array<{ purchaseBillId: string; amount: number }>;
+  billLines: Array<{ purchaseBillId?: string; vendorId?: string; amount: number }>;
 }): Promise<string> {
   const actor = await requireAdminOrManagerProfile();
   const storeId = await requireErpStoreId(input.storeId);
   if (!input.accountId) throw new Error("Paid through account is required");
-  if (input.billLines.length === 0) throw new Error("Add at least one bill payment");
+  if (input.billLines.length === 0) {
+    throw new Error("Add at least one bill payment, or a vendor amount to leave unallocated.");
+  }
 
-  const billIds = input.billLines.map((l) => l.purchaseBillId);
-  if (new Set(billIds).size !== billIds.length) {
+  type VendorBulkLine = { purchaseBillId?: string; amount: number };
+  const billIds = [
+    ...new Set(
+      input.billLines.map((l) => l.purchaseBillId).filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  if (billIds.length !== input.billLines.filter((l) => l.purchaseBillId).length) {
     throw new Error("Duplicate bill in bulk payment");
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data: bills, error: billError } = await supabase
-    .from("erp_purchase_bills")
-    .select("id, vendor_id, store_id, balance_due, purchase_bill_number")
-    .in("id", billIds);
+  const billById = new Map<
+    string,
+    {
+      id: string;
+      vendor_id: string;
+      store_id: string;
+      balance_due: number | null;
+      purchase_bill_number: string;
+    }
+  >();
+  if (billIds.length > 0) {
+    const { data: bills, error: billError } = await supabase
+      .from("erp_purchase_bills")
+      .select("id, vendor_id, store_id, balance_due, purchase_bill_number")
+      .in("id", billIds);
+    if (billError) throw new Error(billError.message);
+    for (const row of bills ?? []) billById.set(row.id, row);
+  }
 
-  if (billError) throw new Error(billError.message);
-
-  const billById = new Map((bills ?? []).map((row) => [row.id, row]));
-  const byVendor = new Map<string, Array<{ purchaseBillId: string; amount: number }>>();
+  const byVendor = new Map<string, VendorBulkLine[]>();
 
   for (const line of input.billLines) {
     if (line.amount <= 0) throw new Error("Payment amount must be positive");
+    const amount = quantizePaymentAmount(line.amount);
+
+    if (!line.purchaseBillId) {
+      const vendorId = line.vendorId;
+      if (!vendorId) throw new Error("Vendor is required for unallocated payment");
+      const existing = byVendor.get(vendorId) ?? [];
+      existing.push({ amount });
+      byVendor.set(vendorId, existing);
+      continue;
+    }
+
     const bill = billById.get(line.purchaseBillId);
     if (!bill) throw new Error("Purchase bill not found");
     if (bill.store_id !== storeId) throw new Error("Bill belongs to a different store");
     const balance = Number(bill.balance_due ?? 0);
-    const amount = quantizePaymentAmount(line.amount);
     if (paymentAmountExceedsBalance(amount, balance)) {
       throw new Error(`Amount exceeds balance for bill ${bill.purchase_bill_number}`);
+    }
+    if (line.vendorId && line.vendorId !== bill.vendor_id) {
+      throw new Error(`Bill ${bill.purchase_bill_number} does not belong to this vendor`);
     }
 
     const existing = byVendor.get(bill.vendor_id) ?? [];
@@ -755,10 +783,14 @@ export async function recordBulkSupplierPaymentBatch(input: {
     (bulkLines as unknown[]).push({
       vendor_id: vendorId,
       amount: totalAmount,
-      allocations: vendorLines.map((line) => ({
-        purchase_bill_id: line.purchaseBillId,
-        amount: line.amount,
-      })),
+      allocations: vendorLines
+        .filter((line): line is VendorBulkLine & { purchaseBillId: string } =>
+          Boolean(line.purchaseBillId),
+        )
+        .map((line) => ({
+          purchase_bill_id: line.purchaseBillId,
+          amount: line.amount,
+        })),
     });
   }
 

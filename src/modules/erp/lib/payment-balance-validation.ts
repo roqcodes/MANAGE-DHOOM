@@ -59,6 +59,36 @@ export function sumPaymentAmounts(lines: { amount: number }[]): number {
   return quantizePaymentAmount(sum);
 }
 
+export const UNALLOCATED_LINE_PREFIX = "unallocated:";
+
+export function unallocatedLineId(partyId: string): string {
+  return `${UNALLOCATED_LINE_PREFIX}${partyId}`;
+}
+
+export function isUnallocatedLineId(id: string | null | undefined): boolean {
+  return Boolean(id?.startsWith(UNALLOCATED_LINE_PREFIX));
+}
+
+/** Cash left after FIFO to open documents — recorded as unallocated (opening / advance). */
+export function fifoRemainderAmount(
+  requestedAmount: number,
+  allocatedLines: { amount: number }[],
+): number {
+  const remainder =
+    quantizePaymentAmount(requestedAmount) - sumPaymentAmounts(allocatedLines);
+  return remainder > PAYMENT_BALANCE_TOLERANCE ? quantizePaymentAmount(remainder) : 0;
+}
+
+/** Matches RPC: charges of 0 are always ok; otherwise charges must be strictly less than cash. */
+export function bankChargesWithinPaymentTotal(
+  bankCharges: number,
+  paymentTotal: number,
+): boolean {
+  if (!Number.isFinite(bankCharges) || bankCharges <= 0) return true;
+  if (!Number.isFinite(paymentTotal) || paymentTotal <= 0) return false;
+  return bankCharges < paymentTotal;
+}
+
 export function validatePaymentLinesBalance(
   lines: { amount: number; balanceDue: number; label?: string }[],
   documentKind: PaymentDocumentKind,

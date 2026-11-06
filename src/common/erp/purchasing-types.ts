@@ -471,6 +471,7 @@ export interface VendorErpSummary {
   refundTotal: number;
   balanceDue: number;
   payables: number;
+  unallocatedPayments: number;
 }
 
 export interface VendorStatementLine {

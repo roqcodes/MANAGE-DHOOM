@@ -41,8 +41,11 @@ import {
   usePaymentFormSubmitBlocked,
 } from "@/modules/erp/hooks/use-payment-form-submit-blocked";
 import {
+  bankChargesWithinPaymentTotal,
+  fifoRemainderAmount,
+  isUnallocatedLineId,
   sumPaymentAmounts,
-  validateFifoAllocationAmount,
+  unallocatedLineId,
   validatePaymentLinesBalance,
   validateSingleDocumentPaymentAmount,
 } from "@/modules/erp/lib/payment-balance-validation";
@@ -77,6 +80,11 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
       byBillId.set(line.purchaseBillId, line);
       continue;
     }
+    if (isUnallocatedLineId(line.purchaseBillId)) {
+      const amount = quantizePaymentAmount(existing.amount + line.amount);
+      byBillId.set(line.purchaseBillId, { ...existing, amount, balanceDue: amount });
+      continue;
+    }
     const amount = quantizePaymentAmount(
       Math.min(existing.balanceDue, existing.amount + line.amount),
     );
@@ -84,6 +92,27 @@ function mergePendingLines(prev: PendingLine[], incoming: PendingLine[]): Pendin
   }
 
   return Array.from(byBillId.values());
+}
+
+function withUnallocatedRemainder(
+  fifoLines: PendingLine[],
+  requestedAmount: number,
+  vendor: string,
+  vendorName: string | null,
+): PendingLine[] {
+  const remainder = fifoRemainderAmount(requestedAmount, fifoLines);
+  if (remainder <= 0) return fifoLines;
+  return [
+    ...fifoLines,
+    {
+      purchaseBillId: unallocatedLineId(vendor),
+      billNumber: "Opening / unallocated",
+      vendorId: vendor,
+      vendorName,
+      balanceDue: remainder,
+      amount: remainder,
+    },
+  ];
 }
 
 export type SupplierPaymentFormViewProps = ErpFormViewBaseProps;
@@ -257,18 +286,11 @@ export function SupplierPaymentFormView({
       if (!selectedBillId) {
         const fifoLines = await buildFifoLines(
           amt,
-          lines.map((l) => l.purchaseBillId),
+          lines.map((l) => l.purchaseBillId).filter((id) => !isUnallocatedLineId(id)),
         );
-        if (fifoLines.length === 0) {
-          setFormError("No open bills available for FIFO allocation.");
-          return;
-        }
-        const fifoErr = validateFifoAllocationAmount(amt, fifoLines, "bill");
-        if (fifoErr) {
-          notifyAmountIssue(fifoErr);
-          return;
-        }
-        setLines((prev) => mergePendingLines(prev, fifoLines));
+        setLines((prev) =>
+          mergePendingLines(prev, withUnallocatedRemainder(fifoLines, amt, vendorId, vendorLabel || null)),
+        );
         setLineAmount("");
         setFormError(null);
         return;
@@ -343,7 +365,7 @@ export function SupplierPaymentFormView({
           },
           {
             key: "bankCharges",
-            ok: bankChargesAmount < paymentTotal,
+            ok: bankChargesWithinPaymentTotal(bankChargesAmount, paymentTotal),
             message: "Bank charges must be less than total payment.",
           },
           {
@@ -367,8 +389,9 @@ export function SupplierPaymentFormView({
       return setFormError("All bills must belong to the same vendor.");
     }
 
+    const documentLines = lines.filter((l) => !isUnallocatedLineId(l.purchaseBillId));
     const linesBalanceErr = validatePaymentLinesBalance(
-      lines.map((l) => ({
+      documentLines.map((l) => ({
         amount: l.amount,
         balanceDue: l.balanceDue,
         label: l.billNumber,
@@ -383,15 +406,6 @@ export function SupplierPaymentFormView({
     submitInFlightRef.current = true;
     startTransition(async () => {
       try {
-        if (useFifoAutoAllocate) {
-          const fifoLines = await buildFifoLines(fifoOnlyAmount, []);
-          const fifoErr = validateFifoAllocationAmount(fifoOnlyAmount, fifoLines, "bill");
-          if (fifoErr) {
-            notifyAmountIssue(fifoErr);
-            return;
-          }
-        }
-
         const res = await adminPost<{ id: string }>("erp/supplier-payments", {
           vendorId: paymentVendorId,
           storeId: effectiveStoreId,
@@ -407,7 +421,7 @@ export function SupplierPaymentFormView({
           autoAllocate: useFifoAutoAllocate,
           allocations: useFifoAutoAllocate
             ? []
-            : lines.map((l) => ({
+            : documentLines.map((l) => ({
                 purchaseBillId: l.purchaseBillId,
                 amount: quantizePaymentAmount(l.amount),
               })),
