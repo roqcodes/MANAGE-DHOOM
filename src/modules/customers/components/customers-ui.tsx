@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { AdminUser } from "@/common/admin/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,30 +36,90 @@ export function CustomerAvatar({
   enableHoverPreview?: boolean;
 }) {
   const url = avatarUrl?.trim();
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hoverPreview, setHoverPreview] = useState(false);
+  const [previewBox, setPreviewBox] = useState<{
+    top: number;
+    left: number;
+    maxWidth: number;
+  } | null>(null);
   const showLargePreview = Boolean(enableHoverPreview && url && hoverPreview);
 
   const label = (name ?? "").trim() || "Profile photo";
 
-  return (
-    <span
-      className={cn("relative inline-flex flex-col items-center", className)}
-      onMouseEnter={() => {
-        if (enableHoverPreview && url) setHoverPreview(true);
-      }}
-      onMouseLeave={() => setHoverPreview(false)}
-    >
-      <Avatar className={cn(CUSTOMER_AVATAR_SIZE[size])}>
-        {url ? <AvatarImage src={url} alt="" className="object-cover" /> : null}
-        <AvatarFallback className="bg-primary/10 font-semibold text-primary">
-          {customerInitials(name)}
-        </AvatarFallback>
-      </Avatar>
-      {showLargePreview ? (
+  useLayoutEffect(() => {
+    if (!showLargePreview) {
+      setPreviewBox(null);
+      return;
+    }
+
+    function updatePosition() {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const maxWidth = Math.min(352, Math.max(120, window.innerWidth - 16));
+      setPreviewBox({
+        top: r.bottom - 4,
+        left: r.left + r.width / 2,
+        maxWidth,
+      });
+    }
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [showLargePreview]);
+
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current != null) {
+        clearTimeout(closeTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  function cancelScheduledClose() {
+    if (closeTimerRef.current != null) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }
+
+  function openPreview() {
+    cancelScheduledClose();
+    if (enableHoverPreview && url) setHoverPreview(true);
+  }
+
+  function scheduleClosePreview() {
+    cancelScheduledClose();
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      setHoverPreview(false);
+    }, 120);
+  }
+
+  const previewNode =
+    showLargePreview && previewBox && typeof document !== "undefined" ? (
+      createPortal(
         <span
-          className="pointer-events-none absolute top-[calc(100%-4px)] left-1/2 z-[80] w-max max-w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-border bg-background p-1.5 shadow-xl ring-1 ring-foreground/10"
+          className="fixed w-max rounded-xl border border-border bg-background p-1.5 shadow-xl ring-1 ring-foreground/10"
+          style={{
+            top: previewBox.top,
+            left: previewBox.left,
+            transform: "translateX(-50%)",
+            zIndex: 9999,
+            maxWidth: previewBox.maxWidth,
+          }}
           role="img"
           aria-label={`${label} — larger preview`}
+          onMouseEnter={openPreview}
+          onMouseLeave={scheduleClosePreview}
         >
           <img
             src={url}
@@ -66,8 +127,25 @@ export function CustomerAvatar({
             className="mx-auto max-h-64 w-auto max-w-full object-contain"
             draggable={false}
           />
-        </span>
-      ) : null}
+        </span>,
+        document.body,
+      )
+    ) : null;
+
+  return (
+    <span
+      ref={anchorRef}
+      className={cn("relative inline-flex flex-col items-center", className)}
+      onMouseEnter={openPreview}
+      onMouseLeave={scheduleClosePreview}
+    >
+      <Avatar className={cn(CUSTOMER_AVATAR_SIZE[size])}>
+        {url ? <AvatarImage src={url} alt="" className="object-cover" /> : null}
+        <AvatarFallback className="bg-primary/10 font-semibold text-primary">
+          {customerInitials(name)}
+        </AvatarFallback>
+      </Avatar>
+      {previewNode}
     </span>
   );
 }
