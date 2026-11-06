@@ -438,12 +438,17 @@ export async function updateCustomerProfile(
     locationPatch = input.location?.trim() || null;
   }
 
+  const primaryPhone =
+    input.phone !== undefined || input.landline !== undefined
+      ? input.phone?.trim() || input.landline?.trim() || null
+      : undefined;
+
   const { error } = await supabase
     .from("users")
     .update({
       ...(name ? { name } : {}),
       ...(input.email !== undefined ? { email: input.email?.trim() || null } : {}),
-      ...(input.phone !== undefined ? { phone: input.phone?.trim() || null } : {}),
+      ...(primaryPhone !== undefined ? { phone: primaryPhone } : {}),
       ...(input.companyName !== undefined
         ? { company_name: input.companyName?.trim() || null }
         : {}),

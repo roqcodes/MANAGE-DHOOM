@@ -196,15 +196,24 @@ export function CustomerFormView({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     const companyName = (fd.get("companyName") as string).trim();
+    const mobile = (fd.get("mobile") as string).trim();
+    const landline = (fd.get("phone") as string).trim();
     if (
       !validateBeforeFormSave(
         [
-        {
-          key: "companyName",
-          label: "Company name",
-          ok: Boolean(companyName),
-        },
-      ],
+          {
+            key: "companyName",
+            label: "Company name",
+            ok: Boolean(companyName),
+          },
+          {
+            key: "mobile",
+            label: "Mobile or landline",
+            ok: Boolean(mobile || landline),
+            message:
+              "Enter a mobile number or landline so the primary address record can be saved.",
+          },
+        ],
         {
           markFieldValidationFailed: fieldValidation.markFieldValidationFailed,
           clearFieldValidation: fieldValidation.clearFieldValidation,
@@ -399,7 +408,7 @@ const payload = {
                 defaultValue={profile?.email ?? ""}
               />
             </AdminFormField>
-            <AdminFormField label="Mobile">
+            <AdminFormField label="Mobile" fieldKey="mobile">
               <Input
                 name="mobile"
                 type="tel"
@@ -408,8 +417,14 @@ const payload = {
                 defaultValue={profile?.phone ?? ""}
               />
             </AdminFormField>
-            <AdminFormField label="Phone">
-              <Input name="phone" type="tel" placeholder="Landline" autoComplete="tel-national" />
+            <AdminFormField label="Phone" fieldKey="phone">
+              <Input
+                name="phone"
+                type="tel"
+                placeholder="Landline"
+                autoComplete="tel-national"
+                defaultValue=""
+              />
             </AdminFormField>
             <AdminFormField label="PO box">
               <Input name="poBox" placeholder="PO box" defaultValue={profile?.poBox ?? ""} />
