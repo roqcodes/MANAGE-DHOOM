@@ -65,7 +65,12 @@ export function CustomerPhotoField({
           "disabled:cursor-not-allowed",
         )}
       >
-        <CustomerAvatar name={name} avatarUrl={trimmed || null} className="size-24 text-base" />
+        <CustomerAvatar
+          name={name}
+          avatarUrl={trimmed || null}
+          className="size-24 text-base"
+          enableHoverPreview={false}
+        />
         <span
           className={cn(
             "absolute inset-0 flex flex-col items-center justify-center gap-1 bg-foreground/55 text-background",

@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import type { AdminUser } from "@/common/admin/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -23,20 +25,50 @@ export function CustomerAvatar({
   avatarUrl,
   size = "md",
   className,
+  enableHoverPreview = true,
 }: {
   name?: string | null;
   avatarUrl?: string | null;
   size?: "sm" | "md" | "lg";
   className?: string;
+  /** When true and `avatarUrl` is set, hover shows a larger preview (e.g. vendor logo in search). */
+  enableHoverPreview?: boolean;
 }) {
   const url = avatarUrl?.trim();
+  const [hoverPreview, setHoverPreview] = useState(false);
+  const showLargePreview = Boolean(enableHoverPreview && url && hoverPreview);
+
+  const label = (name ?? "").trim() || "Profile photo";
+
   return (
-    <Avatar className={cn(CUSTOMER_AVATAR_SIZE[size], className)}>
-      {url ? <AvatarImage src={url} alt="" className="object-cover" /> : null}
-      <AvatarFallback className="bg-primary/10 font-semibold text-primary">
-        {customerInitials(name)}
-      </AvatarFallback>
-    </Avatar>
+    <span
+      className={cn("relative inline-flex flex-col items-center", className)}
+      onMouseEnter={() => {
+        if (enableHoverPreview && url) setHoverPreview(true);
+      }}
+      onMouseLeave={() => setHoverPreview(false)}
+    >
+      <Avatar className={cn(CUSTOMER_AVATAR_SIZE[size])}>
+        {url ? <AvatarImage src={url} alt="" className="object-cover" /> : null}
+        <AvatarFallback className="bg-primary/10 font-semibold text-primary">
+          {customerInitials(name)}
+        </AvatarFallback>
+      </Avatar>
+      {showLargePreview ? (
+        <span
+          className="pointer-events-none absolute top-[calc(100%-4px)] left-1/2 z-[80] w-max max-w-[min(22rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-border bg-background p-1.5 shadow-xl ring-1 ring-foreground/10"
+          role="img"
+          aria-label={`${label} — larger preview`}
+        >
+          <img
+            src={url}
+            alt=""
+            className="mx-auto max-h-64 w-auto max-w-full object-contain"
+            draggable={false}
+          />
+        </span>
+      ) : null}
+    </span>
   );
 }
 
