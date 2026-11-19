@@ -15,6 +15,7 @@ import { AdminProductDetailView } from "@/modules/admin/views/admin-product-deta
 import { AdminProductsView } from "@/modules/admin/views/admin-products-view";
 import { AdminPurchaseOrdersView } from "@/modules/admin/views/admin-purchase-orders-view";
 import { AdminPurchaseOrderRouteView } from "@/modules/admin/views/purchasing/purchase-order-route-view";
+import { AdminOnlineUsersView } from "@/modules/admin/views/admin-online-users-view";
 import { AdminUsersView } from "@/modules/admin/views/admin-users-view";
 import { AdminVendorDetailView } from "@/modules/admin/views/admin-vendor-detail-view";
 import { AdminVendorsView } from "@/modules/admin/views/admin-vendors-view";
@@ -61,6 +62,7 @@ export function AdminCatchAllView() {
     if (!b || b.length === 0) {
       inner = <AdminNotFound />;
     } else if (a === "settings" && b === "roles") inner = <AdminRolesView />;
+    else if (a === "users" && b === "online") inner = <AdminOnlineUsersView />;
     else if (a === "products") inner = <AdminProductDetailView />;
     else if (a === "orders") inner = <AdminOrderDetailView />;
     else if (a === "vendors") inner = <AdminVendorDetailView />;

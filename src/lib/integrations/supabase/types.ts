@@ -5378,6 +5378,88 @@ export type Database = {
           },
         ]
       }
+      user_sessions: {
+        Row: {
+          created_at: string
+          ended_reason: string | null
+          id: string
+          last_seen_at: string
+          login_at: string
+          logout_at: string | null
+          session_key: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          ended_reason?: string | null
+          id?: string
+          last_seen_at?: string
+          login_at?: string
+          logout_at?: string | null
+          session_key: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          ended_reason?: string | null
+          id?: string
+          last_seen_at?: string
+          login_at?: string
+          logout_at?: string | null
+          session_key?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_session_tabs: {
+        Row: {
+          created_at: string
+          generation_id: string
+          logout_at: string | null
+          session_key: string
+          started_at: string
+          tab_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          generation_id: string
+          logout_at?: string | null
+          session_key: string
+          started_at: string
+          tab_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          generation_id?: string
+          logout_at?: string | null
+          session_key?: string
+          started_at?: string
+          tab_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_session_tabs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_store_access: {
         Row: {
           created_at: string
@@ -7053,6 +7135,54 @@ export type Database = {
       user_has_store_access: {
         Args: { p_store_id: string; p_user_id: string }
         Returns: boolean
+      }
+      end_presence_session: {
+        Args: {
+          p_session_key: string
+          p_reason?: string
+          p_started_at?: string | null
+          p_tab_id?: string | null
+          p_generation_id?: string | null
+        }
+        Returns: boolean
+      }
+      get_presence_sessions: {
+        Args: { p_days?: number; p_limit?: number }
+        Returns: {
+          ended_reason: string | null
+          id: string
+          last_seen_at: string
+          login_at: string
+          logout_at: string | null
+          user_agent: string | null
+          user_email: string | null
+          user_id: string
+          user_name: string | null
+          user_role: string | null
+        }[]
+      }
+      ping_presence_session: {
+        Args: {
+          p_session_key: string
+          p_tab_id?: string
+          p_generation_id?: string
+        }
+        Returns: boolean
+      }
+      reconcile_stale_presence_sessions: {
+        Args: {
+          p_stale_interval?: string
+        }
+        Returns: number
+      }
+      start_presence_session: {
+        Args: {
+          p_session_key: string
+          p_user_agent: string | null
+          p_tab_id: string
+          p_generation_id: string
+        }
+        Returns: string
       }
       wallet_credit_user: {
         Args: { p_amount: number; p_reference: string; p_user_id: string }

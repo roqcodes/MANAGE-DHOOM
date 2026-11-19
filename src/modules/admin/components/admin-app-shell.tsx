@@ -16,6 +16,7 @@ import { useIsMdUp } from "@/modules/admin/hooks/use-is-md-up";
 import { ChunkLoadRecovery } from "@/modules/admin/components/chunk-load-recovery";
 import { AdminBootstrapProvider } from "@/modules/admin/providers/admin-bootstrap-provider";
 import { AdminSessionProvider } from "@/modules/admin/providers/admin-session-provider";
+import { TeamPresenceProvider } from "@/modules/presence/providers/team-presence-provider";
 import { CurrencySettingsProvider } from "@/modules/settings/providers/currency-settings-provider";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
@@ -130,6 +131,7 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AdminSessionProvider profile={data.profile}>
+      <TeamPresenceProvider>
       <ChunkLoadRecovery />
       <AdminBootstrapProvider>
       <CurrencySettingsProvider>
@@ -178,6 +180,7 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
       </AdminGlobalSearchProvider>
       </CurrencySettingsProvider>
       </AdminBootstrapProvider>
+      </TeamPresenceProvider>
     </AdminSessionProvider>
   );
 }

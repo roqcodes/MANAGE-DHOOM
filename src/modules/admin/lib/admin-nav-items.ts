@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   ListOrdered,
   Package,
+  Radio,
   Receipt,
   RotateCcw,
   Settings,
@@ -221,6 +222,20 @@ export const ADMIN_NAV_SECTIONS: AdminNavSection[] = [
         href: "/admin/users",
         icon: Users,
         keywords: ["staff", "admin", "delivery", "team", "roles"],
+      },
+      {
+        name: "Online users",
+        href: "/admin/users/online",
+        icon: Radio,
+        keywords: [
+          "online",
+          "presence",
+          "active",
+          "sessions",
+          "login",
+          "logout",
+          "who is online",
+        ],
       },
       {
         name: "Roles & access",

@@ -17,6 +17,12 @@ import {
 } from "@/lib/integrations/supabase/connectivity-error";
 import { recordAuthAudit } from "@/modules/auth/services/auth-audit.service";
 import {
+  clearPresenceCookie,
+  endPresenceSession,
+  isMissingPresenceSchemaError,
+  readPresenceCookie,
+} from "@/modules/presence/services/presence-session.service";
+import {
   formatPortalAuthError,
   PORTAL_ACCESS_DENIED_MESSAGE,
   PORTAL_CUSTOMER_DENIED_MESSAGE,
@@ -408,6 +414,17 @@ export async function signOutCurrentUser() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Close the presence session while the access token is still valid. A
+  // failure here must never block sign-out.
+  const presenceKey = (await readPresenceCookie()) ?? "signout_cleanup_key";
+  try {
+    await endPresenceSession(presenceKey, "sign_out", null, null, null);
+  } catch (error) {
+    if (!isMissingPresenceSchemaError(error)) {
+      console.warn("[presence] could not close session on sign out", error);
+    }
+  }
+
   const { error } = await supabase.auth.signOut();
 
   if (error) {
@@ -419,6 +436,8 @@ export async function signOutCurrentUser() {
     });
     throw new Error(error.message);
   }
+
+  await clearPresenceCookie();
 
   await recordAuthAudit({
     action: "sign_out",

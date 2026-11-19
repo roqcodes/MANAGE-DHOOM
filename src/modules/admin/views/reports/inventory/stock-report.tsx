@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { ReportDefinition } from "@/common/erp/report-types";
 import { extractReportRows } from "@/common/erp/report-types";
@@ -27,6 +27,12 @@ import {
 } from "../business-overview/report-format";
 import { useErpReportFetch } from "../business-overview/use-erp-report-fetch";
 import { useInventoryReportFilters } from "./use-inventory-report-filters";
+import {
+  formatQuantityBoundsLabel,
+  matchesQuantityBounds,
+  QuantityRangeFilter,
+  resolveQuantityBounds,
+} from "./quantity-range-filter";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
 
 type StockRow = Record<string, unknown> & {
@@ -37,6 +43,8 @@ type StockRow = Record<string, unknown> & {
 
 export function StockReport({ report }: { report: ReportDefinition }) {
   const filters = useInventoryReportFilters(report);
+  const [minQuantity, setMinQuantity] = useState("");
+  const [maxQuantity, setMaxQuantity] = useState("");
   const { loading, error, rawData, reload } = useErpReportFetch(report, {
     dateFrom: filters.dateFrom,
     dateTo: filters.dateTo,
@@ -54,9 +62,20 @@ export function StockReport({ report }: { report: ReportDefinition }) {
     [rawData, report.rowsKey],
   );
 
+  const quantityBounds = useMemo(
+    () => resolveQuantityBounds(minQuantity, maxQuantity),
+    [minQuantity, maxQuantity],
+  );
+  const quantityLabel = formatQuantityBoundsLabel(quantityBounds);
+
   const filtered = useMemo(
-    () => rows.filter((row) => matchesReportSearch(row, filters.debouncedSearch)),
-    [rows, filters.debouncedSearch],
+    () =>
+      rows.filter(
+        (row) =>
+          matchesReportSearch(row, filters.debouncedSearch) &&
+          matchesQuantityBounds(row.stock, quantityBounds),
+      ),
+    [rows, filters.debouncedSearch, quantityBounds],
   );
 
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
@@ -95,7 +114,10 @@ export function StockReport({ report }: { report: ReportDefinition }) {
     title: report.title,
     columns: report.columns,
     getRows: () => sorted,
-    getSubtitle: () => reportFiltersSubtitle(filters, "asOf"),
+    getSubtitle: () => {
+      const base = reportFiltersSubtitle(filters, "asOf");
+      return quantityLabel ? `${base} · Stock ${quantityLabel}` : base;
+    },
   });
 
   return (
@@ -108,6 +130,18 @@ export function StockReport({ report }: { report: ReportDefinition }) {
       exportSource={exportSource}
       showDateRange={false}
       searchPlaceholder="Search code, name, category, or brand…"
+      toolbarExtra={
+        <QuantityRangeFilter
+          min={minQuantity}
+          max={maxQuantity}
+          onMinChange={setMinQuantity}
+          onMaxChange={setMaxQuantity}
+          onClear={() => {
+            setMinQuantity("");
+            setMaxQuantity("");
+          }}
+        />
+      }
       metrics={
         !loading && sorted.length > 0 ? <ReportKpiStrip items={kpiItems} /> : null
       }
