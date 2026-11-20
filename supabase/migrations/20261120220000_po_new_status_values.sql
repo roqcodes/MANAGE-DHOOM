@@ -77,4 +77,22 @@ UPDATE public.purchase_orders
         AND status = 'finalized'
    );
 
+-- Trigger to guarantee that any newly created PO with status NULL or 'pending'
+-- automatically receives 'production' status at the database layer.
+CREATE OR REPLACE FUNCTION public.trg_set_po_initial_status()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.status IS NULL OR NEW.status = 'pending' THEN
+    NEW.status := 'production';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_po_initial_status ON public.purchase_orders;
+CREATE TRIGGER trg_po_initial_status
+  BEFORE INSERT ON public.purchase_orders
+  FOR EACH ROW
+  EXECUTE FUNCTION public.trg_set_po_initial_status();
+
 COMMIT;

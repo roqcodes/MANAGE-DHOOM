@@ -103,7 +103,11 @@ export async function listAdminPurchaseOrders(options: {
     query = query.order("created_at", { ascending: false });
   }
 
-  if (status !== "all") query = query.eq("status", status);
+  if (status === "production") {
+    query = query.in("status", ["pending", "production"]);
+  } else if (status !== "all") {
+    query = query.eq("status", status);
+  }
 
   if (vendorId) query = query.eq("vendor_id", vendorId);
 
@@ -136,8 +140,12 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
     totalRes,
     pendingRes,
     productionRes,
+    byAirRes,
+    bySeaRes,
+    inCustomsRes,
     inTransitRes,
     receivedRes,
+    invoiceRes,
     acceptedRes,
     deliveredRes,
     cancelledRes,
@@ -157,11 +165,27 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
     supabase
       .from("purchase_orders")
       .select("id", { count: "exact", head: true })
+      .eq("status", "by_air"),
+    supabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "by_sea"),
+    supabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "in_customs"),
+    supabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
       .in("status", [...IN_TRANSIT_STATUSES]),
     supabase
       .from("purchase_orders")
       .select("id", { count: "exact", head: true })
       .eq("status", "received"),
+    supabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "fully_received"),
     supabase
       .from("purchase_orders")
       .select("id", { count: "exact", head: true })
@@ -187,9 +211,13 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
   return {
     totalPurchaseOrders: totalRes.count ?? 0,
     pendingCount: pendingRes.count ?? 0,
-    productionCount: productionRes.count ?? 0,
+    productionCount: (productionRes.count ?? 0) + (pendingRes.count ?? 0),
+    byAirCount: byAirRes.count ?? 0,
+    bySeaCount: bySeaRes.count ?? 0,
+    inCustomsCount: inCustomsRes.count ?? 0,
     inTransitCount: inTransitRes.count ?? 0,
     receivedCount: receivedRes.count ?? 0,
+    invoiceCount: invoiceRes.count ?? 0,
     acceptedCount: acceptedRes.count ?? 0,
     deliveredCount: deliveredRes.count ?? 0,
     cancelledCount: cancelledRes.count ?? 0,

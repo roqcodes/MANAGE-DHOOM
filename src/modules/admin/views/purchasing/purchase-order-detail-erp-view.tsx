@@ -107,6 +107,15 @@ function buildTimeline(po: ErpPurchaseOrderDetail) {
     return events;
   }
 
+  if (status === "production" || status === "pending") {
+    events.push({
+      id: "production",
+      title: "In Production",
+      detail: "Order in production with supplier — ready for pickup when dispatch is scheduled.",
+      tone: "current",
+    });
+  }
+
   const inTransit =
     status === "by_sea" || status === "by_air" || status === "in_customs";
 
@@ -170,15 +179,28 @@ function buildTimeline(po: ErpPurchaseOrderDetail) {
 
 function ReadyForPickupModal({
   open,
+  initialDate,
   onClose,
   onSave,
 }: {
   open: boolean;
+  initialDate?: string | null;
   onClose: () => void;
   onSave: (mode: TransitMode, date: string) => Promise<void>;
 }) {
   const [mode, setMode] = useState<TransitMode | null>(null);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(
+    initialDate || new Date().toISOString().slice(0, 10),
+  );
+
+  useEffect(() => {
+    if (open) {
+      setMode(null);
+      setDate(initialDate || new Date().toISOString().slice(0, 10));
+      setErr(null);
+    }
+  }, [open, initialDate]);
+
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -610,7 +632,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
   // Derived flags
   const canEdit = status === "pending" || status === "production";
   const canCancel = status === "pending" || status === "production";
-  const showReadyForPickup = status === "production";
+  const showReadyForPickup = status === "production" || status === "pending";
   const showMarkReceived = inTransit;
   const showGenerateInvoice = status === "received" && !po.delivery.deliverySubmitted;
   const showInvoiceLink = !!activeBill;
@@ -921,6 +943,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
       {/* Ready For Pickup Modal */}
       <ReadyForPickupModal
         open={showPickupModal}
+        initialDate={po.expected_delivery_date}
         onClose={() => setShowPickupModal(false)}
         onSave={handleReadyForPickupSave}
       />

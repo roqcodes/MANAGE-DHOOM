@@ -482,8 +482,12 @@ export interface PurchaseOrderCatalogStats {
   totalPurchaseOrders: number;
   pendingCount: number;
   productionCount: number;
+  byAirCount: number;
+  bySeaCount: number;
+  inCustomsCount: number;
   inTransitCount: number;
   receivedCount: number;
+  invoiceCount: number;
   acceptedCount: number;
   deliveredCount: number;
   cancelledCount: number;

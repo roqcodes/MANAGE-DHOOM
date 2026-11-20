@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
+import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import {
   executeIdempotentOperation,
   idempotentOperationErrorResponse,
@@ -64,6 +65,17 @@ export async function POST(request: Request) {
       });
 
       if (!outcome.idempotentReplay && outcome.result?.poId) {
+        try {
+          const supabase = await createSupabaseServerClient();
+          await supabase
+            .from("purchase_orders")
+            .update({ status: "production" })
+            .eq("id", outcome.result.poId)
+            .eq("status", "pending");
+        } catch {
+          // Non-blocking defensive update: UI supports both pending & production
+        }
+
         await logAuditEvent({
           action: "create",
           entityType: "purchase_order",

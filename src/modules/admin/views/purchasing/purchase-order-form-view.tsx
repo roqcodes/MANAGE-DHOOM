@@ -71,6 +71,7 @@ import {
 } from "@/modules/admin/ui";
 import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import { addDaysToDateInput } from "@/lib/format-date";
 
 export type PurchaseOrderFormViewProps = ErpFormViewBaseProps & {
   mode: "create" | "edit";
@@ -98,7 +99,10 @@ export function PurchaseOrderFormView({
 
   const [vendorId, setVendorId] = useState("");
   const [poDate, setPoDate] = useState(new Date().toISOString().slice(0, 10));
-  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState(() =>
+    mode === "create" ? addDaysToDateInput(new Date().toISOString().slice(0, 10), 15) : "",
+  );
+  const [expectedDateTouched, setExpectedDateTouched] = useState(false);
   const [reference, setReference] = useState("");
   const [notes, setNotes] = useState("");
   const [discount, setDiscount] = useState(0);
@@ -244,10 +248,12 @@ export function PurchaseOrderFormView({
   }
 
   function resetCreateForm() {
+    const today = new Date().toISOString().slice(0, 10);
     setVendorId("");
     setVendorLabel("");
-    setPoDate(new Date().toISOString().slice(0, 10));
-    setExpectedDeliveryDate("");
+    setPoDate(today);
+    setExpectedDeliveryDate(addDaysToDateInput(today, 15));
+    setExpectedDateTouched(false);
     setReference("");
     setNotes("");
     setDiscount(0);
@@ -481,13 +487,26 @@ const payload = {
                 />
               </AdminFormField>
               <AdminFormField label="PO date">
-                <Input type="date" value={poDate} onChange={(e) => setPoDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={poDate}
+                  onChange={(e) => {
+                    const newPoDate = e.target.value;
+                    setPoDate(newPoDate);
+                    if (!expectedDateTouched && newPoDate) {
+                      setExpectedDeliveryDate(addDaysToDateInput(newPoDate, 15));
+                    }
+                  }}
+                />
               </AdminFormField>
               <AdminFormField label="Expected delivery">
                 <Input
                   type="date"
                   value={expectedDeliveryDate}
-                  onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                  onChange={(e) => {
+                    setExpectedDateTouched(true);
+                    setExpectedDeliveryDate(e.target.value);
+                  }}
                 />
               </AdminFormField>
               <AdminFormField label="Reference">

@@ -155,23 +155,25 @@ export function PoStatusPill({ status }: { status: string | null }) {
   const normalized = status ?? "unknown";
 
   const label =
-    normalized === "by_sea"
-      ? "By Sea"
-      : normalized === "by_air"
-        ? "By Air"
-        : normalized === "in_customs"
-          ? "In Customs"
-          : normalized === "fully_received"
-            ? "Fully Received"
-            : normalized === "partially_received"
-              ? "Partially Received"
-              : normalized.replace(/_/g, " ");
+    normalized === "pending" || normalized === "production"
+      ? "Production"
+      : normalized === "by_sea"
+        ? "By Sea"
+        : normalized === "by_air"
+          ? "By Air"
+          : normalized === "in_customs"
+            ? "In Customs"
+            : normalized === "fully_received"
+              ? "Fully Received"
+              : normalized === "partially_received"
+                ? "Partially Received"
+                : normalized.replace(/_/g, " ");
 
   return (
     <span
       className={cn(
         "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize",
-        normalized === "production"
+        normalized === "production" || normalized === "pending"
           ? "border-indigo-200 bg-indigo-50 text-indigo-700"
           : normalized === "by_sea"
             ? "border-sky-200 bg-sky-50 text-sky-700"

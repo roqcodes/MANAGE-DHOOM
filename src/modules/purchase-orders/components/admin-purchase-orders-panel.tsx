@@ -20,6 +20,7 @@ import {
 } from "@/modules/purchase-orders/components/purchase-orders-data-table";
 import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { PurchaseOrdersMetricsBar } from "@/modules/purchase-orders/components/purchase-orders-metrics-bar";
+import { PurchaseOrderPhaseProgress } from "@/modules/purchase-orders/components/purchase-order-phase-progress";
 import {
   buildPurchaseOrdersListParams,
   PO_ACCENT,
@@ -217,6 +218,12 @@ export function AdminPurchaseOrdersPanel({
         onDeliveryFilter={(delivery) => pushFilters({ delivery })}
         onClearFilters={handleClearFilters}
         exportSource={exportSource}
+      />
+
+      <PurchaseOrderPhaseProgress
+        stats={stats}
+        activeStatus={statusFilter}
+        onSelect={(status) => pushFilters({ status, delivery: null })}
       />
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
