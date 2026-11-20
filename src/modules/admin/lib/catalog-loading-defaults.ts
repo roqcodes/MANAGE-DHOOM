@@ -48,6 +48,9 @@ export const EMPTY_VENDOR_CATALOG_STATS: VendorCatalogStats = {
 export const EMPTY_PURCHASE_ORDER_CATALOG_STATS: PurchaseOrderCatalogStats = {
   totalPurchaseOrders: 0,
   pendingCount: 0,
+  productionCount: 0,
+  inTransitCount: 0,
+  receivedCount: 0,
   acceptedCount: 0,
   deliveredCount: 0,
   cancelledCount: 0,

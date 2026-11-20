@@ -440,9 +440,15 @@ export interface OrderWithItems {
 export const PURCHASE_ORDER_STATUS_FILTERS = [
   "all",
   "pending",
+  "production",
+  "by_sea",
+  "by_air",
+  "in_customs",
+  "received",
   "accepted",
   "delivered",
   "cancelled",
+  "fully_received",
 ] as const;
 
 export type PurchaseOrderStatusFilter =
@@ -475,6 +481,9 @@ export interface AdminPurchaseOrderListRow {
 export interface PurchaseOrderCatalogStats {
   totalPurchaseOrders: number;
   pendingCount: number;
+  productionCount: number;
+  inTransitCount: number;
+  receivedCount: number;
   acceptedCount: number;
   deliveredCount: number;
   cancelledCount: number;

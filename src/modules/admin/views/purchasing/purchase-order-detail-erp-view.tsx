@@ -6,8 +6,6 @@ import Link from "next/link";
 import { formatAuditLogUserDetail } from "@/modules/erp/lib/audit-log-display";
 import type { AuditLogEntry } from "@/common/erp/types";
 import type { ErpPurchaseOrderDetail } from "@/common/erp/purchasing-types";
-import { matchPoLineToBillLine } from "@/common/erp/match-po-bill-line";
-import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
 import { ERP_CLIENT_OPERATION_TYPES } from "@/lib/erp/client-operations/operation-types";
 import { dispatchOutboxChanged, OUTBOX_CHANGED_EVENT } from "@/lib/sync/outbox-browser-events";
 import { useOutboxQueueActivity } from "@/lib/sync/hooks/use-outbox-queue-activity";
@@ -17,12 +15,13 @@ import { createOutboxStore } from "@/lib/sync/outbox-store";
 import { getOrCreateErpTerminalId } from "@/lib/sync/erp-terminal-id";
 import { broadcastSyncWake } from "@/lib/sync/sync-network";
 import { resolveOutboxUserId } from "@/lib/sync/resolve-outbox-user-id.client";
+import { createSupabaseBrowserClient } from "@/lib/integrations/supabase/client";
 import {
   purchaseOrderResourceScope,
   type PurchaseOrderDeliverFinalizePayload,
 } from "@/modules/erp/types/purchase-payload";
 import { AdminDetailSkeleton } from "@/modules/admin/components/admin-page-skeleton";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
+import { adminGet, adminPatch, adminPost, adminPut } from "@/modules/admin/lib/admin-api-client";
 import { cancelAdminPurchaseOrderAction } from "@/modules/purchase-orders/actions/admin-purchase-orders.actions";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -40,6 +39,19 @@ import { PoStatusPill } from "@/modules/purchase-orders/components/purchase-orde
 import { cn } from "@/lib/utils";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type TransitMode = "by_sea" | "by_air" | "in_customs";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function lineProductName(
   line: ErpPurchaseOrderDetail["purchase_order_items"][number],
@@ -52,6 +64,22 @@ function lineProductName(
   return variant ? `${base} — ${variant}` : base;
 }
 
+const TRANSIT_MODE_LABELS: Record<TransitMode, string> = {
+  by_sea: "By Sea 🚢",
+  by_air: "By Air ✈️",
+  in_customs: "In Customs 🛃",
+};
+
+function transitModeBadgeClass(mode: TransitMode): string {
+  return mode === "by_sea"
+    ? "border-sky-200 bg-sky-50 text-sky-700"
+    : mode === "by_air"
+      ? "border-violet-200 bg-violet-50 text-violet-700"
+      : "border-amber-200 bg-amber-50 text-amber-800";
+}
+
+// ─── Timeline builder ────────────────────────────────────────────────────────
+
 function buildTimeline(po: ErpPurchaseOrderDetail) {
   const events: Array<{
     id: string;
@@ -61,7 +89,7 @@ function buildTimeline(po: ErpPurchaseOrderDetail) {
   }> = [
     {
       id: "created",
-      title: "PO created",
+      title: "PO Created",
       detail: "Purchase order raised — no accounting or inventory impact.",
       tone: "done",
     },
@@ -79,62 +107,449 @@ function buildTimeline(po: ErpPurchaseOrderDetail) {
     return events;
   }
 
-  if (["accepted", "delivered", "partially_received", "fully_received"].includes(status)) {
+  const inTransit =
+    status === "by_sea" || status === "by_air" || status === "in_customs";
+
+  if (inTransit || status === "received" || status === "fully_received") {
+    const modeLabel =
+      status === "by_sea"
+        ? "By Sea"
+        : status === "by_air"
+          ? "By Air"
+          : status === "in_customs"
+            ? "In Customs"
+            : (po as unknown as { transit_mode?: string }).transit_mode
+              ? (po as unknown as { transit_mode: string }).transit_mode.replace(/_/g, " ")
+              : "In transit";
+
     events.push({
-      id: "accepted",
-      title: "Vendor accepted",
-      detail: "Vendor committed on portal.",
-      tone: "done",
+      id: "pickup",
+      title: "Ready For Pickup",
+      detail: `Dispatched — ${modeLabel}${po.expected_delivery_date ? ` · Expected ${po.expected_delivery_date}` : ""}.`,
+      tone: inTransit ? "current" : "done",
     });
   }
 
-  if (status === "delivered") {
+  if (status === "received" || status === "fully_received") {
     events.push({
-      id: "vendor-delivered",
-      title: "Vendor marked delivered",
-      detail: "Signal only — enter actual quantities and submit below.",
-      tone: "current",
+      id: "received",
+      title: "Received",
+      detail: "Goods received in warehouse. Ready to generate invoice.",
+      tone: status === "received" ? "current" : "done",
     });
   }
 
   if (po.linked_bill) {
     events.push({
-      id: "draft-invoice",
+      id: "invoice",
       title:
         po.linked_bill.status === "draft"
-          ? "Draft invoice generated"
-          : "Invoice finalized",
+          ? "Draft Invoice"
+          : "Invoice Finalized",
       detail:
         po.linked_bill.status === "draft"
-          ? "Draft only — not in accounting or inventory until delivery is submitted."
+          ? "Draft saved — inventory & accounting pending finalization."
           : `Posted to accounting for ${formatCurrencyAmount(po.linked_bill.total_amount)}.`,
       tone: po.linked_bill.status === "draft" ? "current" : "done",
     });
   }
 
   if (po.delivery.deliverySubmitted) {
-    const hasVariance = po.discrepancies.some(
-      (d) => d.varianceVsOrder !== 0 || d.varianceVsOriginalBill !== 0,
-    );
     events.push({
-      id: "submitted",
-      title: "Delivery submitted & invoice finalized",
-      detail: hasVariance
-        ? "Stock and accounting posted. Quantity variances recorded below."
-        : "Stock and accounting posted at delivered quantities.",
+      id: "finalized",
+      title: "Delivery & Invoice Finalized",
+      detail: "Stock and accounting posted.",
       tone: "done",
-    });
-  } else if (po.delivery.hasDraftBill) {
-    events.push({
-      id: "awaiting-delivery",
-      title: "Awaiting delivery submission",
-      detail: "Enter delivered quantities and click Submit deliver & finalize invoice.",
-      tone: "pending",
     });
   }
 
   return events;
 }
+
+// ─── Ready For Pickup Modal ───────────────────────────────────────────────────
+
+function ReadyForPickupModal({
+  open,
+  onClose,
+  onSave,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSave: (mode: TransitMode, date: string) => Promise<void>;
+}) {
+  const [mode, setMode] = useState<TransitMode | null>(null);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!mode) {
+      setErr("Please select a transit mode.");
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      await onSave(mode, date);
+      onClose();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const modes: { id: TransitMode; label: string; icon: string; desc: string }[] = [
+    { id: "by_sea", label: "By Sea", icon: "🚢", desc: "Ocean freight" },
+    { id: "by_air", label: "By Air", icon: "✈️", desc: "Air freight" },
+    { id: "in_customs", label: "In Customs", icon: "🛃", desc: "Customs clearance" },
+  ];
+
+  return (
+    <Dialog open={open} onOpenChange={(o: boolean) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md" instant>
+        <DialogHeader>
+          <DialogTitle>Ready For Pickup</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Select how the shipment is travelling and when it is expected.
+          </p>
+
+          {/* Mode selector */}
+          <div className="grid grid-cols-3 gap-2">
+            {modes.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => setMode(m.id)}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-lg border-2 p-3 text-center transition-colors",
+                  mode === m.id
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border hover:border-border/70 hover:bg-muted/50",
+                )}
+              >
+                <span className="text-2xl">{m.icon}</span>
+                <span className="text-xs font-semibold">{m.label}</span>
+                <span className="text-[10px] text-muted-foreground">{m.desc}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Expected date */}
+          <label className="block text-sm">
+            <span className="mb-1 block text-slate-500">Expected Delivery Date</span>
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="max-w-xs"
+            />
+          </label>
+
+          {err ? <p className="text-sm text-destructive">{err}</p> : null}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={handleSave} disabled={saving || !mode}>
+            {saving ? "Saving…" : "Confirm"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Generate Invoice section ─────────────────────────────────────────────────
+
+function GenerateInvoiceSection({
+  po,
+  poId,
+  onDone,
+}: {
+  po: ErpPurchaseOrderDetail;
+  poId: string;
+  onDone: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [err, setErr] = useState<string | null>(null);
+  const { operations: outboxOperations } = useOutboxQueueActivity();
+  const outboxPending = useMemo(
+    () => pendingPurchaseOrderOutboxActivity(outboxOperations, poId),
+    [outboxOperations, poId],
+  );
+
+  // Editable line state: qty + price per PO line id
+  const [lineQty, setLineQty] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    for (const line of po.purchase_order_items) {
+      init[line.id] = line.quantity;
+    }
+    return init;
+  });
+  const [linePrice, setLinePrice] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    for (const line of po.purchase_order_items) {
+      init[line.id] = line.price;
+    }
+    return init;
+  });
+
+  const receiveDate = new Date().toISOString().slice(0, 10);
+
+  function buildBillLines() {
+    return po.purchase_order_items.map((line) => {
+      const qty = coalesceNumber(lineQty[line.id]);
+      const price = coalesceNumber(linePrice[line.id]);
+      return {
+        productId:
+          (line as { product_id?: string | null }).product_id ??
+          line.product_variants?.product_id ??
+          null,
+        variantId: line.variant_id ?? null,
+        productName: lineProductName(line),
+        barcode: line.product_variants?.barcode ?? "",
+        expiryDate: "",
+        quantity: qty,
+        purchasePrice: price,
+        taxRatePercent: line.tax_rate_percent ?? 0,
+      };
+    });
+  }
+
+  async function saveDraftInvoice() {
+    startTransition(async () => {
+      try {
+        setErr(null);
+        const storeId = po.store_id;
+        if (!storeId) {
+          setErr("Purchase order has no store.");
+          return;
+        }
+
+        const lines = buildBillLines();
+        const activeDraft = po.linked_bill?.status === "draft" ? po.linked_bill : null;
+
+        if (activeDraft) {
+          await adminPut(`erp/purchase-bills/${activeDraft.id}`, {
+            vendorId: po.vendor_id,
+            storeId,
+            purchaseDate: receiveDate,
+            poId,
+            lines,
+            discount: po.discount ?? 0,
+          });
+        } else {
+          await adminPost("erp/purchase-bills", {
+            vendorId: po.vendor_id,
+            storeId,
+            purchaseDate: receiveDate,
+            poId,
+            lines,
+            discount: po.discount ?? 0,
+            finalize: false,
+          });
+        }
+
+        onDone();
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Failed to save draft invoice.");
+      }
+    });
+  }
+
+  async function finalizeInvoice() {
+    if (outboxPending.draftBillPending) {
+      setErr("Draft invoice is still syncing. Wait for sync to complete.");
+      return;
+    }
+    if (outboxPending.deliveryPending) {
+      setErr("Delivery submission is already queued or syncing.");
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        setErr(null);
+        const storeId = po.store_id;
+        if (!storeId) {
+          setErr("Purchase order has no store.");
+          return;
+        }
+
+        // Ensure a draft bill exists with the edited lines & prices so finalize picks it up
+        const lines = buildBillLines();
+        const activeDraft = po.linked_bill?.status === "draft" ? po.linked_bill : null;
+
+        if (activeDraft) {
+          await adminPut(`erp/purchase-bills/${activeDraft.id}`, {
+            vendorId: po.vendor_id,
+            storeId,
+            purchaseDate: receiveDate,
+            poId,
+            lines,
+            discount: po.discount ?? 0,
+          });
+        } else if (!po.linked_bill) {
+          await adminPost("erp/purchase-bills", {
+            vendorId: po.vendor_id,
+            storeId,
+            purchaseDate: receiveDate,
+            poId,
+            lines,
+            discount: po.discount ?? 0,
+            finalize: false,
+          });
+        }
+
+        const supabase = createSupabaseBrowserClient();
+        const staffUserId = await resolveOutboxUserId(supabase);
+        if (!staffUserId) {
+          setErr("You must be signed in to finalize the invoice.");
+          return;
+        }
+
+        const deliverPayload: PurchaseOrderDeliverFinalizePayload = {
+          poId,
+          receiveDate,
+          lines: po.purchase_order_items.map((line) => ({
+            poLineId: line.id as string,
+            deliveredQty: coalesceNumber(lineQty[line.id]),
+          })),
+        };
+
+        const store = createOutboxStore();
+        try {
+          await store.enqueue({
+            operationType: ERP_CLIENT_OPERATION_TYPES.purchaseOrder.deliverFinalize,
+            schemaVersion: 1,
+            payload: deliverPayload,
+            userId: staffUserId,
+            storeId,
+            terminalId: getOrCreateErpTerminalId(),
+            resourceScope: purchaseOrderResourceScope(poId),
+          });
+        } catch (enqueueErr) {
+          if (enqueueErr instanceof OutboxEnqueueError) {
+            setErr(enqueueErr.message);
+          } else {
+            setErr(
+              enqueueErr instanceof Error
+                ? enqueueErr.message
+                : "Could not queue delivery locally.",
+            );
+          }
+          return;
+        } finally {
+          await store.close();
+        }
+
+        dispatchOutboxChanged();
+        broadcastSyncWake();
+        onDone();
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : "Finalize failed.");
+      }
+    });
+  }
+
+  return (
+    <Card className="border-primary/30">
+      <CardHeader>
+        <CardTitle className="text-base">Generate Invoice</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Review and adjust quantities and prices before finalizing. Inventory and
+          accounting only post when you click <strong>Finalize Invoice</strong>.
+        </p>
+
+        {err ? <p className="text-sm text-destructive">{err}</p> : null}
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs uppercase text-slate-500">
+                <th className="pb-2 pr-4">Product</th>
+                <th className="pb-2 pr-4">PO Qty</th>
+                <th className="pb-2 pr-4">Invoice Qty</th>
+                <th className="pb-2 pr-4">Unit Price</th>
+                <th className="pb-2">Line Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {po.purchase_order_items.map((line) => {
+                const qty = coalesceNumber(lineQty[line.id]);
+                const price = coalesceNumber(linePrice[line.id]);
+                const total = qty * price;
+                return (
+                  <tr key={line.id} className="border-t border-slate-100">
+                    <td className="py-2 pr-4">{lineProductName(line)}</td>
+                    <td className="py-2 pr-4 tabular-nums text-muted-foreground">
+                      {line.quantity}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <NumericInput
+                        min={0}
+                        step="any"
+                        className="max-w-[100px]"
+                        value={lineQty[line.id] ?? Number.NaN}
+                        onValueChange={(v) =>
+                          setLineQty((prev) => ({ ...prev, [line.id]: v }))
+                        }
+                      />
+                    </td>
+                    <td className="py-2 pr-4">
+                      <NumericInput
+                        min={0}
+                        step="any"
+                        className="max-w-[120px]"
+                        value={linePrice[line.id] ?? Number.NaN}
+                        onValueChange={(v) =>
+                          setLinePrice((prev) => ({ ...prev, [line.id]: v }))
+                        }
+                      />
+                    </td>
+                    <td className="py-2 tabular-nums">{formatCurrencyAmount(total)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="outline"
+            disabled={pending || outboxPending.deliveryPending || outboxPending.draftBillPending}
+            onClick={saveDraftInvoice}
+          >
+            {pending ? "Saving…" : "Save Draft"}
+          </Button>
+          <Button
+            disabled={pending || outboxPending.deliveryPending || outboxPending.draftBillPending}
+            onClick={finalizeInvoice}
+          >
+            {pending ? "Finalizing…" : "Finalize Invoice"}
+          </Button>
+        </div>
+
+        {outboxPending.deliveryPending ? (
+          <p className="text-sm text-sky-700">
+            Finalizing invoice… inventory and accounting will post when sync completes.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Main view ────────────────────────────────────────────────────────────────
 
 export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
   const { confirm } = useAdminAlert();
@@ -148,8 +563,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
   const [loading, setLoading] = useState(true);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [deliveredQty, setDeliveredQty] = useState<Record<string, number>>({});
-  const [receiveDate, setReceiveDate] = useState(new Date().toISOString().slice(0, 10));
+  const [showPickupModal, setShowPickupModal] = useState(false);
 
   function reload() {
     return adminGet<{ po: ErpPurchaseOrderDetail; auditLogs: AuditLogEntry[] }>(
@@ -157,17 +571,6 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     ).then((res) => {
       setPo(res.po);
       setAuditLogs(res.auditLogs ?? []);
-      if (res.po.delivery.canSubmitDelivery) {
-        const defaults: Record<string, number> = {};
-        for (const line of res.po.purchase_order_items) {
-          const remaining = Math.max(
-            0,
-            line.quantity - Number(line.accepted_qty ?? 0),
-          );
-          defaults[line.id] = remaining > 0 ? remaining : line.quantity;
-        }
-        setDeliveredQty(defaults);
-      }
     });
   }
 
@@ -176,6 +579,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     reload()
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poId]);
 
   useEffect(() => {
@@ -184,32 +588,9 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     };
     window.addEventListener(OUTBOX_CHANGED_EVENT, onOutboxChange);
     return () => window.removeEventListener(OUTBOX_CHANGED_EVENT, onOutboxChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poId]);
 
-  const previewDiscrepancies = useMemo(() => {
-    if (!po?.delivery.canSubmitDelivery) return [];
-    return po.purchase_order_items.map((line) => {
-      const billLine = po.linked_bill?.lines.find((bl) => matchPoLineToBillLine(line, bl));
-      const originalBillQty = billLine?.original_quantity ?? line.quantity;
-      const delivered = coalesceNumber(deliveredQty[line.id]);
-      return {
-        poLineId: line.id,
-        productName: lineProductName(line),
-        orderedQty: line.quantity,
-        originalBillQty,
-        deliveredQty: delivered,
-        finalBillQty: delivered,
-        varianceVsOrder: delivered - line.quantity,
-        varianceVsOriginalBill: delivered - originalBillQty,
-      };
-    });
-  }, [po, deliveredQty]);
-
-  const discrepancies =
-    po?.delivery.deliverySubmitted ? po.discrepancies : previewDiscrepancies;
-  const hasDiscrepancies = discrepancies.some(
-    (d) => d.varianceVsOrder !== 0 || d.varianceVsOriginalBill !== 0,
-  );
   const timeline = po ? buildTimeline(po) : [];
 
   if (loading && !po) return <AdminDetailSkeleton />;
@@ -221,21 +602,20 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     );
   }
 
-  const canEdit = po.status === "pending";
-  const canCancel = po.status === "pending";
+  const status = po.status ?? "pending";
+  const inTransit = status === "by_sea" || status === "by_air" || status === "in_customs";
   const activeBill =
     po.linked_bill && po.linked_bill.status !== "cancelled" ? po.linked_bill : null;
-  const hasOpenDraftBill = activeBill?.status === "draft";
-  const hasRemainingToReceive = po.purchase_order_items.some(
-    (line) => Number(line.accepted_qty ?? 0) < line.quantity,
-  );
-  const cancelledBill = po.linked_bill?.status === "cancelled" ? po.linked_bill : null;
-  const canCreateBill =
-    !hasOpenDraftBill &&
-    po.status !== "cancelled" &&
-    po.purchase_order_items.length > 0 &&
-    (!po.linked_bill || hasRemainingToReceive) &&
-    !outboxPending.draftBillPending;
+
+  // Derived flags
+  const canEdit = status === "pending" || status === "production";
+  const canCancel = status === "pending" || status === "production";
+  const showReadyForPickup = status === "production";
+  const showMarkReceived = inTransit;
+  const showGenerateInvoice = status === "received" && !po.delivery.deliverySubmitted;
+  const showInvoiceLink = !!activeBill;
+
+  // ── Action handlers ────────────────────────────────────────────────────────
 
   async function handleCancel() {
     const ok = await confirm({
@@ -255,83 +635,32 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     });
   }
 
-  async function submitDelivery() {
-    if (!po || !po.delivery.canSubmitDelivery) return;
-    if (outboxPending.draftBillPending) {
-      setError(
-        "Draft invoice is still syncing. Wait for sync to finish (see activity queue), then submit delivery.",
-      );
-      return;
-    }
-    if (outboxPending.deliveryPending) {
-      setError("Delivery submission is already queued or syncing.");
-      return;
-    }
+  async function handleReadyForPickupSave(mode: TransitMode, date: string) {
+    await adminPatch<{ ok: boolean }>(
+      `erp/purchase-orders/${poId}/status`,
+      { status: mode, expectedDate: date },
+    );
+    await reload();
+  }
+
+  async function handleMarkReceived() {
     const ok = await confirm({
-      title: "Submit delivery?",
+      title: "Mark as Received?",
       message:
-        "Submit delivery and finalize invoice? Stock and accounting will post at the entered quantities.",
-      confirmLabel: "Submit delivery",
+        "Confirm goods have been received in the warehouse. You will then be able to generate the invoice.",
+      confirmLabel: "Mark received",
     });
-    if (!ok) {
-      return;
-    }
+    if (!ok) return;
     startTransition(async () => {
       try {
         setError(null);
-        const storeId = po.store_id;
-        if (!storeId) {
-          setError("Purchase order has no store.");
-          return;
-        }
-
-        const supabase = createSupabaseBrowserClient();
-        const staffUserId = await resolveOutboxUserId(supabase);
-        if (!staffUserId) {
-          setError("You must be signed in to submit delivery.");
-          return;
-        }
-
-        const deliverPayload: PurchaseOrderDeliverFinalizePayload = {
-          poId,
-          receiveDate,
-          lines: po.purchase_order_items.map((line) => ({
-            poLineId: line.id as string,
-            deliveredQty: coalesceNumber(deliveredQty[line.id]),
-          })),
-        };
-
-        const store = createOutboxStore();
-        try {
-          await store.enqueue({
-            operationType: ERP_CLIENT_OPERATION_TYPES.purchaseOrder.deliverFinalize,
-            schemaVersion: 1,
-            payload: deliverPayload,
-            userId: staffUserId,
-            storeId,
-            terminalId: getOrCreateErpTerminalId(),
-            resourceScope: purchaseOrderResourceScope(poId),
-          });
-        } catch (enqueueErr) {
-          if (enqueueErr instanceof OutboxEnqueueError) {
-            setError(enqueueErr.message);
-          } else {
-            setError(
-              enqueueErr instanceof Error
-                ? enqueueErr.message
-                : "Could not queue delivery locally.",
-            );
-          }
-          return;
-        } finally {
-          await store.close();
-        }
-
-        dispatchOutboxChanged();
-        broadcastSyncWake();
+        await adminPatch<{ ok: boolean }>(
+          `erp/purchase-orders/${poId}/status`,
+          { status: "received" },
+        );
         await reload();
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Submit failed");
+        setError(e instanceof Error ? e.message : "Failed to mark received.");
       }
     });
   }
@@ -346,13 +675,27 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
         backHref="/admin/purchase-orders"
       />
 
+      {/* Header row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div className="space-y-1">
           <h1 className="text-lg font-semibold" title={po.po_number ?? undefined}>
             {formatErpDocRef("PO", poId)}
           </h1>
-          <PoStatusPill status={po.status ?? "pending"} />
+          <div className="flex items-center gap-2">
+            <PoStatusPill status={po.status ?? "pending"} />
+            {inTransit ? (
+              <span
+                className={cn(
+                  "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium",
+                  transitModeBadgeClass(status as TransitMode),
+                )}
+              >
+                {TRANSIT_MODE_LABELS[status as TransitMode]}
+              </span>
+            ) : null}
+          </div>
         </div>
+
         <div className="flex flex-wrap gap-2">
           {canEdit ? (
             <Link
@@ -362,19 +705,23 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
               Edit
             </Link>
           ) : null}
-          {canCreateBill ? (
-            <Link
-              href={`/admin/erp/purchase-bills?form=new&poId=${poId}`}
-              className={buttonVariants()}
-            >
-              {cancelledBill
-                ? "Re-issue draft invoice"
-                : hasRemainingToReceive && activeBill?.status !== "draft"
-                  ? "Generate draft invoice (remaining qty)"
-                  : "Generate draft invoice"}
-            </Link>
+
+          {/* Ready For Pickup */}
+          {showReadyForPickup ? (
+            <Button onClick={() => setShowPickupModal(true)}>
+              Ready For Pickup
+            </Button>
           ) : null}
-          {activeBill ? (
+
+          {/* Mark as Received */}
+          {showMarkReceived ? (
+            <Button disabled={pending} onClick={handleMarkReceived}>
+              {pending ? "Updating…" : "Mark as Received"}
+            </Button>
+          ) : null}
+
+          {/* Invoice link (when already has a bill) */}
+          {showInvoiceLink ? (
             <Link
               href={`/admin/erp/purchase-bills/${activeBill.id}`}
               className={buttonVariants({ variant: "outline" })}
@@ -382,6 +729,8 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
               Invoice {formatErpDocRef("PB", activeBill.id)}
             </Link>
           ) : null}
+
+          {/* Receive record */}
           {po.delivery.receiveId ? (
             <Link
               href={`/admin/erp/purchase-receives/${po.delivery.receiveId}`}
@@ -390,6 +739,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
               Receive record
             </Link>
           ) : null}
+
           {canCancel ? (
             <Button variant="destructive" disabled={pending} onClick={handleCancel}>
               Cancel PO
@@ -400,6 +750,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
 
       <ErrorsFeedbackBridge errors={error} />
 
+      {/* Outbox sync banner */}
       {outboxPending.draftBillPending ||
       outboxPending.deliveryPending ||
       outboxPending.poUpdatePending ? (
@@ -408,21 +759,13 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
             {outboxPending.draftBillPending
               ? "Draft purchase invoice is syncing to the server. This page will update when it completes."
               : outboxPending.deliveryPending
-                ? "Delivery and finalize is syncing. Stock and accounting will post when sync completes."
+                ? "Invoice finalization is syncing. Stock and accounting will post when sync completes."
                 : "Purchase order changes are syncing."}
           </CardContent>
         </Card>
       ) : null}
 
-      {po.status === "delivered" && !po.delivery.deliverySubmitted ? (
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="py-3 text-sm text-amber-900">
-            Vendor marked this PO delivered. Enter actual quantities below and submit — that is when
-            stock and accounting post.
-          </CardContent>
-        </Card>
-      ) : null}
-
+      {/* Timeline */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Timeline</CardTitle>
@@ -450,124 +793,29 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
         </CardContent>
       </Card>
 
-      {hasDiscrepancies || po.delivery.deliverySubmitted ? (
-        <Card className={hasDiscrepancies ? "border-amber-200" : undefined}>
-          <CardHeader>
-            <CardTitle className="text-base">
-              {po.delivery.deliverySubmitted ? "Quantity discrepancies" : "Preview — bill will adjust to"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase text-slate-500">
-                  <th className="pb-2 pr-4">Product</th>
-                  <th className="pb-2 pr-4">Ordered</th>
-                  <th className="pb-2 pr-4">Draft invoice</th>
-                  <th className="pb-2 pr-4">Delivered</th>
-                  <th className="pb-2 pr-4">Final invoice</th>
-                  <th className="pb-2">vs order</th>
-                </tr>
-              </thead>
-              <tbody>
-                {discrepancies.map((row) => (
-                  <tr key={row.poLineId} className="border-t border-slate-100">
-                    <td className="py-2 pr-4">{row.productName}</td>
-                    <td className="py-2 pr-4 tabular-nums">{row.orderedQty}</td>
-                    <td className="py-2 pr-4 tabular-nums">{row.originalBillQty}</td>
-                    <td className="py-2 pr-4 tabular-nums">{row.deliveredQty}</td>
-                    <td className="py-2 pr-4 tabular-nums">{row.finalBillQty}</td>
-                    <td
-                      className={cn(
-                        "py-2 tabular-nums font-medium",
-                        row.varianceVsOrder > 0 && "text-sky-700",
-                        row.varianceVsOrder < 0 && "text-amber-700",
-                        row.varianceVsOrder === 0 && "text-slate-500",
-                      )}
-                    >
-                      {row.varianceVsOrder > 0 ? "+" : ""}
-                      {row.varianceVsOrder}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+      {/* Generate Invoice (inline when status === 'received') */}
+      {showGenerateInvoice ? (
+        <GenerateInvoiceSection
+          po={po}
+          poId={poId}
+          onDone={() => void reload()}
+        />
       ) : null}
 
-      {po.delivery.canSubmitDelivery ? (
-        <Card className="border-primary/30">
-          <CardHeader>
-            <CardTitle className="text-base">Record delivery</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-slate-600">
-              Enter what was actually delivered. Over or under vs the PO is allowed — the draft
-              invoice adjusts to these quantities on submit. Nothing posts to inventory or
-              accounting until you finalize.
-            </p>
-            <label className="block max-w-xs text-sm">
-              <span className="mb-1 block text-slate-500">Delivery date</span>
-              <Input type="date" value={receiveDate} onChange={(e) => setReceiveDate(e.target.value)} />
-            </label>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase text-slate-500">
-                    <th className="pb-2 pr-4">Product</th>
-                    <th className="pb-2 pr-4">Ordered</th>
-                    <th className="pb-2">Delivered qty</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {po.purchase_order_items.map((line) => (
-                    <tr key={line.id} className="border-t border-slate-100">
-                      <td className="py-2 pr-4">{lineProductName(line)}</td>
-                      <td className="py-2 pr-4 tabular-nums">{line.quantity}</td>
-                      <td className="py-2">
-                        <NumericInput
-                          min={0}
-                          step="any"
-                          className="max-w-[120px]"
-                          value={deliveredQty[line.id] ?? Number.NaN}
-                          onValueChange={(qty) =>
-                            setDeliveredQty((prev) => ({
-                              ...prev,
-                              [line.id]: qty,
-                            }))
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <Button
-              disabled={
-                pending ||
-                outboxPending.draftBillPending ||
-                outboxPending.deliveryPending
-              }
-              onClick={submitDelivery}
-            >
-              {pending ? "Submitting…" : "Submit deliver & finalize invoice"}
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
-
+      {/* Vendor & delivery details */}
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Vendor & delivery</CardTitle>
+            <CardTitle className="text-base">Vendor &amp; delivery</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p><span className="text-slate-500">Vendor:</span> {po.vendors?.name ?? "—"}</p>
             <p><span className="text-slate-500">Store:</span> {po.stores?.name ?? "—"}</p>
             <p><span className="text-slate-500">PO date:</span> {po.po_date ?? "—"}</p>
-            <p><span className="text-slate-500">Expected delivery:</span> {po.expected_delivery_date ?? "—"}</p>
+            <p>
+              <span className="text-slate-500">Expected delivery:</span>{" "}
+              {po.expected_delivery_date ?? "—"}
+            </p>
             <p><span className="text-slate-500">Reference:</span> {po.reference ?? "—"}</p>
           </CardContent>
         </Card>
@@ -593,6 +841,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
         </Card>
       </div>
 
+      {/* Line items */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Line items</CardTitle>
@@ -624,30 +873,31 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
                   unit_loaded_cost: line.unit_loaded_cost,
                 });
                 return (
-                <tr key={line.id} className="border-t border-slate-100">
-                  <td className="py-2">{lineProductName(line)}</td>
-                  <td className="py-2 tabular-nums">{line.quantity}</td>
-                  <td className="py-2 tabular-nums">{line.accepted_qty ?? 0}</td>
-                  <td className="py-2">{formatCurrencyAmount(line.price)}</td>
-                  {(po.landed_cost_total ?? 0) > 0 ? (
-                    <td className="py-2 tabular-nums text-slate-600">
-                      {formatCurrencyAmount(loadedUnit)}
-                    </td>
-                  ) : null}
-                  {(po.landed_cost_total ?? 0) > 0 ? (
-                    <td className="py-2 text-right tabular-nums">
-                      {landedAlloc > 0 ? formatCurrencyAmount(landedAlloc) : "—"}
-                    </td>
-                  ) : null}
-                  <td className="py-2">{formatCurrencyAmount(line.line_total)}</td>
-                </tr>
-              );
+                  <tr key={line.id} className="border-t border-slate-100">
+                    <td className="py-2">{lineProductName(line)}</td>
+                    <td className="py-2 tabular-nums">{line.quantity}</td>
+                    <td className="py-2 tabular-nums">{line.accepted_qty ?? 0}</td>
+                    <td className="py-2">{formatCurrencyAmount(line.price)}</td>
+                    {(po.landed_cost_total ?? 0) > 0 ? (
+                      <td className="py-2 tabular-nums text-slate-600">
+                        {formatCurrencyAmount(loadedUnit)}
+                      </td>
+                    ) : null}
+                    {(po.landed_cost_total ?? 0) > 0 ? (
+                      <td className="py-2 text-right tabular-nums">
+                        {landedAlloc > 0 ? formatCurrencyAmount(landedAlloc) : "—"}
+                      </td>
+                    ) : null}
+                    <td className="py-2">{formatCurrencyAmount(line.line_total)}</td>
+                  </tr>
+                );
               })}
             </tbody>
           </table>
         </CardContent>
       </Card>
 
+      {/* Audit log */}
       {auditLogs.length > 0 ? (
         <Card>
           <CardHeader>
@@ -667,6 +917,13 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
           </CardContent>
         </Card>
       ) : null}
+
+      {/* Ready For Pickup Modal */}
+      <ReadyForPickupModal
+        open={showPickupModal}
+        onClose={() => setShowPickupModal(false)}
+        onSave={handleReadyForPickupSave}
+      />
     </div>
   );
 }

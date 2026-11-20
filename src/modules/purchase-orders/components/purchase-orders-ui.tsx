@@ -27,9 +27,15 @@ export const PURCHASE_ORDER_STATUS_FILTER_OPTIONS: {
 }[] = [
   { id: "all", label: "All statuses" },
   { id: "pending", label: "Pending" },
+  { id: "production", label: "Production" },
+  { id: "by_sea", label: "By Sea" },
+  { id: "by_air", label: "By Air" },
+  { id: "in_customs", label: "In Customs" },
+  { id: "received", label: "Received" },
   { id: "accepted", label: "Accepted" },
   { id: "delivered", label: "Delivered" },
   { id: "cancelled", label: "Cancelled" },
+  { id: "fully_received", label: "Fully Received" },
 ];
 
 export const PURCHASE_ORDER_DELIVERY_FILTER_OPTIONS: {
@@ -148,26 +154,49 @@ export function ExpectedDeliveryDate({
 export function PoStatusPill({ status }: { status: string | null }) {
   const normalized = status ?? "unknown";
 
+  const label =
+    normalized === "by_sea"
+      ? "By Sea"
+      : normalized === "by_air"
+        ? "By Air"
+        : normalized === "in_customs"
+          ? "In Customs"
+          : normalized === "fully_received"
+            ? "Fully Received"
+            : normalized === "partially_received"
+              ? "Partially Received"
+              : normalized.replace(/_/g, " ");
+
   return (
     <span
       className={cn(
         "inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize",
-        normalized === "delivered"
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : normalized === "accepted"
-            ? "border-blue-200 bg-blue-50 text-blue-700"
-            : normalized === "cancelled"
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : normalized === "pending"
+        normalized === "production"
+          ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+          : normalized === "by_sea"
+            ? "border-sky-200 bg-sky-50 text-sky-700"
+            : normalized === "by_air"
+              ? "border-violet-200 bg-violet-50 text-violet-700"
+              : normalized === "in_customs"
                 ? "border-amber-200 bg-amber-50 text-amber-800"
-                : normalized === "partially_received"
-                  ? "border-violet-200 bg-violet-50 text-violet-700"
-                  : normalized === "fully_received"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : "border-border bg-muted text-muted-foreground",
+                : normalized === "received"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : normalized === "delivered"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : normalized === "accepted"
+                      ? "border-blue-200 bg-blue-50 text-blue-700"
+                      : normalized === "cancelled"
+                        ? "border-rose-200 bg-rose-50 text-rose-700"
+                        : normalized === "pending"
+                          ? "border-amber-200 bg-amber-50 text-amber-800"
+                          : normalized === "partially_received"
+                            ? "border-violet-200 bg-violet-50 text-violet-700"
+                            : normalized === "fully_received"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                              : "border-border bg-muted text-muted-foreground",
       )}
     >
-      {normalized.replace(/_/g, " ")}
+      {label}
     </span>
   );
 }

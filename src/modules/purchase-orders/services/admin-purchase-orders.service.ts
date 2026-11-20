@@ -16,7 +16,8 @@ import { PAGE_SIZE } from "@/common/admin/types";
 
 const TERMINAL_PO_STATUSES = ["cancelled", "closed", "fully_received"] as const;
 const TERMINAL_PO_STATUS_FILTER = `(${TERMINAL_PO_STATUSES.map((s) => `"${s}"`).join(",")})`;
-const AWAITING_RECEIPT_STATUSES = ["accepted", "delivered", "partially_received"] as const;
+const AWAITING_RECEIPT_STATUSES = ["accepted", "delivered", "partially_received", "by_sea", "by_air", "in_customs"] as const;
+const IN_TRANSIT_STATUSES = ["by_sea", "by_air", "in_customs"] as const;
 
 function todayIso() {
   return format(new Date(), "yyyy-MM-dd");
@@ -134,6 +135,9 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
   const [
     totalRes,
     pendingRes,
+    productionRes,
+    inTransitRes,
+    receivedRes,
     acceptedRes,
     deliveredRes,
     cancelledRes,
@@ -146,6 +150,18 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
       .from("purchase_orders")
       .select("id", { count: "exact", head: true })
       .eq("status", "pending"),
+    supabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "production"),
+    supabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
+      .in("status", [...IN_TRANSIT_STATUSES]),
+    supabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "received"),
     supabase
       .from("purchase_orders")
       .select("id", { count: "exact", head: true })
@@ -171,6 +187,9 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
   return {
     totalPurchaseOrders: totalRes.count ?? 0,
     pendingCount: pendingRes.count ?? 0,
+    productionCount: productionRes.count ?? 0,
+    inTransitCount: inTransitRes.count ?? 0,
+    receivedCount: receivedRes.count ?? 0,
     acceptedCount: acceptedRes.count ?? 0,
     deliveredCount: deliveredRes.count ?? 0,
     cancelledCount: cancelledRes.count ?? 0,
@@ -201,7 +220,7 @@ export async function getAdminPurchaseOrderById(
 }
 
 /**
- * Admin may cancel a PO only while it is still pending (before vendor acceptance).
+ * Admin may cancel a PO only while it is still pending or in production.
  */
 export async function cancelAdminPurchaseOrder(poId: string): Promise<void> {
   await requireAdminOrManagerProfile();
@@ -211,13 +230,56 @@ export async function cancelAdminPurchaseOrder(poId: string): Promise<void> {
     .from("purchase_orders")
     .update({ status: "cancelled" })
     .eq("id", poId)
-    .eq("status", "pending")
+    .in("status", ["pending", "production"])
     .select("id");
 
   if (error) throw new Error(error.message);
   if (!data?.length) {
     throw new Error(
-      "Purchase order cannot be cancelled (only pending POs can be cancelled).",
+      "Purchase order cannot be cancelled (only pending or production POs can be cancelled).",
     );
+  }
+}
+
+export type PoTransitionStatus =
+  | "production"
+  | "by_sea"
+  | "by_air"
+  | "in_customs"
+  | "received";
+
+/**
+ * Updates the status of a purchase order and optionally sets the expected delivery date.
+ * Used by the new PO lifecycle flow (Ready For Pickup → transit mode → Received).
+ */
+export async function updatePurchaseOrderStatus(
+  poId: string,
+  status: PoTransitionStatus,
+  expectedDate?: string,
+): Promise<void> {
+  await requireAdminOrManagerProfile();
+  const supabase = await createSupabaseServerClient();
+
+  const patch: {
+    status: string;
+    updated_at: string;
+    expected_delivery_date?: string | null;
+  } = {
+    status,
+    updated_at: new Date().toISOString(),
+  };
+  if (expectedDate) {
+    patch.expected_delivery_date = expectedDate;
+  }
+
+  const { data, error } = await supabase
+    .from("purchase_orders")
+    .update(patch)
+    .eq("id", poId)
+    .select("id");
+
+  if (error) throw new Error(error.message);
+  if (!data?.length) {
+    throw new Error("Purchase order not found or could not be updated.");
   }
 }

@@ -350,6 +350,13 @@ export async function createErpPurchaseOrder(input: {
   if (error) throw new Error(error.message);
 
   const poId = data as string;
+
+  // Newly created purchase orders enter 'production' status
+  await supabase
+    .from("purchase_orders")
+    .update({ status: "production" })
+    .eq("id", poId);
+
   await persistPoLandedCosts(supabase, poId, input.landedCosts ?? [], input.lines);
 
   const totals = calcPoTotals(input.lines, input.landedCosts ?? [], input.discount ?? 0);
@@ -396,8 +403,8 @@ export async function updateErpPurchaseOrder(
     .single();
 
   if (fetchError) throw new Error(fetchError.message);
-  if (existing.status !== "pending") {
-    throw new Error("Only pending purchase orders can be edited");
+  if (existing.status !== "pending" && existing.status !== "production") {
+    throw new Error("Only pending or production purchase orders can be edited");
   }
   if (!input.lines.length) throw new Error("At least one line item is required");
 
@@ -422,7 +429,7 @@ export async function updateErpPurchaseOrder(
       updated_at: new Date().toISOString(),
     })
     .eq("id", poId)
-    .eq("status", "pending");
+    .in("status", ["pending", "production"]);
 
   if (updateError) throw new Error(updateError.message);
 
