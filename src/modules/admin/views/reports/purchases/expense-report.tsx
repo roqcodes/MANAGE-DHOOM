@@ -50,6 +50,7 @@ type ExpenseDetail = Record<string, unknown> & {
   vendor_name?: string;
   customer_id?: string | null;
   customer_name?: string;
+  party_name?: string;
   recorded_by?: string;
   reference?: string | null;
   notes?: string | null;
@@ -60,6 +61,7 @@ type ExpenseDetail = Record<string, unknown> & {
   total_amount?: number;
   billing_status?: string;
   has_receipt?: boolean;
+  link_url?: string;
 };
 
 type ExpenseGroup = {
@@ -107,8 +109,27 @@ function groupExpenses(
   idKey: keyof ExpenseDetail,
   labelKey: keyof ExpenseDetail,
   typeKey?: keyof ExpenseDetail,
+  allAccounts?: Array<{ id: string; name: string; code?: string; typeName?: string }>,
+  includeZeroBalance?: boolean,
 ): ExpenseGroup[] {
   const map = new Map<string, ExpenseGroup>();
+
+  if (allAccounts && allAccounts.length > 0) {
+    for (const acc of allAccounts) {
+      map.set(acc.id, {
+        id: acc.id,
+        label: acc.name,
+        subtitle: acc.code ? acc.code : undefined,
+        typeName: acc.typeName || "Expense",
+        count: 0,
+        untaxed: 0,
+        tax: 0,
+        total: 0,
+        rows: [],
+      });
+    }
+  }
+
   for (const row of rows) {
     const id = String(row[idKey] ?? "") || "none";
     const existing = map.get(id);
@@ -132,12 +153,19 @@ function groupExpenses(
       rows: [row],
     });
   }
-  return [...map.values()].sort((a, b) => b.total - a.total);
+
+  const result = [...map.values()];
+  const filtered = includeZeroBalance !== false ? result : result.filter((g) => g.count > 0);
+  return filtered.sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
 }
 
 function billingBadgeVariant(status: string) {
   if (status === "Invoiced") return "default" as const;
   if (status === "Billable") return "outline" as const;
+  if (status === "Settlement Discount") return "secondary" as const;
+  if (status === "Bank Charges") return "secondary" as const;
+  if (status === "Commercial Discount") return "secondary" as const;
+  if (status === "Journal Entry") return "secondary" as const;
   return "secondary" as const;
 }
 
@@ -196,9 +224,37 @@ export function ExpenseReport({ report }: { report: ReportDefinition }) {
     };
   }, [filtered]);
 
+  const [showZeroBalance, setShowZeroBalance] = useState(true);
+
+  const allAccounts = useMemo(() => {
+    if (rawData && typeof rawData === "object" && "expense_accounts" in rawData) {
+      return (
+        (rawData as { expense_accounts?: Array<{ id: string; name: string; code?: string; typeName?: string }> })
+          .expense_accounts ?? []
+      );
+    }
+    return [];
+  }, [rawData]);
+
+  const searchedAccounts = useMemo(() => {
+    if (!filters.debouncedSearch) return allAccounts;
+    const q = filters.debouncedSearch.toLowerCase().trim();
+    return allAccounts.filter(
+      (a) => a.name.toLowerCase().includes(q) || (a.code && a.code.toLowerCase().includes(q)),
+    );
+  }, [allAccounts, filters.debouncedSearch]);
+
   const categories = useMemo(
-    () => groupExpenses(filtered, "account_id", "account_name", "account_type_name"),
-    [filtered],
+    () =>
+      groupExpenses(
+        filtered,
+        "account_id",
+        "account_name",
+        "account_type_name",
+        searchedAccounts,
+        showZeroBalance,
+      ),
+    [filtered, searchedAccounts, showZeroBalance],
   );
   const vendors = useMemo(
     () => groupExpenses(filtered, "vendor_id", "vendor_name"),
@@ -262,6 +318,7 @@ export function ExpenseReport({ report }: { report: ReportDefinition }) {
     title: report.title,
     columns: [
       ...report.columns,
+      { key: "party_name", label: "Party" },
       { key: "account_code", label: "Account code" },
       { key: "account_type_name", label: "Account type" },
       { key: "store_name", label: "Store" },
@@ -330,6 +387,18 @@ export function ExpenseReport({ report }: { report: ReportDefinition }) {
             </div>
 
             <TabsContent value="category">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/10 px-4 py-2 text-xs text-muted-foreground">
+                <span>All expense accounts from your chart of accounts (including settlement discounts, bank charges, etc.).</span>
+                <label className="inline-flex items-center gap-1.5 cursor-pointer font-medium hover:text-foreground select-none">
+                  <input
+                    type="checkbox"
+                    checked={showZeroBalance}
+                    onChange={(e) => setShowZeroBalance(e.target.checked)}
+                    className="size-3.5 rounded border-muted-foreground/30 accent-primary"
+                  />
+                  <span>Show zero-balance accounts</span>
+                </label>
+              </div>
               <HierarchicalCategoryTable
                 sections={typeSections}
                 grandTotal={totals.total}
@@ -406,7 +475,13 @@ export function ExpenseReport({ report }: { report: ReportDefinition }) {
                           )}
                         >
                           {col.key === "expense_number" && row.id ? (
-                            <AdminTableLink href={`/admin/erp/expenses/${row.id}`}>
+                            <AdminTableLink
+                              href={
+                                row.link_url
+                                  ? String(row.link_url)
+                                  : `/admin/erp/expenses/${row.id}`
+                              }
+                            >
                               {String(row.expense_number ?? "—")}
                             </AdminTableLink>
                           ) : col.key === "billing_status" ? (
@@ -599,7 +674,7 @@ function NestedExpenseLines({ rows }: { rows: ExpenseDetail[] }) {
   const nestedColumns: ReportColumn[] = [
     { key: "expense_date", label: "Date", format: "date" },
     { key: "expense_number", label: "Expense #" },
-    { key: "vendor_name", label: "Vendor" },
+    { key: "party_name", label: "Party" },
     { key: "paid_through_name", label: "Paid through" },
     { key: "reference", label: "Reference" },
     { key: "billing_status", label: "Status" },
@@ -632,7 +707,13 @@ function NestedExpenseLines({ rows }: { rows: ExpenseDetail[] }) {
                   className={cn("px-3 py-1.5", col.align === "right" && "text-right tabular-nums")}
                 >
                   {col.key === "expense_number" && row.id ? (
-                    <AdminTableLink href={`/admin/erp/expenses/${row.id}`}>
+                    <AdminTableLink
+                      href={
+                        row.link_url
+                          ? String(row.link_url)
+                          : `/admin/erp/expenses/${row.id}`
+                      }
+                    >
                       {String(row.expense_number ?? "—")}
                     </AdminTableLink>
                   ) : col.key === "billing_status" ? (

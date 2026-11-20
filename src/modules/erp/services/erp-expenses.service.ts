@@ -437,17 +437,72 @@ export async function updateExpense(
   });
 }
 
-/** Same source as the expenses list — used by the Expense Report (no extra RPC). */
+/** 
+ * Expense Report source — includes recorded expenses (erp_expenses) as well as
+ * customer settlement discounts (Discount Allowed), payment bank charges,
+ * commercial discounts (credit notes), and manual journal expenses across all expense accounts.
+ */
 export async function listExpenseReportRows(opts: {
   dateFrom: string;
   dateTo: string;
   storeId?: string;
-}): Promise<Record<string, unknown>[]> {
+}): Promise<{
+  details: Record<string, unknown>[];
+  expense_accounts: Array<{ id: string; name: string; code: string; typeName: string }>;
+}> {
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
   const storeId = await requireErpStoreId(opts.storeId);
 
-  const { data, error } = await supabase
+  // 1. Fetch all active accounts and identify all Expense accounts
+  const { data: accountsData, error: accErr } = await supabase
+    .from("accounts")
+    .select("id, name, code, store_id, account_types(name, account_category)")
+    .eq("is_active", true)
+    .order("name");
+
+  if (accErr) throw new Error(accErr.message);
+
+  const allExpenseAccounts: Array<{ id: string; name: string; code: string; typeName: string }> = [];
+  const accountById = new Map<string, { id: string; code: string; name: string; typeName: string }>();
+
+  for (const a of accountsData ?? []) {
+    const type = a.account_types as { name?: string; account_category?: string } | null;
+    const isExpense = type?.account_category === "Expense";
+    const isCogs = type?.name === "Cost of Goods Sold" || a.code === "COST_OF_GOODS_SOLD";
+    const typeName = type?.name ?? "Expense";
+    const info = {
+      id: a.id as string,
+      code: (a.code as string | null) ?? "",
+      name: (a.name as string | null) ?? "Uncategorized",
+      typeName,
+    };
+    accountById.set(a.id, info);
+
+    if (isExpense && !isCogs) {
+      if (!a.store_id || a.store_id === storeId) {
+        allExpenseAccounts.push(info);
+      }
+    }
+  }
+
+  const expenseAccountIds = new Set(allExpenseAccounts.map((a) => a.id));
+
+  // Fallback default accounts
+  const defaultDiscountAccount =
+    allExpenseAccounts.find((a) => a.code === "DISCOUNT_ALLOWED") ??
+    allExpenseAccounts.find((a) => a.name.toLowerCase().includes("discount")) ??
+    allExpenseAccounts[0];
+  const defaultDiscountAccountId = defaultDiscountAccount?.id;
+
+  const defaultBankChargesAccount =
+    allExpenseAccounts.find((a) => a.code === "BANK_CHARGES") ??
+    allExpenseAccounts.find((a) => a.name.toLowerCase().includes("bank charge")) ??
+    allExpenseAccounts[0];
+  const defaultBankChargesAccountId = defaultBankChargesAccount?.id;
+
+  // 2. Fetch direct expenses from erp_expenses
+  const expensesPromise = supabase
     .from("erp_expenses")
     .select(
       "id, expense_number, expense_date, store_id, account_id, paid_through_account_id, vendor_id, user_id, billable_customer_id, created_by, reference, notes, tax_mode, tax_percent, tax_amount, total_amount, amount, is_billable, billed_invoice_id, attachment_url, stores(name)",
@@ -459,62 +514,125 @@ export async function listExpenseReportRows(opts: {
     .order("expense_number", { ascending: false })
     .limit(5000);
 
-  if (error) throw new Error(error.message);
-  const rows = data ?? [];
+  // 3. Fetch customer payments with settlement discount or bank charges
+  const customerPaymentsPromise = supabase
+    .from("erp_customer_payments")
+    .select(
+      "id, payment_number, payment_date, store_id, user_id, account_id, settlement_discount, settlement_discount_account_id, bank_charges, bank_charges_account_id, reference, notes, created_by, stores(name)",
+    )
+    .eq("store_id", storeId)
+    .gte("payment_date", opts.dateFrom)
+    .lte("payment_date", opts.dateTo)
+    .or("settlement_discount.gt.0,bank_charges.gt.0")
+    .order("payment_date", { ascending: false })
+    .limit(3000);
 
-  const accountIds = [
-    ...new Set(
-      rows.flatMap((r) =>
-        [r.account_id as string, r.paid_through_account_id as string | null].filter(Boolean) as string[],
-      ),
-    ),
+  // 4. Fetch supplier payments with bank charges
+  const supplierPaymentsPromise = supabase
+    .from("erp_supplier_payments")
+    .select(
+      "id, payment_number, payment_date, store_id, vendor_id, account_id, bank_charges, bank_charges_account_id, reference, notes, created_by, stores(name)",
+    )
+    .eq("store_id", storeId)
+    .gte("payment_date", opts.dateFrom)
+    .lte("payment_date", opts.dateTo)
+    .gt("bank_charges", 0)
+    .order("payment_date", { ascending: false })
+    .limit(3000);
+
+  // 5. Fetch commercial discounts on credit notes
+  const creditNotesPromise = supabase
+    .from("erp_credit_notes")
+    .select(
+      "id, credit_note_number, credit_note_date, store_id, user_id, discount_account_id, total_amount, subtotal, tax_amount, notes, reference, created_by, stores(name)",
+    )
+    .eq("store_id", storeId)
+    .eq("credit_kind", "discount")
+    .neq("status", "void")
+    .gte("credit_note_date", opts.dateFrom)
+    .lte("credit_note_date", opts.dateTo)
+    .gt("total_amount", 0)
+    .limit(2000);
+
+  // 6. Fetch manual journal entries debiting expense accounts
+  const journalPromise = supabase
+    .from("journal_entries")
+    .select(
+      "id, journal_number, transaction_date, store_id, description, source_entity_type, created_by, stores(name), journal_entry_lines(id, account_id, debit_amount, credit_amount, description)",
+    )
+    .eq("store_id", storeId)
+    .eq("status", "posted")
+    .gte("transaction_date", opts.dateFrom)
+    .lte("transaction_date", opts.dateTo)
+    .limit(3000);
+
+  const [
+    expensesRes,
+    customerPaymentsRes,
+    supplierPaymentsRes,
+    creditNotesRes,
+    journalRes,
+  ] = await Promise.all([
+    expensesPromise,
+    customerPaymentsPromise,
+    supplierPaymentsPromise,
+    creditNotesPromise,
+    journalPromise,
+  ]);
+
+  if (expensesRes.error) throw new Error(expensesRes.error.message);
+
+  const rawExpenses = expensesRes.data ?? [];
+  const rawCustomerPayments = customerPaymentsRes.data ?? [];
+  const rawSupplierPayments = supplierPaymentsRes.data ?? [];
+  const rawCreditNotes = creditNotesRes.data ?? [];
+  const rawJournals = (journalRes.data ?? []).filter((je) => {
+    const st = je.source_entity_type;
+    return (
+      !st ||
+      (st !== "expense" &&
+        st !== "customer_payment" &&
+        st !== "supplier_payment" &&
+        st !== "credit_note")
+    );
+  });
+
+  const vendorIds = [
+    ...new Set([
+      ...rawExpenses.map((r) => r.vendor_id as string | null),
+      ...rawSupplierPayments.map((r) => r.vendor_id as string | null),
+    ].filter(Boolean) as string[]),
   ];
+
   const userIds = [
-    ...new Set(
-      rows.flatMap((r) =>
-        [
-          r.user_id as string | null,
-          r.billable_customer_id as string | null,
-          r.created_by as string | null,
-        ].filter(Boolean) as string[],
-      ),
-    ),
+    ...new Set([
+      ...rawExpenses.flatMap((r) => [
+        r.user_id as string | null,
+        r.billable_customer_id as string | null,
+        r.created_by as string | null,
+      ]),
+      ...rawCustomerPayments.flatMap((r) => [
+        r.user_id as string | null,
+        r.created_by as string | null,
+      ]),
+      ...rawSupplierPayments.map((r) => r.created_by as string | null),
+      ...rawCreditNotes.flatMap((r) => [
+        r.user_id as string | null,
+        r.created_by as string | null,
+      ]),
+      ...rawJournals.map((r) => r.created_by as string | null),
+    ].filter(Boolean) as string[]),
   ];
 
-  const [accounts, vendorNames, userNames] = await Promise.all([
-    accountIds.length
-      ? supabase
-          .from("accounts")
-          .select("id, code, name, account_types(name)")
-          .in("id", accountIds)
-          .then(({ data: accs, error: accErr }) => {
-            if (accErr) throw new Error(accErr.message);
-            return accs ?? [];
-          })
-      : Promise.resolve([]),
-    loadNameMap(
-      supabase,
-      "vendors",
-      rows.map((r) => r.vendor_id as string | null).filter(Boolean) as string[],
-    ),
+  const [vendorNames, userNames] = await Promise.all([
+    loadNameMap(supabase, "vendors", vendorIds),
     loadNameMap(supabase, "users", userIds),
   ]);
 
-  const accountById = new Map(
-    accounts.map((a) => {
-      const type = a.account_types as { name: string } | null;
-      return [
-        a.id as string,
-        {
-          code: (a.code as string | null) ?? "",
-          name: (a.name as string | null) ?? "Uncategorized",
-          typeName: type?.name ?? "Expense",
-        },
-      ];
-    }),
-  );
+  const combinedRows: Record<string, unknown>[] = [];
 
-  return rows.map((row) => {
+  // Transform raw expenses
+  for (const row of rawExpenses) {
     const accountId = row.account_id as string;
     const paidId = row.paid_through_account_id as string | null;
     const vendorId = (row.vendor_id as string | null) ?? null;
@@ -534,8 +652,10 @@ export async function listExpenseReportRows(opts: {
     const attachment = (row.attachment_url as string | null) ?? null;
     const store = row.stores as { name: string } | null;
     const billingStatus = billedId ? "Invoiced" : isBillable ? "Billable" : "Non-billable";
+    const vendorName = vendorId ? vendorNames.get(vendorId) ?? "No vendor" : "No vendor";
+    const customerName = customerId ? userNames.get(customerId) ?? "Unassigned" : "Unassigned";
 
-    return {
+    combinedRows.push({
       id: row.id,
       expense_number: row.expense_number,
       expense_date: row.expense_date,
@@ -548,9 +668,10 @@ export async function listExpenseReportRows(opts: {
       paid_through_account_id: paidId,
       paid_through_name: paid?.name ?? "Unassigned",
       vendor_id: vendorId,
-      vendor_name: vendorId ? vendorNames.get(vendorId) ?? "No vendor" : "No vendor",
+      vendor_name: vendorName,
       customer_id: customerId,
-      customer_name: customerId ? userNames.get(customerId) ?? "Unassigned" : "Unassigned",
+      customer_name: customerName,
+      party_name: vendorId ? vendorName : customerId ? customerName : "—",
       recorded_by: createdBy ? userNames.get(createdBy) ?? "—" : "—",
       reference: (row.reference as string | null) ?? null,
       notes: (row.notes as string | null) ?? null,
@@ -563,8 +684,258 @@ export async function listExpenseReportRows(opts: {
       billed_invoice_id: billedId,
       billing_status: billingStatus,
       has_receipt: Boolean(attachment && attachment.trim().length > 0),
-    };
+      link_url: `/admin/erp/expenses/${row.id}`,
+    });
+  }
+
+  // Transform customer payments (Settlement discounts & Bank charges)
+  for (const cp of rawCustomerPayments) {
+    const store = cp.stores as { name: string } | null;
+    const customerId = (cp.user_id as string | null) ?? null;
+    const customerName = customerId ? userNames.get(customerId) ?? "Customer" : "Customer";
+    const createdBy = (cp.created_by as string | null) ?? null;
+    const recordedBy = createdBy ? userNames.get(createdBy) ?? "—" : "—";
+    const depositAccountId = cp.account_id as string | null;
+    const depositAcc = depositAccountId ? accountById.get(depositAccountId) : undefined;
+    const settlementDiscount = Number(cp.settlement_discount ?? 0);
+    const bankCharges = Number(cp.bank_charges ?? 0);
+
+    if (settlementDiscount > 0) {
+      const discountAccId =
+        (cp.settlement_discount_account_id as string | null) ?? defaultDiscountAccountId ?? "";
+      const discountAcc = discountAccId ? accountById.get(discountAccId) : undefined;
+      combinedRows.push({
+        id: `cp_${cp.id}_disc`,
+        expense_number: `${cp.payment_number} (Discount)`,
+        expense_date: cp.payment_date,
+        store_id: cp.store_id,
+        store_name: store?.name ?? null,
+        account_id: discountAccId,
+        account_code: discountAcc?.code ?? "DISCOUNT_ALLOWED",
+        account_name: discountAcc?.name ?? "Discount Allowed",
+        account_type_name: discountAcc?.typeName ?? "Expense",
+        paid_through_account_id: depositAccountId,
+        paid_through_name: depositAcc?.name ?? "Customer Settlement",
+        vendor_id: null,
+        vendor_name: "No vendor",
+        customer_id: customerId,
+        customer_name: customerName,
+        party_name: customerName,
+        recorded_by: recordedBy,
+        reference: (cp.reference as string | null) ?? null,
+        notes: (cp.notes as string | null) ?? "Customer settlement discount allowed",
+        tax_mode: "none",
+        tax_percent: 0,
+        tax_amount: 0,
+        total_amount: settlementDiscount,
+        untaxed_amount: settlementDiscount,
+        is_billable: false,
+        billed_invoice_id: null,
+        billing_status: "Settlement Discount",
+        has_receipt: false,
+        link_url: `/admin/erp/payments/${cp.id}`,
+      });
+    }
+
+    if (bankCharges > 0) {
+      const bcAccId =
+        (cp.bank_charges_account_id as string | null) ?? defaultBankChargesAccountId ?? "";
+      const bcAcc = bcAccId ? accountById.get(bcAccId) : undefined;
+      combinedRows.push({
+        id: `cp_${cp.id}_bc`,
+        expense_number: `${cp.payment_number} (Bank Charges)`,
+        expense_date: cp.payment_date,
+        store_id: cp.store_id,
+        store_name: store?.name ?? null,
+        account_id: bcAccId,
+        account_code: bcAcc?.code ?? "BANK_CHARGES",
+        account_name: bcAcc?.name ?? "Bank Charges",
+        account_type_name: bcAcc?.typeName ?? "Expense",
+        paid_through_account_id: depositAccountId,
+        paid_through_name: depositAcc?.name ?? "Bank",
+        vendor_id: null,
+        vendor_name: "No vendor",
+        customer_id: customerId,
+        customer_name: customerName,
+        party_name: customerName,
+        recorded_by: recordedBy,
+        reference: (cp.reference as string | null) ?? null,
+        notes: (cp.notes as string | null) ?? "Bank charges on payment receipt",
+        tax_mode: "none",
+        tax_percent: 0,
+        tax_amount: 0,
+        total_amount: bankCharges,
+        untaxed_amount: bankCharges,
+        is_billable: false,
+        billed_invoice_id: null,
+        billing_status: "Bank Charges",
+        has_receipt: false,
+        link_url: `/admin/erp/payments/${cp.id}`,
+      });
+    }
+  }
+
+  // Transform supplier payments (Bank charges)
+  for (const sp of rawSupplierPayments) {
+    const store = sp.stores as { name: string } | null;
+    const vendorId = (sp.vendor_id as string | null) ?? null;
+    const vendorName = vendorId ? vendorNames.get(vendorId) ?? "Vendor" : "Vendor";
+    const createdBy = (sp.created_by as string | null) ?? null;
+    const recordedBy = createdBy ? userNames.get(createdBy) ?? "—" : "—";
+    const paidId = sp.account_id as string | null;
+    const paidAcc = paidId ? accountById.get(paidId) : undefined;
+    const bankCharges = Number(sp.bank_charges ?? 0);
+
+    if (bankCharges > 0) {
+      const bcAccId =
+        (sp.bank_charges_account_id as string | null) ?? defaultBankChargesAccountId ?? "";
+      const bcAcc = bcAccId ? accountById.get(bcAccId) : undefined;
+      combinedRows.push({
+        id: `sp_${sp.id}_bc`,
+        expense_number: `${sp.payment_number} (Bank Charges)`,
+        expense_date: sp.payment_date,
+        store_id: sp.store_id,
+        store_name: store?.name ?? null,
+        account_id: bcAccId,
+        account_code: bcAcc?.code ?? "BANK_CHARGES",
+        account_name: bcAcc?.name ?? "Bank Charges",
+        account_type_name: bcAcc?.typeName ?? "Expense",
+        paid_through_account_id: paidId,
+        paid_through_name: paidAcc?.name ?? "Bank",
+        vendor_id: vendorId,
+        vendor_name: vendorName,
+        customer_id: null,
+        customer_name: "Unassigned",
+        party_name: vendorName,
+        recorded_by: recordedBy,
+        reference: (sp.reference as string | null) ?? null,
+        notes: (sp.notes as string | null) ?? "Bank charges on supplier payment",
+        tax_mode: "none",
+        tax_percent: 0,
+        tax_amount: 0,
+        total_amount: bankCharges,
+        untaxed_amount: bankCharges,
+        is_billable: false,
+        billed_invoice_id: null,
+        billing_status: "Bank Charges",
+        has_receipt: false,
+        link_url: `/admin/erp/supplier-payments/${sp.id}`,
+      });
+    }
+  }
+
+  // Transform commercial discounts from credit notes
+  for (const cn of rawCreditNotes) {
+    const store = cn.stores as { name: string } | null;
+    const customerId = (cn.user_id as string | null) ?? null;
+    const customerName = customerId ? userNames.get(customerId) ?? "Customer" : "Customer";
+    const createdBy = (cn.created_by as string | null) ?? null;
+    const recordedBy = createdBy ? userNames.get(createdBy) ?? "—" : "—";
+    const discAccId =
+      (cn.discount_account_id as string | null) ?? defaultDiscountAccountId ?? "";
+    const discAcc = discAccId ? accountById.get(discAccId) : undefined;
+    const totalAmount = Number(cn.total_amount ?? 0);
+    const subtotal = Number(cn.subtotal ?? totalAmount);
+    const taxAmount = Number(cn.tax_amount ?? 0);
+
+    combinedRows.push({
+      id: `cn_${cn.id}_disc`,
+      expense_number: cn.credit_note_number,
+      expense_date: cn.credit_note_date,
+      store_id: cn.store_id,
+      store_name: store?.name ?? null,
+      account_id: discAccId,
+      account_code: discAcc?.code ?? "DISCOUNT_ALLOWED",
+      account_name: discAcc?.name ?? "Discount Allowed",
+      account_type_name: discAcc?.typeName ?? "Expense",
+      paid_through_account_id: null,
+      paid_through_name: "Credit Note Adjustment",
+      vendor_id: null,
+      vendor_name: "No vendor",
+      customer_id: customerId,
+      customer_name: customerName,
+      party_name: customerName,
+      recorded_by: recordedBy,
+      reference: (cn.reference as string | null) ?? null,
+      notes: (cn.notes as string | null) ?? "Commercial discount memo",
+      tax_mode: taxAmount > 0 ? "exclusive" : "none",
+      tax_percent: 0,
+      tax_amount: taxAmount,
+      total_amount: totalAmount,
+      untaxed_amount: subtotal,
+      is_billable: false,
+      billed_invoice_id: null,
+      billing_status: "Commercial Discount",
+      has_receipt: false,
+      link_url: `/admin/erp/commercial-discounts`,
+    });
+  }
+
+  // Transform manual journal entries with expense lines
+  for (const je of rawJournals) {
+    const store = je.stores as { name: string } | null;
+    const createdBy = (je.created_by as string | null) ?? null;
+    const recordedBy = createdBy ? userNames.get(createdBy) ?? "—" : "—";
+    const lines = (je.journal_entry_lines as Array<{
+      id: string;
+      account_id: string;
+      debit_amount: number;
+      credit_amount: number;
+      description: string | null;
+    }>) ?? [];
+
+    for (const line of lines) {
+      if (!expenseAccountIds.has(line.account_id)) continue;
+      const netDebit =
+        Math.round((Number(line.debit_amount ?? 0) - Number(line.credit_amount ?? 0)) * 100) / 100;
+      if (netDebit <= 0.001) continue;
+
+      const acc = accountById.get(line.account_id);
+      combinedRows.push({
+        id: `je_${je.id}_${line.id}`,
+        expense_number: je.journal_number,
+        expense_date: je.transaction_date,
+        store_id: je.store_id,
+        store_name: store?.name ?? null,
+        account_id: line.account_id,
+        account_code: acc?.code ?? "",
+        account_name: acc?.name ?? "Expense",
+        account_type_name: acc?.typeName ?? "Expense",
+        paid_through_account_id: null,
+        paid_through_name: "Journal Entry",
+        vendor_id: null,
+        vendor_name: "No vendor",
+        customer_id: null,
+        customer_name: "Unassigned",
+        party_name: "General Ledger",
+        recorded_by: recordedBy,
+        reference: (je.description as string | null) ?? null,
+        notes: (line.description as string | null) ?? je.description ?? "Manual journal entry",
+        tax_mode: "none",
+        tax_percent: 0,
+        tax_amount: 0,
+        total_amount: netDebit,
+        untaxed_amount: netDebit,
+        is_billable: false,
+        billed_invoice_id: null,
+        billing_status: "Journal Entry",
+        has_receipt: false,
+        link_url: `/admin/erp/journal-entries/${je.id}`,
+      });
+    }
+  }
+
+  // Sort by expense_date desc, expense_number desc
+  combinedRows.sort((a, b) => {
+    const d = String(b.expense_date ?? "").localeCompare(String(a.expense_date ?? ""));
+    if (d !== 0) return d;
+    return String(b.expense_number ?? "").localeCompare(String(a.expense_number ?? ""));
   });
+
+  return {
+    details: combinedRows,
+    expense_accounts: allExpenseAccounts,
+  };
 }
 
 export async function deleteExpense(expenseId: string): Promise<void> {
