@@ -168,13 +168,18 @@ export function AdminOnlineUsersView() {
   }, [sessions]);
 
   const activeSessions = useMemo(() => {
-    return sessions.filter((session) => {
-      const isOnline = onlineUserIds.has(session.user_id);
-      const isRecent =
-        nowMs - Date.parse(session.last_seen_at) < PRESENCE_STALE_THRESHOLD_MS * 1.5;
-      return !session.logout_at && isOnline && isRecent;
-    }).length;
-  }, [sessions, onlineUserIds, nowMs]);
+    const activeUserIds = new Set<string>();
+    for (const session of sessions) {
+      if (session.ended_reason === "sign_out" || session.ended_reason === "last_tab_closed") continue;
+      if (!session.logout_at || onlineUserIds.has(session.user_id)) {
+        activeUserIds.add(session.user_id);
+      }
+    }
+    for (const id of onlineUserIds) {
+      activeUserIds.add(id);
+    }
+    return activeUserIds.size;
+  }, [sessions, onlineUserIds]);
 
   const onlineLabel = `${members.length} ${members.length === 1 ? "user" : "users"}`;
 

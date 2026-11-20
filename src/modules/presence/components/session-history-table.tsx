@@ -11,7 +11,6 @@ import {
   formatPresenceTimestamp,
   presenceEndReasonLabel,
 } from "@/modules/presence/lib/format-presence";
-import { PRESENCE_STALE_THRESHOLD_MS } from "@/modules/presence/lib/presence-constants";
 import type { PresenceSessionRow } from "@/modules/presence/types";
 import { cn } from "@/lib/utils";
 
@@ -29,16 +28,45 @@ export function SessionHistoryTable({
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
+  // Track the most recent session for each user
+  const latestSessionIdByUser = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of sessions) {
+      if (!map.has(s.user_id)) {
+        map.set(s.user_id, s.id);
+      }
+    }
+    return map;
+  }, [sessions]);
+
+  // Helper to determine if a session row is active
+  const isSessionActive = (session: PresenceSessionRow): boolean => {
+    // Explicit manual sign-out is always ended
+    if (session.ended_reason === "sign_out") return false;
+
+    // Explicit clean tab close is ended unless user is currently live on their latest session
+    if (session.ended_reason === "last_tab_closed") return false;
+
+    // If database explicitly has no logout time, it's active
+    if (!session.logout_at) return true;
+
+    // If the user is currently online in the portal and this is their latest session,
+    // they are live right now (e.g. reconnected tab or resumed from sleep)
+    const isUserOnline = onlineUserIds ? onlineUserIds.has(session.user_id) : false;
+    const isLatest = latestSessionIdByUser.get(session.user_id) === session.id;
+    if (isUserOnline && isLatest) {
+      return true;
+    }
+
+    return false;
+  };
+
   const filteredSessions = useMemo(() => {
     return sessions.filter((session) => {
-      // Determine if active: must have no logout_at, plus recent activity or currently in live presence
-      const isActuallyActive =
-        !session.logout_at &&
-        (onlineUserIds ? onlineUserIds.has(session.user_id) : true) &&
-        nowMs - Date.parse(session.last_seen_at) < PRESENCE_STALE_THRESHOLD_MS * 1.5;
+      const active = isSessionActive(session);
 
-      if (statusFilter === "active" && !isActuallyActive) return false;
-      if (statusFilter === "ended" && isActuallyActive) return false;
+      if (statusFilter === "active" && !active) return false;
+      if (statusFilter === "ended" && active) return false;
 
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase();
@@ -50,7 +78,7 @@ export function SessionHistoryTable({
 
       return true;
     });
-  }, [sessions, statusFilter, searchTerm, onlineUserIds, nowMs]);
+  }, [sessions, statusFilter, searchTerm, onlineUserIds, latestSessionIdByUser]);
 
   if (sessions.length === 0) {
     return (
@@ -141,16 +169,11 @@ export function SessionHistoryTable({
               </tr>
             ) : (
               filteredSessions.map((session) => {
-                // Determine whether this session is currently active
-                const isOnline = onlineUserIds ? onlineUserIds.has(session.user_id) : true;
-                const isWithinFreshWindow =
-                  nowMs - Date.parse(session.last_seen_at) < PRESENCE_STALE_THRESHOLD_MS * 1.5;
-                const active = !session.logout_at && isOnline && isWithinFreshWindow;
+                const active = isSessionActive(session);
 
-                // If not active and logout_at is null (reconciled fallback), use last_seen_at
-                const effectiveLogoutAt = session.logout_at ?? (active ? null : session.last_seen_at);
-                const effectiveEndedReason =
-                  session.ended_reason ?? (active ? null : "stale");
+                // Effective logout and ended reason
+                const effectiveLogoutAt = active ? null : (session.logout_at ?? session.last_seen_at);
+                const effectiveEndedReason = active ? null : (session.ended_reason ?? "stale");
 
                 return (
                   <tr
@@ -205,7 +228,7 @@ export function SessionHistoryTable({
                                 : "bg-muted text-muted-foreground",
                         )}
                       >
-                        {presenceEndReasonLabel(effectiveEndedReason)}
+                        {active ? "Active" : presenceEndReasonLabel(effectiveEndedReason)}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground text-xs">

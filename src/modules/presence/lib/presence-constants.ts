@@ -12,11 +12,11 @@ export const PRESENCE_COOKIE_NAME = "buyhub_presence_key";
 
 /** Local-only registry refresh; no network or database writes. */
 
-/** Interval between background heartbeat pings for active tabs. */
-export const PRESENCE_HEARTBEAT_INTERVAL_MS = 60_000;
+/** Interval between background heartbeat pings for active tabs (45 seconds). */
+export const PRESENCE_HEARTBEAT_INTERVAL_MS = 45_000;
 
-/** Inactivity threshold after which an unclosed session is treated as stale. */
-export const PRESENCE_STALE_THRESHOLD_MS = 180_000;
+/** Inactivity threshold after which an unclosed session is treated as stale (15 minutes). */
+export const PRESENCE_STALE_THRESHOLD_MS = 15 * 60_000;
 
 /** Retention window for login/logout history. Mirrors the SQL function. */
 export const PRESENCE_HISTORY_DAYS = 30;

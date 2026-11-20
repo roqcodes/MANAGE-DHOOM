@@ -4,6 +4,7 @@
 -- (in-memory, zero DB writes). This table stores the robust audit trail:
 --   * 1 insert when the first tab of a browser session starts
 --   * Periodic lightweight heartbeats to keep `last_seen_at` fresh
+--   * Tab resumes and heartbeat re-activation if a tab wakes from background/sleep
 --   * 1 update when the last tab closes or user signs out
 --   * Automatic reconciliation of stale sessions (crashes, closed lids, dropped beacons)
 --
@@ -83,12 +84,12 @@ CREATE POLICY "user_sessions_staff_select"
 
 /*
  * Reconciles open sessions that have had no heartbeat activity for longer than
- * the stale threshold (default 3 minutes). This ensures that abrupt crashes,
+ * the stale threshold (default 15 minutes). This ensures that abrupt crashes,
  * closed tabs without beacons, and sleeping laptops are cleanly closed with an
  * accurate logout timestamp (set to their last_seen_at).
  */
 CREATE OR REPLACE FUNCTION public.reconcile_stale_presence_sessions(
-  p_stale_interval interval DEFAULT interval '3 minutes'
+  p_stale_interval interval DEFAULT interval '15 minutes'
 )
 RETURNS integer
 LANGUAGE plpgsql
@@ -122,7 +123,10 @@ $$;
 
 /*
  * Lightweight heartbeat ping. Called by active browser tabs periodically
- * (e.g. every 60s) to keep `last_seen_at` fresh. Zero table locks.
+ * (e.g. every 45-60s) to keep `last_seen_at` fresh.
+ *
+ * If a session was previously marked 'stale' (e.g. because the laptop was
+ * asleep or the tab was backgrounded), this heartbeat seamlessly re-activates it.
  */
 CREATE OR REPLACE FUNCTION public.ping_presence_session(
   p_session_key text,
@@ -147,11 +151,14 @@ BEGIN
     RETURN false;
   END IF;
 
+  -- Refresh active session, or resume if it was temporarily closed as 'stale'
   UPDATE public.user_sessions
-  SET last_seen_at = v_now
+  SET logout_at = NULL,
+      ended_reason = NULL,
+      last_seen_at = v_now
   WHERE user_id = v_user_id
     AND session_key = p_session_key
-    AND logout_at IS NULL;
+    AND (logout_at IS NULL OR ended_reason = 'stale');
 
   v_updated := FOUND;
 
@@ -203,8 +210,8 @@ BEGIN
     RAISE EXCEPTION 'invalid_session_key' USING ERRCODE = '22023';
   END IF;
 
-  -- Reconcile any abandoned sessions before registering a new one
-  PERFORM public.reconcile_stale_presence_sessions(interval '3 minutes');
+  -- Reconcile any abandoned sessions before registering a new one (15m window)
+  PERFORM public.reconcile_stale_presence_sessions(interval '15 minutes');
 
   -- Serialize concurrent starts for the same browser key
   PERFORM pg_advisory_xact_lock(
@@ -223,18 +230,20 @@ BEGIN
     AND t.generation_id = p_generation_id;
 
   IF FOUND THEN
-    -- If tab exists and session is still open, ensure last_seen_at is refreshed
+    -- If tab exists and session is still open or stale, ensure it is re-activated
     UPDATE public.user_sessions
-    SET last_seen_at = v_started_at
+    SET logout_at = NULL,
+        ended_reason = NULL,
+        last_seen_at = v_started_at
     WHERE user_id = v_user_id
       AND session_key = p_session_key
-      AND logout_at IS NULL;
+      AND (logout_at IS NULL OR ended_reason = 'stale');
 
     RETURN v_existing_started_at;
   END IF;
 
-  -- Reuse an existing open row for this browser session, or reopen one
-  -- that was closed by a last_tab_closed beacon within the last 30 seconds (page reload).
+  -- Reuse an existing open row for this browser session, or resume one
+  -- that was marked stale or closed recently (within 2 minutes on page reload).
   SELECT s.id
   INTO v_session_id
   FROM public.user_sessions s
@@ -242,9 +251,10 @@ BEGIN
     AND s.session_key = p_session_key
     AND (
       s.logout_at IS NULL
+      OR s.ended_reason = 'stale'
       OR (
         s.ended_reason = 'last_tab_closed'
-        AND s.logout_at > v_started_at - interval '30 seconds'
+        AND s.logout_at > v_started_at - interval '2 minutes'
       )
     )
   ORDER BY (s.logout_at IS NULL) DESC, s.login_at DESC
@@ -375,14 +385,14 @@ BEGIN
     ON CONFLICT (user_id, session_key, tab_id, generation_id) DO NOTHING;
   END IF;
 
-  -- Check if ANY other active tabs remain for this session (excluding stale ones older than 3 minutes)
+  -- Check if ANY other active tabs remain for this session (excluding stale ones older than 15 minutes)
   IF NOT EXISTS (
     SELECT 1
     FROM public.user_session_tabs t
     WHERE t.user_id = v_user_id
       AND t.session_key = p_session_key
       AND t.logout_at IS NULL
-      AND t.started_at > v_ended_at - interval '3 minutes'
+      AND t.started_at > v_ended_at - interval '15 minutes'
   ) THEN
     UPDATE public.user_sessions
     SET logout_at = v_ended_at,
@@ -430,8 +440,8 @@ BEGIN
     RAISE EXCEPTION 'forbidden' USING ERRCODE = '42501';
   END IF;
 
-  -- Always reconcile stale sessions before reading history!
-  PERFORM public.reconcile_stale_presence_sessions(interval '3 minutes');
+  -- Reconcile stale sessions (15-minute inactivity window) before reading history
+  PERFORM public.reconcile_stale_presence_sessions(interval '15 minutes');
 
   -- Prune old sessions outside the retention window
   DELETE FROM public.user_sessions s
@@ -463,17 +473,17 @@ GRANT EXECUTE ON FUNCTION public.start_presence_session(text, text, text, text) 
 GRANT EXECUTE ON FUNCTION public.end_presence_session(text, text, timestamptz, text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_presence_sessions(integer, integer) TO authenticated;
 
--- Immediate backfill/reconciliation of any existing orphaned sessions:
+-- Immediate backfill/reconciliation of truly abandoned sessions (older than 15 minutes):
 UPDATE public.user_sessions
 SET logout_at = last_seen_at,
     ended_reason = 'stale'
 WHERE logout_at IS NULL
-  AND last_seen_at < (clock_timestamp() - interval '3 minutes');
+  AND last_seen_at < (clock_timestamp() - interval '15 minutes');
 
 UPDATE public.user_session_tabs
 SET logout_at = clock_timestamp()
 WHERE logout_at IS NULL
-  AND started_at < (clock_timestamp() - interval '3 minutes');
+  AND started_at < (clock_timestamp() - interval '15 minutes');
 
 -- Ensure RBAC page key exists and permissions are granted
 CREATE OR REPLACE FUNCTION public.rbac_all_page_keys()

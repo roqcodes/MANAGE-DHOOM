@@ -156,22 +156,28 @@ function TeamPresenceProviderInner({
     let heartbeatTimer: number | null = null;
     let lastPingMs = Date.now();
 
-    const doPing = () => {
+    const doPing = async () => {
       if (disposed || !sessionKey) return;
       lastPingMs = Date.now();
-      void pingTeamPresenceSession(sessionKey, tabId, generationIdRef.current!);
+      const alive = await pingTeamPresenceSession(sessionKey, tabId, generationIdRef.current!);
+      if (!alive && !disposed && sessionKey) {
+        // If the session was closed or not found, resume/re-register it
+        void startTeamPresenceSession(sessionKey, tabId, generationIdRef.current!);
+      }
     };
 
-    const handleVisibilityOrFocus = () => {
+    const handleActivity = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        if (Date.now() - lastPingMs > PRESENCE_HEARTBEAT_INTERVAL_MS * 0.75) {
-          doPing();
+        if (Date.now() - lastPingMs > PRESENCE_HEARTBEAT_INTERVAL_MS * 0.7) {
+          void doPing();
         }
       }
     };
 
-    window.addEventListener("visibilitychange", handleVisibilityOrFocus);
-    window.addEventListener("focus", handleVisibilityOrFocus);
+    window.addEventListener("visibilitychange", handleActivity);
+    window.addEventListener("focus", handleActivity);
+    window.addEventListener("pointerdown", handleActivity, { passive: true });
+    window.addEventListener("keydown", handleActivity, { passive: true });
 
     void getOrCreatePresenceSessionKey().then((key) => {
       if (disposed) return;
@@ -186,8 +192,10 @@ function TeamPresenceProviderInner({
         disposed = true;
         if (heartbeatTimer) window.clearInterval(heartbeatTimer);
         window.removeEventListener("pagehide", handlePageHide);
-        window.removeEventListener("visibilitychange", handleVisibilityOrFocus);
-        window.removeEventListener("focus", handleVisibilityOrFocus);
+        window.removeEventListener("visibilitychange", handleActivity);
+        window.removeEventListener("focus", handleActivity);
+        window.removeEventListener("pointerdown", handleActivity);
+        window.removeEventListener("keydown", handleActivity);
       };
     }
 
@@ -241,8 +249,10 @@ function TeamPresenceProviderInner({
       disposed = true;
       if (heartbeatTimer) window.clearInterval(heartbeatTimer);
       window.removeEventListener("pagehide", handlePageHide);
-      window.removeEventListener("visibilitychange", handleVisibilityOrFocus);
-      window.removeEventListener("focus", handleVisibilityOrFocus);
+      window.removeEventListener("visibilitychange", handleActivity);
+      window.removeEventListener("focus", handleActivity);
+      window.removeEventListener("pointerdown", handleActivity);
+      window.removeEventListener("keydown", handleActivity);
       subscribedRef.current = false;
       void supabase.removeChannel(channel);
     };
