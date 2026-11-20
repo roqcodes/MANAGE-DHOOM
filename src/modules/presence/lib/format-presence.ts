@@ -25,6 +25,66 @@ export function formatPresenceDuration(
   return `${minutes}m`;
 }
 
+export function calculatePresenceDurationMinutes(
+  startIso: string | null | undefined,
+  endIso?: string | null,
+  nowMs = Date.now(),
+): number {
+  if (!startIso) return 0;
+  const start = Date.parse(startIso);
+  if (Number.isNaN(start)) return 0;
+  const end = endIso ? Date.parse(endIso) : nowMs;
+  if (Number.isNaN(end)) return 0;
+  return Math.floor(Math.max(0, end - start) / 60_000);
+}
+
+export function getPresenceDateKey(isoString: string): string {
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "Unknown";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export function formatPresenceDateGroupHeader(dateKey: string): string {
+  if (dateKey === "Unknown") return "Unknown Date";
+
+  const [y, m, d] = dateKey.split("-").map(Number);
+  if (!y || !m || !d) return dateKey;
+
+  const target = new Date(y, m - 1, d);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const targetTime = target.getTime();
+  const isToday = targetTime === today.getTime();
+  const isYesterday = targetTime === yesterday.getTime();
+
+  const formattedDate = new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(target);
+
+  if (isToday) return `Today · ${formattedDate}`;
+  if (isYesterday) return `Yesterday · ${formattedDate}`;
+  return formattedDate;
+}
+
+export function formatPresenceTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return "—";
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(ms));
+}
+
 export function formatPresenceTimestamp(value: string | null | undefined): string {
   if (!value) return "—";
 
