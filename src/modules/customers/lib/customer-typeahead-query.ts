@@ -13,7 +13,9 @@ import {
 export type CustomerTypeaheadRow = Pick<
   AdminUser,
   "id" | "name" | "email" | "phone" | "customer_number" | "avatar_url"
->;
+> & {
+  current_balance?: number | null;
+};
 
 type CustomerRpcRow = {
   id: string;
@@ -22,6 +24,7 @@ type CustomerRpcRow = {
   phone: string | null;
   customer_number: string | null;
   avatar_url: string | null;
+  current_balance?: number | null;
 };
 
 /** One-round-trip customer search (exact → prefix → substring). Falls back to PostgREST if RPC missing. */
@@ -31,16 +34,6 @@ export async function searchCustomersTypeahead(
   limit = 20,
 ): Promise<CustomerTypeaheadRow[]> {
   const trimmed = query.trim();
-  if (!trimmed) {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, name, email, phone, customer_number, avatar_url")
-      .or(CUSTOMER_ROLE_OR_FILTER)
-      .order("name")
-      .limit(limit);
-    if (error) throw new Error(error.message);
-    return (data ?? []) as CustomerTypeaheadRow[];
-  }
 
   const { data: rpcRows, error: rpcError } = await supabase.rpc(
     "erp_search_customers" as never,
@@ -52,6 +45,17 @@ export async function searchCustomersTypeahead(
 
   if (!rpcError && Array.isArray(rpcRows)) {
     return (rpcRows as CustomerRpcRow[]) as CustomerTypeaheadRow[];
+  }
+
+  if (!trimmed) {
+    const { data, error } = await supabase
+      .from("users")
+      .select("id, name, email, phone, customer_number, avatar_url")
+      .or(CUSTOMER_ROLE_OR_FILTER)
+      .order("name")
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as CustomerTypeaheadRow[];
   }
 
   return searchCustomersViaPostgrest(supabase, trimmed, limit);

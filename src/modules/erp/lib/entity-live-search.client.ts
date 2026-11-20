@@ -87,12 +87,9 @@ export async function fetchVendorSearchOptions(query: string): Promise<EntitySea
   }
 
   const res = await adminGet<{
-    data: Array<{ id: string; name: string | null }>;
+    data: VendorSearchRow[];
   }>(`vendors?view=search&q=${encodeURIComponent(query)}`);
-  return (res.data ?? []).map((v) => ({
-    id: v.id,
-    label: v.name?.trim() || "Unnamed vendor",
-  }));
+  return mapVendorRows(res.data ?? []);
 }
 
 export async function fetchCustomerSearchOptions(query: string): Promise<EntitySearchOption[]> {

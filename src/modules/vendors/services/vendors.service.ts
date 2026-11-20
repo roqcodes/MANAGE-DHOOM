@@ -26,6 +26,7 @@ import {
   listActiveVendorsForPicker,
   searchActiveVendorsQuery,
   VENDOR_PICKER_SEARCH_LIMIT,
+  type VendorTypeaheadRow,
 } from "@/lib/erp/server/vendor-catalog-search";
 
 export async function getVendors(
@@ -102,7 +103,7 @@ export async function getVendorsErp(
 export async function searchActiveVendors(
   query: string,
   limit = VENDOR_PICKER_SEARCH_LIMIT,
-): Promise<Pick<Vendor, "id" | "name">[]> {
+): Promise<VendorTypeaheadRow[]> {
   return searchActiveVendorsQuery(query, limit);
 }
 

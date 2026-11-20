@@ -144,10 +144,15 @@ export async function getAllCustomers(
     }
   }
 
-  const [{ data: invoiceRows }, { data: creditLimitRows }] = await Promise.all([
+  const [
+    { data: invoiceRows },
+    { data: creditLimitRows },
+    { data: paymentRows },
+    { data: creditNoteRows },
+  ] = await Promise.all([
     supabase
       .from("invoices")
-      .select("user_id, ar_sum:balance_due.sum()")
+      .select("user_id, balance_due")
       .in("user_id", userIds)
       .neq("status", "cancelled")
       .gt("balance_due", 0),
@@ -155,13 +160,22 @@ export async function getAllCustomers(
       .from("customer_credit_limits")
       .select("user_id, credit_limit")
       .in("user_id", userIds),
+    supabase
+      .from("erp_customer_payments")
+      .select("user_id, unallocated_amount")
+      .in("user_id", userIds)
+      .gt("unallocated_amount", 0),
+    supabase
+      .from("erp_credit_notes")
+      .select("user_id, balance_remaining")
+      .in("user_id", userIds)
+      .in("status", ["issued", "applied"])
+      .gt("balance_remaining", 0),
   ]);
 
-  const receivablesMap = (
-    (invoiceRows ?? []) as unknown as Array<{ user_id: string | null; ar_sum: number | null }>
-  ).reduce<Record<string, number>>((acc, inv) => {
+  const receivablesMap = (invoiceRows ?? []).reduce<Record<string, number>>((acc, inv) => {
     if (!inv.user_id) return acc;
-    acc[inv.user_id] = Number(inv.ar_sum ?? 0);
+    acc[inv.user_id] = (acc[inv.user_id] ?? 0) + Number(inv.balance_due ?? 0);
     return acc;
   }, {});
 
@@ -173,14 +187,31 @@ export async function getAllCustomers(
     {},
   );
 
+  const unallocatedMap = (paymentRows ?? []).reduce<Record<string, number>>((acc, p) => {
+    if (!p.user_id) return acc;
+    acc[p.user_id] = (acc[p.user_id] ?? 0) + Number(p.unallocated_amount ?? 0);
+    return acc;
+  }, {});
+
+  const creditsMap = (creditNoteRows ?? []).reduce<Record<string, number>>((acc, c) => {
+    if (!c.user_id) return acc;
+    acc[c.user_id] = (acc[c.user_id] ?? 0) + Number(c.balance_remaining ?? 0);
+    return acc;
+  }, {});
+
   return {
-    data: users.map((u) => ({
-      ...u,
-      order_count: orderCountMap[u.id] ?? 0,
-      receivables:
-        Number(u.opening_balance ?? 0) + (receivablesMap[u.id] ?? 0),
-      credit_limit: creditLimitMap[u.id] ?? null,
-    })),
+    data: users.map((u) => {
+      const opening = Number(u.opening_balance ?? 0);
+      const invoicesDue = receivablesMap[u.id] ?? 0;
+      const unallocated = unallocatedMap[u.id] ?? 0;
+      const credits = creditsMap[u.id] ?? 0;
+      return {
+        ...u,
+        order_count: orderCountMap[u.id] ?? 0,
+        receivables: opening + invoicesDue - credits - unallocated,
+        credit_limit: creditLimitMap[u.id] ?? null,
+      };
+    }),
     total,
     stats,
   };
