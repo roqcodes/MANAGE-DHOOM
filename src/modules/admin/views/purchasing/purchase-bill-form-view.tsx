@@ -172,12 +172,16 @@ export type PurchaseBillFormViewProps = ErpFormViewBaseProps & {
   mode: "create" | "edit";
   billId?: string;
   poIdFromQuery?: string;
+  formTitle?: string;
+  formDescription?: string;
 };
 
 export function PurchaseBillFormView({
   mode,
   billId,
   poIdFromQuery,
+  formTitle,
+  formDescription,
   variant = "page",
   open = true,
   onOpenChange,
@@ -602,8 +606,12 @@ const payload = {
 
   if (isModal && !open) return null;
 
-  const title = mode === "edit" ? "Edit purchase bill" : "Purchase entry";
-  const description = billNumber ?? "Record vendor bills, line items, and landed costs.";
+  const title =
+    formTitle ?? (mode === "edit" ? "Edit purchase bill" : "Purchase entry");
+  const description =
+    formDescription ??
+    billNumber ??
+    "Record vendor bills, line items, and landed costs.";
   const isDraftEdit = mode === "edit" && isPurchaseBillDraft(billStatus);
   const showDraftActions = mode === "create" || isDraftEdit;
 

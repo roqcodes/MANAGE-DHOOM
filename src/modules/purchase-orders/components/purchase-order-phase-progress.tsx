@@ -1,62 +1,166 @@
 "use client";
 
-import {
-  Ban,
-  ChevronRight,
-  Factory,
-  Landmark,
-  PackageCheck,
-  Plane,
-  ReceiptText,
-  Ship,
-} from "lucide-react";
+import { Ban, Factory, Landmark, PackageCheck, Plane, ReceiptText, Ship } from "lucide-react";
 
 import type { PurchaseOrderStatusFilter } from "@/common/admin/types";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-const PHASES: {
-  id: string;
+const PATH_PHASES: {
+  id: "production" | "shipping" | "received" | "invoice";
   label: string;
   detail: string;
   icon: typeof Factory;
   status?: PurchaseOrderStatusFilter;
-  tone: "indigo" | "sky" | "emerald" | "violet" | "rose";
+  accent: "indigo" | "emerald" | "violet" | "rose";
 }[] = [
-  { id: "production", status: "production", label: "Production", detail: "At supplier", icon: Factory, tone: "indigo" },
-  { id: "shipping", label: "Shipping", detail: "Transit & clearance", icon: Ship, tone: "sky" },
-  { id: "received", status: "received", label: "Received", detail: "In warehouse", icon: PackageCheck, tone: "emerald" },
-  { id: "invoice", status: "fully_received", label: "Invoice", detail: "Finalized", icon: ReceiptText, tone: "violet" },
-  { id: "cancelled", status: "cancelled", label: "Cancelled", detail: "Closed before completion", icon: Ban, tone: "rose" },
+  {
+    id: "production",
+    status: "production",
+    label: "Production",
+    detail: "At supplier",
+    icon: Factory,
+    accent: "indigo",
+  },
+  {
+    id: "shipping",
+    label: "Shipping",
+    detail: "Transit & clearance",
+    icon: Ship,
+    accent: "indigo",
+  },
+  {
+    id: "received",
+    status: "received",
+    label: "Received",
+    detail: "In warehouse",
+    icon: PackageCheck,
+    accent: "emerald",
+  },
+  {
+    id: "invoice",
+    status: "fully_received",
+    label: "Invoice",
+    detail: "Finalized",
+    icon: ReceiptText,
+    accent: "violet",
+  },
 ];
 
-const TONE_STYLES = {
-  indigo: {
-    icon: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300",
-    active: "border-indigo-300 bg-indigo-50/70 ring-1 ring-indigo-200 dark:border-indigo-800 dark:bg-indigo-950/30 dark:ring-indigo-900",
-    number: "text-indigo-700 dark:text-indigo-300",
+const SHIPPING_MODES = [
+  {
+    status: "by_air" as const,
+    label: "Air",
+    icon: Plane,
+    accent: {
+      icon: "bg-violet-500/15 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300",
+      hover: "hover:bg-violet-500/10",
+      active: "bg-violet-500/15 ring-1 ring-violet-500/30",
+      count: "text-violet-800 dark:text-violet-200",
+    },
   },
-  sky: {
-    icon: "bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300",
-    active: "border-sky-300 bg-sky-50/70 ring-1 ring-sky-200 dark:border-sky-800 dark:bg-sky-950/30 dark:ring-sky-900",
-    number: "text-sky-700 dark:text-sky-300",
+  {
+    status: "by_sea" as const,
+    label: "Sea",
+    icon: Ship,
+    accent: {
+      icon: "bg-sky-500/15 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300",
+      hover: "hover:bg-sky-500/10",
+      active: "bg-sky-500/15 ring-1 ring-sky-500/30",
+      count: "text-sky-800 dark:text-sky-200",
+    },
+  },
+  {
+    status: "in_customs" as const,
+    label: "Customs",
+    icon: Landmark,
+    accent: {
+      icon: "bg-amber-500/15 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200",
+      hover: "hover:bg-amber-500/10",
+      active: "bg-amber-500/15 ring-1 ring-amber-500/30",
+      count: "text-amber-900 dark:text-amber-100",
+    },
+  },
+];
+
+const STAGE_ACCENT = {
+  indigo: {
+    icon: "bg-indigo-500/15 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300",
+    active: "bg-indigo-500/10 ring-1 ring-indigo-500/25",
+    count: "text-indigo-800 dark:text-indigo-200",
   },
   emerald: {
-    icon: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
-    active: "border-emerald-300 bg-emerald-50/70 ring-1 ring-emerald-200 dark:border-emerald-800 dark:bg-emerald-950/30 dark:ring-emerald-900",
-    number: "text-emerald-700 dark:text-emerald-300",
+    icon: "bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
+    active: "bg-emerald-500/10 ring-1 ring-emerald-500/25",
+    count: "text-emerald-800 dark:text-emerald-200",
   },
   violet: {
-    icon: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
-    active: "border-violet-300 bg-violet-50/70 ring-1 ring-violet-200 dark:border-violet-800 dark:bg-violet-950/30 dark:ring-violet-900",
-    number: "text-violet-700 dark:text-violet-300",
+    icon: "bg-violet-500/15 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300",
+    active: "bg-violet-500/10 ring-1 ring-violet-500/25",
+    count: "text-violet-800 dark:text-violet-200",
   },
   rose: {
-    icon: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300",
-    active: "border-rose-300 bg-rose-50/70 ring-1 ring-rose-200 dark:border-rose-800 dark:bg-rose-950/30 dark:ring-rose-900",
-    number: "text-rose-700 dark:text-rose-300",
+    icon: "bg-rose-500/15 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300",
+    active: "bg-rose-500/10 ring-1 ring-rose-500/25",
+    count: "text-rose-800 dark:text-rose-200",
   },
 } as const;
+
+function formatCount(value: number) {
+  return value.toLocaleString("en-IN");
+}
+
+function isShippingStatus(status: PurchaseOrderStatusFilter) {
+  return status === "by_air" || status === "by_sea" || status === "in_customs";
+}
+
+function StageMeta({
+  icon: Icon,
+  label,
+  detail,
+  count,
+  quiet,
+  accent,
+  active,
+}: {
+  icon: typeof Factory;
+  label: string;
+  detail: string;
+  count: number;
+  quiet: boolean;
+  accent: keyof typeof STAGE_ACCENT;
+  active: boolean;
+}) {
+  const tone = STAGE_ACCENT[accent];
+  return (
+    <>
+      <span className="flex items-baseline justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+          <span
+            className={cn(
+              "flex size-7 shrink-0 items-center justify-center rounded-md",
+              tone.icon,
+              active && "ring-2 ring-background",
+            )}
+          >
+            <Icon className="size-3.5" aria-hidden />
+          </span>
+          <span className="truncate">{label}</span>
+        </span>
+        <span
+          className={cn(
+            "text-xl font-semibold tabular-nums tracking-tight",
+            active ? tone.count : quiet ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {formatCount(count)}
+        </span>
+      </span>
+      <span className="mt-0.5 block truncate pl-9 text-xs text-muted-foreground">{detail}</span>
+    </>
+  );
+}
 
 export function PurchaseOrderPhaseProgress({
   stats,
@@ -75,127 +179,178 @@ export function PurchaseOrderPhaseProgress({
   activeStatus: PurchaseOrderStatusFilter;
   onSelect: (status: PurchaseOrderStatusFilter) => void;
 }) {
+  const shippingModeValues = {
+    by_air: stats.byAirCount,
+    by_sea: stats.bySeaCount,
+    in_customs: stats.inCustomsCount,
+  };
+  const filtered = activeStatus !== "all";
+  const shippingAnyActive = isShippingStatus(activeStatus);
+
   return (
-    <Card className="overflow-hidden border border-border/70 py-0 shadow-sm ring-0">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/20 px-4 py-3.5">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            Purchase order journey
-          </p>
-          <h2 className="mt-0.5 text-sm font-semibold tracking-tight">Lifecycle overview</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Choose a stage to filter the purchase order list
-          </p>
-        </div>
-        {activeStatus !== "all" ? (
-          <button
+    <Card className="border-border bg-gradient-to-br from-background via-background to-muted/20 py-0 ring-0">
+      <div className="flex items-center justify-between gap-3 border-b border-border/80 bg-muted/15 px-4 py-3 sm:px-6">
+        <h2 className="text-sm font-semibold tracking-tight text-foreground">
+          Purchase order journey
+        </h2>
+        {filtered ? (
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={() => onSelect("all")}
-            className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="h-7 px-2 text-xs text-muted-foreground"
           >
-            Clear phase
-          </button>
+            Clear filter
+          </Button>
         ) : null}
       </div>
-      <div className="grid grid-cols-1 gap-2.5 bg-muted/10 p-3 sm:grid-cols-2 xl:grid-cols-5">
-        {PHASES.map((phase, index) => {
-          const isShipping = phase.id === "shipping";
-          const active = isShipping
-            ? activeStatus === "by_air" || activeStatus === "by_sea" || activeStatus === "in_customs"
-            : activeStatus === phase.status;
-          const count = isShipping
-            ? stats.byAirCount + stats.bySeaCount + stats.inCustomsCount
-            : phase.status === "production"
-            ? stats.productionCount
-            : phase.status === "received"
-              ? stats.receivedCount
-              : phase.status === "fully_received"
-                ? stats.invoiceCount
-                : phase.status === "cancelled"
-                  ? stats.cancelledCount
-                  : 0;
-          const Icon = phase.icon;
-          return (
-            <div
-              key={phase.id}
-              className={cn(
-                "group relative flex min-h-[112px] min-w-0 items-start gap-3 rounded-xl border border-border/70 bg-card px-3.5 py-3.5 shadow-sm transition-all duration-200 motion-reduce:transition-none hover:-translate-y-0.5 hover:border-border hover:shadow-md active:translate-y-0 active:scale-[0.99] sm:px-4",
-                active && TONE_STYLES[phase.tone].active,
-              )}
-            >
-              <span
-                className={cn(
-                  "mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl transition-all duration-200 group-hover:scale-105",
-                  TONE_STYLES[phase.tone].icon,
-                  active && "ring-2 ring-background shadow-sm",
-                )}
-              >
-                <Icon className="size-4" aria-hidden />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center justify-between gap-2">
-                  <span className={cn("truncate text-sm font-semibold tracking-tight", active && TONE_STYLES[phase.tone].number)}>
-                    {phase.label}
-                  </span>
-                  <span className={cn("text-lg font-bold tabular-nums tracking-tight text-foreground", active && TONE_STYLES[phase.tone].number)}>
-                    {count.toLocaleString("en-IN")}
-                  </span>
-                </span>
-                <span className="mt-1 block truncate text-xs text-muted-foreground">
-                  {phase.detail}
-                </span>
-                {isShipping ? (
-                  <span className="mt-2.5 grid grid-cols-3 gap-1.5">
-                    {([
-                      { status: "by_air", label: "Air", value: stats.byAirCount, icon: Plane },
-                      { status: "by_sea", label: "Sea", value: stats.bySeaCount, icon: Ship },
-                      { status: "in_customs", label: "Customs", value: stats.inCustomsCount, icon: Landmark },
-                    ] as const).map((mode) => {
-                      const modeActive = activeStatus === mode.status;
-                      const ModeIcon = mode.icon;
-                      return (
-                        <button
-                          key={mode.status}
-                          type="button"
-                          aria-pressed={modeActive}
-                          onClick={() => onSelect(modeActive ? "all" : mode.status)}
-                          className={cn(
-                            "flex min-w-0 flex-col items-center rounded-lg border px-1 py-1.5 text-[10px] leading-tight transition-all duration-150 hover:-translate-y-px hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none",
-                            modeActive
-                              ? mode.status === "by_air"
-                                ? "border-violet-300 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/50 dark:text-violet-200"
-                                : mode.status === "by_sea"
-                                  ? "border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-200"
-                                  : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200"
-                              : "border-border/60 bg-muted/30 text-muted-foreground hover:border-border hover:bg-background",
-                          )}
-                        >
-                          <span className="flex items-center gap-1">
-                            <ModeIcon className="size-3" aria-hidden />
-                            {mode.label}
-                          </span>
-                          <span className="mt-1 text-xs font-bold tabular-nums text-foreground">
-                            {mode.value.toLocaleString("en-IN")}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => onSelect(active ? "all" : phase.status!)}
-                    aria-label={`Filter purchase orders: ${phase.label}`}
-                    className="absolute inset-0 z-0 rounded-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-                  />
-                )}
-              </span>
-              {index < PHASES.length - 1 ? <ChevronRight className="absolute -right-2 top-1/2 z-10 hidden size-5 -translate-y-1/2 rounded-full border border-border/70 bg-background p-0.5 text-muted-foreground shadow-sm xl:block" aria-hidden /> : null}
-            </div>
-          );
-        })}
-      </div>
+
+      <nav
+        aria-label="Filter purchase orders by lifecycle stage"
+        className="px-4 py-4 sm:px-6"
+      >
+        <div className="flex min-w-0 flex-col lg:flex-row lg:items-stretch">
+          <ol className="m-0 flex min-w-0 flex-1 list-none flex-col gap-2 p-0 sm:flex-row sm:items-stretch sm:gap-0">
+            {PATH_PHASES.map((phase, index) => {
+              const isShipping = phase.id === "shipping";
+              const count = isShipping
+                ? 0
+                : phase.status === "production"
+                  ? stats.productionCount
+                  : phase.status === "received"
+                    ? stats.receivedCount
+                    : stats.invoiceCount;
+              const active = isShipping
+                ? shippingAnyActive
+                : activeStatus === phase.status;
+              const Icon = phase.icon;
+              const quiet = count === 0 && !active;
+              const tone = STAGE_ACCENT[phase.accent];
+
+              return (
+                <li key={phase.id} className="flex min-w-0 flex-1 items-stretch sm:min-w-[8.5rem]">
+                  {isShipping ? (
+                    <div
+                      role="group"
+                      aria-label="Shipping modes"
+                      className={cn(
+                        "min-w-0 flex-1 rounded-lg px-1 py-2 sm:px-1.5",
+                        shippingAnyActive && "bg-sky-500/5 ring-1 ring-sky-500/20",
+                      )}
+                    >
+                      <div className="grid w-full grid-cols-3 gap-0.5">
+                        {SHIPPING_MODES.map((mode) => {
+                          const modeActive = activeStatus === mode.status;
+                          const ModeIcon = mode.icon;
+                          const value = shippingModeValues[mode.status];
+                          return (
+                            <button
+                              key={mode.status}
+                              type="button"
+                              aria-pressed={modeActive}
+                              aria-label={`Filter purchase orders: ${mode.label}`}
+                              onClick={() => onSelect(modeActive ? "all" : mode.status)}
+                              className={cn(
+                                "flex min-w-0 flex-col items-center gap-0.5 rounded-md px-1 py-1 text-center transition-colors duration-150",
+                                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                                mode.accent.hover,
+                                modeActive ? mode.accent.active : "hover:bg-muted/40",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "flex size-7 items-center justify-center rounded-md",
+                                  mode.accent.icon,
+                                  modeActive && "ring-2 ring-background",
+                                )}
+                              >
+                                <ModeIcon className="size-3.5" aria-hidden />
+                              </span>
+                              <span className="w-full truncate text-[11px] font-medium leading-tight text-muted-foreground">
+                                {mode.label}
+                              </span>
+                              <span
+                                className={cn(
+                                  "text-lg font-semibold leading-none tabular-nums tracking-tight",
+                                  value === 0 && !modeActive
+                                    ? "text-muted-foreground"
+                                    : mode.accent.count,
+                                )}
+                              >
+                                {formatCount(value)}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-pressed={active}
+                      aria-label={`Filter purchase orders: ${phase.label}`}
+                      onClick={() => onSelect(active ? "all" : phase.status!)}
+                      className={cn(
+                        "min-w-0 flex-1 rounded-lg px-2 py-2 text-left transition-colors duration-150 sm:px-1.5",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                        active ? tone.active : "hover:bg-muted/40",
+                      )}
+                    >
+                      <StageMeta
+                        icon={Icon}
+                        label={phase.label}
+                        detail={phase.detail}
+                        count={count}
+                        quiet={quiet}
+                        accent={phase.accent}
+                        active={active}
+                      />
+                    </button>
+                  )}
+                  {index < PATH_PHASES.length - 1 ? (
+                    <span
+                      className="mx-1 hidden w-px shrink-0 self-stretch bg-gradient-to-b from-transparent via-border to-transparent sm:mx-2 sm:block"
+                      aria-hidden
+                    />
+                  ) : null}
+                </li>
+              );
+            })}
+          </ol>
+
+          <span
+            className="mx-0 my-3 h-px w-full bg-border lg:my-0 lg:mx-3 lg:h-auto lg:w-px lg:self-stretch"
+            aria-hidden
+          />
+
+          <button
+            type="button"
+            aria-pressed={activeStatus === "cancelled"}
+            aria-label="Filter purchase orders: Cancelled"
+            onClick={() =>
+              onSelect(activeStatus === "cancelled" ? "all" : "cancelled")
+            }
+            className={cn(
+              "min-w-[8.5rem] shrink-0 rounded-lg px-2 py-2 text-left transition-colors duration-150 sm:px-1.5",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+              activeStatus === "cancelled"
+                ? STAGE_ACCENT.rose.active
+                : "hover:bg-rose-500/5",
+            )}
+          >
+            <StageMeta
+              icon={Ban}
+              label="Cancelled"
+              detail="Closed before completion"
+              count={stats.cancelledCount}
+              quiet={stats.cancelledCount === 0 && activeStatus !== "cancelled"}
+              accent="rose"
+              active={activeStatus === "cancelled"}
+            />
+          </button>
+        </div>
+      </nav>
     </Card>
   );
 }

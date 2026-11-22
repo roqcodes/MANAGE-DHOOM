@@ -21,14 +21,13 @@ import {
   type PurchaseOrderDeliverFinalizePayload,
 } from "@/modules/erp/types/purchase-payload";
 import { AdminDetailSkeleton } from "@/modules/admin/components/admin-page-skeleton";
-import { adminGet, adminPatch, adminPost, adminPut } from "@/modules/admin/lib/admin-api-client";
+import { adminGet, adminPatch } from "@/modules/admin/lib/admin-api-client";
+import { PurchaseBillFormView } from "@/modules/admin/views/purchasing/purchase-bill-form-view";
 import { cancelAdminPurchaseOrderAction } from "@/modules/purchase-orders/actions/admin-purchase-orders.actions";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { NumericInput } from "@/components/ui/numeric-input";
-import { coalesceNumber } from "@/lib/numeric-input";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
   landedAllocFromStoredLine,
@@ -287,290 +286,6 @@ function ReadyForPickupModal({
   );
 }
 
-// ─── Generate Invoice section ─────────────────────────────────────────────────
-
-function GenerateInvoiceSection({
-  po,
-  poId,
-  onDone,
-}: {
-  po: ErpPurchaseOrderDetail;
-  poId: string;
-  onDone: () => void;
-}) {
-  const [pending, startTransition] = useTransition();
-  const [err, setErr] = useState<string | null>(null);
-  const { operations: outboxOperations } = useOutboxQueueActivity();
-  const outboxPending = useMemo(
-    () => pendingPurchaseOrderOutboxActivity(outboxOperations, poId),
-    [outboxOperations, poId],
-  );
-
-  // Editable line state: qty + price per PO line id
-  const [lineQty, setLineQty] = useState<Record<string, number>>(() => {
-    const init: Record<string, number> = {};
-    for (const line of po.purchase_order_items) {
-      init[line.id] = line.quantity;
-    }
-    return init;
-  });
-  const [linePrice, setLinePrice] = useState<Record<string, number>>(() => {
-    const init: Record<string, number> = {};
-    for (const line of po.purchase_order_items) {
-      init[line.id] = line.price;
-    }
-    return init;
-  });
-
-  const receiveDate = new Date().toISOString().slice(0, 10);
-
-  function buildBillLines() {
-    return po.purchase_order_items.map((line) => {
-      const qty = coalesceNumber(lineQty[line.id]);
-      const price = coalesceNumber(linePrice[line.id]);
-      return {
-        productId:
-          (line as { product_id?: string | null }).product_id ??
-          line.product_variants?.product_id ??
-          null,
-        variantId: line.variant_id ?? null,
-        productName: lineProductName(line),
-        barcode: line.product_variants?.barcode ?? "",
-        expiryDate: "",
-        quantity: qty,
-        purchasePrice: price,
-        taxRatePercent: line.tax_rate_percent ?? 0,
-      };
-    });
-  }
-
-  async function saveDraftInvoice() {
-    startTransition(async () => {
-      try {
-        setErr(null);
-        const storeId = po.store_id;
-        if (!storeId) {
-          setErr("Purchase order has no store.");
-          return;
-        }
-
-        const lines = buildBillLines();
-        const activeDraft = po.linked_bill?.status === "draft" ? po.linked_bill : null;
-
-        if (activeDraft) {
-          await adminPut(`erp/purchase-bills/${activeDraft.id}`, {
-            vendorId: po.vendor_id,
-            storeId,
-            purchaseDate: receiveDate,
-            poId,
-            lines,
-            discount: po.discount ?? 0,
-          });
-        } else {
-          await adminPost("erp/purchase-bills", {
-            vendorId: po.vendor_id,
-            storeId,
-            purchaseDate: receiveDate,
-            poId,
-            lines,
-            discount: po.discount ?? 0,
-            finalize: false,
-          });
-        }
-
-        onDone();
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : "Failed to save draft invoice.");
-      }
-    });
-  }
-
-  async function finalizeInvoice() {
-    if (outboxPending.draftBillPending) {
-      setErr("Draft invoice is still syncing. Wait for sync to complete.");
-      return;
-    }
-    if (outboxPending.deliveryPending) {
-      setErr("Delivery submission is already queued or syncing.");
-      return;
-    }
-
-    startTransition(async () => {
-      try {
-        setErr(null);
-        const storeId = po.store_id;
-        if (!storeId) {
-          setErr("Purchase order has no store.");
-          return;
-        }
-
-        // Ensure a draft bill exists with the edited lines & prices so finalize picks it up
-        const lines = buildBillLines();
-        const activeDraft = po.linked_bill?.status === "draft" ? po.linked_bill : null;
-
-        if (activeDraft) {
-          await adminPut(`erp/purchase-bills/${activeDraft.id}`, {
-            vendorId: po.vendor_id,
-            storeId,
-            purchaseDate: receiveDate,
-            poId,
-            lines,
-            discount: po.discount ?? 0,
-          });
-        } else if (!po.linked_bill) {
-          await adminPost("erp/purchase-bills", {
-            vendorId: po.vendor_id,
-            storeId,
-            purchaseDate: receiveDate,
-            poId,
-            lines,
-            discount: po.discount ?? 0,
-            finalize: false,
-          });
-        }
-
-        const supabase = createSupabaseBrowserClient();
-        const staffUserId = await resolveOutboxUserId(supabase);
-        if (!staffUserId) {
-          setErr("You must be signed in to finalize the invoice.");
-          return;
-        }
-
-        const deliverPayload: PurchaseOrderDeliverFinalizePayload = {
-          poId,
-          receiveDate,
-          lines: po.purchase_order_items.map((line) => ({
-            poLineId: line.id as string,
-            deliveredQty: coalesceNumber(lineQty[line.id]),
-          })),
-        };
-
-        const store = createOutboxStore();
-        try {
-          await store.enqueue({
-            operationType: ERP_CLIENT_OPERATION_TYPES.purchaseOrder.deliverFinalize,
-            schemaVersion: 1,
-            payload: deliverPayload,
-            userId: staffUserId,
-            storeId,
-            terminalId: getOrCreateErpTerminalId(),
-            resourceScope: purchaseOrderResourceScope(poId),
-          });
-        } catch (enqueueErr) {
-          if (enqueueErr instanceof OutboxEnqueueError) {
-            setErr(enqueueErr.message);
-          } else {
-            setErr(
-              enqueueErr instanceof Error
-                ? enqueueErr.message
-                : "Could not queue delivery locally.",
-            );
-          }
-          return;
-        } finally {
-          await store.close();
-        }
-
-        dispatchOutboxChanged();
-        broadcastSyncWake();
-        onDone();
-      } catch (e) {
-        setErr(e instanceof Error ? e.message : "Finalize failed.");
-      }
-    });
-  }
-
-  return (
-    <Card className="border-primary/30">
-      <CardHeader>
-        <CardTitle className="text-base">Generate Invoice</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-slate-600">
-          Review and adjust quantities and prices before finalizing. Inventory and
-          accounting only post when you click <strong>Finalize Invoice</strong>.
-        </p>
-
-        {err ? <p className="text-sm text-destructive">{err}</p> : null}
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase text-slate-500">
-                <th className="pb-2 pr-4">Product</th>
-                <th className="pb-2 pr-4">PO Qty</th>
-                <th className="pb-2 pr-4">Invoice Qty</th>
-                <th className="pb-2 pr-4">Unit Price</th>
-                <th className="pb-2">Line Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {po.purchase_order_items.map((line) => {
-                const qty = coalesceNumber(lineQty[line.id]);
-                const price = coalesceNumber(linePrice[line.id]);
-                const total = qty * price;
-                return (
-                  <tr key={line.id} className="border-t border-slate-100">
-                    <td className="py-2 pr-4">{lineProductName(line)}</td>
-                    <td className="py-2 pr-4 tabular-nums text-muted-foreground">
-                      {line.quantity}
-                    </td>
-                    <td className="py-2 pr-4">
-                      <NumericInput
-                        min={0}
-                        step="any"
-                        className="max-w-[100px]"
-                        value={lineQty[line.id] ?? Number.NaN}
-                        onValueChange={(v) =>
-                          setLineQty((prev) => ({ ...prev, [line.id]: v }))
-                        }
-                      />
-                    </td>
-                    <td className="py-2 pr-4">
-                      <NumericInput
-                        min={0}
-                        step="any"
-                        className="max-w-[120px]"
-                        value={linePrice[line.id] ?? Number.NaN}
-                        onValueChange={(v) =>
-                          setLinePrice((prev) => ({ ...prev, [line.id]: v }))
-                        }
-                      />
-                    </td>
-                    <td className="py-2 tabular-nums">{formatCurrencyAmount(total)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            disabled={pending || outboxPending.deliveryPending || outboxPending.draftBillPending}
-            onClick={saveDraftInvoice}
-          >
-            {pending ? "Saving…" : "Save Draft"}
-          </Button>
-          <Button
-            disabled={pending || outboxPending.deliveryPending || outboxPending.draftBillPending}
-            onClick={finalizeInvoice}
-          >
-            {pending ? "Finalizing…" : "Finalize Invoice"}
-          </Button>
-        </div>
-
-        {outboxPending.deliveryPending ? (
-          <p className="text-sm text-sky-700">
-            Finalizing invoice… inventory and accounting will post when sync completes.
-          </p>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
 // ─── Main view ────────────────────────────────────────────────────────────────
 
 export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
@@ -586,6 +301,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [showPickupModal, setShowPickupModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   function reload() {
     return adminGet<{ po: ErpPurchaseOrderDetail; auditLogs: AuditLogEntry[] }>(
@@ -636,6 +352,10 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
   const showMarkReceived = inTransit;
   const showGenerateInvoice = status === "received" && !po.delivery.deliverySubmitted;
   const showInvoiceLink = !!activeBill;
+  const draftBillId =
+    activeBill?.status === "draft" ? activeBill.id : undefined;
+  const invoiceModalMode = draftBillId ? "edit" : "create";
+  const showFinalizePoInvoice = showGenerateInvoice && Boolean(draftBillId);
 
   // ── Action handlers ────────────────────────────────────────────────────────
 
@@ -683,6 +403,119 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
         await reload();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to mark received.");
+      }
+    });
+  }
+
+  async function handleFinalizePoInvoice() {
+    if (outboxPending.draftBillPending) {
+      setError("Draft invoice is still syncing. Wait for sync to complete.");
+      return;
+    }
+    if (outboxPending.deliveryPending) {
+      setError("Invoice finalization is already queued or syncing.");
+      return;
+    }
+
+    const ok = await confirm({
+      title: "Finalize invoice?",
+      message:
+        "Post inventory and accounting from the saved draft invoice. Save invoice changes in the editor first if needed.",
+      confirmLabel: "Finalize invoice",
+    });
+    if (!ok) return;
+
+    startTransition(async () => {
+      try {
+        setError(null);
+        const storeId = po.store_id;
+        if (!storeId) {
+          setError("Purchase order has no store.");
+          return;
+        }
+        if (!draftBillId) {
+          setError("Save an invoice draft before finalizing.");
+          return;
+        }
+
+        const billRes = await adminGet<{
+          bill: {
+            purchase_date: string;
+            erp_purchase_bill_lines: Array<{
+              variant_id: string | null;
+              product_id?: string | null;
+              quantity: number;
+            }>;
+          };
+        }>(`erp/purchase-bills/${draftBillId}`);
+
+        const billLines = billRes.bill.erp_purchase_bill_lines;
+        const deliverLines = po.purchase_order_items
+          .map((poLine) => {
+            const poProductId =
+              (poLine as { product_id?: string | null }).product_id ??
+              poLine.product_variants?.product_id ??
+              null;
+            const billLine = billLines.find(
+              (bl) =>
+                (poLine.variant_id != null && bl.variant_id === poLine.variant_id) ||
+                (poProductId != null &&
+                  (bl as { product_id?: string | null }).product_id === poProductId),
+            );
+            const deliveredQty = billLine ? Number(billLine.quantity) : 0;
+            return { poLineId: poLine.id as string, deliveredQty };
+          })
+          .filter((line) => line.deliveredQty > 0);
+
+        if (deliverLines.length === 0) {
+          setError("Invoice has no billable quantities to finalize.");
+          return;
+        }
+
+        const supabase = createSupabaseBrowserClient();
+        const staffUserId = await resolveOutboxUserId(supabase);
+        if (!staffUserId) {
+          setError("You must be signed in to finalize the invoice.");
+          return;
+        }
+
+        const deliverPayload: PurchaseOrderDeliverFinalizePayload = {
+          poId,
+          receiveDate: billRes.bill.purchase_date,
+          lines: deliverLines,
+        };
+
+        const store = createOutboxStore();
+        try {
+          await store.enqueue({
+            operationType: ERP_CLIENT_OPERATION_TYPES.purchaseOrder.deliverFinalize,
+            schemaVersion: 1,
+            payload: deliverPayload,
+            userId: staffUserId,
+            storeId,
+            terminalId: getOrCreateErpTerminalId(),
+            resourceScope: purchaseOrderResourceScope(poId),
+          });
+        } catch (enqueueErr) {
+          if (enqueueErr instanceof OutboxEnqueueError) {
+            setError(enqueueErr.message);
+          } else {
+            setError(
+              enqueueErr instanceof Error
+                ? enqueueErr.message
+                : "Could not queue delivery locally.",
+            );
+          }
+          return;
+        } finally {
+          await store.close();
+        }
+
+        dispatchOutboxChanged();
+        broadcastSyncWake();
+        await reload();
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Finalize failed.");
       }
     });
   }
@@ -739,6 +572,28 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
           {showMarkReceived ? (
             <Button disabled={pending} onClick={handleMarkReceived}>
               {pending ? "Updating…" : "Mark as Received"}
+            </Button>
+          ) : null}
+
+          {showGenerateInvoice ? (
+            <Button
+              disabled={pending || outboxPending.deliveryPending}
+              onClick={() => setShowInvoiceModal(true)}
+            >
+              {draftBillId ? "Edit invoice" : "Generate invoice"}
+            </Button>
+          ) : null}
+
+          {showFinalizePoInvoice ? (
+            <Button
+              disabled={
+                pending ||
+                outboxPending.deliveryPending ||
+                outboxPending.draftBillPending
+              }
+              onClick={() => void handleFinalizePoInvoice()}
+            >
+              {pending ? "Finalizing…" : "Finalize invoice"}
             </Button>
           ) : null}
 
@@ -815,12 +670,18 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
         </CardContent>
       </Card>
 
-      {/* Generate Invoice (inline when status === 'received') */}
-      {showGenerateInvoice ? (
-        <GenerateInvoiceSection
-          po={po}
-          poId={poId}
-          onDone={() => void reload()}
+      {showInvoiceModal ? (
+        <PurchaseBillFormView
+          key={`${poId}-${draftBillId ?? "new"}`}
+          variant="modal"
+          mode={invoiceModalMode}
+          billId={draftBillId}
+          poIdFromQuery={poId}
+          formTitle={invoiceModalMode === "edit" ? "Edit invoice" : "Generate invoice"}
+          formDescription="Record vendor invoice lines, landed costs, and totals for this purchase order."
+          open={showInvoiceModal}
+          onOpenChange={setShowInvoiceModal}
+          onSuccess={() => void reload()}
         />
       ) : null}
 
