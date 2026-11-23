@@ -312,10 +312,13 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     });
     if (!ok) return;
 
+    const currentPo = po;
+    if (!currentPo) return;
+
     startTransition(async () => {
       try {
         setError(null);
-        const storeId = po.store_id;
+        const storeId = currentPo.store_id;
         if (!storeId) {
           setError("Purchase order has no store.");
           return;
@@ -337,7 +340,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
         }>(`erp/purchase-bills/${draftBillId}`);
 
         const billLines = billRes.bill.erp_purchase_bill_lines;
-        const deliverLines = po.purchase_order_items
+        const deliverLines = currentPo.purchase_order_items
           .map((poLine) => {
             const poProductId =
               (poLine as { product_id?: string | null }).product_id ??
