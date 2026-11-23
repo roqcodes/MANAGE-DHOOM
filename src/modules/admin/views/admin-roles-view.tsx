@@ -32,6 +32,7 @@ import type {
 } from "@/modules/rbac/services/rbac-admin.service";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdminPageActionBar, AdminPrimaryAction } from "@/modules/admin/ui";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -405,25 +406,23 @@ export function AdminRolesView() {
           { label: "Roles & access" },
         ]}
         actions={
-          <>
-            <Button
-              size="sm"
+          <AdminPageActionBar>
+            <AdminPrimaryAction
               variant="outline"
               onClick={() => setCreateOpen(true)}
               disabled={isPending}
             >
-              <Plus className="size-4" />
+              <Plus data-icon="inline-start" />
               New role
-            </Button>
-            <Button
-              size="sm"
+            </AdminPrimaryAction>
+            <AdminPrimaryAction
               disabled={!dirty || isPending || !activeRole}
               onClick={handleSaveAll}
             >
-              <Save className="size-4" />
+              <Save data-icon="inline-start" />
               Save
-            </Button>
-          </>
+            </AdminPrimaryAction>
+          </AdminPageActionBar>
         }
       />
 

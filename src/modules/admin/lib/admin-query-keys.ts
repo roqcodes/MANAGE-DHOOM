@@ -44,11 +44,20 @@ export const adminQueryKeys = {
     ["admin", "sales-orders", status, userId ?? "", page, storeId ?? "active"] as const,
   purchaseOrders: (
     status: string,
-    delivery: string | null,
+    deliveryMonth: string,
     vendorId: string | null,
     page: number,
   ) =>
-    ["admin", "purchase-orders", status, delivery ?? "", vendorId ?? "", page] as const,
+    [
+      "admin",
+      "purchase-orders",
+      status,
+      deliveryMonth,
+      vendorId ?? "",
+      page,
+    ] as const,
+  purchaseOrdersCatalogStats: () =>
+    ["admin", "purchase-orders", "catalog-stats"] as const,
   users: (tab: string, page: number) => ["admin", "users", tab, page] as const,
   presenceSessions: () => ["admin", "presence", "sessions"] as const,
   rbac: (roleId?: string | null) => ["admin", "rbac", roleId ?? "list"] as const,

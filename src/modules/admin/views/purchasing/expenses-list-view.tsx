@@ -6,6 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { Plus } from "lucide-react";
 
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getExpensesExportTabular } from "@/lib/export/erp-purchasing-list-export";
 import type { ErpExpenseListRow } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
@@ -20,6 +22,7 @@ import {
   AdminDataTable,
   AdminDataTableRowsSkeleton,
   AdminListCard,
+  AdminListPageActions,
   AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
@@ -96,6 +99,26 @@ export function ExpensesListView() {
     "desc",
   );
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "expenses-export",
+        title: "Expenses",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search: debouncedSearch,
+            extra: accountId ? ["Expense account filter"] : [],
+            dateFrom: dateParams.dateFrom,
+            dateTo: dateParams.dateTo,
+          }),
+        getTabular: () => {
+          const tabular = getExpensesExportTabular(sorted);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [sorted, debouncedSearch, accountId, dateParams.dateFrom, dateParams.dateTo],
+  );
+
   const accountOptions = useMemo(
     () => [
       { value: "", label: "All expense types" },
@@ -135,10 +158,12 @@ export function ExpensesListView() {
         breadcrumb={[{ label: "Expenses", href: "/admin/erp/expenses" }]}
         description="Operating expenses and petty cash spend by store. Filter by expense account type or period."
         actions={
-          <AdminPrimaryAction onClick={() => openNew()}>
-            <Plus data-icon="inline-start" />
-            Add expense
-          </AdminPrimaryAction>
+          <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>
+            <AdminPrimaryAction onClick={() => openNew()}>
+              <Plus data-icon="inline-start" />
+              Add expense
+            </AdminPrimaryAction>
+          </AdminListPageActions>
         }
       />
 

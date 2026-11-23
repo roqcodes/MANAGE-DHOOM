@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 
-import { DataExportMenu } from "@/components/export/data-export-menu";
 import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { getInvoicesExportTabular } from "@/lib/export/erp-sales-list-export";
 
@@ -29,6 +28,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminListPageActions,
   AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
@@ -161,13 +161,12 @@ export function InvoicesListView() {
         breadcrumb={[{ label: "Invoices", href: "/admin/erp/invoices" }]}
         description="Store and online invoices with payment status. Use filters to narrow by store, status, or date range."
         actions={
-          <>
-            <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
+          <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>
             <AdminPrimaryAction onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
               Create invoice
             </AdminPrimaryAction>
-          </>
+          </AdminListPageActions>
         }
       />
 

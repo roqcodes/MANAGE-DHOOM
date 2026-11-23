@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { Truck } from "lucide-react";
 
 import { formatAuditLogUserDetail } from "@/modules/erp/lib/audit-log-display";
 import type { AuditLogEntry } from "@/common/erp/types";
@@ -25,9 +26,10 @@ import { adminGet, adminPatch } from "@/modules/admin/lib/admin-api-client";
 import { PurchaseBillFormView } from "@/modules/admin/views/purchasing/purchase-bill-form-view";
 import { cancelAdminPurchaseOrderAction } from "@/modules/purchase-orders/actions/admin-purchase-orders.actions";
 import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { AdminPageActionBar, AdminPrimaryAction } from "@/modules/admin/ui";
+import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import {
   landedAllocFromStoredLine,
@@ -35,20 +37,17 @@ import {
 } from "@/modules/purchasing/lib/purchase-landed-allocation";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { PoStatusPill } from "@/modules/purchase-orders/components/purchase-orders-ui";
+import {
+  PurchaseOrderTransitModal,
+  type PurchaseOrderTransitMode,
+} from "@/modules/purchase-orders/components/purchase-order-transit-modal";
 import { cn } from "@/lib/utils";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type TransitMode = "by_sea" | "by_air" | "in_customs";
+type TransitMode = PurchaseOrderTransitMode;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -64,9 +63,9 @@ function lineProductName(
 }
 
 const TRANSIT_MODE_LABELS: Record<TransitMode, string> = {
-  by_sea: "By Sea 🚢",
-  by_air: "By Air ✈️",
-  in_customs: "In Customs 🛃",
+  by_sea: "By Sea",
+  by_air: "By Air",
+  in_customs: "In Customs",
 };
 
 function transitModeBadgeClass(mode: TransitMode): string {
@@ -174,118 +173,6 @@ function buildTimeline(po: ErpPurchaseOrderDetail) {
   return events;
 }
 
-// ─── Ready For Pickup Modal ───────────────────────────────────────────────────
-
-function ReadyForPickupModal({
-  open,
-  initialDate,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  initialDate?: string | null;
-  onClose: () => void;
-  onSave: (mode: TransitMode, date: string) => Promise<void>;
-}) {
-  const [mode, setMode] = useState<TransitMode | null>(null);
-  const [date, setDate] = useState(
-    initialDate || new Date().toISOString().slice(0, 10),
-  );
-
-  useEffect(() => {
-    if (open) {
-      setMode(null);
-      setDate(initialDate || new Date().toISOString().slice(0, 10));
-      setErr(null);
-    }
-  }, [open, initialDate]);
-
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function handleSave() {
-    if (!mode) {
-      setErr("Please select a transit mode.");
-      return;
-    }
-    setSaving(true);
-    setErr(null);
-    try {
-      await onSave(mode, date);
-      onClose();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Save failed.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const modes: { id: TransitMode; label: string; icon: string; desc: string }[] = [
-    { id: "by_sea", label: "By Sea", icon: "🚢", desc: "Ocean freight" },
-    { id: "by_air", label: "By Air", icon: "✈️", desc: "Air freight" },
-    { id: "in_customs", label: "In Customs", icon: "🛃", desc: "Customs clearance" },
-  ];
-
-  return (
-    <Dialog open={open} onOpenChange={(o: boolean) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-md" instant>
-        <DialogHeader>
-          <DialogTitle>Ready For Pickup</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Select how the shipment is travelling and when it is expected.
-          </p>
-
-          {/* Mode selector */}
-          <div className="grid grid-cols-3 gap-2">
-            {modes.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setMode(m.id)}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg border-2 p-3 text-center transition-colors",
-                  mode === m.id
-                    ? "border-primary bg-primary/5 text-primary"
-                    : "border-border hover:border-border/70 hover:bg-muted/50",
-                )}
-              >
-                <span className="text-2xl">{m.icon}</span>
-                <span className="text-xs font-semibold">{m.label}</span>
-                <span className="text-[10px] text-muted-foreground">{m.desc}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Expected date */}
-          <label className="block text-sm">
-            <span className="mb-1 block text-slate-500">Expected Delivery Date</span>
-            <Input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="max-w-xs"
-            />
-          </label>
-
-          {err ? <p className="text-sm text-destructive">{err}</p> : null}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !mode}>
-            {saving ? "Saving…" : "Confirm"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // ─── Main view ────────────────────────────────────────────────────────────────
 
 export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
@@ -300,7 +187,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
   const [loading, setLoading] = useState(true);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [showPickupModal, setShowPickupModal] = useState(false);
+  const [transitModal, setTransitModal] = useState<"pickup" | "edit" | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
   function reload() {
@@ -377,7 +264,7 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
     });
   }
 
-  async function handleReadyForPickupSave(mode: TransitMode, date: string) {
+  async function handleTransitDetailsSave(mode: TransitMode, date: string) {
     await adminPatch<{ ok: boolean }>(
       `erp/purchase-orders/${poId}/status`,
       { status: mode, expectedDate: date },
@@ -551,41 +438,56 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <AdminPageActionBar>
           {canEdit ? (
-            <Link
-              href={`/admin/purchase-orders?form=edit&id=${poId}`}
-              className={buttonVariants({ variant: "outline" })}
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              nativeButton={false}
+              render={
+                <Link href={`/admin/purchase-orders?form=edit&id=${poId}`} />
+              }
             >
               Edit
-            </Link>
+            </Button>
           ) : null}
 
-          {/* Ready For Pickup */}
           {showReadyForPickup ? (
-            <Button onClick={() => setShowPickupModal(true)}>
+            <AdminPrimaryAction onClick={() => setTransitModal("pickup")}>
+              <Truck data-icon="inline-start" aria-hidden />
               Ready For Pickup
-            </Button>
+            </AdminPrimaryAction>
           ) : null}
 
-          {/* Mark as Received */}
           {showMarkReceived ? (
-            <Button disabled={pending} onClick={handleMarkReceived}>
-              {pending ? "Updating…" : "Mark as Received"}
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                size="page"
+                className="rounded-full"
+                disabled={pending}
+                onClick={() => setTransitModal("edit")}
+              >
+                Edit delivery
+              </Button>
+              <AdminPrimaryAction disabled={pending} onClick={handleMarkReceived}>
+                {pending ? "Updating…" : "Mark as Received"}
+              </AdminPrimaryAction>
+            </>
           ) : null}
 
           {showGenerateInvoice ? (
-            <Button
+            <AdminPrimaryAction
               disabled={pending || outboxPending.deliveryPending}
               onClick={() => setShowInvoiceModal(true)}
             >
               {draftBillId ? "Edit invoice" : "Generate invoice"}
-            </Button>
+            </AdminPrimaryAction>
           ) : null}
 
           {showFinalizePoInvoice ? (
-            <Button
+            <ErpPostActionButton
               disabled={
                 pending ||
                 outboxPending.deliveryPending ||
@@ -594,35 +496,49 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
               onClick={() => void handleFinalizePoInvoice()}
             >
               {pending ? "Finalizing…" : "Finalize invoice"}
+            </ErpPostActionButton>
+          ) : null}
+
+          {showInvoiceLink ? (
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              nativeButton={false}
+              render={
+                <Link href={`/admin/erp/purchase-bills/${activeBill.id}`} />
+              }
+            >
+              Invoice {formatErpDocRef("PB", activeBill.id)}
             </Button>
           ) : null}
 
-          {/* Invoice link (when already has a bill) */}
-          {showInvoiceLink ? (
-            <Link
-              href={`/admin/erp/purchase-bills/${activeBill.id}`}
-              className={buttonVariants({ variant: "outline" })}
-            >
-              Invoice {formatErpDocRef("PB", activeBill.id)}
-            </Link>
-          ) : null}
-
-          {/* Receive record */}
           {po.delivery.receiveId ? (
-            <Link
-              href={`/admin/erp/purchase-receives/${po.delivery.receiveId}`}
-              className={buttonVariants({ variant: "outline" })}
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              nativeButton={false}
+              render={
+                <Link href={`/admin/erp/purchase-receives/${po.delivery.receiveId}`} />
+              }
             >
               Receive record
-            </Link>
+            </Button>
           ) : null}
 
           {canCancel ? (
-            <Button variant="destructive" disabled={pending} onClick={handleCancel}>
+            <Button
+              variant="destructive"
+              size="page"
+              className="rounded-full"
+              disabled={pending}
+              onClick={handleCancel}
+            >
               Cancel PO
             </Button>
           ) : null}
-        </div>
+        </AdminPageActionBar>
       </div>
 
       <ErrorsFeedbackBridge errors={error} />
@@ -801,12 +717,13 @@ export function PurchaseOrderDetailErpView({ poId }: { poId: string }) {
         </Card>
       ) : null}
 
-      {/* Ready For Pickup Modal */}
-      <ReadyForPickupModal
-        open={showPickupModal}
+      <PurchaseOrderTransitModal
+        open={transitModal !== null}
+        variant={transitModal === "edit" ? "edit" : "pickup"}
+        initialMode={inTransit ? (status as TransitMode) : null}
         initialDate={po.expected_delivery_date}
-        onClose={() => setShowPickupModal(false)}
-        onSave={handleReadyForPickupSave}
+        onClose={() => setTransitModal(null)}
+        onSave={handleTransitDetailsSave}
       />
     </div>
   );

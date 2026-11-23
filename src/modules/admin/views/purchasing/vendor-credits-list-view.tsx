@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { BadgePercent, Plus } from "lucide-react";
+import { useMemo } from "react";
+import { Plus } from "lucide-react";
 
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getVendorCreditsExportTabular } from "@/lib/export/erp-purchasing-list-export";
 import type { ErpVendorCreditListRow } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { Pagination } from "@/modules/admin/components/pagination";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
-import { Button } from "@/components/ui/button";
 import { TableHead } from "@/components/ui/table";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import {
@@ -17,6 +18,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminListPageActions,
   AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
@@ -35,12 +37,10 @@ import {
 } from "@/modules/admin/ui";
 import { creditKindLabel } from "@/common/erp/commercial-discount";
 import { VendorCreditFormView } from "@/modules/admin/views/purchasing/vendor-credit-form-view";
-import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
 import { useErpListState } from "@/modules/admin/ui/use-erp-list-state";
 
 export function VendorCreditsListView() {
   const { isOpen, mode, editId, modalProps, openNew } = useErpFormModal("/admin/erp/vendor-credits");
-  const [discountOpen, setDiscountOpen] = useState(false);
   const {
     search,
     setSearch,
@@ -79,6 +79,21 @@ export function VendorCreditsListView() {
         (r.store_name?.toLowerCase().includes(q) ?? false),
     );
   }, [sorted, debouncedSearch]);
+
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "vendor-credits-export",
+        title: "Vendor credits",
+        getSubtitle: () => catalogFilterSubtitle({ search: debouncedSearch }),
+        getTabular: () => {
+          const tabular = getVendorCreditsExportTabular(filteredRows);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [filteredRows, debouncedSearch],
+  );
+
   return (
     <AdminPageLayout>
       <AdminPageHeader
@@ -86,16 +101,15 @@ export function VendorCreditsListView() {
         breadcrumb={[{ label: "Vendor credits", href: "/admin/erp/vendor-credits" }]}
         description="Goods returns and purchase discounts against vendor bills. Unapplied balance is used in account settlement."
         actions={
-          <>
-            <Button variant="outline" size="page" className="rounded-full" onClick={() => setDiscountOpen(true)}>
-              <BadgePercent data-icon="inline-start" />
-              Record discount
-            </Button>
+          <AdminListPageActions
+            exportSource={exportSource}
+            exportDisabled={filteredRows.length === 0}
+          >
             <AdminPrimaryAction onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
               Add vendor credit
             </AdminPrimaryAction>
-          </>
+          </AdminListPageActions>
         }
       />
 
@@ -238,16 +252,6 @@ export function VendorCreditsListView() {
           creditId={editId ?? undefined}
           open={modalProps.open}
           onOpenChange={modalProps.onOpenChange}
-          onSuccess={() => void refetch()}
-        />
-      ) : null}
-
-      {discountOpen ? (
-        <ErpCommercialDiscountFormView
-          side="supplier"
-          variant="modal"
-          open={discountOpen}
-          onOpenChange={setDiscountOpen}
           onSuccess={() => void refetch()}
         />
       ) : null}

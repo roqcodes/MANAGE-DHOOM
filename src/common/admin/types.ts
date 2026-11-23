@@ -494,6 +494,8 @@ export interface PurchaseOrderCatalogStats {
   dueThisWeekCount: number;
   overdueCount: number;
   awaitingReceiptCount: number;
+  /** Counts for delivery month tabs (`all`, `this`, `YYYY-MM`). */
+  deliveryMonthCounts: Record<string, number>;
 }
 
 export interface AdminPurchaseOrderItemRow {

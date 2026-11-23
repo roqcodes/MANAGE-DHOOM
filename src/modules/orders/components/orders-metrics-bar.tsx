@@ -1,21 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { DataExportMenu } from "@/components/export/data-export-menu";
 import type { TabularExportSource } from "@/lib/export/tabular-export";
 
 import type { OrderCatalogStats } from "@/common/admin/types";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import { currencyLabel } from "@/lib/format-currency";
 import {
   CatalogMetricSegment,
@@ -61,53 +55,35 @@ export function OrdersMetricsBar({
               : "Manage ERP sales orders, fulfillment, and customer deliveries."}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {exportSource ? (
-            <DataExportMenu source={exportSource} />
-          ) : onExport ? (
-            <Button variant="outline" size="sm" onClick={onExport}>
-              Export
-            </Button>
-          ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <Button variant="outline" size="sm" />
-              }
-            >
-              More actions
-              <ChevronDown data-icon="inline-end" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                {exportSource ? (
-                  <DropdownMenuItem onClick={() => void import("@/lib/export/tabular-export").then((m) => m.exportFromSource("csv", exportSource))}>
-                    Export filtered list (CSV)
-                  </DropdownMenuItem>
-                ) : onExport ? (
-                  <DropdownMenuItem onClick={onExport}>
-                    Export all on page
-                  </DropdownMenuItem>
-                ) : null}
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        <div className="flex flex-wrap items-center gap-2.5">
           {variant === "erp" ? (
-            <Link
-              href="/admin/erp/sales-orders?form=new"
-              className={buttonVariants({ size: "sm" })}
+            <AdminPrimaryAction
+              nativeButton={false}
+              render={<Link href="/admin/erp/sales-orders?form=new" />}
             >
               <Plus data-icon="inline-start" />
               Add sales order
-            </Link>
+            </AdminPrimaryAction>
           ) : (
-            <Link
-              href="/admin/billing"
-              className={buttonVariants({ size: "sm" })}
+            <AdminPrimaryAction
+              nativeButton={false}
+              render={<Link href="/admin/billing" />}
             >
               POS billing
-            </Link>
+            </AdminPrimaryAction>
           )}
+          {exportSource ? (
+            <DataExportMenu source={exportSource} />
+          ) : onExport ? (
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              onClick={onExport}
+            >
+              Export
+            </Button>
+          ) : null}
         </div>
       </div>
 

@@ -26,6 +26,7 @@ import type {
 } from "@/common/erp/sales-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import {
   Card,
   CardContent,
@@ -255,9 +256,8 @@ export function CustomerDetailPanel({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
+          <div className="flex flex-wrap gap-2.5">
+            <AdminPrimaryAction
               nativeButton={false}
               render={
                 <Link href={`/admin/erp/invoices?form=new&customerId=${summary.id}`} />
@@ -265,10 +265,11 @@ export function CustomerDetailPanel({
             >
               <Plus data-icon="inline-start" />
               New invoice
-            </Button>
+            </AdminPrimaryAction>
             <Button
-              size="sm"
               variant="outline"
+              size="page"
+              className="rounded-full"
               nativeButton={false}
               render={
                 <Link href={`/admin/erp/payments/new?customerId=${summary.id}`} />
@@ -278,8 +279,9 @@ export function CustomerDetailPanel({
               Record payment
             </Button>
             <Button
-              size="sm"
               variant="outline"
+              size="page"
+              className="rounded-full"
               type="button"
               onClick={() => setDiscountOpen(true)}
             >
@@ -287,15 +289,33 @@ export function CustomerDetailPanel({
               Record discount
             </Button>
             <Button
-              size="sm"
               variant="outline"
+              size="page"
+              className="rounded-full"
+              type="button"
+              disabled={erpLoading || (financial?.balanceDue ?? 0) <= 0}
+              onClick={() => setSettlementOpen(true)}
+            >
+              <HandCoins data-icon="inline-start" />
+              Settle account
+            </Button>
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
               nativeButton={false}
               render={<Link href={`/admin/customers?form=edit&id=${summary.id}`} />}
             >
               <Pencil data-icon="inline-start" />
               Edit
             </Button>
-            <Button variant="outline" size="sm" disabled={isPending} onClick={handleToggleBlock}>
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              disabled={isPending}
+              onClick={handleToggleBlock}
+            >
               {verified ? (
                 <>
                   <Ban data-icon="inline-start" />
@@ -310,8 +330,8 @@ export function CustomerDetailPanel({
             </Button>
             <Button
               variant="outline"
-              size="sm"
-              className="text-destructive hover:text-destructive"
+              size="page"
+              className="rounded-full text-destructive hover:text-destructive"
               disabled={deletePending}
               onClick={handleDelete}
             >
@@ -389,23 +409,11 @@ export function CustomerDetailPanel({
           {tab === "statement" ? (
             <Card className="border border-border ring-0">
               <CardHeader className="border-b border-border">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <CardTitle>Statement of accounts</CardTitle>
-                    <CardDescription>
-                      Chronological invoices, payments, and credits with running balance.
-                    </CardDescription>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={erpLoading || (financial?.balanceDue ?? 0) <= 0}
-                    onClick={() => setSettlementOpen(true)}
-                  >
-                    <HandCoins data-icon="inline-start" />
-                    Settle account
-                  </Button>
+                <div>
+                  <CardTitle>Statement of accounts</CardTitle>
+                  <CardDescription>
+                    Chronological invoices, payments, and credits with running balance.
+                  </CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="p-0">

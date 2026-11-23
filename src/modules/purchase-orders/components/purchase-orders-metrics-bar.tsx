@@ -1,21 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { CatalogExportButton } from "@/components/export/catalog-export-button";
 import type { TabularExportSource } from "@/lib/export/tabular-export";
 
 import type { PurchaseOrderCatalogStats } from "@/common/admin/types";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import { Card } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type { PurchaseOrderDeliveryFilter } from "@/common/admin/types";
 import {
   MiniSparkline,
@@ -111,30 +104,15 @@ export function PurchaseOrdersMetricsBar({
             Vendor supply POs. Track expected deliveries and submit receipt from PO detail.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link href="/admin/purchase-orders?form=new" className={buttonVariants({ size: "sm" })}>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <AdminPrimaryAction
+            nativeButton={false}
+            render={<Link href="/admin/purchase-orders?form=new" />}
+          >
+            <Plus data-icon="inline-start" />
             Create purchase order
-          </Link>
+          </AdminPrimaryAction>
           <CatalogExportButton source={exportSource} onFallbackExport={onExport} />
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-              More actions
-              <ChevronDown data-icon="inline-end" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuGroup>
-                <DropdownMenuItem onClick={onExport}>
-                  Export all on page
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  nativeButton={false}
-                  render={<Link href="/admin/erp/purchase-orders" />}
-                >
-                  ERP purchase orders
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
       </div>
 

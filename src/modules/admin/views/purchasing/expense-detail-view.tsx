@@ -277,8 +277,9 @@ export function ExpenseDetailView({ expenseId }: { expenseId: string }) {
         actions={
           <Button
             nativeButton={false}
-            size="sm"
+            size="page"
             variant="outline"
+            className="rounded-full"
             render={<Link href={`/admin/erp/expenses/${expenseId}/edit`} />}
           >
             Edit

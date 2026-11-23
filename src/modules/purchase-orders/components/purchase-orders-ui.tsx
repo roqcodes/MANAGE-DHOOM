@@ -13,6 +13,17 @@ import {
 } from "@/common/admin/types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { INTERACTIVE_PRIMARY_LINK_CLASS } from "@/lib/ui/interactive-styles";
+import {
+  buildPurchaseOrderDeliveryMonthTabs,
+  parsePurchaseOrderDeliveryMonth,
+  type PurchaseOrderDeliveryMonthFilter,
+} from "@/modules/purchase-orders/lib/delivery-month-filter";
+
+export {
+  buildPurchaseOrderDeliveryMonthTabs,
+  parsePurchaseOrderDeliveryMonth,
+  type PurchaseOrderDeliveryMonthFilter,
+} from "@/modules/purchase-orders/lib/delivery-month-filter";
 
 export const PO_ACCENT = {
   link: INTERACTIVE_PRIMARY_LINK_CLASS,
@@ -83,22 +94,29 @@ export function parsePurchaseOrderDeliveryFilter(
 
 export function buildPurchaseOrdersListParams(options: {
   status?: PurchaseOrderStatusFilter;
-  delivery?: PurchaseOrderDeliveryFilter | null;
+  deliveryMonth?: PurchaseOrderDeliveryMonthFilter;
   vendorId?: string | null;
   page?: number;
+  includeStats?: boolean;
+  statsOnly?: boolean;
 }): URLSearchParams {
   const params = new URLSearchParams();
   if (options.status && options.status !== "all") {
     params.set("status", options.status);
   }
-  if (options.delivery) {
-    params.set("delivery", options.delivery);
+  if (options.deliveryMonth && options.deliveryMonth !== "all") {
+    params.set("deliveryMonth", options.deliveryMonth);
   }
   if (options.vendorId) {
     params.set("vendorId", options.vendorId);
   }
   if (options.page && options.page > 0) {
     params.set("page", String(options.page));
+  }
+  if (options.statsOnly) {
+    params.set("statsOnly", "1");
+  } else if (options.includeStats === false) {
+    params.set("includeStats", "false");
   }
   return params;
 }

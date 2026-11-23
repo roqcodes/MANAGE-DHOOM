@@ -5,6 +5,7 @@ import { Download, Plus } from "lucide-react";
 import type { RecurringScheduleRow } from "@/common/erp/types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { Button } from "@/components/ui/button";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import { Card } from "@/components/ui/card";
 import {
   MiniSparkline,
@@ -130,14 +131,14 @@ export function RecurringSchedulesMetricsBar({
           <h1 className="text-xl font-semibold tracking-tight">{resolvedTitle}</h1>
           <p className="text-sm text-muted-foreground">{resolvedDescription}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onExport}>
-            <Download data-icon="inline-start" />
-            Export
-          </Button>
-          <Button size="sm" onClick={onCreate}>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <AdminPrimaryAction onClick={onCreate}>
             <Plus data-icon="inline-start" />
             {createButtonLabel}
+          </AdminPrimaryAction>
+          <Button variant="outline" size="page" className="rounded-full" onClick={onExport}>
+            <Download data-icon="inline-start" />
+            Export
           </Button>
         </div>
       </div>

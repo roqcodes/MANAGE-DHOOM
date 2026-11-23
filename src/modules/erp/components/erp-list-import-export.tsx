@@ -41,14 +41,20 @@ export function ErpListImportExport({
 
   return (
     <>
+      <Button
+        type="button"
+        variant="outline"
+        size="page"
+        className="rounded-full"
+        onClick={() => setImportOpen(true)}
+      >
+        <Upload data-icon="inline-start" />
+        Import
+      </Button>
       <DataExportMenu
         source={exportSource}
         disabled={exportRows.length === 0}
       />
-      <Button type="button" variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-        <Upload data-icon="inline-start" />
-        Import
-      </Button>
       <CsvImportDialog
         entity={entity}
         open={importOpen}

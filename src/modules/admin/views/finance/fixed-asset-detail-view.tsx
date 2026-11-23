@@ -116,10 +116,11 @@ export function FixedAssetDetailView({ assetId }: { assetId: string }) {
         actions={
           <Button
             nativeButton={false}
-            size="sm"
+            size="page"
+            className="rounded-full"
             render={<Link href={`/admin/erp/fixed-assets/${asset.id}/edit`} />}
           >
-            <Pencil className="size-4" />
+            <Pencil data-icon="inline-start" />
             Edit asset
           </Button>
         }

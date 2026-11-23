@@ -3,6 +3,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getPurchaseBillsExportTabular } from "@/lib/export/erp-purchasing-list-export";
 import type { ErpPurchaseBillListRow } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
 import { adminDelete } from "@/modules/admin/lib/admin-api-client";
@@ -19,6 +21,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminListPageActions,
   AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
@@ -119,6 +122,24 @@ export function PurchaseBillsListView() {
     "desc",
   );
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "purchase-bills-export",
+        title: "Purchase bills",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search: debouncedSearch,
+            status,
+          }),
+        getTabular: () => {
+          const tabular = getPurchaseBillsExportTabular(sorted);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [sorted, debouncedSearch, status],
+  );
+
   function handleCancel(id: string) {
     startCancel(async () => {
       await adminDelete(`erp/purchase-bills/${id}`);
@@ -161,10 +182,12 @@ export function PurchaseBillsListView() {
         breadcrumb={[{ label: "Purchase bills", href: "/admin/erp/purchase-bills" }]}
         description="Vendor purchase bills and amounts payable. Draft bills can be edited; finalized bills accept supplier payments."
         actions={
-          <AdminPrimaryAction onClick={() => openNew()}>
-            <Plus data-icon="inline-start" />
-            Create purchase bill
-          </AdminPrimaryAction>
+          <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>
+            <AdminPrimaryAction onClick={() => openNew()}>
+              <Plus data-icon="inline-start" />
+              Create purchase bill
+            </AdminPrimaryAction>
+          </AdminListPageActions>
         }
       />
 

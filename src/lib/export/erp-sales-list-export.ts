@@ -1,5 +1,6 @@
 import type {
   ErpCreditNoteListRow,
+  ErpEstimateListRow,
   ErpInvoiceListRow,
   ErpPaymentListRow,
 } from "@/common/erp/sales-types";
@@ -81,6 +82,28 @@ export function getPaymentsExportTabular(rows: ErpPaymentListRow[]) {
     formatCurrencyAmount(row.total_amount),
     formatCurrencyAmount(row.bank_charges),
     formatCurrencyAmount(row.unallocated_amount),
+  ]);
+  return { headers, rows: body };
+}
+
+export function getEstimatesExportTabular(rows: ErpEstimateListRow[]) {
+  const headers = [
+    "Date",
+    "Estimate #",
+    "Customer",
+    "Store",
+    "Status",
+    "Valid until",
+    "Total",
+  ];
+  const body = rows.map((row) => [
+    row.estimate_date ? formatDateOnly(row.estimate_date) : "",
+    row.estimate_number?.trim() || formatErpDocRef("EST", row.id),
+    row.customer_name ?? "",
+    row.store_name ?? "",
+    row.status ?? "",
+    row.valid_until ? formatDateOnly(row.valid_until) : "",
+    formatCurrencyAmount(row.total_amount),
   ]);
   return { headers, rows: body };
 }

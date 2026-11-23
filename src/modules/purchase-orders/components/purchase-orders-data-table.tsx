@@ -6,9 +6,14 @@ import { format } from "date-fns";
 import {
   ChevronDown,
   Download,
+  FileText,
+  Loader2,
   MoreHorizontal,
   Package,
+  PackageCheck,
+  PenLine,
   Printer,
+  Truck,
   X,
 } from "lucide-react";
 
@@ -49,6 +54,12 @@ import {
   PO_ACCENT,
   PoStatusPill,
 } from "@/modules/purchase-orders/components/purchase-orders-ui";
+import {
+  purchaseOrderNextActionButtonClass,
+  purchaseOrderNextActionExportLabel,
+  resolvePurchaseOrderNextAction,
+  type PurchaseOrderNextActionKind,
+} from "@/modules/purchase-orders/lib/purchase-order-next-action";
 
 export function getPurchaseOrdersExportTabular(orders: AdminPurchaseOrderListRow[]) {
   const headers = [
@@ -57,6 +68,7 @@ export function getPurchaseOrdersExportTabular(orders: AdminPurchaseOrderListRow
     "Created",
     "Expected delivery",
     "Status",
+    "Next action",
     "Total (INR)",
   ];
 
@@ -68,6 +80,7 @@ export function getPurchaseOrdersExportTabular(orders: AdminPurchaseOrderListRow
       : "",
     po.expected_delivery_date ?? "",
     po.status ?? "",
+    purchaseOrderNextActionExportLabel(po.status),
     String(Number(po.total_amount ?? 0)),
   ]);
 
@@ -184,16 +197,34 @@ export function PurchaseOrdersBulkActionBar({
 
 export { exportPurchaseOrdersCsv };
 
+function nextActionIcon(
+  kind: Exclude<PurchaseOrderNextActionKind, "none">,
+  label: string,
+) {
+  if (kind === "ready_for_pickup") return Truck;
+  if (kind === "mark_received") return PackageCheck;
+  if (/^edit/i.test(label)) return PenLine;
+  return FileText;
+}
+
 export function PurchaseOrdersDataTable({
   orders,
   selectedIds,
   onSelectedIdsChange,
   sortByExpectedDelivery = false,
+  onNextAction,
+  nextActionLoadingId = null,
+  nextActionLabelsByPoId = {},
+  suppressNextActionPoIds,
 }: {
   orders: AdminPurchaseOrderListRow[];
   selectedIds: Set<string>;
   onSelectedIdsChange: (ids: Set<string>) => void;
   sortByExpectedDelivery?: boolean;
+  onNextAction?: (po: AdminPurchaseOrderListRow) => void;
+  nextActionLoadingId?: string | null;
+  nextActionLabelsByPoId?: Record<string, string>;
+  suppressNextActionPoIds?: Set<string>;
 }) {
   const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
     orders,
@@ -289,6 +320,7 @@ export function PurchaseOrdersDataTable({
             direction={sortDirection}
             onSort={toggleSort}
           />
+          <TableHead className="min-w-[9.5rem] text-[13px]">Next action</TableHead>
           <SortableTableHead
             label={currencyLabel("Total")}
             sortKey="total_amount"
@@ -304,6 +336,7 @@ export function PurchaseOrdersDataTable({
         {sorted.map((po) => {
           const isSelected = selectedIds.has(po.id);
           const total = Number(po.total_amount ?? 0);
+          const suppressNext = suppressNextActionPoIds?.has(po.id) ?? false;
 
           return (
             <TableRow
@@ -344,6 +377,47 @@ export function PurchaseOrdersDataTable({
               </TableCell>
               <TableCell>
                 <PoStatusPill status={po.status} />
+              </TableCell>
+              <TableCell>
+                {(() => {
+                  const { kind, label: defaultLabel } = resolvePurchaseOrderNextAction(
+                    po.status,
+                  );
+                  const label =
+                    nextActionLabelsByPoId[po.id] ??
+                    defaultLabel;
+                  if (
+                    kind === "none" ||
+                    !onNextAction ||
+                    suppressNext
+                  ) {
+                    return <span className="text-[13px] text-muted-foreground">—</span>;
+                  }
+                  const loading = nextActionLoadingId === po.id;
+                  const Icon = nextActionIcon(kind, label);
+                  return (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className={cn(
+                        "h-8 max-w-full gap-1.5 truncate text-xs font-medium",
+                        purchaseOrderNextActionButtonClass(kind),
+                      )}
+                      disabled={loading}
+                      onClick={() => onNextAction(po)}
+                    >
+                      {loading ? (
+                        <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+                      ) : (
+                        <Icon className="size-3.5 shrink-0" aria-hidden />
+                      )}
+                      <span className="truncate">
+                        {loading ? "Loading…" : label}
+                      </span>
+                    </Button>
+                  );
+                })()}
               </TableCell>
               <TableCell className="text-right text-sm font-semibold tabular-nums">
                 {formatInr(total)}

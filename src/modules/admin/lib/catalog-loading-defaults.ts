@@ -61,6 +61,7 @@ export const EMPTY_PURCHASE_ORDER_CATALOG_STATS: PurchaseOrderCatalogStats = {
   dueThisWeekCount: 0,
   overdueCount: 0,
   awaitingReceiptCount: 0,
+  deliveryMonthCounts: {},
 };
 
 export const EMPTY_INVENTORY_CATALOG_STATS: InventoryCatalogStats = {

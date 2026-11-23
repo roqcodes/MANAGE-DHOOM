@@ -36,6 +36,7 @@ import {
 } from "@/modules/items/actions/item-units.actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   InputGroup,
@@ -288,10 +289,10 @@ export function AdminItemUnitsView() {
               Manage units of measure for inventory items, sales, and purchases.
             </p>
           </div>
-          <Button onClick={() => setModal({ mode: "create" })} size="sm">
-            <Plus className="size-4" />
+          <AdminPrimaryAction onClick={() => setModal({ mode: "create" })}>
+            <Plus data-icon="inline-start" />
             Add unit
-          </Button>
+          </AdminPrimaryAction>
         </div>
 
         <Card className="mb-4 overflow-hidden border border-border py-0 ring-0">

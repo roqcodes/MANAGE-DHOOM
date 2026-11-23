@@ -2,7 +2,9 @@
 
 import type { ComponentProps, ReactNode } from "react";
 
+import { DataExportMenu } from "@/components/export/data-export-menu";
 import { Button } from "@/components/ui/button";
+import type { TabularExportSource } from "@/lib/export/tabular-export";
 import { cn } from "@/lib/utils";
 
 /** Groups primary + secondary actions in page headers and detail toolbars. */
@@ -15,6 +17,28 @@ export function AdminPageActionBar({
 }) {
   return (
     <div className={cn("flex flex-wrap items-center gap-2.5", className)}>{children}</div>
+  );
+}
+
+/** ERP list header: primary/secondary actions first, export icon last. */
+export function AdminListPageActions({
+  exportSource,
+  exportDisabled,
+  children,
+  className,
+}: {
+  exportSource?: TabularExportSource;
+  exportDisabled?: boolean;
+  children?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <AdminPageActionBar className={className}>
+      {children}
+      {exportSource ? (
+        <DataExportMenu source={exportSource} disabled={exportDisabled} />
+      ) : null}
+    </AdminPageActionBar>
   );
 }
 

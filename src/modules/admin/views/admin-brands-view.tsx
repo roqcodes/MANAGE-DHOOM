@@ -37,6 +37,7 @@ import {
 } from "@/modules/products/actions/brands.actions";
 import { ProductImageField } from "@/modules/products/components/product-image-field";
 import { Button } from "@/components/ui/button";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -309,10 +310,10 @@ export function AdminBrandsView() {
               Manage product brands and assign them to catalog items.
             </p>
           </div>
-          <Button onClick={() => setModal({ mode: "create" })} size="sm">
-            <Plus className="size-4" />
+          <AdminPrimaryAction onClick={() => setModal({ mode: "create" })}>
+            <Plus data-icon="inline-start" />
             Add brand
-          </Button>
+          </AdminPrimaryAction>
         </div>
 
         <Card className="overflow-hidden border border-border py-0 ring-0">

@@ -13,6 +13,12 @@ import type {
   PurchaseOrderStatusFilter,
 } from "@/common/admin/types";
 import { PAGE_SIZE } from "@/common/admin/types";
+import {
+  buildPurchaseOrderDeliveryMonthTabs,
+  expectedDeliveryMonthRange,
+  parsePurchaseOrderDeliveryMonth,
+  type PurchaseOrderDeliveryMonthFilter,
+} from "@/modules/purchase-orders/lib/delivery-month-filter";
 
 const TERMINAL_PO_STATUSES = ["cancelled", "closed", "fully_received"] as const;
 const TERMINAL_PO_STATUS_FILTER = `(${TERMINAL_PO_STATUSES.map((s) => `"${s}"`).join(",")})`;
@@ -76,6 +82,7 @@ function applyDeliveryFilter<
 export async function listAdminPurchaseOrders(options: {
   status?: PurchaseOrderStatusFilter;
   delivery?: PurchaseOrderDeliveryFilter | null;
+  deliveryMonth?: string | null;
   page?: number;
   vendorId?: string | null;
 }): Promise<Paginated<AdminPurchaseOrderListRow>> {
@@ -83,6 +90,7 @@ export async function listAdminPurchaseOrders(options: {
   const supabase = await createSupabaseServerClient();
   const status = options.status ?? "all";
   const delivery = options.delivery ?? null;
+  const deliveryMonth = parsePurchaseOrderDeliveryMonth(options.deliveryMonth);
   const page = options.page ?? 0;
   const vendorId = options.vendorId ?? null;
   const from = page * PAGE_SIZE;
@@ -94,7 +102,15 @@ export async function listAdminPurchaseOrders(options: {
       { count: "exact" },
     );
 
-  if (delivery) {
+  if (deliveryMonth !== "all") {
+    const range = expectedDeliveryMonthRange(deliveryMonth);
+    query = query
+      .gte("expected_delivery_date", range.start)
+      .lte("expected_delivery_date", range.end)
+      .not("expected_delivery_date", "is", null)
+      .order("expected_delivery_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+  } else if (delivery) {
     query = applyDeliveryFilter(query, delivery);
     query = query
       .order("expected_delivery_date", { ascending: true, nullsFirst: false })
@@ -136,6 +152,20 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
         .select("id", { count: "exact", head: true }),
     );
 
+  const monthTabs = buildPurchaseOrderDeliveryMonthTabs();
+  const monthTabsNeedingQuery = monthTabs.filter((tab) => tab.id !== "all");
+  const monthCountQueries = monthTabsNeedingQuery.map((tab) => {
+    const range = expectedDeliveryMonthRange(
+      tab.id as Exclude<PurchaseOrderDeliveryMonthFilter, "all">,
+    );
+    return supabase
+      .from("purchase_orders")
+      .select("id", { count: "exact", head: true })
+      .gte("expected_delivery_date", range.start)
+      .lte("expected_delivery_date", range.end)
+      .not("expected_delivery_date", "is", null);
+  });
+
   const [
     totalRes,
     pendingRes,
@@ -152,6 +182,7 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
     dueThisWeekRes,
     overdueRes,
     awaitingReceiptRes,
+    ...monthCountResults
   ] = await Promise.all([
     supabase.from("purchase_orders").select("id", { count: "exact", head: true }),
     supabase
@@ -206,7 +237,13 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
       .lt("expected_delivery_date", today)
       .not("expected_delivery_date", "is", null),
     openCountQuery().in("status", [...AWAITING_RECEIPT_STATUSES]),
+    ...monthCountQueries,
   ]);
+
+  const deliveryMonthCounts: Record<string, number> = { all: totalRes.count ?? 0 };
+  monthTabsNeedingQuery.forEach((tab, index) => {
+    deliveryMonthCounts[tab.id] = monthCountResults[index]?.count ?? 0;
+  });
 
   return {
     totalPurchaseOrders: totalRes.count ?? 0,
@@ -224,6 +261,7 @@ export async function getPurchaseOrderCatalogStats(): Promise<PurchaseOrderCatal
     dueThisWeekCount: dueThisWeekRes.count ?? 0,
     overdueCount: overdueRes.count ?? 0,
     awaitingReceiptCount: awaitingReceiptRes.count ?? 0,
+    deliveryMonthCounts,
   };
 }
 

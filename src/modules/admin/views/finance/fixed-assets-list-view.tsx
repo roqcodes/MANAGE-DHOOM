@@ -165,10 +165,10 @@ export function FixedAssetsListView() {
           <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
             <Building2 className="size-10 text-muted-foreground/40" aria-hidden />
             <p className="text-sm text-muted-foreground">No fixed assets found.</p>
-            <Button variant="outline" size="sm" onClick={() => openNew()}>
-              <Plus className="size-4" />
+            <AdminPrimaryAction onClick={() => openNew()}>
+              <Plus data-icon="inline-start" />
               Add your first asset
-            </Button>
+            </AdminPrimaryAction>
           </div>
         ) : (
           <AdminDataTable>

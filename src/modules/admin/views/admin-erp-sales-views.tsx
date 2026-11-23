@@ -1,14 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { MoreHorizontal, Plus } from "lucide-react";
 
-import type {
-  ErpCreditNoteListRow,
-  ErpEstimateListRow,
-  ErpPaymentListRow,
-} from "@/common/erp/sales-types";
+import type { ErpEstimateListRow } from "@/common/erp/sales-types";
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getEstimatesExportTabular } from "@/lib/export/erp-sales-list-export";
 import { adminListPath, useAdminGetQuery } from "@/modules/admin/lib/use-admin-get-query";
 import { StatusBadge } from "@/modules/admin/components/status-badge";
 import { formatCurrencyAmount } from "@/lib/format-currency";
@@ -38,6 +36,7 @@ import {
   SalesPageLayout,
 } from "@/modules/erp/components/sales-module-ui";
 import {
+  AdminListPageActions,
   AdminPrimaryAction,
   SortableTableHead,
   AdminTableDateTime,
@@ -79,6 +78,23 @@ export function AdminErpEstimatesView() {
     "desc",
   );
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "estimates-export",
+        title: "Estimates",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search,
+          }),
+        getTabular: () => {
+          const tabular = getEstimatesExportTabular(sorted);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [sorted, search],
+  );
+
   if (isPending && !data) return <SalesLoadingState />;
 
   return (
@@ -87,10 +103,12 @@ export function AdminErpEstimatesView() {
         title="Estimates"
         description="Quotes and proposals for customers."
         actions={
-          <AdminPrimaryAction onClick={() => openNew()}>
-            <Plus data-icon="inline-start" />
-            Create estimate
-          </AdminPrimaryAction>
+          <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>
+            <AdminPrimaryAction onClick={() => openNew()}>
+              <Plus data-icon="inline-start" />
+              Create estimate
+            </AdminPrimaryAction>
+          </AdminListPageActions>
         }
       />
 
@@ -230,180 +248,6 @@ export function AdminErpEstimatesView() {
           onSuccess={() => void refetch()}
         />
       ) : null}
-    </SalesPageLayout>
-  );
-}
-
-export function AdminErpPaymentsView() {
-  const { data, isPending } = useAdminGetQuery<{ data: ErpPaymentListRow[] }>({
-    path: adminListPath("erp/payments", { page: 0 }),
-  });
-  const [search, setSearch] = useState("");
-  const rows = data?.data ?? [];
-
-  const filtered = search.trim()
-    ? rows.filter(
-        (r) =>
-          r.payment_number.toLowerCase().includes(search.toLowerCase()) ||
-          formatErpDocRef("PR", r.id).toLowerCase().includes(search.toLowerCase()) ||
-          (r.customer_name?.toLowerCase().includes(search.toLowerCase()) ?? false),
-      )
-    : rows;
-  const { sorted, sortKey, sortDirection, toggleSort } = useSortableData(
-    filtered,
-    "payment_date",
-    "desc",
-  );
-
-  if (isPending && !data) return <SalesLoadingState />;
-
-  return (
-    <SalesPageLayout>
-      <SalesPageHeader
-        title="Payment received"
-        description="Customer payments and allocations."
-        actions={
-          <Button size="sm" disabled>
-            <Plus data-icon="inline-start" />
-            Record payment
-          </Button>
-        }
-      />
-
-      <SalesListCard
-        search={search}
-        onSearchChange={setSearch}
-        searchPlaceholder="Search payment or customer…"
-        isEmpty={filtered.length === 0}
-        emptyMessage="No payments found."
-        isFiltering={Boolean(search.trim())}
-        onClearFilters={() => setSearch("")}
-        footer={<span>{sorted.length} payments</span>}
-      >
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <SortableTableHead
-                label="Number"
-                sortKey="payment_number"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={toggleSort}
-              />
-              <SortableTableHead
-                label="Customer"
-                sortKey="customer_name"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={toggleSort}
-              />
-              <SortableTableHead
-                label="Store"
-                sortKey="store_name"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={toggleSort}
-                className="hidden md:table-cell"
-              />
-              <SortableTableHead
-                label="Mode"
-                sortKey="payment_mode"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={toggleSort}
-              />
-              <SortableTableHead
-                label="Amount"
-                sortKey="total_amount"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={toggleSort}
-                align="right"
-              />
-              <SortableTableHead
-                label="Date"
-                sortKey="payment_date"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={toggleSort}
-              />
-              <SortableTableHead
-                label="Bulk"
-                sortKey="is_bulk"
-                activeKey={sortKey}
-                direction={sortDirection}
-                onSort={toggleSort}
-              />
-              <TableHead className="w-16" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="font-medium">
-                  <ErpDocumentTableGlance
-                    triggerLabel={formatErpDocRef("PR", row.id)}
-                    shellLabel="Payment"
-                    title={row.payment_number?.trim() || formatErpDocRef("PR", row.id)}
-                    subtitle={row.customer_name ?? undefined}
-                    viewHref={`/admin/erp/payments/${row.id}`}
-                    viewLabel="View payment →"
-                    stats={[{ label: "Amount", value: formatCurrencyAmount(row.total_amount) }]}
-                  />
-                </TableCell>
-                <TableCell>
-                  <ErpCustomerTableGlance userId={row.user_id} name={row.customer_name} />
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  <ErpStoreTableGlance storeId={row.store_id} name={row.store_name} />
-                </TableCell>
-                <TableCell className="capitalize">{row.payment_mode}</TableCell>
-                <TableCell className="text-right font-semibold tabular-nums">
-                  {formatCurrencyAmount(row.total_amount)}
-                </TableCell>
-                <TableCell className="text-muted-foreground">
-                  <AdminTableDateTime documentDate={row.payment_date} activity={row} />
-                </TableCell>
-                <TableCell>{row.is_bulk ? "Yes" : "No"}</TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={<Button size="icon-sm" variant="ghost" aria-label="Payment actions" />}
-                    >
-                      <MoreHorizontal />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuGroup>
-                        <DropdownMenuItem disabled>View payment</DropdownMenuItem>
-                      </DropdownMenuGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </SalesListCard>
-    </SalesPageLayout>
-  );
-}
-
-/** @deprecated Use CreditNotesListView */
-export function AdminErpCreditNotesView() {
-  const { data, isPending } = useAdminGetQuery<{ data: ErpCreditNoteListRow[] }>({
-    path: adminListPath("erp/credit-notes", { page: 0 }),
-  });
-  const rows = data?.data ?? [];
-
-  if (isPending && !data) return <SalesLoadingState />;
-
-  return (
-    <SalesPageLayout>
-      <SalesPageHeader title="Credit notes" />
-      <p className="text-sm text-muted-foreground">
-        Use <Link href="/admin/erp/credit-notes" className="text-primary hover:underline">/admin/erp/credit-notes</Link> for the full list.
-      </p>
-      <p className="text-sm">{rows.length} credit notes loaded.</p>
     </SalesPageLayout>
   );
 }

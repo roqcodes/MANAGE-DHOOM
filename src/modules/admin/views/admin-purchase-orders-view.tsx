@@ -1,63 +1,67 @@
 "use client";
 
 import { useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
-import type {
-  AdminPurchaseOrderListRow,
-  PurchaseOrderCatalogStats,
-  PurchaseOrderDeliveryFilter,
-  PurchaseOrderStatusFilter,
-} from "@/common/admin/types";
 import { AdminPurchaseOrdersPanel } from "@/modules/purchase-orders/components/admin-purchase-orders-panel";
-import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import { useErpFormModal } from "@/modules/admin/ui";
 import { PurchaseOrderFormView } from "@/modules/admin/views/purchasing/purchase-order-form-view";
 import { EMPTY_PURCHASE_ORDER_CATALOG_STATS } from "@/modules/admin/lib/catalog-loading-defaults";
 import {
-  buildPurchaseOrdersListParams,
-  parsePurchaseOrderDeliveryFilter,
+  parsePurchaseOrderDeliveryMonth,
   parsePurchaseOrderStatusFilter,
 } from "@/modules/purchase-orders/components/purchase-orders-ui";
+import {
+  purchaseOrdersCatalogStatsQueryOptions,
+  purchaseOrdersListQueryKey,
+  purchaseOrdersListQueryOptions,
+} from "@/modules/purchase-orders/lib/purchase-orders-list-query";
 
 export function AdminPurchaseOrdersView() {
+  const queryClient = useQueryClient();
   const { isOpen, mode, editId, modalProps } = useErpFormModal("/admin/purchase-orders");
   const [reloadToken, setReloadToken] = useState(0);
   const searchParams = useSearchParams();
   const status = parsePurchaseOrderStatusFilter(searchParams.get("status"));
-  const delivery = parsePurchaseOrderDeliveryFilter(searchParams.get("delivery"));
+  const deliveryMonth = parsePurchaseOrderDeliveryMonth(
+    searchParams.get("deliveryMonth"),
+  );
   const rawVendor = searchParams.get("vendorId")?.trim();
   const vendorId = rawVendor && rawVendor.length > 0 ? rawVendor : null;
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
 
-  const { data, isPending, isError, error } = useQuery({
+  const statsQuery = useQuery({
+    ...purchaseOrdersCatalogStatsQueryOptions(),
+    queryKey: [...purchaseOrdersCatalogStatsQueryOptions().queryKey, reloadToken],
+  });
+
+  const {
+    data,
+    isPending,
+    isFetching,
+    isError,
+    error,
+  } = useQuery({
+    ...purchaseOrdersListQueryOptions(status, deliveryMonth, vendorId, page),
     queryKey: [
-      ...adminQueryKeys.purchaseOrders(status, delivery, vendorId, page),
+      ...purchaseOrdersListQueryKey(status, deliveryMonth, vendorId, page),
       reloadToken,
     ],
-    queryFn: () => {
-      const qs = buildPurchaseOrdersListParams({
-        status,
-        delivery,
-        vendorId,
-        page,
-      }).toString();
-      return adminGet<{
-        data: AdminPurchaseOrderListRow[];
-        total: number;
-        page: number;
-        status: PurchaseOrderStatusFilter;
-        delivery: PurchaseOrderDeliveryFilter | null;
-        vendorId: string | null;
-        stats: PurchaseOrderCatalogStats;
-      }>(`purchase-orders${qs ? `?${qs}` : ""}`);
-    },
     placeholderData: keepPreviousData,
   });
+
   const initialLoading = isPending && !data;
+  const listRefetching = isFetching && !isPending;
+
+  function handleOrdersMutated() {
+    setReloadToken((t) => t + 1);
+    void queryClient.invalidateQueries({
+      queryKey: adminQueryKeys.purchaseOrdersCatalogStats(),
+    });
+  }
 
   if (isError) {
     return (
@@ -84,9 +88,11 @@ export function AdminPurchaseOrdersView() {
         total={data?.total ?? 0}
         page={data?.page ?? page}
         statusFilter={status}
-        deliveryFilter={delivery}
+        deliveryMonthFilter={deliveryMonth}
         selectedVendorId={data?.vendorId ?? vendorId}
-        stats={data?.stats ?? EMPTY_PURCHASE_ORDER_CATALOG_STATS}
+        stats={statsQuery.data?.stats ?? EMPTY_PURCHASE_ORDER_CATALOG_STATS}
+        listRefetching={listRefetching}
+        onOrdersMutated={handleOrdersMutated}
       />
 
       {isOpen ? (
@@ -96,7 +102,7 @@ export function AdminPurchaseOrdersView() {
           poId={editId ?? undefined}
           open={modalProps.open}
           onOpenChange={modalProps.onOpenChange}
-          onSuccess={() => setReloadToken((t) => t + 1)}
+          onSuccess={handleOrdersMutated}
         />
       ) : null}
     </div>

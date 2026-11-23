@@ -273,8 +273,8 @@ export function PurchaseReceiveDetailView({ receiveId }: { receiveId: string }) 
                   ))}
                 </ul>
                 <Button
-                  size="sm"
-                  className="mt-2"
+                  size="page"
+                  className="mt-2 rounded-full"
                   variant="outline"
                   disabled={pending}
                   onClick={() => createVendorCredit("shortfall")}
@@ -295,8 +295,8 @@ export function PurchaseReceiveDetailView({ receiveId }: { receiveId: string }) 
                   ))}
                 </ul>
                 <Button
-                  size="sm"
-                  className="mt-2"
+                  size="page"
+                  className="mt-2 rounded-full"
                   variant="outline"
                   disabled={pending}
                   onClick={() => createVendorCredit("rejected")}

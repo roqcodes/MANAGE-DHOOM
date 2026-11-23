@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getVendorsErpExportTabular } from "@/lib/export/erp-purchasing-list-export";
 import type { VendorErpListRow } from "@/common/erp/purchasing-types";
 import { VENDOR_TYPE_OPTIONS } from "@/common/erp/purchasing-types";
 import { PAGE_SIZE } from "@/common/admin/types";
@@ -18,6 +20,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminListPageActions,
   AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
@@ -77,6 +80,24 @@ export function VendorsErpListView() {
   if (debouncedSearch.trim()) listParams.search = debouncedSearch.trim();
   const initialLoading = loading && rows.length === 0;
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "vendors-export",
+        title: "Vendors",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search: debouncedSearch,
+            extra: vendorType !== "all" ? [`Type: ${vendorType}`] : [],
+          }),
+        getTabular: () => {
+          const tabular = getVendorsErpExportTabular(sorted);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [sorted, debouncedSearch, vendorType],
+  );
+
   async function handleDelete(row: VendorErpListRow) {
     const label = row.name?.trim() || "this vendor";
     const ok = await confirm({
@@ -102,10 +123,12 @@ export function VendorsErpListView() {
         breadcrumb={[{ label: "Vendors", href: "/admin/vendors" }]}
         description="Suppliers used for purchase bills and expenses."
         actions={
-          <AdminPrimaryAction onClick={() => openNew()}>
-            <Plus data-icon="inline-start" />
-            Add vendor
-          </AdminPrimaryAction>
+          <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>
+            <AdminPrimaryAction onClick={() => openNew()}>
+              <Plus data-icon="inline-start" />
+              Add vendor
+            </AdminPrimaryAction>
+          </AdminListPageActions>
         }
       />
 

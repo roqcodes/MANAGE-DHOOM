@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, Scale } from "lucide-react";
 
-import { DataExportMenu } from "@/components/export/data-export-menu";
 import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { getPaymentsExportTabular } from "@/lib/export/erp-sales-list-export";
 
@@ -24,9 +23,9 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminListPageActions,
   AdminPrimaryAction,
   AdminPageHeader,
-  AdminSecondaryIconAction,
   AdminPageLayout,
   AdminTableBody,
   AdminTableCell,
@@ -144,19 +143,22 @@ export function PaymentsListView() {
         breadcrumb={[{ label: "Payments received", href: "/admin/erp/payments" }]}
         description="Individual customer payments against invoices. Filter by store or date period."
         actions={
-          <>
-            <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
-            <AdminSecondaryIconAction
+          <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>
+            <Button
+              type="button"
+              variant="outline"
+              size="page"
+              className="rounded-full"
               onClick={() => setSettlementOpen(true)}
-              aria-label="Settle account"
             >
-              <Scale />
-            </AdminSecondaryIconAction>
+              <Scale data-icon="inline-start" />
+              Settle account
+            </Button>
             <AdminPrimaryAction onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
               Add new payment
             </AdminPrimaryAction>
-          </>
+          </AdminListPageActions>
         }
       />
 

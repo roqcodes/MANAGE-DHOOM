@@ -391,13 +391,15 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
         >
           {confirmState ? (
             <>
-              <DialogHeader className="gap-2 border-b border-border px-5 py-4 text-left">
-                <DialogTitle className="text-base font-semibold">{confirmState.title}</DialogTitle>
-                <DialogDescription className="text-sm leading-relaxed text-foreground/85">
+              <DialogHeader className="space-y-2 px-5 pt-5 pb-4 text-left">
+                <DialogTitle className="text-base font-semibold leading-snug">
+                  {confirmState.title}
+                </DialogTitle>
+                <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
                   {confirmState.message}
                 </DialogDescription>
               </DialogHeader>
-              <DialogFooter className="gap-2 border-t border-border bg-muted/40 px-5 py-3.5 sm:justify-end">
+              <DialogFooter className="m-0 -mx-0 -mb-0 mt-0 flex-col-reverse gap-2 rounded-none border-t border-border bg-muted/40 px-5 py-3.5 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
                   variant="outline"
@@ -427,15 +429,17 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
         >
           {promptState ? (
             <>
-              <DialogHeader className="gap-2 border-b border-border px-5 py-4 text-left">
-                <DialogTitle className="text-base font-semibold">{promptState.title}</DialogTitle>
+              <DialogHeader className="space-y-2 px-5 pt-5 pb-2 text-left">
+                <DialogTitle className="text-base font-semibold leading-snug">
+                  {promptState.title}
+                </DialogTitle>
                 {promptState.message ? (
-                  <DialogDescription className="text-sm leading-relaxed text-foreground/85">
+                  <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
                     {promptState.message}
                   </DialogDescription>
                 ) : null}
               </DialogHeader>
-              <div className="space-y-2 px-5 py-4">
+              <div className="space-y-2 px-5 pb-4">
                 {promptState.label ? (
                   <Label className="text-sm">{promptState.label}</Label>
                 ) : null}
@@ -451,7 +455,7 @@ export function AppFeedbackProvider({ children }: { children: ReactNode }) {
                   autoFocus
                 />
               </div>
-              <DialogFooter className="gap-2 border-t border-border bg-muted/40 px-5 py-3.5 sm:justify-end">
+              <DialogFooter className="m-0 -mx-0 -mb-0 mt-0 flex-col-reverse gap-2 rounded-none border-t border-border bg-muted/40 px-5 py-3.5 sm:flex-row sm:justify-end">
                 <Button type="button" variant="outline" onClick={() => resolvePrompt(null)}>
                   {promptState.cancelLabel ?? "Cancel"}
                 </Button>

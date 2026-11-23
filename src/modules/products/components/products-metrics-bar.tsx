@@ -85,13 +85,13 @@ export function ProductsMetricsBar({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <CatalogExportButton source={exportSource} onFallbackExport={onExport} />
           <Button variant="outline" size="sm" onClick={onImport}>
             Import
           </Button>
           <Button size="sm" onClick={onCreate}>
             New item
           </Button>
+          <CatalogExportButton source={exportSource} onFallbackExport={onExport} />
         </div>
       </div>
 

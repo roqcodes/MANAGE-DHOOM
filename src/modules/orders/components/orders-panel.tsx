@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { isAfter, isBefore, startOfDay, endOfDay } from "date-fns";
 import { Ban, ChevronDown, Columns3, Search } from "lucide-react";
@@ -220,17 +219,6 @@ export function OrdersPanel({
         variant={channel}
         valuesLoading={initialLoading}
       />
-
-      {channel === "online" ? (
-        <div className="flex justify-end">
-          <Link
-            href="/admin/erp/fulfillment-queue"
-            className={`text-sm font-medium hover:underline ${ORDERS_ACCENT.link}`}
-          >
-            Open fulfillment queue →
-          </Link>
-        </div>
-      ) : null}
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
         <CardContent className="flex flex-col gap-0 p-0">

@@ -4,6 +4,9 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Plus, Scale } from "lucide-react";
 
+import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
+import { getSupplierPaymentsExportTabular } from "@/lib/export/erp-purchasing-list-export";
+
 import type {
   ErpSupplierPaymentListRow,
   SupplierPaymentListSummary,
@@ -23,9 +26,9 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminListPageActions,
   AdminPrimaryAction,
   AdminPageHeader,
-  AdminSecondaryIconAction,
   AdminPageLayout,
   AdminTableBody,
   AdminTableCell,
@@ -112,6 +115,26 @@ export function SupplierPaymentsListView() {
     "desc",
   );
 
+  const exportSource = useMemo(
+    () =>
+      buildCatalogExportSource({
+        baseFilename: "supplier-payments-export",
+        title: "Payments made",
+        getSubtitle: () =>
+          catalogFilterSubtitle({
+            search: debouncedSearch,
+            extra: paymentMode !== "all" ? [`Mode: ${paymentMode}`] : [],
+            dateFrom: dateParams.dateFrom,
+            dateTo: dateParams.dateTo,
+          }),
+        getTabular: () => {
+          const tabular = getSupplierPaymentsExportTabular(sorted);
+          return tabular.rows.length > 0 ? tabular : null;
+        },
+      }),
+    [sorted, debouncedSearch, paymentMode, dateParams.dateFrom, dateParams.dateTo],
+  );
+
   const listParams: Record<string, string> = {};
   if (paymentMode !== "all") listParams.paymentMode = paymentMode;
   Object.assign(listParams, dateParams);
@@ -126,18 +149,22 @@ export function SupplierPaymentsListView() {
         breadcrumb={[{ label: "Payment made", href: "/admin/erp/supplier-payments" }]}
         description="Individual supplier payments against purchase bills. Filter by payment mode or period."
         actions={
-          <>
-            <AdminSecondaryIconAction
+          <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>
+            <Button
+              type="button"
+              variant="outline"
+              size="page"
+              className="rounded-full"
               onClick={() => setSettlementOpen(true)}
-              aria-label="Settle account"
             >
-              <Scale />
-            </AdminSecondaryIconAction>
+              <Scale data-icon="inline-start" />
+              Settle account
+            </Button>
             <AdminPrimaryAction onClick={() => openNew()}>
               <Plus data-icon="inline-start" />
               Add new payment
             </AdminPrimaryAction>
-          </>
+          </AdminListPageActions>
         }
       />
 

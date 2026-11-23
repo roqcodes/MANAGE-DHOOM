@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { BadgePercent, Plus, Scale } from "lucide-react";
 
-import { DataExportMenu } from "@/components/export/data-export-menu";
 import { buildCatalogExportSource, catalogFilterSubtitle } from "@/lib/export/catalog-export";
 import { getCreditNotesExportTabular } from "@/lib/export/erp-sales-list-export";
 
@@ -23,6 +22,7 @@ import {
   AdminDataTableRowsSkeleton,
   AdminListCard,
   AdminListFooter,
+  AdminListPageActions,
   AdminPrimaryAction,
   AdminPageHeader,
   AdminPageLayout,
@@ -150,8 +150,7 @@ export function CreditNotesListView() {
         breadcrumb={[{ label: "Credit notes", href: "/admin/erp/credit-notes" }]}
         description="Customer returns (CN) and post-invoice discounts (DC). Filter by store, status, type, or date. Unapplied balance is available in account settlement."
         actions={
-          <>
-            <DataExportMenu source={exportSource} disabled={sorted.length === 0} />
+          <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>
             <Button
               variant="outline"
               size="page"
@@ -174,7 +173,7 @@ export function CreditNotesListView() {
               <Plus data-icon="inline-start" />
               Create return
             </AdminPrimaryAction>
-          </>
+          </AdminListPageActions>
         }
       />
 

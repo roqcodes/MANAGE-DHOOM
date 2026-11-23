@@ -31,6 +31,7 @@ import { AdminPageLayout } from "@/modules/admin/ui";
 import { ActivityLogPanel } from "@/modules/erp/components/activity-log-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import {
   Card,
   CardContent,
@@ -200,8 +201,9 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
         />
         <p className="text-sm text-muted-foreground">This employee could not be found.</p>
         <Button
-          size="sm"
           variant="outline"
+          size="page"
+          className="rounded-full"
           nativeButton={false}
           render={<Link href="/admin/erp/employees" />}
         >
@@ -260,9 +262,8 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
+          <div className="flex flex-wrap gap-2.5">
+            <AdminPrimaryAction
               nativeButton={false}
               render={
                 <Link
@@ -272,11 +273,12 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
             >
               <Plus data-icon="inline-start" />
               Record payment
-            </Button>
+            </AdminPrimaryAction>
             {employee.is_salesman ? (
               <Button
-                size="sm"
                 variant="outline"
+                size="page"
+                className="rounded-full"
                 nativeButton={false}
                 render={
                   <Link href={`/admin/erp/employees?form=salesman&id=${employeeId}`} />
@@ -287,8 +289,9 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
               </Button>
             ) : null}
             <Button
-              size="sm"
               variant="outline"
+              size="page"
+              className="rounded-full"
               nativeButton={false}
               render={<Link href={`/admin/erp/employees?form=edit&id=${employeeId}`} />}
             >
@@ -296,9 +299,9 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
               Edit employee
             </Button>
             <Button
-              size="sm"
               variant="outline"
-              className="text-destructive hover:text-destructive"
+              size="page"
+              className="rounded-full text-destructive hover:text-destructive"
               disabled={deleting}
               onClick={handleDelete}
             >

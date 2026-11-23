@@ -23,7 +23,8 @@ import type {
   VendorStatementLine,
 } from "@/common/erp/purchasing-types";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import {
   Card,
   CardContent,
@@ -271,9 +272,8 @@ export function VendorErpDetailView() {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2 lg:justify-end">
-            <Button
-              size="sm"
+          <div className="flex flex-wrap gap-2.5 lg:justify-end">
+            <AdminPrimaryAction
               nativeButton={false}
               render={
                 <Link href={`/admin/erp/purchase-bills?form=new&vendorId=${id}`} />
@@ -281,10 +281,11 @@ export function VendorErpDetailView() {
             >
               <Plus data-icon="inline-start" />
               New bill
-            </Button>
+            </AdminPrimaryAction>
             <Button
-              size="sm"
               variant="outline"
+              size="page"
+              className="rounded-full"
               nativeButton={false}
               render={
                 <Link href={`/admin/erp/supplier-payments/new?vendorId=${id}`} />
@@ -292,13 +293,20 @@ export function VendorErpDetailView() {
             >
               Record payment
             </Button>
-            <Button size="sm" variant="outline" type="button" onClick={() => setDiscountOpen(true)}>
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              type="button"
+              onClick={() => setDiscountOpen(true)}
+            >
               <BadgePercent data-icon="inline-start" />
               Record discount
             </Button>
             <Button
-              size="sm"
               variant="outline"
+              size="page"
+              className="rounded-full"
               type="button"
               disabled={balanceDue <= 0}
               onClick={() => setSettlementOpen(true)}
@@ -306,17 +314,20 @@ export function VendorErpDetailView() {
               <HandCoins data-icon="inline-start" />
               Settle account
             </Button>
-            <Link
-              href={`/admin/vendors/${id}/edit`}
-              className={buttonVariants({ variant: "outline", size: "sm" })}
+            <Button
+              variant="outline"
+              size="page"
+              className="rounded-full"
+              nativeButton={false}
+              render={<Link href={`/admin/vendors/${id}/edit`} />}
             >
               <Pencil data-icon="inline-start" />
               Edit
-            </Link>
+            </Button>
             <Button
               variant="outline"
-              size="sm"
-              className="text-destructive hover:text-destructive"
+              size="page"
+              className="rounded-full text-destructive hover:text-destructive"
               disabled={deletePending}
               onClick={handleDelete}
             >
@@ -378,21 +389,9 @@ export function VendorErpDetailView() {
           {tab === "statement" ? (
             <Card className="border border-border ring-0">
               <CardHeader className="border-b border-border">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <CardTitle>Statement of accounts</CardTitle>
-                    <CardDescription>Bills, payments, and credits with running balance.</CardDescription>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={loading || balanceDue <= 0}
-                    onClick={() => setSettlementOpen(true)}
-                  >
-                    <HandCoins data-icon="inline-start" />
-                    Settle account
-                  </Button>
+                <div>
+                  <CardTitle>Statement of accounts</CardTitle>
+                  <CardDescription>Bills, payments, and credits with running balance.</CardDescription>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -461,8 +460,7 @@ export function VendorErpDetailView() {
                   <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
                     <FileText className="size-10 text-muted-foreground/40" aria-hidden />
                     <p className="text-sm text-muted-foreground">No purchase bills yet.</p>
-                    <Button
-                      size="sm"
+                    <AdminPrimaryAction
                       nativeButton={false}
                       render={
                         <Link href={`/admin/erp/purchase-bills?form=new&vendorId=${id}`} />
@@ -470,7 +468,7 @@ export function VendorErpDetailView() {
                     >
                       <Plus data-icon="inline-start" />
                       Create bill
-                    </Button>
+                    </AdminPrimaryAction>
                   </div>
                 ) : (
                   <Table>

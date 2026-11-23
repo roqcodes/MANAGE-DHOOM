@@ -35,6 +35,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const statusRaw = searchParams.get("status")?.trim() ?? null;
   const deliveryRaw = searchParams.get("delivery")?.trim() ?? null;
+  const deliveryMonthRaw = searchParams.get("deliveryMonth")?.trim() ?? null;
   const status: PurchaseOrderStatusFilter = isPoStatus(statusRaw)
     ? statusRaw
     : "all";
@@ -46,14 +47,37 @@ export async function GET(request: Request) {
   const rawVendor = searchParams.get("vendorId")?.trim();
   const vendorId = rawVendor && rawVendor.length > 0 ? rawVendor : null;
   const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
+  const statsOnly = searchParams.get("statsOnly") === "1";
+  const includeStats = searchParams.get("includeStats") !== "false";
 
-  const [{ data, total }, stats] = await Promise.all([
-    listAdminPurchaseOrders({
+  if (statsOnly) {
+    const stats = await getPurchaseOrderCatalogStats();
+    return NextResponse.json({ stats });
+  }
+
+  const listPromise = listAdminPurchaseOrders({
+    status,
+    delivery,
+    deliveryMonth: deliveryMonthRaw,
+    page,
+    vendorId,
+  });
+
+  if (!includeStats) {
+    const { data, total } = await listPromise;
+    return NextResponse.json({
+      data,
+      total,
+      page,
       status,
       delivery,
-      page,
+      deliveryMonth: deliveryMonthRaw,
       vendorId,
-    }),
+    });
+  }
+
+  const [{ data, total }, stats] = await Promise.all([
+    listPromise,
     getPurchaseOrderCatalogStats(),
   ]);
 
@@ -63,6 +87,7 @@ export async function GET(request: Request) {
     page,
     status,
     delivery,
+    deliveryMonth: deliveryMonthRaw,
     vendorId,
     stats,
   });
