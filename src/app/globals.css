@@ -663,6 +663,11 @@ html.bh-pdf-capture [data-print-document].bh-pdf-capture-page,
   font-size: 11px;
   line-height: 1.45;
 }
+[data-print-document] .bh-inv-items-total {
+  margin: 0 0 8px;
+  font-size: 11px;
+  line-height: 1.45;
+}
 [data-print-document] .bh-inv-thanks {
   margin: 12px 0 0;
   text-align: center;

@@ -1,7 +1,16 @@
 "use client";
 
 import { COMPANY_NAME } from "@/modules/brand/lib/brand";
-import { dash, INVOICE_PRINT_LABELS } from "@/modules/documents/invoice-print-copy";
+import {
+  EMPTY_PARTY_CARD,
+  isWalkingCustomer,
+} from "@/modules/customers/lib/walking-customer";
+import {
+  dash,
+  INVOICE_PRINT_LABELS,
+  SIMPLIFIED_TAX_INVOICE_TITLE_AR,
+  SIMPLIFIED_TAX_INVOICE_TITLE_EN,
+} from "@/modules/documents/invoice-print-copy";
 import {
   formatInvoiceDate,
   formatInvoiceMoney,
@@ -35,8 +44,11 @@ export type ErpInvoicePrintData = {
   tax_inclusive: boolean;
   notes: string | null;
   reference: string | null;
+  user_id?: string | null;
   customer_balance?: number | null;
   users: {
+    id?: string | null;
+    customer_number?: string | null;
     name: string | null;
     email: string | null;
     phone: string | null;
@@ -127,9 +139,20 @@ function lineBreakdown(
   };
 }
 
+function sumItemQuantities(items: ErpInvoicePrintData["invoice_items"]) {
+  const total = items.reduce((sum, item) => sum + Number(item.quantity ?? 0), 0);
+  return formatQty(total);
+}
+
 export function ErpInvoicePrintDocument({ invoice }: { invoice: ErpInvoicePrintData }) {
+  const walkingCustomer = isWalkingCustomer({
+    id: invoice.users?.id,
+    user_id: invoice.user_id,
+    email: invoice.users?.email,
+    customer_number: invoice.users?.customer_number,
+  });
   const seller = sellerParty(invoice);
-  const buyer = buyerParty(invoice);
+  const buyer = walkingCustomer ? { ...EMPTY_PARTY_CARD } : buyerParty(invoice);
   const qrValue = buildZatcaQrPayload({
     sellerName: seller.name,
     vatNumber: seller.vatNumber === "—" ? "" : seller.vatNumber,
@@ -144,11 +167,15 @@ export function ErpInvoicePrintDocument({ invoice }: { invoice: ErpInvoicePrintD
         logoUrl={invoice.stores?.logo_url}
         storeName={invoice.stores?.name}
         vatNumber={invoice.stores?.trn}
+        titleEn={walkingCustomer ? SIMPLIFIED_TAX_INVOICE_TITLE_EN : undefined}
+        titleAr={walkingCustomer ? SIMPLIFIED_TAX_INVOICE_TITLE_AR : undefined}
       />
       <TaxInvoiceMeta
         documentNumber={invoice.invoice_number}
         invoiceDate={formatInvoiceDate(invoice.created_at)}
+        dateLabel={walkingCustomer ? INVOICE_PRINT_LABELS.invoiceIssueDate : undefined}
         dueDate={formatInvoiceDate(invoice.due_date)}
+        showDueDate={!walkingCustomer}
         extraRows={
           invoice.reference
             ? [{ label: { en: "Reference", ar: "المرجع" }, value: invoice.reference }]
@@ -156,7 +183,12 @@ export function ErpInvoicePrintDocument({ invoice }: { invoice: ErpInvoicePrintD
         }
         qrValue={qrValue}
       />
-      <TaxInvoiceParties seller={seller} buyer={buyer} />
+      <TaxInvoiceParties
+        seller={seller}
+        buyer={buyer}
+        buyerRole={walkingCustomer ? INVOICE_PRINT_LABELS.billTo : undefined}
+        buyerBlank={walkingCustomer}
+      />
       <TaxInvoiceLineTable
         rows={invoice.invoice_items.map((item) => {
           const line = lineBreakdown(item, invoice.tax_inclusive);
@@ -182,18 +214,23 @@ export function ErpInvoicePrintDocument({ invoice }: { invoice: ErpInvoicePrintD
         taxable={formatInvoiceMoney(invoice.subtotal)}
         vat={formatInvoiceMoney(invoice.gst_amount)}
         extraBeforeTotal={
-          invoice.discount > 0
+          !walkingCustomer && invoice.discount > 0
             ? [{ label: INVOICE_PRINT_LABELS.discount, value: `-${formatInvoiceMoney(invoice.discount)}` }]
             : undefined
         }
         total={formatInvoiceMoney(invoice.total_amount)}
         paid={formatInvoiceMoney(invoice.amount_paid)}
         balance={formatInvoiceMoney(invoice.balance_due)}
+        showPaymentLines={!walkingCustomer}
+        totalLabel={walkingCustomer ? INVOICE_PRINT_LABELS.totalAmountDue : undefined}
       />
       {invoice.notes ? <InvoicePrintNotes title="Notes" body={invoice.notes} /> : null}
       <TaxInvoiceClosing
         counterpartyLabel={INVOICE_PRINT_LABELS.customerBalance.en}
-        counterpartyBalance={invoice.customer_balance ?? invoice.balance_due}
+        counterpartyBalance={
+          walkingCustomer ? null : (invoice.customer_balance ?? invoice.balance_due)
+        }
+        itemsInTotal={walkingCustomer ? sumItemQuantities(invoice.invoice_items) : undefined}
       />
     </InvoicePrintRoot>
   );

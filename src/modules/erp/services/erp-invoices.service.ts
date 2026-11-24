@@ -23,6 +23,7 @@ import {
   ErpInvoiceNotEditableError,
   isInvoiceNotEditableError,
 } from "@/common/erp/invoice-edit-policy";
+import { isWalkingCustomer } from "@/modules/customers/lib/walking-customer";
 
 export { computeErpInvoiceEditable } from "@/common/erp/invoice-edit-policy";
 
@@ -322,7 +323,7 @@ const ERP_INVOICE_DETAIL_SELECT = `
   gst_number,
   reference,
   stores(name, logo_url, address_line1, address_line2, city, state, country, phone, trn),
-  users!invoices_user_id_fkey(name, email, phone, company_name, trn, location, po_box),
+  users!invoices_user_id_fkey(id, customer_number, name, email, phone, company_name, trn, location, po_box),
   invoice_items(
     id,
     product_id,
@@ -360,6 +361,8 @@ export async function fetchErpInvoiceDetail(invoiceId: string) {
 
   const usersRaw = data.users as
     | {
+        id: string;
+        customer_number: string | null;
         name: string | null;
         email: string | null;
         phone: string | null;
@@ -369,6 +372,8 @@ export async function fetchErpInvoiceDetail(invoiceId: string) {
         po_box: string | null;
       }
     | {
+        id: string;
+        customer_number: string | null;
         name: string | null;
         email: string | null;
         phone: string | null;
@@ -423,7 +428,13 @@ export async function fetchErpInvoiceDetail(invoiceId: string) {
   }));
 
   let customer_balance: number | null = null;
-  if (invoice.user_id) {
+  const walkingCustomer = isWalkingCustomer({
+    id: users?.id,
+    user_id: invoice.user_id,
+    email: users?.email,
+    customer_number: users?.customer_number,
+  });
+  if (invoice.user_id && !walkingCustomer) {
     const { data: arRows, error: arError } = await supabase
       .from("invoices")
       .select("balance_due")

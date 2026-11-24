@@ -5,6 +5,12 @@ import type { QueryClient } from "@tanstack/react-query";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import {
+  pinWalkingCustomerRows,
+  WALKING_CUSTOMER_SEARCH_LABEL,
+  WALKING_CUSTOMER_SEARCH_SUBLABEL,
+} from "@/modules/customers/lib/walking-customer-search";
+import { WALKING_CUSTOMER_ID } from "@/modules/customers/lib/walking-customer";
+import {
   rpcSearchCustomers,
   rpcSearchVendors,
 } from "@/modules/erp/lib/catalog-typeahead-rpc.client";
@@ -60,7 +66,10 @@ function mapPartyBalance(value: number | null | undefined): number {
 function mapCustomerRows(rows: CustomerSearchRow[]): EntitySearchOption[] {
   return rows.map((c) => ({
     id: c.id,
-    label: c.name?.trim() || c.email || c.phone || "Unnamed customer",
+    label:
+      c.id === WALKING_CUSTOMER_ID
+        ? WALKING_CUSTOMER_SEARCH_LABEL
+        : c.name?.trim() || c.email || c.phone || "Unnamed customer",
     sublabel: [c.email, c.phone].filter(Boolean).join(" · ") || undefined,
     amount: mapPartyBalance(c.current_balance),
     imageUrl: c.avatar_url?.trim() || undefined,
@@ -92,20 +101,32 @@ export async function fetchVendorSearchOptions(query: string): Promise<EntitySea
   return mapVendorRows(res.data ?? []);
 }
 
+function pinWalkingCustomerOptions(
+  options: EntitySearchOption[],
+  query: string,
+): EntitySearchOption[] {
+  return pinWalkingCustomerRows(options, query, {
+    id: WALKING_CUSTOMER_ID,
+    label: WALKING_CUSTOMER_SEARCH_LABEL,
+    sublabel: WALKING_CUSTOMER_SEARCH_SUBLABEL,
+    amount: 0,
+  });
+}
+
 export async function fetchCustomerSearchOptions(query: string): Promise<EntitySearchOption[]> {
-  const rpcRows = await rpcSearchCustomers(query.trim());
+  const trimmed = query.trim();
+  const rpcRows = await rpcSearchCustomers(trimmed);
   if (rpcRows) {
-    return mapCustomerRows(rpcRows);
+    return pinWalkingCustomerOptions(mapCustomerRows(rpcRows), trimmed);
   }
 
-  const trimmed = query.trim();
   const rows = (
     await adminGet<{
       data: CustomerSearchRow[];
     }>(`customers?view=search&q=${encodeURIComponent(trimmed)}`)
   ).data;
 
-  return mapCustomerRows(rows ?? []);
+  return pinWalkingCustomerOptions(mapCustomerRows(rows ?? []), trimmed);
 }
 
 /** Authoritative vendor row for committed selection (ERP profile). */

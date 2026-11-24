@@ -18,10 +18,8 @@ export function AdminWorkspaceContentKeeper({ children }: { children: ReactNode 
   const lastFocusedAtByRoot = useRef<Map<string, number>>(new Map());
 
   const routeSynced = displayRoot === routeRoot;
-  const showLoading =
-    isWorkspaceTabLoading ||
-    (visitedRoots.has(displayRoot) && !routeSynced) ||
-    (visitedRoots.has(displayRoot) && !visitedRoots.has(routeRoot));
+  const awaitingTabRoute = activeRootHref !== null && !routeSynced;
+  const showLoading = isWorkspaceTabLoading || awaitingTabRoute;
 
   useEffect(() => {
     if (!routeSynced || !displayRoot || !visitedRoots.has(routeRoot)) return;

@@ -3,6 +3,9 @@
 export const TAX_INVOICE_TITLE_AR = "فاتورة ضريبية";
 export const TAX_INVOICE_TITLE_EN = "TAX INVOICE";
 
+export const SIMPLIFIED_TAX_INVOICE_TITLE_AR = "فاتورة ضريبية مبسطة";
+export const SIMPLIFIED_TAX_INVOICE_TITLE_EN = "Simplified Tax Invoice";
+
 export const PURCHASE_ORDER_TITLE_AR = "أمر شراء";
 export const PURCHASE_ORDER_TITLE_EN = "PURCHASE ORDER";
 
@@ -15,6 +18,7 @@ export const INVOICE_PRINT_LABELS = {
   vendorInvoice: { en: "Vendor Invoice #", ar: "رقم فاتورة المورد" },
   seller: { en: "Seller", ar: "المورد" },
   buyer: { en: "Buyer", ar: "عميل" },
+  billTo: { en: "Bill To", ar: "فاتورة إلى" },
   name: { en: "Name", ar: "الاسم" },
   address: { en: "Address", ar: "عنوان" },
   street: { en: "Street", ar: "اسم الشارع" },
@@ -42,6 +46,8 @@ export const INVOICE_PRINT_LABELS = {
   },
   totalVat: { en: "Total VAT", ar: "إجمالي ضريبة القيمة المضافة" },
   totalAmount: { en: "Total Amount", ar: "المبلغ الإجمالي" },
+  totalAmountDue: { en: "Total Amount Due", ar: "إجمالي المبلغ المستحق" },
+  invoiceIssueDate: { en: "Invoice Issue Date", ar: "تاريخ إصدار الفاتورة" },
   amountPaid: { en: "Amount Paid", ar: "المبلغ المدفوع" },
   balanceDue: { en: "Balance Due", ar: "الرصيد المستحق" },
   discount: { en: "Discount", ar: "الخصم" },

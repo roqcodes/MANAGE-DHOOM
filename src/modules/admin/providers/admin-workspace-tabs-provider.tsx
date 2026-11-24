@@ -93,6 +93,26 @@ function markVisited(
   });
 }
 
+const WORKSPACE_TAB_LOADING_MAX_MS = 12_000;
+
+function upsertTabHref(
+  prev: AdminWorkspaceTab[],
+  root: string,
+  fullHref: string,
+  mergePersisted: boolean,
+  persisted: AdminWorkspaceTab[],
+): AdminWorkspaceTab[] {
+  const base = mergePersisted ? mergeTabsWithPersisted(prev, persisted) : prev;
+  const idx = base.findIndex((t) => t.rootHref === root);
+  if (idx >= 0) {
+    const next = [...base];
+    next[idx] = { ...next[idx]!, href: fullHref };
+    return next;
+  }
+  const tab = createWorkspaceTab(root, fullHref);
+  return insertTabWithLimit(base, tab);
+}
+
 export function AdminWorkspaceTabsProvider({
   children,
   persistenceScopeId = "",
@@ -118,9 +138,11 @@ export function AdminWorkspaceTabsProvider({
     return new Set([resolveAdminWorkspaceRoot(path)]);
   });
   const [isWorkspaceTabLoading, setIsWorkspaceTabLoading] = useState(false);
-  const suppressSyncRef = useRef(false);
+  const pendingNavigationRootRef = useRef<string | null>(null);
+  const activeRootHrefRef = useRef<string | null>(null);
   const scopeRef = useRef(persistenceScopeId);
   scopeRef.current = persistenceScopeId;
+  activeRootHrefRef.current = activeRootHref;
 
   useLayoutEffect(() => {
     const stored = readPersistedWorkspaceTabs(persistenceScopeId);
@@ -128,15 +150,36 @@ export function AdminWorkspaceTabsProvider({
       const hydrated = hydrateWorkspaceTabsFromPersistence(stored.tabs);
       persistedTabsRef.current = hydrated;
       setTabs(hydrated);
+      setVisitedRoots((prev) => {
+        const next = new Set(prev);
+        for (const tab of hydrated) next.add(tab.rootHref);
+        return next;
+      });
     }
     persistenceReady.current = true;
   }, [persistenceScopeId]);
+
+  useLayoutEffect(() => {
+    const path = normalizeAdminPath(pathname);
+    if (!path.startsWith("/admin")) return;
+    const root = resolveAdminWorkspaceRoot(path);
+    const intent = activeRootHrefRef.current ?? root;
+    if (root === intent) {
+      setIsWorkspaceTabLoading(false);
+      if (pendingNavigationRootRef.current === root) {
+        pendingNavigationRootRef.current = null;
+      }
+    }
+  }, [pathname, fullHref]);
 
   useEffect(() => {
     function onStoreChanged() {
       clearPersistedWorkspaceTabs(scopeRef.current);
       setTabs([]);
       setActiveRootHref(null);
+      activeRootHrefRef.current = null;
+      pendingNavigationRootRef.current = null;
+      setIsWorkspaceTabLoading(false);
       setVisitedRoots(new Set());
       persistedTabsRef.current = [];
     }
@@ -145,33 +188,47 @@ export function AdminWorkspaceTabsProvider({
   }, []);
 
   useEffect(() => {
-    if (suppressSyncRef.current) {
-      suppressSyncRef.current = false;
-      return;
-    }
     const path = normalizeAdminPath(pathname);
     if (!path.startsWith("/admin")) return;
     const root = resolveAdminWorkspaceRoot(path);
-    setActiveRootHref(root);
+    const pendingRoot = pendingNavigationRootRef.current;
+    const mergePersisted = persistenceReady.current;
+
     markVisited(setVisitedRoots, root);
-    setIsWorkspaceTabLoading(false);
-    setTabs((prev) => {
-      const base = persistenceReady.current
-        ? mergeTabsWithPersisted(prev, persistedTabsRef.current)
-        : prev;
-      const idx = base.findIndex((t) => t.rootHref === root);
-      if (idx >= 0) {
-        const next = [...base];
-        next[idx] = { ...next[idx]!, href: fullHref };
-        return next;
+
+    if (pendingRoot) {
+      if (root === pendingRoot) {
+        pendingNavigationRootRef.current = null;
+        setIsWorkspaceTabLoading(false);
+        activeRootHrefRef.current = root;
+        setActiveRootHref(root);
+        setTabs((prev) =>
+          upsertTabHref(prev, root, fullHref, mergePersisted, persistedTabsRef.current),
+        );
+        if (persistenceReady.current) persistedTabsRef.current = [];
+        return;
       }
-      const tab = createWorkspaceTab(root, fullHref);
-      return insertTabWithLimit(base, tab);
-    });
-    if (persistenceReady.current) {
-      persistedTabsRef.current = [];
+      pendingNavigationRootRef.current = null;
+      setIsWorkspaceTabLoading(false);
     }
+
+    activeRootHrefRef.current = root;
+    setActiveRootHref(root);
+    setIsWorkspaceTabLoading(false);
+    setTabs((prev) =>
+      upsertTabHref(prev, root, fullHref, mergePersisted, persistedTabsRef.current),
+    );
+    if (persistenceReady.current) persistedTabsRef.current = [];
   }, [fullHref, pathname]);
+
+  useEffect(() => {
+    if (!isWorkspaceTabLoading) return;
+    const timeout = window.setTimeout(() => {
+      setIsWorkspaceTabLoading(false);
+      pendingNavigationRootRef.current = null;
+    }, WORKSPACE_TAB_LOADING_MAX_MS);
+    return () => window.clearTimeout(timeout);
+  }, [isWorkspaceTabLoading]);
 
   useEffect(() => {
     if (!persistenceReady.current || tabs.length === 0) return;
@@ -184,13 +241,26 @@ export function AdminWorkspaceTabsProvider({
   const beginTabNavigation = useCallback((rootHref: string, href: string) => {
     markVisited(setVisitedRoots, rootHref);
     const routeRoot = resolveAdminWorkspaceRoot(pathname);
-    if (rootHref !== routeRoot) {
-      setIsWorkspaceTabLoading(true);
-    }
-    suppressSyncRef.current = true;
+    const needsRouteChange = rootHref !== routeRoot || fullHref !== href;
+    pendingNavigationRootRef.current = rootHref;
+    activeRootHrefRef.current = rootHref;
     setActiveRootHref(rootHref);
+    if (needsRouteChange) {
+      setIsWorkspaceTabLoading(true);
+    } else {
+      pendingNavigationRootRef.current = null;
+      setIsWorkspaceTabLoading(false);
+      setTabs((prev) => {
+        const idx = prev.findIndex((t) => t.rootHref === rootHref);
+        if (idx < 0) return prev;
+        const next = [...prev];
+        next[idx] = { ...next[idx]!, href };
+        return next;
+      });
+      return;
+    }
     pushWorkspaceHref(router, href);
-  }, [pathname, router]);
+  }, [fullHref, pathname, router]);
 
   const openFromSidebar = useCallback(
     (navHref: string, event?: { preventDefault(): void }) => {
@@ -224,17 +294,24 @@ export function AdminWorkspaceTabsProvider({
         next.delete(rootHref);
         return next;
       });
+
+      let fallbackTab: AdminWorkspaceTab | null = null;
+
       setTabs((prev) => {
         if (prev.length <= 1) return prev;
         const index = prev.findIndex((t) => t.rootHref === rootHref);
         if (index < 0) return prev;
         const next = prev.filter((t) => t.rootHref !== rootHref);
         if (activeRootHref === rootHref && next.length > 0) {
-          const fallback = next[Math.min(index, next.length - 1)]!;
-          beginTabNavigation(fallback.rootHref, fallback.href);
+          fallbackTab = next[Math.min(index, next.length - 1)]!;
         }
         return next;
       });
+
+      if (fallbackTab) {
+        const { rootHref: nextRoot, href: nextHref } = fallbackTab;
+        queueMicrotask(() => beginTabNavigation(nextRoot, nextHref));
+      }
     },
     [activeRootHref, beginTabNavigation],
   );

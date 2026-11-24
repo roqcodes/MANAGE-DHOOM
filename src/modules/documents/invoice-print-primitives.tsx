@@ -112,20 +112,22 @@ export function TaxInvoiceMeta({
   dueDate,
   extraRows,
   qrValue,
+  showDueDate = true,
 }: {
   numberLabel?: { en: string; ar: string };
   dateLabel?: { en: string; ar: string };
   dueLabel?: { en: string; ar: string };
   documentNumber: string;
   invoiceDate: string;
-  dueDate: string;
+  dueDate?: string;
   extraRows?: Array<{ label: { en: string; ar: string }; value: string }>;
   qrValue?: string | null;
+  showDueDate?: boolean;
 }) {
   const rows = [
     { label: numberLabel, value: documentNumber },
     { label: dateLabel, value: invoiceDate },
-    { label: dueLabel, value: dueDate },
+    ...(showDueDate ? [{ label: dueLabel, value: dueDate ?? "—" }] : []),
     ...(extraRows ?? []),
   ];
 
@@ -163,17 +165,20 @@ export function TaxInvoiceMeta({
 function PartyTable({
   role,
   party,
+  blankValues = false,
 }: {
   role: { en: string; ar: string };
   party: PartyCard;
+  blankValues?: boolean;
 }) {
+  const display = (value: string) => (blankValues ? "" : value);
   const fields: Array<{ label: { en: string; ar: string }; value: string }> = [
-    { label: L.name, value: party.name },
-    { label: L.address, value: party.address },
-    { label: L.street, value: party.street },
-    { label: L.city, value: party.city },
-    { label: L.phone, value: party.phone },
-    { label: L.vatNumber, value: party.vatNumber },
+    { label: L.name, value: display(party.name) },
+    { label: L.address, value: display(party.address) },
+    { label: L.street, value: display(party.street) },
+    { label: L.city, value: display(party.city) },
+    { label: L.phone, value: display(party.phone) },
+    { label: L.vatNumber, value: display(party.vatNumber) },
   ];
 
   return (
@@ -205,9 +210,13 @@ function PartyTable({
 export function TaxInvoiceParties({
   seller,
   buyer,
+  buyerRole = L.buyer,
+  buyerBlank = false,
 }: {
   seller: PartyCard;
   buyer: PartyCard;
+  buyerRole?: { en: string; ar: string };
+  buyerBlank?: boolean;
 }) {
   return (
     <table className="bh-inv-parties" role="presentation">
@@ -217,7 +226,7 @@ export function TaxInvoiceParties({
             <PartyTable role={L.seller} party={seller} />
           </td>
           <td>
-            <PartyTable role={L.buyer} party={buyer} />
+            <PartyTable role={buyerRole} party={buyer} blankValues={buyerBlank} />
           </td>
         </tr>
       </tbody>
@@ -315,6 +324,8 @@ export function TaxInvoiceTotals({
   paid,
   balance,
   extraBeforeTotal,
+  showPaymentLines = true,
+  totalLabel = L.totalAmount,
 }: {
   taxable: string;
   vat: string;
@@ -322,6 +333,8 @@ export function TaxInvoiceTotals({
   paid: string;
   balance: string;
   extraBeforeTotal?: Array<{ label: { en: string; ar: string }; value: string }>;
+  showPaymentLines?: boolean;
+  totalLabel?: { en: string; ar: string };
 }) {
   const lines: Array<{
     label: { en: string; ar: string };
@@ -331,9 +344,13 @@ export function TaxInvoiceTotals({
     { label: L.totalTaxable, value: taxable },
     { label: L.totalVat, value: vat },
     ...(extraBeforeTotal ?? []),
-    { label: L.totalAmount, value: total, strong: true },
-    { label: L.amountPaid, value: paid },
-    { label: L.balanceDue, value: balance, strong: true },
+    { label: totalLabel, value: total, strong: true },
+    ...(showPaymentLines
+      ? [
+          { label: L.amountPaid, value: paid },
+          { label: L.balanceDue, value: balance, strong: true as const },
+        ]
+      : []),
   ];
 
   return (
@@ -365,9 +382,11 @@ export function TaxInvoiceTotals({
 export function TaxInvoiceClosing({
   counterpartyLabel,
   counterpartyBalance,
+  itemsInTotal,
 }: {
   counterpartyLabel: string;
   counterpartyBalance?: number | null;
+  itemsInTotal?: string | null;
 }) {
   const balanceText =
     counterpartyBalance != null && Number.isFinite(counterpartyBalance)
@@ -379,6 +398,11 @@ export function TaxInvoiceClosing({
       {balanceText ? (
         <p className="bh-inv-balance-box">
           {counterpartyLabel} <strong>{balanceText}</strong>
+        </p>
+      ) : null}
+      {itemsInTotal ? (
+        <p className="bh-inv-items-total">
+          {L.itemsInTotal.en}: <strong>{itemsInTotal}</strong>
         </p>
       ) : null}
       <p className="bh-inv-thanks">{L.thanks.en}</p>
