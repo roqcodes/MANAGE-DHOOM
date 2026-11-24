@@ -278,7 +278,7 @@ export function AdminPurchaseOrdersPanel({
     if (kind === "ready_for_pickup") {
       setTransitModal({
         poId: row.id,
-        expectedDate: row.expected_delivery_date,
+        expectedDate: row.expected_delivery_date ?? null,
       });
       return;
     }
