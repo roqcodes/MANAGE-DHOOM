@@ -69,6 +69,53 @@ export function isGeneralKnowledgeQuestion(text: string): boolean {
   );
 }
 
+const NO_TABLE_CHART_RE =
+  /\b(no|without|don't|do not|dont|skip|hide|avoid)\b[\s\S]{0,40}\b(table|tables|chart|charts|graph|graphs|visuali[sz]ation|breakdown)\b|\b(just (tell|say|answer|give)|text only|in words only|verbally|plain text)\b/i;
+
+const FULL_DATA_PRESENTATION_RE =
+  /\b(all|every|each|full|entire|complete|breakdown|detailed|listing|list of|show (?:me )?(?:all|every)|ranking of all)\b|\b(custom )?report\b|\b(graph|chart|trend|visuali[sz]e)\b|\bexport\b/i;
+
+const NARROW_SUPERLATIVE_RE =
+  /\b(top|best|worst|biggest|largest|smallest|highest|lowest|leading|maximum|minimum)\b|\bwho\s+(?:is|'s)\s+(?:the\s+)?(?:top|#?1|first|best|leading)\b|\bwhich\s+.+\s+(?:tops?|leads?|ranks? (?:first|#?1)|has the (?:most|highest|largest|biggest))\b/i;
+
+/** User wants facts in prose only — server must not attach table/chart blocks. */
+export function userDeclinesVisualPresentation(text: string): boolean {
+  const t = text.trim();
+  if (!t || looksLikePromptInjection(t)) return false;
+  return NO_TABLE_CHART_RE.test(t);
+}
+
+/** Superlative / who-is-leading ask without a request for a full list or report. */
+export function wantsNarrowSuperlativeAnswer(text: string): boolean {
+  const t = text.trim();
+  if (!t || looksLikePromptInjection(t)) return false;
+  if (wantsFullDataPresentation(text)) return false;
+  if (wantsOnScreenGuide(t) || wantsEntityOpen(t)) return false;
+  return NARROW_SUPERLATIVE_RE.test(t);
+}
+
+/** Explicit ask for lists, reports, trends, or exhaustive breakdowns. */
+export function wantsFullDataPresentation(text: string): boolean {
+  const t = text.trim();
+  if (!t || looksLikePromptInjection(t)) return false;
+  return FULL_DATA_PRESENTATION_RE.test(t);
+}
+
+export type ScopedPresentationFlags = {
+  textOnly: boolean;
+  narrowSuperlative: boolean;
+};
+
+export function scopedPresentationFlags(text: string): ScopedPresentationFlags {
+  const t = text.trim();
+  if (!t || looksLikePromptInjection(t)) {
+    return { textOnly: false, narrowSuperlative: false };
+  }
+  const narrowSuperlative = wantsNarrowSuperlativeAnswer(t);
+  const textOnly = userDeclinesVisualPresentation(t) || narrowSuperlative;
+  return { textOnly, narrowSuperlative };
+}
+
 export function refusalForAbuse(): string {
   return "I can't change my rules or role — ask me about DHOOM admin or your live data. [POINT:none]";
 }

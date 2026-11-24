@@ -12,8 +12,8 @@ import {
   Pencil,
   Phone,
   Plus,
-  BadgePercent,
   HandCoins,
+  Scale,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
@@ -26,7 +26,18 @@ import type {
 } from "@/common/erp/sales-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AdminPrimaryAction } from "@/modules/admin/ui";
+import {
+  AdminPrimaryAction,
+  AdminSecondaryIconAction,
+  ErpPartyDetailMetricGrid,
+  ErpPartyDetailPageGrid,
+  ErpPartyDetailTabs,
+  ErpPartyFinancialAsideCard,
+  ErpPartyProfileInlineAdmin,
+  ErpPartyProfileHeaderCard,
+  ErpPartyProfileToolbar,
+  ErpPartySummaryMetricCard,
+} from "@/modules/admin/ui";
 import {
   Card,
   CardContent,
@@ -62,42 +73,14 @@ import {
   formatCreditLimit,
   formatCustomerId,
 } from "@/modules/customers/components/customers-ui";
-import { cn } from "@/lib/utils";
 import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
-import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
+import { CustomerStatementActions } from "@/modules/customers/components/customer-statement-actions";
 
 type ErpPayload = {
   summary: CustomerErpSummary;
   statement: CustomerStatementLine[];
   invoices: CustomerInvoiceRow[];
 };
-
-function SummaryMetricCard({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "primary" | "muted";
-}) {
-  return (
-    <Card size="sm" className="border border-border ring-0">
-      <CardContent className="flex flex-col gap-1 pt-4">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p
-          className={cn(
-            "text-2xl font-semibold tabular-nums tracking-tight",
-            tone === "primary" && "text-primary",
-            tone === "muted" && "text-muted-foreground",
-          )}
-        >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
 
 export function CustomerDetailPanel({
   details,
@@ -115,7 +98,6 @@ export function CustomerDetailPanel({
   const [erp, setErp] = useState<ErpPayload | null>(null);
   const [erpLoading, setErpLoading] = useState(true);
   const [settlementOpen, setSettlementOpen] = useState(false);
-  const [discountOpen, setDiscountOpen] = useState(false);
   const { summary } = details;
   const verified = summary.is_verified !== false;
 
@@ -132,6 +114,7 @@ export function CustomerDetailPanel({
     "Unknown customer";
 
   const financial = erp?.summary;
+  const canSettleAccount = !erpLoading && (financial?.balanceDue ?? 0) > 0;
 
   const statementRows = erp?.statement ?? [];
 
@@ -145,6 +128,36 @@ export function CustomerDetailPanel({
       await queryClient.invalidateQueries({ queryKey: ["admin", "customers"] });
     });
   }
+
+  const customerAdminActions = (
+    <>
+      <AdminSecondaryIconAction
+        nativeButton={false}
+        render={<Link href={`/admin/customers?form=edit&id=${summary.id}`} />}
+        aria-label="Edit customer"
+        title="Edit customer"
+      >
+        <Pencil />
+      </AdminSecondaryIconAction>
+      <AdminSecondaryIconAction
+        disabled={isPending}
+        onClick={handleToggleBlock}
+        aria-label={verified ? "Block customer" : "Unblock customer"}
+        title={verified ? "Block customer" : "Unblock customer"}
+      >
+        {verified ? <Ban /> : <ShieldCheck />}
+      </AdminSecondaryIconAction>
+      <AdminSecondaryIconAction
+        className="text-destructive hover:text-destructive"
+        disabled={deletePending}
+        onClick={handleDelete}
+        aria-label="Delete customer"
+        title="Delete customer"
+      >
+        <Trash2 />
+      </AdminSecondaryIconAction>
+    </>
+  );
 
   async function handleDelete() {
     const ok = await confirm({
@@ -184,237 +197,213 @@ export function CustomerDetailPanel({
         />
       ) : null}
 
-      {discountOpen ? (
-        <ErpCommercialDiscountFormView
-          side="customer"
-          variant="modal"
-          open={discountOpen}
-          onOpenChange={setDiscountOpen}
-          initialPartyId={summary.id}
-          initialPartyLabel={displayName}
-          lockParty
-          onSuccess={() => {
-            setDiscountOpen(false);
-            setErpLoading(true);
-            adminGet<ErpPayload>(`customers/${summary.id}/erp`)
-              .then(setErp)
-              .finally(() => setErpLoading(false));
-          }}
-        />
-      ) : null}
-
-      <Card className="border border-border ring-0">
-        <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 flex-1 gap-4">
+      <ErpPartyProfileHeaderCard
+        identity={
+          <div className="flex min-w-0 gap-3 sm:gap-4">
             <CustomerAvatar
               name={displayName}
               avatarUrl={summary.avatar_url}
               size="lg"
               className="shrink-0"
+              enableHoverPreview={false}
             />
-            <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              {verified ? (
-                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">
-                  Active
-                </Badge>
-              ) : (
-                <Badge variant="destructive">Blocked</Badge>
-              )}
-              <span className="font-mono text-xs text-muted-foreground">
-                {formatCustomerId({
-                  id: summary.id,
-                  customer_number: summary.customer_number,
-                  name: summary.name,
-                  email: summary.email,
-                  phone: summary.phone,
-                  role: summary.role,
-                  is_verified: summary.is_verified,
-                  created_at: summary.created_at,
-                })}
-              </span>
-            </div>
-            <h1 className="mt-2 text-2xl font-semibold">{displayName}</h1>
-            {summary.company_name && summary.company_name !== displayName ? (
-              <p className="mt-1 text-sm text-muted-foreground">{summary.company_name}</p>
-            ) : null}
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-              {summary.email ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Mail className="size-3.5" aria-hidden />
-                  {summary.email}
-                </span>
-              ) : null}
-              {summary.phone ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <Phone className="size-3.5" aria-hidden />
-                  {summary.phone}
-                </span>
-              ) : null}
-              {summary.location ? <span>{summary.location}</span> : null}
-            </div>
+            <div className="flex min-w-0 flex-1 items-start gap-2 sm:block sm:gap-0">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {verified ? (
+                    <Badge
+                      variant="outline"
+                      className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                    >
+                      Active
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive">Blocked</Badge>
+                  )}
+                  <span className="font-mono text-xs text-muted-foreground">
+                    {formatCustomerId({
+                      id: summary.id,
+                      customer_number: summary.customer_number,
+                      name: summary.name,
+                      email: summary.email,
+                      phone: summary.phone,
+                      role: summary.role,
+                      is_verified: summary.is_verified,
+                      created_at: summary.created_at,
+                    })}
+                  </span>
+                </div>
+                <h1 className="mt-2 text-lg font-semibold leading-tight sm:text-2xl">
+                  {displayName}
+                </h1>
+                {summary.company_name && summary.company_name !== displayName ? (
+                  <p className="mt-1 text-sm text-muted-foreground">{summary.company_name}</p>
+                ) : null}
+                <div className="mt-2 flex flex-col gap-1.5 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
+                  {summary.email ? (
+                    <span className="inline-flex min-w-0 items-center gap-1.5 break-all">
+                      <Mail className="size-3.5 shrink-0" aria-hidden />
+                      {summary.email}
+                    </span>
+                  ) : null}
+                  {summary.phone ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Phone className="size-3.5 shrink-0" aria-hidden />
+                      {summary.phone}
+                    </span>
+                  ) : null}
+                  {summary.location ? <span>{summary.location}</span> : null}
+                </div>
+              </div>
+              <ErpPartyProfileInlineAdmin>{customerAdminActions}</ErpPartyProfileInlineAdmin>
             </div>
           </div>
-
-          <div className="flex flex-wrap gap-2.5">
-            <AdminPrimaryAction
-              nativeButton={false}
-              render={
-                <Link href={`/admin/erp/invoices?form=new&customerId=${summary.id}`} />
-              }
-            >
-              <Plus data-icon="inline-start" />
-              New invoice
-            </AdminPrimaryAction>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              nativeButton={false}
-              render={
-                <Link href={`/admin/erp/payments/new?customerId=${summary.id}`} />
-              }
-            >
-              <HandCoins data-icon="inline-start" />
-              Record payment
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              type="button"
-              onClick={() => setDiscountOpen(true)}
-            >
-              <BadgePercent data-icon="inline-start" />
-              Record discount
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              type="button"
-              disabled={erpLoading || (financial?.balanceDue ?? 0) <= 0}
-              onClick={() => setSettlementOpen(true)}
-            >
-              <HandCoins data-icon="inline-start" />
-              Settle account
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              nativeButton={false}
-              render={<Link href={`/admin/customers?form=edit&id=${summary.id}`} />}
-            >
-              <Pencil data-icon="inline-start" />
-              Edit
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              disabled={isPending}
-              onClick={handleToggleBlock}
-            >
-              {verified ? (
-                <>
-                  <Ban data-icon="inline-start" />
-                  Block
-                </>
-              ) : (
-                <>
-                  <ShieldCheck data-icon="inline-start" />
-                  Unblock
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full text-destructive hover:text-destructive"
-              disabled={deletePending}
-              onClick={handleDelete}
-            >
-              <Trash2 data-icon="inline-start" />
-              Delete
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryMetricCard
-              label="Outstanding receivables"
-              value={
-                erpLoading
-                  ? "…"
-                  : formatCurrencyAmount(financial?.receivables ?? 0)
-              }
-              tone="primary"
-            />
-            <SummaryMetricCard
-              label="Unallocated payments"
-              value={
-                erpLoading
-                  ? "…"
-                  : formatCurrencyAmount(financial?.unallocatedPayments ?? 0)
-              }
-              tone={financial?.unallocatedPayments ? "primary" : "muted"}
-            />
-            <SummaryMetricCard
-              label="Credit limit"
-              value={
-                erpLoading
-                  ? "…"
-                  : formatCreditLimit(financial?.creditLimit ?? null)
-              }
-              tone="muted"
-            />
-            <SummaryMetricCard
-              label="Opening balance"
-              value={
-                erpLoading
-                  ? "…"
-                  : formatCurrencyAmount(financial?.openingBalance ?? 0)
-              }
-            />
-          </div>
-
-          <div className="flex gap-1 border-b">
-            {(
-              [
-                ["statement", "Statement"],
-                ["sales", "Sales"],
-                ["activity", "Activity"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                className={cn(
-                  "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-                  tab === key
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
+        }
+        actions={
+          <div className="flex w-full flex-col gap-2.5 sm:items-end">
+            <ErpPartyProfileToolbar adminActions={customerAdminActions}>
+              <AdminPrimaryAction
+                nativeButton={false}
+                render={
+                  <Link href={`/admin/erp/invoices?form=new&customerId=${summary.id}`} />
+                }
               >
-                {label}
-              </button>
-            ))}
+                <Plus data-icon="inline-start" />
+                New invoice
+              </AdminPrimaryAction>
+              <Button
+                variant="outline"
+                size="page"
+                className="rounded-full"
+                nativeButton={false}
+                render={
+                  <Link href={`/admin/erp/payments/new?customerId=${summary.id}`} />
+                }
+              >
+                <HandCoins data-icon="inline-start" />
+                Record payment
+              </Button>
+              {canSettleAccount ? (
+                <Button
+                  variant="outline"
+                  size="page"
+                  className="col-span-2 rounded-full sm:col-span-1"
+                  type="button"
+                  onClick={() => setSettlementOpen(true)}
+                >
+                  <Scale data-icon="inline-start" />
+                  Settle account
+                </Button>
+              ) : null}
+            </ErpPartyProfileToolbar>
+            <CustomerStatementActions
+              customerId={summary.id}
+              customerName={displayName}
+              phone={summary.phone}
+              customerSearch={summary.phone?.trim() || displayName}
+              disabled={erpLoading}
+            />
           </div>
+        }
+      />
+
+      <ErpPartyDetailPageGrid
+        aside={
+          <ErpPartyFinancialAsideCard>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base sm:text-lg">Financial summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Opening balance</span>
+                <span className="tabular-nums">
+                  {erpLoading ? "…" : formatCurrencyAmount(financial?.openingBalance ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Invoice total
+                  {financial?.invoiceCount ? ` (${financial.invoiceCount})` : ""}
+                </span>
+                <span className="tabular-nums">
+                  {erpLoading ? "…" : formatCurrencyAmount(financial?.invoiceTotal ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">
+                  Credit notes
+                  {financial?.creditNoteCount ? ` (${financial.creditNoteCount})` : ""}
+                </span>
+                <span className="tabular-nums">
+                  {erpLoading ? "…" : formatCurrencyAmount(financial?.creditNoteTotal ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Payment received</span>
+                <span className="tabular-nums">
+                  {erpLoading ? "…" : formatCurrencyAmount(financial?.paymentReceived ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3 border-t pt-3 text-base font-semibold">
+                <span>Balance due</span>
+                <span className="text-primary tabular-nums">
+                  {erpLoading ? "…" : formatCurrencyAmount(financial?.balanceDue ?? 0)}
+                </span>
+              </div>
+            </CardContent>
+          </ErpPartyFinancialAsideCard>
+        }
+        main={
+          <>
+            <ErpPartyDetailMetricGrid>
+              <ErpPartySummaryMetricCard
+                label="Outstanding receivables"
+                value={
+                  erpLoading ? "…" : formatCurrencyAmount(financial?.receivables ?? 0)
+                }
+                tone="primary"
+              />
+              <ErpPartySummaryMetricCard
+                label="Unallocated payments"
+                value={
+                  erpLoading
+                    ? "…"
+                    : formatCurrencyAmount(financial?.unallocatedPayments ?? 0)
+                }
+                tone={financial?.unallocatedPayments ? "primary" : "muted"}
+              />
+              <ErpPartySummaryMetricCard
+                label="Credit limit"
+                value={
+                  erpLoading ? "…" : formatCreditLimit(financial?.creditLimit ?? null)
+                }
+                tone="muted"
+              />
+              <ErpPartySummaryMetricCard
+                label="Opening balance"
+                value={
+                  erpLoading ? "…" : formatCurrencyAmount(financial?.openingBalance ?? 0)
+                }
+              />
+            </ErpPartyDetailMetricGrid>
+
+            <ErpPartyDetailTabs
+              active={tab}
+              onChange={(key) => setTab(key as typeof tab)}
+              tabs={[
+                { id: "statement", label: "Statement" },
+                { id: "sales", label: "Sales" },
+                { id: "activity", label: "Activity" },
+              ]}
+            />
 
           {tab === "statement" ? (
             <Card className="border border-border ring-0">
               <CardHeader className="border-b border-border">
-                <div>
-                  <CardTitle>Statement of accounts</CardTitle>
-                  <CardDescription>
-                    Chronological invoices, payments, and credits with running balance.
-                  </CardDescription>
-                </div>
+                <CardTitle>Statement of accounts</CardTitle>
+                <CardDescription>
+                  Chronological invoices, payments, and credits with running balance.
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 {erpLoading ? (
@@ -424,46 +413,48 @@ export function CustomerDetailPanel({
                     No statement entries yet.
                   </p>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="hidden md:table-cell">Store</TableHead>
-                        <TableHead>Transaction</TableHead>
-                        <TableHead className="hidden lg:table-cell">Details</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead className="text-right">Payments</TableHead>
-                        <TableHead className="text-right">Balance</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {statementRows.map((line, index) => (
-                        <TableRow key={`${line.date}-${line.details}-${index}`}>
-                          <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                            {line.date}
-                          </TableCell>
-                          <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
-                            {line.storeName ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-sm font-medium capitalize">
-                            {line.transactionType.replace(/_/g, " ")}
-                          </TableCell>
-                          <TableCell className="hidden max-w-[200px] truncate text-sm lg:table-cell">
-                            {line.details}
-                          </TableCell>
-                          <TableCell className="text-right text-sm tabular-nums">
-                            {line.amount > 0 ? formatCurrencyAmount(line.amount) : "—"}
-                          </TableCell>
-                          <TableCell className="text-right text-sm tabular-nums">
-                            {line.payments > 0 ? formatCurrencyAmount(line.payments) : "—"}
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-medium tabular-nums">
-                            {formatCurrencyAmount(line.balance)}
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead className="hidden md:table-cell">Store</TableHead>
+                          <TableHead>Transaction</TableHead>
+                          <TableHead className="hidden lg:table-cell">Details</TableHead>
+                          <TableHead className="text-right">Amount</TableHead>
+                          <TableHead className="hidden text-right sm:table-cell">Payments</TableHead>
+                          <TableHead className="text-right">Balance</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {statementRows.map((line, index) => (
+                          <TableRow key={`${line.date}-${line.details}-${index}`}>
+                            <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                              {line.date}
+                            </TableCell>
+                            <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
+                              {line.storeName ?? "—"}
+                            </TableCell>
+                            <TableCell className="max-w-[8rem] truncate text-sm font-medium capitalize sm:max-w-none">
+                              {line.transactionType.replace(/_/g, " ")}
+                            </TableCell>
+                            <TableCell className="hidden max-w-[200px] truncate text-sm lg:table-cell">
+                              {line.details}
+                            </TableCell>
+                            <TableCell className="text-right text-sm tabular-nums">
+                              {line.amount > 0 ? formatCurrencyAmount(line.amount) : "—"}
+                            </TableCell>
+                            <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
+                              {line.payments > 0 ? formatCurrencyAmount(line.payments) : "—"}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-medium tabular-nums">
+                              {formatCurrencyAmount(line.balance)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -484,53 +475,55 @@ export function CustomerDetailPanel({
                     <p className="text-sm text-muted-foreground">No invoices yet.</p>
                   </div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Number</TableHead>
-                        <TableHead>Due date</TableHead>
-                        <TableHead className="text-right">Net total</TableHead>
-                        <TableHead className="text-right">Paid</TableHead>
-                        <TableHead className="text-right">Balance</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {erp.invoices.map((inv) => (
-                        <TableRow key={inv.id}>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {inv.createdAt
-                              ? format(new Date(inv.createdAt), "MMM d, yyyy")
-                              : "—"}
-                          </TableCell>
-                          <TableCell>
-                            <Link
-                              href={`/admin/erp/invoices/${inv.id}`}
-                              className="text-sm font-medium hover:text-primary hover:underline"
-                            >
-                              {inv.invoiceNumber}
-                            </Link>
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {inv.dueDate ?? "—"}
-                          </TableCell>
-                          <TableCell className="text-right text-sm tabular-nums">
-                            {formatCurrencyAmount(inv.totalAmount)}
-                          </TableCell>
-                          <TableCell className="text-right text-sm tabular-nums">
-                            {formatCurrencyAmount(inv.amountPaid)}
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-medium tabular-nums">
-                            {formatCurrencyAmount(inv.balanceDue)}
-                          </TableCell>
-                          <TableCell>
-                            <StatusBadge status={salesInvoiceStatusForBadge(inv.status)} />
-                          </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Number</TableHead>
+                          <TableHead className="hidden sm:table-cell">Due date</TableHead>
+                          <TableHead className="text-right">Net total</TableHead>
+                          <TableHead className="hidden text-right md:table-cell">Paid</TableHead>
+                          <TableHead className="text-right">Balance</TableHead>
+                          <TableHead>Status</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {erp.invoices.map((inv) => (
+                          <TableRow key={inv.id}>
+                            <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                              {inv.createdAt
+                                ? format(new Date(inv.createdAt), "MMM d, yyyy")
+                                : "—"}
+                            </TableCell>
+                            <TableCell>
+                              <Link
+                                href={`/admin/erp/invoices/${inv.id}`}
+                                className="text-sm font-medium hover:text-primary hover:underline"
+                              >
+                                {inv.invoiceNumber}
+                              </Link>
+                            </TableCell>
+                            <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
+                              {inv.dueDate ?? "—"}
+                            </TableCell>
+                            <TableCell className="text-right text-sm tabular-nums">
+                              {formatCurrencyAmount(inv.totalAmount)}
+                            </TableCell>
+                            <TableCell className="hidden text-right text-sm tabular-nums md:table-cell">
+                              {formatCurrencyAmount(inv.amountPaid)}
+                            </TableCell>
+                            <TableCell className="text-right text-sm font-medium tabular-nums">
+                              {formatCurrencyAmount(inv.balanceDue)}
+                            </TableCell>
+                            <TableCell>
+                              <StatusBadge status={salesInvoiceStatusForBadge(inv.status)} />
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -546,52 +539,9 @@ export function CustomerDetailPanel({
               </CardContent>
             </Card>
           ) : null}
-        </div>
-
-        <Card className="h-fit border border-border ring-0">
-          <CardHeader>
-            <CardTitle>Financial summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Opening balance</span>
-              <span className="tabular-nums">
-                {erpLoading ? "…" : formatCurrencyAmount(financial?.openingBalance ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">
-                Invoice total
-                {financial?.invoiceCount ? ` (${financial.invoiceCount})` : ""}
-              </span>
-              <span className="tabular-nums">
-                {erpLoading ? "…" : formatCurrencyAmount(financial?.invoiceTotal ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">
-                Credit notes
-                {financial?.creditNoteCount ? ` (${financial.creditNoteCount})` : ""}
-              </span>
-              <span className="tabular-nums">
-                {erpLoading ? "…" : formatCurrencyAmount(financial?.creditNoteTotal ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Payment received</span>
-              <span className="tabular-nums">
-                {erpLoading ? "…" : formatCurrencyAmount(financial?.paymentReceived ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3 border-t pt-3 font-semibold">
-              <span>Balance due</span>
-              <span className="text-primary tabular-nums">
-                {erpLoading ? "…" : formatCurrencyAmount(financial?.balanceDue ?? 0)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </>
+        }
+      />
 
       {orders.length > 0 ? (
         <Card className="border border-border ring-0">
@@ -599,12 +549,12 @@ export function CustomerDetailPanel({
             <CardTitle>Recent orders</CardTitle>
             <CardDescription>Storefront and POS orders from this customer.</CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="overflow-x-auto p-0">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Order</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead className="hidden sm:table-cell">Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Total</TableHead>
                 </TableRow>
@@ -620,7 +570,7 @@ export function CustomerDetailPanel({
                         #{order.id.split("-")[0]?.toUpperCase() ?? order.id.slice(0, 8)}
                       </Link>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
                       {order.created_at
                         ? format(new Date(order.created_at), "MMM d, yyyy")
                         : "—"}

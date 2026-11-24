@@ -259,6 +259,7 @@ export function VendorsDataTable({
             activeKey={sortKey}
             direction={sortDirection}
             onSort={toggleSort}
+            className="hidden sm:table-cell"
           />
           <SortableTableHead
             label="Contact"
@@ -266,6 +267,7 @@ export function VendorsDataTable({
             activeKey={sortKey}
             direction={sortDirection}
             onSort={toggleSort}
+            className="hidden md:table-cell"
           />
           <SortableTableHead
             label="Added"
@@ -273,8 +275,9 @@ export function VendorsDataTable({
             activeKey={sortKey}
             direction={sortDirection}
             onSort={toggleSort}
+            className="hidden lg:table-cell"
           />
-          <TableHead className="w-24 text-right">Actions</TableHead>
+          <TableHead className="w-12 text-right sm:w-24">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -305,22 +308,36 @@ export function VendorsDataTable({
                   </p>
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell className="hidden sm:table-cell">
                 <VendorStatusBadge vendor={vendor} />
               </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
+              <TableCell className="hidden text-sm text-muted-foreground md:table-cell">
                 {vendor.contact?.trim() ? vendor.contact : "—"}
               </TableCell>
-              <TableCell className="text-sm tabular-nums text-muted-foreground">
+              <TableCell className="hidden text-sm tabular-nums text-muted-foreground lg:table-cell">
                 {vendor.created_at
                   ? format(new Date(vendor.created_at), "MMM d, yyyy")
                   : "—"}
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-1">
+                  <span className="sm:hidden">
+                    <VendorStatusBadge vendor={vendor} />
+                  </span>
+                  <Button
+                    size="icon-sm"
+                    variant="ghost"
+                    className="sm:hidden"
+                    disabled={isPending}
+                    aria-label={`Edit ${vendor.name ?? "vendor"}`}
+                    onClick={() => onEdit(vendor)}
+                  >
+                    <Pencil />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
+                    className="hidden sm:inline-flex"
                     disabled={isPending}
                     onClick={() => onEdit(vendor)}
                   >

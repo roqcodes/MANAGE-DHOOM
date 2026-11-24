@@ -1,7 +1,10 @@
 import { formatCurrencyAmount } from "@/lib/format-currency";
 
+import { looksLikeOpaqueId } from "../../lib/presentation-fields";
+
 export function formatPresentCell(value: string | number | null | undefined) {
   if (value == null || value === "") return "—";
+  if (looksLikeOpaqueId(value)) return "—";
   if (typeof value === "number") {
     return Number.isInteger(value)
       ? value.toLocaleString()

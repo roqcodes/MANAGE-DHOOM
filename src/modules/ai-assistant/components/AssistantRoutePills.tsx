@@ -53,7 +53,7 @@ export function AssistantRoutePills({
       className={`flex w-full flex-col gap-1.5 ${className ?? "mt-1.5"}`}
       data-ai-route-pills
     >
-      <div className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70">
+      <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
         <PanelTopOpen size={9} className="text-sky-400" />
         <span>Quick open</span>
       </div>

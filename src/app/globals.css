@@ -387,3 +387,8 @@
   height: auto;
   object-fit: contain;
 }
+
+html[data-ai-chat-resizing] [data-admin-shell],
+html[data-ai-chat-resizing] [data-ai-chat-panel] {
+  transition: none !important;
+}

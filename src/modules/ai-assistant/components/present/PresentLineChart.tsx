@@ -128,7 +128,7 @@ export function PresentLineChart({ block }: { block: UiChartBlock }) {
                 x={x}
                 y={H - 6}
                 textAnchor="middle"
-                className="fill-muted-foreground text-[8px]"
+                className="fill-muted-foreground text-[9px]"
               >
                 {label}
               </text>
@@ -139,7 +139,7 @@ export function PresentLineChart({ block }: { block: UiChartBlock }) {
           {items.map((item, i) => (
             <li
               key={`${item.label}-v-${i}`}
-              className="flex items-baseline justify-between gap-2 text-[10px]"
+              className="flex items-baseline justify-between gap-2 text-[11px]"
             >
               <span className="truncate text-muted-foreground">{item.label}</span>
               <span className="shrink-0 tabular-nums font-medium text-foreground">

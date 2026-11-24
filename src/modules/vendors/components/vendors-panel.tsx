@@ -129,7 +129,7 @@ export function VendorsPanel({
         <Card className="overflow-hidden border border-border py-0 ring-0">
           <CardContent className="flex flex-col gap-0 p-0">
             <div className="border-b p-2">
-              <InputGroup className="h-9">
+              <InputGroup className="h-9 min-w-0 w-full">
                 <InputGroupAddon align="inline-start" className="pl-1">
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -168,7 +168,8 @@ export function VendorsPanel({
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search vendors, contact..."
+                  placeholder="Search vendors…"
+                  className="min-w-0"
                 />
                 <InputGroupAddon align="inline-end" className="gap-1 pr-1">
                   <InputGroupButton
@@ -217,15 +218,17 @@ export function VendorsPanel({
                 )}
               </div>
             ) : (
-              <VendorsDataTable
-                vendors={filtered}
-                selectedIds={selectedIds}
-                onSelectedIdsChange={setSelectedIds}
-                onEdit={(vendor) => setModal({ mode: "edit", vendor })}
-              />
+              <div className="overflow-x-auto">
+                <VendorsDataTable
+                  vendors={filtered}
+                  selectedIds={selectedIds}
+                  onSelectedIdsChange={setSelectedIds}
+                  onEdit={(vendor) => setModal({ mode: "edit", vendor })}
+                />
+              </div>
             )}
 
-            <div className="flex items-center justify-between gap-3 border-t px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex flex-col gap-1 border-t px-3 py-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <span>
                 {isFiltering
                   ? `${filtered.length} of ${vendors.length} on this page`

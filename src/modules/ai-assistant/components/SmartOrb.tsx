@@ -20,6 +20,7 @@ import { AcrylicPointer, POINTER_SIZE } from "./AcrylicPointer";
 import { useAiAssistant } from "../context/AiAssistantContext";
 import { getGuideAimRect, pointerAimForRect } from "../lib/pointer-aim";
 import { resolveGuidedElement } from "../lib/screen-snapshot";
+import { readAiChatRailWidthPx } from "../lib/ai-chat-rail-layout";
 import { AiOrb } from "./AiOrb";
 
 const ORB = 60;
@@ -41,8 +42,13 @@ function clamp(n: number, min: number, max: number) {
   return Math.min(max, Math.max(min, n));
 }
 
+function viewportRightInset() {
+  const rail = readAiChatRailWidthPx();
+  return Math.max(RIGHT_SAFE, rail > 0 ? rail + 20 : RIGHT_SAFE);
+}
+
 function isRightmostTarget(rect: DOMRect) {
-  const maxRight = window.innerWidth - RIGHT_SAFE;
+  const maxRight = window.innerWidth - viewportRightInset();
   return (
     rect.right >= maxRight - 4 ||
     window.innerWidth - rect.right < POINTER_SIZE + 30
@@ -57,7 +63,7 @@ function pointerBesideRect(rect: DOMRect) {
   const x = clamp(
     aimed.x,
     VIEW_MARGIN,
-    window.innerWidth - RIGHT_SAFE - POINTER_SIZE,
+    window.innerWidth - viewportRightInset() - POINTER_SIZE,
   );
   const y = clamp(
     aimed.y,

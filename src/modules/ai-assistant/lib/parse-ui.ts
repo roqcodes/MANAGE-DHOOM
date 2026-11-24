@@ -1,4 +1,8 @@
 import type { AssistantReport } from "./parse-report";
+import {
+  columnHeaderLooksLikeId,
+  looksLikeOpaqueId,
+} from "./presentation-fields";
 
 export type UiMetricItem = { label: string; value: string };
 
@@ -167,16 +171,22 @@ function sanitizeTable(raw: unknown): UiTableBlock | null {
   if (!raw || typeof raw !== "object") return null;
   const rec = raw as Record<string, unknown>;
   const title = asString(rec.title, 80);
-  const columns = Array.isArray(rec.columns)
+  const rawColumns = Array.isArray(rec.columns)
     ? rec.columns.map((c) => asString(c, 40)).filter(Boolean)
     : [];
+  const keepIndexes = rawColumns
+    .map((col, i) => (columnHeaderLooksLikeId(col) ? -1 : i))
+    .filter((i) => i >= 0);
+  const columns = keepIndexes.map((i) => rawColumns[i]!);
   const rows = Array.isArray(rec.rows)
     ? rec.rows
         .slice(0, MAX_TABLE_ROWS)
         .map((row) =>
           Array.isArray(row)
-            ? row.slice(0, columns.length).map((cell) => {
+            ? keepIndexes.map((i) => {
+                const cell = row[i];
                 if (cell == null) return null;
+                if (looksLikeOpaqueId(cell)) return null;
                 if (typeof cell === "number" && Number.isFinite(cell)) return cell;
                 return asString(cell, 80);
               })
@@ -210,7 +220,7 @@ function sanitizeChart(raw: unknown): UiChartBlock | null {
           const row = item as Record<string, unknown>;
           const label = asString(row.label, 48);
           const value = asNumber(row.value);
-          if (!label || value == null) return null;
+          if (!label || looksLikeOpaqueId(label) || value == null) return null;
           return { label, value };
         })
         .filter(Boolean)

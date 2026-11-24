@@ -286,7 +286,7 @@ export function CustomersDataTable({
             activeKey={sortKey}
             direction={sortDirection}
             onSort={toggleSort}
-            className="w-20"
+            className="hidden w-20 sm:table-cell"
           />
           <SortableTableHead
             label="Customer"
@@ -309,6 +309,7 @@ export function CustomersDataTable({
             activeKey={sortKey}
             direction={sortDirection}
             onSort={toggleSort}
+            className="hidden md:table-cell"
           />
           <SortableTableHead
             label="Mobile"
@@ -351,7 +352,7 @@ export function CustomersDataTable({
             direction={sortDirection}
             onSort={toggleSort}
           />
-          <TableHead className="w-24 text-right">Actions</TableHead>
+          <TableHead className="w-12 text-right sm:w-24">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -374,7 +375,7 @@ export function CustomersDataTable({
                   }
                 />
               </TableCell>
-              <TableCell className="font-mono text-xs text-muted-foreground">
+              <TableCell className="hidden font-mono text-xs text-muted-foreground sm:table-cell">
                 {formatCustomerId(user)}
               </TableCell>
               <TableCell>
@@ -383,7 +384,7 @@ export function CustomersDataTable({
               <TableCell className="hidden max-w-[160px] truncate text-sm text-muted-foreground md:table-cell">
                 {user.company_name?.trim() ? user.company_name : "—"}
               </TableCell>
-              <TableCell className="max-w-[220px]">
+              <TableCell className="hidden max-w-[220px] md:table-cell">
                 <EmailCell email={user.email} userId={user.id} />
               </TableCell>
               <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">

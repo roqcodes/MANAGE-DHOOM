@@ -35,7 +35,10 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
-import { AddressHierarchyFilterInline } from "@/modules/customers/components/address-hierarchy-filter-fields";
+import {
+  AddressHierarchyFilterFields,
+  AddressHierarchyFilterInline,
+} from "@/modules/customers/components/address-hierarchy-filter-fields";
 
 export function CustomersPanel({
   users,
@@ -120,9 +123,9 @@ export function CustomersPanel({
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
         <CardContent className="flex flex-col gap-0 p-0">
-          <div className="border-b p-2">
-            <InputGroup className="h-9">
-              <InputGroupAddon align="inline-start" className="pl-1">
+          <div className="space-y-2 border-b p-2">
+            <InputGroup className="h-9 min-w-0 w-full">
+              <InputGroupAddon align="inline-start" className="shrink-0 pl-1">
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     render={
@@ -133,7 +136,9 @@ export function CustomersPanel({
                       />
                     }
                   >
-                    {activeStatusLabel}
+                    <span className="max-w-[5.5rem] truncate sm:max-w-none">
+                      {activeStatusLabel}
+                    </span>
                     <ChevronDown />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">
@@ -151,26 +156,27 @@ export function CustomersPanel({
                 </DropdownMenu>
               </InputGroupAddon>
               {addressFilterFields ? (
-                <>
+                <div className="hidden md:contents">
                   <InputGroupAddon align="inline-start" className="px-0">
                     <div className="h-4 w-px bg-border" aria-hidden />
                   </InputGroupAddon>
                   <AddressHierarchyFilterInline {...addressFilterFields} />
-                </>
+                </div>
               ) : null}
-              <InputGroupAddon align="inline-start" className="px-0">
+              <InputGroupAddon align="inline-start" className="shrink-0 px-0">
                 <div className="h-4 w-px bg-border" aria-hidden />
               </InputGroupAddon>
-              <InputGroupAddon align="inline-start">
+              <InputGroupAddon align="inline-start" className="shrink-0">
                 <Search aria-hidden />
               </InputGroupAddon>
               <InputGroupInput
                 type="search"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search name, company, number, email, mobile..."
+                placeholder="Search customers…"
+                className="min-w-0"
               />
-              <InputGroupAddon align="inline-end" className="gap-1 pr-1">
+              <InputGroupAddon align="inline-end" className="shrink-0 gap-1 pr-1">
                 <InputGroupButton
                   variant="ghost"
                   size="icon-sm"
@@ -180,6 +186,12 @@ export function CustomersPanel({
                 </InputGroupButton>
               </InputGroupAddon>
             </InputGroup>
+            {addressFilterFields ? (
+              <AddressHierarchyFilterFields
+                {...addressFilterFields}
+                className="md:hidden"
+              />
+            ) : null}
           </div>
 
           <div className="px-2 pt-2">
@@ -213,14 +225,16 @@ export function CustomersPanel({
               ) : null}
             </div>
           ) : (
-            <CustomersDataTable
-              users={filtered}
-              selectedIds={selectedIds}
-              onSelectedIdsChange={setSelectedIds}
-            />
+            <div className="overflow-x-auto">
+              <CustomersDataTable
+                users={filtered}
+                selectedIds={selectedIds}
+                onSelectedIdsChange={setSelectedIds}
+              />
+            </div>
           )}
 
-          <div className="flex items-center justify-between gap-3 border-t px-3 py-2 text-xs text-muted-foreground">
+          <div className="flex flex-col gap-1 border-t px-3 py-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:gap-3">
             <span>
               {isFiltering
                 ? `${filtered.length} of ${users.length} on this page`

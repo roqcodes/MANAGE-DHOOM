@@ -8,6 +8,7 @@ import {
 import {
   looksLikePromptInjection,
   refusalForAbuse,
+  scopedPresentationFlags,
 } from "@/modules/ai-assistant/lib/message-intent";
 import {
   type ChatApiScreenInput,
@@ -16,7 +17,10 @@ import {
 } from "@/modules/ai-assistant/lib/chat-request-context";
 import { completeChatWithProviderFallback } from "@/modules/ai-assistant/lib/llm/complete-chat";
 import { completeChatWithTools } from "@/modules/ai-assistant/lib/llm/run-tool-chat";
-import { formatGuideFinishContext } from "@/modules/ai-assistant/lib/assistant-protocol";
+import {
+  formatGuideFinishContext,
+  formatScopedDataAnswerContext,
+} from "@/modules/ai-assistant/lib/assistant-protocol";
 import { screenContextBlock } from "@/modules/ai-assistant/lib/screen-context-block";
 import { writeAiProcessorLog } from "@/modules/ai-assistant/lib/ai-processor-log";
 import {
@@ -122,7 +126,20 @@ export async function POST(request: Request) {
     },
   );
 
-  const systemContent = [systemPrompt, sitemapBlock, contextNote]
+  const scopedData =
+    !isGuide && userText ? scopedPresentationFlags(userText) : null;
+  const scopedDataNote =
+    scopedData &&
+    (scopedData.narrowSuperlative || scopedData.textOnly)
+      ? formatScopedDataAnswerContext(scopedData)
+      : "";
+
+  const systemContent = [
+    systemPrompt,
+    sitemapBlock,
+    contextNote,
+    scopedDataNote,
+  ]
     .filter(Boolean)
     .join("\n\n");
 

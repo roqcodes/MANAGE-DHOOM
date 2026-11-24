@@ -49,7 +49,12 @@ function MetricSegment({
       {valuesLoading ? (
         <span className="inline-block h-8 w-16 shrink-0 animate-pulse rounded-md bg-muted/80" />
       ) : (
-        <MiniSparkline seed={sparkSeed} tone={sparkTone} flat={flatSpark} />
+        <MiniSparkline
+          seed={sparkSeed}
+          tone={sparkTone}
+          flat={flatSpark}
+          className="hidden sm:block"
+        />
       )}
     </div>
   );
@@ -82,7 +87,7 @@ export function VendorsMetricsBar({
             Manage partners, contacts, and supply lines.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Button variant="outline" size="sm" onClick={onImport}>
             Import
           </Button>

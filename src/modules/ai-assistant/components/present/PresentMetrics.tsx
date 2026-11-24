@@ -18,10 +18,10 @@ export function PresentMetrics({ block }: { block: UiMetricsBlock }) {
             className="bg-background/80 px-3 py-2"
             role="listitem"
           >
-            <p className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+            <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               {item.label}
             </p>
-            <p className="mt-0.5 font-semibold tabular-nums text-[12px] text-foreground">
+            <p className="mt-0.5 font-semibold tabular-nums text-[13px] text-foreground">
               {item.value}
             </p>
           </div>

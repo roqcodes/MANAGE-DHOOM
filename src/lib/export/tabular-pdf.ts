@@ -137,12 +137,10 @@ function drawBrandedReportHeader(
   return y;
 }
 
-/** Vector PDF for tabular exports — avoids html2canvas/Tailwind capture issues. */
-export async function saveTabularPdf(
-  filename: string,
+async function buildTabularPdfDocument(
   options: TabularPdfContent,
   orientation: "portrait" | "landscape",
-): Promise<void> {
+): Promise<jsPDF> {
   const { headers, rows } = options;
   const logoDataUrl = await loadBrandLogoDataUrl();
 
@@ -206,5 +204,23 @@ export async function saveTabularPdf(
     },
   });
 
+  return doc;
+}
+
+/** Vector PDF for tabular exports — avoids html2canvas/Tailwind capture issues. */
+export async function saveTabularPdf(
+  filename: string,
+  options: TabularPdfContent,
+  orientation: "portrait" | "landscape",
+): Promise<void> {
+  const doc = await buildTabularPdfDocument(options, orientation);
   doc.save(filename);
+}
+
+export async function buildTabularPdfBlob(
+  options: TabularPdfContent,
+  orientation: "portrait" | "landscape" = "portrait",
+): Promise<Blob> {
+  const doc = await buildTabularPdfDocument(options, orientation);
+  return doc.output("blob");
 }

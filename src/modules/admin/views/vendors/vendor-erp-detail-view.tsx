@@ -13,6 +13,7 @@ import {
   Pencil,
   Phone,
   Plus,
+  Scale,
   Trash2,
 } from "lucide-react";
 
@@ -24,7 +25,18 @@ import type {
 } from "@/common/erp/purchasing-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AdminPrimaryAction } from "@/modules/admin/ui";
+import {
+  AdminPrimaryAction,
+  AdminSecondaryIconAction,
+  ErpPartyDetailMetricGrid,
+  ErpPartyDetailPageGrid,
+  ErpPartyDetailTabs,
+  ErpPartyFinancialAsideCard,
+  ErpPartyProfileInlineAdmin,
+  ErpPartyProfileHeaderCard,
+  ErpPartyProfileToolbar,
+  ErpPartySummaryMetricCard,
+} from "@/modules/admin/ui";
 import {
   Card,
   CardContent,
@@ -54,34 +66,6 @@ import { ActivityLogPanel } from "@/modules/erp/components/activity-log-panel";
 import { ErpSettlementFormView } from "@/modules/admin/views/erp/erp-settlement-form-view";
 import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
 import { formatCurrencyAmount } from "@/lib/format-currency";
-import { cn } from "@/lib/utils";
-
-function SummaryMetricCard({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "primary" | "muted";
-}) {
-  return (
-    <Card size="sm" className="border border-border ring-0">
-      <CardContent className="flex flex-col gap-1 pt-4">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p
-          className={cn(
-            "text-2xl font-semibold tabular-nums tracking-tight",
-            tone === "primary" && "text-primary",
-            tone === "muted" && "text-muted-foreground",
-          )}
-        >
-          {value}
-        </p>
-      </CardContent>
-    </Card>
-  );
-}
 
 export function VendorErpDetailView() {
   const params = useParams();
@@ -175,6 +159,29 @@ export function VendorErpDetailView() {
   }
 
   const balanceDue = summary.balanceDue ?? 0;
+  const canSettleAccount = !loading && balanceDue > 0;
+
+  const vendorAdminActions = (
+    <>
+      <AdminSecondaryIconAction
+        nativeButton={false}
+        render={<Link href={`/admin/vendors/${id}/edit`} />}
+        aria-label="Edit vendor"
+        title="Edit vendor"
+      >
+        <Pencil />
+      </AdminSecondaryIconAction>
+      <AdminSecondaryIconAction
+        className="text-destructive hover:text-destructive"
+        disabled={deletePending}
+        onClick={handleDelete}
+        aria-label="Delete vendor"
+        title="Delete vendor"
+      >
+        <Trash2 />
+      </AdminSecondaryIconAction>
+    </>
+  );
 
   return (
     <AdminPageLayout>
@@ -217,174 +224,208 @@ export function VendorErpDetailView() {
         />
       ) : null}
 
-      <Card className="border border-border ring-0">
-        <CardContent className="flex flex-col gap-4 py-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex min-w-0 flex-1 gap-4">
+      <ErpPartyProfileHeaderCard
+        identity={
+          <div className="flex min-w-0 gap-3 sm:gap-4">
             <div
-              className="flex size-16 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground"
+              className="flex size-14 shrink-0 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground sm:size-16"
               aria-hidden
             >
-              <Building2 className="size-8" />
+              <Building2 className="size-7 sm:size-8" />
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                {isActive ? (
-                  <Badge
-                    variant="outline"
-                    className="border-emerald-200 bg-emerald-50 text-emerald-700"
-                  >
-                    Active
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary">Inactive</Badge>
-                )}
-                {profile.vendor_type ? (
-                  <Badge variant="outline">{profile.vendor_type}</Badge>
+            <div className="flex min-w-0 flex-1 items-start gap-2 sm:block sm:gap-0">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {isActive ? (
+                    <Badge
+                      variant="outline"
+                      className="border-emerald-200 bg-emerald-50 text-emerald-700"
+                    >
+                      Active
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Inactive</Badge>
+                  )}
+                  {profile.vendor_type ? (
+                    <Badge variant="outline">{profile.vendor_type}</Badge>
+                  ) : null}
+                  {profile.trn ? (
+                    <span className="font-mono text-xs text-muted-foreground">
+                      TRN {profile.trn}
+                    </span>
+                  ) : null}
+                </div>
+                <h1 className="mt-2 text-lg font-semibold leading-tight sm:text-2xl">
+                  {displayName}
+                </h1>
+                {profile.address ? (
+                  <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
+                    <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    <span className="min-w-0 break-words">{profile.address}</span>
+                  </p>
                 ) : null}
-                {profile.trn ? (
-                  <span className="font-mono text-xs text-muted-foreground">
-                    TRN {profile.trn}
-                  </span>
-                ) : null}
+                <div className="mt-2 flex flex-col gap-1.5 text-sm text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
+                  {profile.email ? (
+                    <span className="inline-flex min-w-0 items-center gap-1.5 break-all">
+                      <Mail className="size-3.5 shrink-0" aria-hidden />
+                      {profile.email}
+                    </span>
+                  ) : null}
+                  {profile.phone ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <Phone className="size-3.5 shrink-0" aria-hidden />
+                      {profile.phone}
+                    </span>
+                  ) : null}
+                  {profile.po_box ? <span>PO Box {profile.po_box}</span> : null}
+                </div>
               </div>
-              <h1 className="mt-2 text-2xl font-semibold">{displayName}</h1>
-              {profile.address ? (
-                <p className="mt-2 flex items-start gap-1.5 text-sm text-muted-foreground">
-                  <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                  {profile.address}
-                </p>
-              ) : null}
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                {profile.email ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Mail className="size-3.5" aria-hidden />
-                    {profile.email}
-                  </span>
-                ) : null}
-                {profile.phone ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Phone className="size-3.5" aria-hidden />
-                    {profile.phone}
-                  </span>
-                ) : null}
-                {profile.po_box ? <span>PO Box {profile.po_box}</span> : null}
-              </div>
+              <ErpPartyProfileInlineAdmin>{vendorAdminActions}</ErpPartyProfileInlineAdmin>
             </div>
           </div>
-
-          <div className="flex flex-wrap gap-2.5 lg:justify-end">
-            <AdminPrimaryAction
-              nativeButton={false}
-              render={
-                <Link href={`/admin/erp/purchase-bills?form=new&vendorId=${id}`} />
-              }
-            >
-              <Plus data-icon="inline-start" />
-              New bill
-            </AdminPrimaryAction>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              nativeButton={false}
-              render={
-                <Link href={`/admin/erp/supplier-payments/new?vendorId=${id}`} />
-              }
-            >
-              Record payment
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              type="button"
-              onClick={() => setDiscountOpen(true)}
-            >
-              <BadgePercent data-icon="inline-start" />
-              Record discount
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              type="button"
-              disabled={balanceDue <= 0}
-              onClick={() => setSettlementOpen(true)}
-            >
-              <HandCoins data-icon="inline-start" />
-              Settle account
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              nativeButton={false}
-              render={<Link href={`/admin/vendors/${id}/edit`} />}
-            >
-              <Pencil data-icon="inline-start" />
-              Edit
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full text-destructive hover:text-destructive"
-              disabled={deletePending}
-              onClick={handleDelete}
-            >
-              <Trash2 data-icon="inline-start" />
-              Delete
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <SummaryMetricCard
-              label="Outstanding payables"
-              value={loading ? "…" : formatCurrencyAmount(summary.payables ?? balanceDue)}
-              tone="primary"
-            />
-            <SummaryMetricCard
-              label="Unapplied credits"
-              value={loading ? "…" : formatCurrencyAmount(summary.creditBalance ?? 0)}
-              tone={summary.creditBalance > 0 ? "primary" : "muted"}
-            />
-            <SummaryMetricCard
-              label="Total purchases"
-              value={loading ? "…" : formatCurrencyAmount(summary.billTotal ?? 0)}
-            />
-            <SummaryMetricCard
-              label="Opening balance"
-              value={loading ? "…" : formatCurrencyAmount(summary.openingBalance ?? 0)}
-              tone="muted"
-            />
-          </div>
-
-          <div className="flex gap-1 border-b">
-            {(
-              [
-                ["statement", "Statement"],
-                ["purchases", "Purchases"],
-                ["activity", "Activity"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setTab(key)}
-                className={cn(
-                  "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-                  tab === key
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground",
-                )}
+        }
+        actions={
+          <div className="flex w-full flex-col gap-2.5 sm:items-end">
+            <ErpPartyProfileToolbar adminActions={vendorAdminActions}>
+              <AdminPrimaryAction
+                nativeButton={false}
+                render={
+                  <Link href={`/admin/erp/purchase-bills?form=new&vendorId=${id}`} />
+                }
               >
-                {label}
-              </button>
-            ))}
+                <Plus data-icon="inline-start" />
+                New bill
+              </AdminPrimaryAction>
+              <Button
+                variant="outline"
+                size="page"
+                className="rounded-full"
+                nativeButton={false}
+                render={
+                  <Link href={`/admin/erp/supplier-payments/new?vendorId=${id}`} />
+                }
+              >
+                <HandCoins data-icon="inline-start" />
+                Record payment
+              </Button>
+              <Button
+                variant="outline"
+                size="page"
+                className="rounded-full"
+                type="button"
+                onClick={() => setDiscountOpen(true)}
+              >
+                <BadgePercent data-icon="inline-start" />
+                Record discount
+              </Button>
+              {canSettleAccount ? (
+                <Button
+                  variant="outline"
+                  size="page"
+                  className="rounded-full"
+                  type="button"
+                  onClick={() => setSettlementOpen(true)}
+                >
+                  <Scale data-icon="inline-start" />
+                  Settle account
+                </Button>
+              ) : null}
+            </ErpPartyProfileToolbar>
           </div>
+        }
+      />
+
+      <ErpPartyDetailPageGrid
+        aside={
+          <ErpPartyFinancialAsideCard>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base sm:text-lg">Financial summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Opening balance</span>
+                <span className="tabular-nums">
+                  {loading ? "…" : formatCurrencyAmount(summary.openingBalance ?? 0)}
+                </span>
+              </div>
+              {summary.openingBalanceDate ? (
+                <div className="flex justify-between gap-3 text-xs text-muted-foreground">
+                  <span>As of</span>
+                  <span>{summary.openingBalanceDate}</span>
+                </div>
+              ) : null}
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Bill total</span>
+                <span className="tabular-nums">
+                  {loading ? "…" : formatCurrencyAmount(summary.billTotal ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Payments made</span>
+                <span className="tabular-nums">
+                  {loading ? "…" : formatCurrencyAmount(summary.paymentMade ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Vendor credits</span>
+                <span className="tabular-nums">
+                  {loading ? "…" : formatCurrencyAmount(summary.creditTotal ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Unapplied credits</span>
+                <span className="tabular-nums">
+                  {loading ? "…" : formatCurrencyAmount(summary.creditBalance ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3">
+                <span className="text-muted-foreground">Refunds</span>
+                <span className="tabular-nums">
+                  {loading ? "…" : formatCurrencyAmount(summary.refundTotal ?? 0)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-3 border-t pt-3 text-base font-semibold">
+                <span>Balance due</span>
+                <span className="text-primary tabular-nums">
+                  {loading ? "…" : formatCurrencyAmount(balanceDue)}
+                </span>
+              </div>
+            </CardContent>
+          </ErpPartyFinancialAsideCard>
+        }
+        main={
+          <>
+            <ErpPartyDetailMetricGrid>
+              <ErpPartySummaryMetricCard
+                label="Outstanding payables"
+                value={loading ? "…" : formatCurrencyAmount(summary.payables ?? balanceDue)}
+                tone="primary"
+              />
+              <ErpPartySummaryMetricCard
+                label="Unapplied credits"
+                value={loading ? "…" : formatCurrencyAmount(summary.creditBalance ?? 0)}
+                tone={summary.creditBalance > 0 ? "primary" : "muted"}
+              />
+              <ErpPartySummaryMetricCard
+                label="Total purchases"
+                value={loading ? "…" : formatCurrencyAmount(summary.billTotal ?? 0)}
+              />
+              <ErpPartySummaryMetricCard
+                label="Opening balance"
+                value={loading ? "…" : formatCurrencyAmount(summary.openingBalance ?? 0)}
+                tone="muted"
+              />
+            </ErpPartyDetailMetricGrid>
+
+            <ErpPartyDetailTabs
+              active={tab}
+              onChange={(key) => setTab(key as typeof tab)}
+              tabs={[
+                { id: "statement", label: "Statement" },
+                { id: "purchases", label: "Purchases" },
+                { id: "activity", label: "Activity" },
+              ]}
+            />
 
           {tab === "statement" ? (
             <Card className="border border-border ring-0">
@@ -402,6 +443,7 @@ export function VendorErpDetailView() {
                     No statement entries yet.
                   </p>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -410,7 +452,7 @@ export function VendorErpDetailView() {
                         <TableHead>Transaction</TableHead>
                         <TableHead className="hidden lg:table-cell">Details</TableHead>
                         <TableHead className="text-right">Amount</TableHead>
-                        <TableHead className="text-right">Payments</TableHead>
+                        <TableHead className="hidden text-right sm:table-cell">Payments</TableHead>
                         <TableHead className="text-right">Balance</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -432,7 +474,7 @@ export function VendorErpDetailView() {
                           <TableCell className="text-right text-sm tabular-nums">
                             {line.amount > 0 ? formatCurrencyAmount(line.amount) : "—"}
                           </TableCell>
-                          <TableCell className="text-right text-sm tabular-nums">
+                          <TableCell className="hidden text-right text-sm tabular-nums sm:table-cell">
                             {line.payments > 0 ? formatCurrencyAmount(line.payments) : "—"}
                           </TableCell>
                           <TableCell className="text-right text-sm font-medium tabular-nums">
@@ -442,6 +484,7 @@ export function VendorErpDetailView() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -471,6 +514,7 @@ export function VendorErpDetailView() {
                     </AdminPrimaryAction>
                   </div>
                 ) : (
+                  <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -512,6 +556,7 @@ export function VendorErpDetailView() {
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -528,66 +573,11 @@ export function VendorErpDetailView() {
               </CardContent>
             </Card>
           ) : null}
-        </div>
+          </>
+        }
+      />
 
-        <Card className="h-fit border border-border ring-0">
-          <CardHeader>
-            <CardTitle>Financial summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Opening balance</span>
-              <span className="tabular-nums">
-                {loading ? "…" : formatCurrencyAmount(summary.openingBalance ?? 0)}
-              </span>
-            </div>
-            {summary.openingBalanceDate ? (
-              <div className="flex justify-between gap-3 text-xs text-muted-foreground">
-                <span>As of</span>
-                <span>{summary.openingBalanceDate}</span>
-              </div>
-            ) : null}
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Bill total</span>
-              <span className="tabular-nums">
-                {loading ? "…" : formatCurrencyAmount(summary.billTotal ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Payments made</span>
-              <span className="tabular-nums">
-                {loading ? "…" : formatCurrencyAmount(summary.paymentMade ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Vendor credits</span>
-              <span className="tabular-nums">
-                {loading ? "…" : formatCurrencyAmount(summary.creditTotal ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Unapplied credits</span>
-              <span className="tabular-nums">
-                {loading ? "…" : formatCurrencyAmount(summary.creditBalance ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span className="text-muted-foreground">Refunds</span>
-              <span className="tabular-nums">
-                {loading ? "…" : formatCurrencyAmount(summary.refundTotal ?? 0)}
-              </span>
-            </div>
-            <div className="flex justify-between gap-3 border-t pt-3 font-semibold">
-              <span>Balance due</span>
-              <span className="text-primary tabular-nums">
-                {loading ? "…" : formatCurrencyAmount(balanceDue)}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <p className="text-xs text-muted-foreground">
+      <p className="px-0.5 text-xs text-muted-foreground">
         <Link href={`/admin/vendors/${id}`} className="hover:text-primary hover:underline">
           Catalog & supply lines
         </Link>

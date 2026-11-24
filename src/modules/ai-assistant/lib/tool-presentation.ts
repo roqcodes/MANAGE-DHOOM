@@ -1,7 +1,22 @@
 import type { AssistantPresent, UiBlock, UiEntityKind } from "./parse-ui";
+import {
+  chartLabelFromRow,
+  coerceChartLabelKey,
+  DATE_LABEL_KEYS,
+  humanColumnLabel,
+  keysForDisplayTable,
+  resolveDisplayValue,
+} from "./presentation-fields";
 import { sanitizePresent, serializeUiPresent, stripUiBlock } from "./parse-ui";
 
 type JsonRecord = Record<string, unknown>;
+
+export type PresentationOptions = {
+  /** Strip table and chart blocks when the user asked for prose only. */
+  omitTablesAndCharts?: boolean;
+  /** Superlative/placement ask — skip report-style bundles; speech carries #1/#2. */
+  narrowLeaderboard?: boolean;
+};
 
 function asRows(data: unknown): JsonRecord[] {
   if (Array.isArray(data)) {
@@ -52,9 +67,13 @@ function tableFromObjects(
   cta?: { label: string; path: string },
 ): UiBlock | null {
   if (rows.length === 0) return null;
+  const visibleColumns = columns.filter(
+    (col) => !/^(id|entity_id|line_id|.+_id)$/i.test(col.key),
+  );
+  if (visibleColumns.length === 0) return null;
   const tableRows = rows.slice(0, 8).map((row) =>
-    columns.map((col) => {
-      const raw = row[col.key];
+    visibleColumns.map((col) => {
+      const raw = resolveDisplayValue(row, col.key);
       if (raw == null) return null;
       if (col.format === "number") {
         const n = Number(raw);
@@ -67,7 +86,7 @@ function tableFromObjects(
     type: "table",
     title,
     subtitle,
-    columns: columns.map((c) => c.label),
+    columns: visibleColumns.map((c) => c.label),
     rows: tableRows,
     ctaLabel: cta?.label,
     ctaPath: cta?.path,
@@ -81,12 +100,13 @@ function lineChart(
   valueKey: string,
   currency = false,
 ): UiBlock | null {
+  const effectiveLabelKey = coerceChartLabelKey(rows, labelKey);
   const items = rows
     .map((row) => {
-      const label = String(row[labelKey] ?? "").trim();
+      const label = chartLabelFromRow(row, effectiveLabelKey);
       const value = Number(row[valueKey] ?? 0);
       if (!label || !Number.isFinite(value)) return null;
-      return { label: label.slice(0, 40), value };
+      return { label, value };
     })
     .filter(Boolean)
     .slice(0, 8) as Array<{ label: string; value: number }>;
@@ -100,7 +120,11 @@ function lineChart(
   };
 }
 
-function presentOpenPayables(payload: JsonRecord): UiBlock[] {
+function presentOpenPayables(
+  payload: JsonRecord,
+  options?: PresentationOptions,
+): UiBlock[] {
+  if (options?.narrowLeaderboard) return [];
   const bills = asRows(payload.bills ?? payload);
   const total = Number(payload.total_balance_due ?? 0);
   const count = Number(payload.count ?? bills.length);
@@ -137,7 +161,11 @@ function presentOpenPayables(payload: JsonRecord): UiBlock[] {
   return blocks;
 }
 
-function presentSalesRanking(payload: JsonRecord): UiBlock[] {
+function presentSalesRanking(
+  payload: JsonRecord,
+  options?: PresentationOptions,
+): UiBlock[] {
+  if (options?.narrowLeaderboard) return [];
   const rows = asRows(payload.rows ?? payload);
   const winner = payload.winner as JsonRecord | null;
   const blocks: UiBlock[] = [];
@@ -148,7 +176,12 @@ function presentSalesRanking(payload: JsonRecord): UiBlock[] {
       items: [
         {
           label: "Leader",
-          value: String(winner.sales_person_name ?? winner.name ?? "—"),
+          value: String(
+            winner.sales_person_name ??
+              winner.salesman_name ??
+              winner.name ??
+              "—",
+          ),
         },
         {
           label: "Sales",
@@ -238,7 +271,10 @@ function presentCustomers(payload: JsonRecord): UiBlock[] {
   );
 }
 
-function presentInvoices(payload: JsonRecord): UiBlock[] {
+function presentInvoices(
+  payload: JsonRecord,
+  options?: PresentationOptions,
+): UiBlock[] {
   const invoices = asRows(payload.invoices);
   const blocks: UiBlock[] = invoices.slice(0, 2).map((inv) =>
     entityCard(
@@ -256,7 +292,7 @@ function presentInvoices(payload: JsonRecord): UiBlock[] {
       ],
     ),
   );
-  if (invoices.length > 2) {
+  if (invoices.length > 2 && !options?.narrowLeaderboard) {
     const table = tableFromObjects(
       "Matching invoices",
       undefined,
@@ -273,7 +309,10 @@ function presentInvoices(payload: JsonRecord): UiBlock[] {
   return blocks;
 }
 
-function presentCustomerPurchase(payload: JsonRecord): UiBlock[] {
+function presentCustomerPurchase(
+  payload: JsonRecord,
+  options?: PresentationOptions,
+): UiBlock[] {
   const blocks: UiBlock[] = [];
   const customers = asRows(payload.customers);
   if (customers[0]) {
@@ -288,24 +327,30 @@ function presentCustomerPurchase(payload: JsonRecord): UiBlock[] {
       ),
     );
   }
-  const matches = asRows(payload.matches);
-  const table = tableFromObjects(
-    "Line items",
-    undefined,
-    matches,
-    [
-      { key: "product_name", label: "Product" },
-      { key: "quantity", label: "Qty", format: "number" },
-      { key: "invoice_number", label: "Invoice" },
-      { key: "line_total", label: "Amount", format: "number" },
-    ],
-    { label: "Invoices", path: "/admin/erp/invoices" },
-  );
-  if (table) blocks.push(table);
+  if (!options?.narrowLeaderboard) {
+    const matches = asRows(payload.matches);
+    const table = tableFromObjects(
+      "Line items",
+      undefined,
+      matches,
+      [
+        { key: "product_name", label: "Product" },
+        { key: "quantity", label: "Qty", format: "number" },
+        { key: "invoice_number", label: "Invoice" },
+        { key: "line_total", label: "Amount", format: "number" },
+      ],
+      { label: "Invoices", path: "/admin/erp/invoices" },
+    );
+    if (table) blocks.push(table);
+  }
   return blocks;
 }
 
-function presentDocumentAudit(payload: JsonRecord): UiBlock[] {
+function presentDocumentAudit(
+  payload: JsonRecord,
+  options?: PresentationOptions,
+): UiBlock[] {
+  if (options?.narrowLeaderboard) return [];
   const edits = asRows(payload.edits);
   return [
     tableFromObjects(
@@ -322,13 +367,6 @@ function presentDocumentAudit(payload: JsonRecord): UiBlock[] {
   ].filter(Boolean);
 }
 
-const DATE_LABEL_KEYS = [
-  "report_date",
-  "date",
-  "day",
-  "period_from",
-  "month_label",
-];
 const CHART_VALUE_KEYS = [
   "net_total",
   "total_payment",
@@ -339,13 +377,6 @@ const CHART_VALUE_KEYS = [
   "invoice_count",
 ];
 
-function formatChartLabel(raw: unknown): string {
-  const s = String(raw ?? "").trim();
-  if (!s) return "—";
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(5, 10);
-  return s.length > 12 ? `${s.slice(0, 11)}…` : s;
-}
-
 function timeSeriesChartFromRows(
   title: string,
   rows: JsonRecord[],
@@ -353,7 +384,9 @@ function timeSeriesChartFromRows(
 ): UiBlock | null {
   if (rows.length === 0) return null;
   const sample = rows[0];
-  const labelKey = DATE_LABEL_KEYS.find((k) => k in sample);
+  const labelKey = DATE_LABEL_KEYS.find((k) => k in sample) as
+    | string
+    | undefined;
   const valueKey = CHART_VALUE_KEYS.find(
     (k) => k in sample && Number.isFinite(Number(sample[k])),
   );
@@ -364,7 +397,7 @@ function timeSeriesChartFromRows(
   );
   const items = sorted
     .map((row) => {
-      const label = formatChartLabel(row[labelKey]);
+      const label = chartLabelFromRow(row, labelKey);
       const value = Number(row[valueKey] ?? 0);
       if (!label || !Number.isFinite(value)) return null;
       return { label, value };
@@ -382,7 +415,11 @@ function timeSeriesChartFromRows(
   };
 }
 
-function presentBuiltinReport(payload: JsonRecord): UiBlock[] {
+function presentBuiltinReport(
+  payload: JsonRecord,
+  options?: PresentationOptions,
+): UiBlock[] {
+  if (options?.narrowLeaderboard) return [];
   const rows = asRows(payload.rows ?? payload);
   if (rows.length === 0) return [];
   const slug = String(payload.slug ?? "report");
@@ -399,9 +436,7 @@ function presentBuiltinReport(payload: JsonRecord): UiBlock[] {
   );
   if (chart) blocks.push(chart);
 
-  const keys = Object.keys(rows[0])
-    .filter((k) => !/^(id|_)/.test(k))
-    .slice(0, 5);
+  const keys = keysForDisplayTable(rows[0], 5);
   if (keys.length > 0) {
     const table = tableFromObjects(
       slug.replace(/-/g, " "),
@@ -409,7 +444,7 @@ function presentBuiltinReport(payload: JsonRecord): UiBlock[] {
       rows,
       keys.map((k) => ({
         key: k,
-        label: k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+        label: humanColumnLabel(k),
         format: typeof rows[0][k] === "number" ? "number" : undefined,
       })),
       { label: "Open reports", path: "/admin/reports" },
@@ -473,7 +508,10 @@ function pickPresentationSources(results: unknown[]): unknown[] {
   return [valid[valid.length - 1]];
 }
 
-function presentFromPayload(payload: unknown): UiBlock[] {
+function presentFromPayload(
+  payload: unknown,
+  options?: PresentationOptions,
+): UiBlock[] {
   if (!payload || typeof payload !== "object") return [];
   const rec = payload as JsonRecord;
   if (rec.error) return [];
@@ -483,31 +521,31 @@ function presentFromPayload(payload: unknown): UiBlock[] {
   }
 
   if (Array.isArray(rec.bills) && rec.total_balance_due != null) {
-    return presentOpenPayables(rec);
+    return presentOpenPayables(rec, options);
   }
   if (rec.slug && Array.isArray(rec.rows)) {
-    return presentBuiltinReport(rec);
+    return presentBuiltinReport(rec, options);
   }
   if (Array.isArray(rec.rows) && rec.rowCount != null) {
-    return presentBuiltinReport(rec);
+    return presentBuiltinReport(rec, options);
   }
   if (
     rec.winner != null ||
     (Array.isArray(rec.rows) && rec.period && !rec.slug)
   ) {
-    return presentSalesRanking(rec);
+    return presentSalesRanking(rec, options);
   }
   if (Array.isArray(rec.customers) && !rec.matches) {
     return presentCustomers(rec);
   }
   if (Array.isArray(rec.invoices)) {
-    return presentInvoices(rec);
+    return presentInvoices(rec, options);
   }
   if (Array.isArray(rec.matches) || (rec.customers && rec.matches)) {
-    return presentCustomerPurchase(rec);
+    return presentCustomerPurchase(rec, options);
   }
   if (Array.isArray(rec.edits)) {
-    return presentDocumentAudit(rec);
+    return presentDocumentAudit(rec, options);
   }
   if (Array.isArray(rec.products)) {
     return presentProducts(rec);
@@ -515,16 +553,29 @@ function presentFromPayload(payload: unknown): UiBlock[] {
   return [];
 }
 
-export function presentationFromToolResults(results: unknown[]): AssistantPresent | null {
+function applyPresentationOptions(
+  blocks: UiBlock[],
+  options?: PresentationOptions,
+): UiBlock[] {
+  if (!options?.omitTablesAndCharts) return blocks;
+  return blocks.filter((b) => b.type !== "table" && b.type !== "chart");
+}
+
+export function presentationFromToolResults(
+  results: unknown[],
+  options?: PresentationOptions,
+): AssistantPresent | null {
   const blocks: UiBlock[] = [];
   for (const result of pickPresentationSources(results)) {
-    for (const block of presentFromPayload(result)) {
+    for (const block of presentFromPayload(result, options)) {
       blocks.push(block);
       if (blocks.length >= 6) break;
     }
     if (blocks.length >= 6) break;
   }
-  const present = sanitizePresent({ blocks });
+  const present = sanitizePresent({
+    blocks: applyPresentationOptions(blocks, options),
+  });
   return present;
 }
 
@@ -544,8 +595,9 @@ function insertPresentationTag(reply: string, tag: string): string {
 export function ensurePresentationInReply(
   reply: string,
   toolResults: unknown[],
+  options?: PresentationOptions,
 ): string {
-  const serverPresent = presentationFromToolResults(toolResults);
+  const serverPresent = presentationFromToolResults(toolResults, options);
   const cleaned = stripUiBlock(reply);
 
   if (!serverPresent?.blocks.length) {

@@ -137,7 +137,11 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
       <CurrencySettingsProvider>
       <AdminGlobalSearchProvider>
       <AdminDateRangeProvider>
-        <div className="relative flex h-full overflow-hidden bg-[#F8FAFC]">
+        <div
+          data-admin-shell
+          className="relative flex h-full overflow-hidden bg-[#F8FAFC] transition-[margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+          style={{ marginRight: "var(--dhoom-ai-rail-width, 0px)" }}
+        >
         <button
           type="button"
           className={[

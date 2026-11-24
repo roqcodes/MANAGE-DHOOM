@@ -7,7 +7,7 @@ import { CatalogExportButton } from "@/components/export/catalog-export-button";
 import type { TabularExportSource } from "@/lib/export/tabular-export";
 
 import type { CustomerStats } from "@/modules/customers/services/customers.service";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { AdminPrimaryAction } from "@/modules/admin/ui";
 import { Card } from "@/components/ui/card";
 import {
   MiniSparkline,
@@ -53,7 +53,12 @@ function MetricSegment({
       {valuesLoading ? (
         <span className="inline-block h-8 w-16 shrink-0 animate-pulse rounded-md bg-muted/80" />
       ) : (
-        <MiniSparkline seed={sparkSeed} tone={sparkTone} flat={flatSpark} />
+        <MiniSparkline
+          seed={sparkSeed}
+          tone={sparkTone}
+          flat={flatSpark}
+          className="hidden sm:block"
+        />
       )}
     </div>
   );
@@ -85,17 +90,20 @@ export function CustomersMetricsBar({
             Customer accounts, receivables, and billing.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
           {onAddCustomer ? (
-            <Button size="sm" onClick={onAddCustomer}>
+            <AdminPrimaryAction onClick={onAddCustomer}>
               <Plus data-icon="inline-start" />
               Add customer
-            </Button>
+            </AdminPrimaryAction>
           ) : (
-            <Link href="/admin/customers/new" className={buttonVariants({ size: "sm" })}>
+            <AdminPrimaryAction
+              nativeButton={false}
+              render={<Link href="/admin/customers?form=new" />}
+            >
               <Plus data-icon="inline-start" />
               Add customer
-            </Link>
+            </AdminPrimaryAction>
           )}
           <CatalogExportButton source={exportSource} onFallbackExport={onExport} />
         </div>

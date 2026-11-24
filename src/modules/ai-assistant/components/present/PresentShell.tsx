@@ -26,11 +26,11 @@ export function PresentShell({
     >
       {title ? (
         <div className="border-b border-white/10 px-3 py-2">
-          <p className="text-[12px] font-semibold leading-snug text-foreground">
+          <p className="text-[13px] font-semibold leading-snug text-foreground">
             {title}
           </p>
           {subtitle ? (
-            <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>
           ) : null}
         </div>
       ) : null}

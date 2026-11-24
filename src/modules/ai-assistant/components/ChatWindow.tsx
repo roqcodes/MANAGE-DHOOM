@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import {
   AnimatePresence,
   LayoutGroup,
@@ -44,6 +45,13 @@ import { AiOrb } from "./AiOrb";
 import { AssistantPresentStack } from "./present/AssistantPresentStack";
 import { AssistantRoutePills } from "./AssistantRoutePills";
 import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import { useIsMdUp } from "@/modules/admin/hooks/use-is-md-up";
+import { cn } from "@/lib/utils";
+import { useAiChatRailResize } from "../hooks/use-ai-chat-rail-resize";
+import {
+  AI_CHAT_FLOAT_WIDTH_PX,
+  shouldUseAdminSplitRail,
+} from "../lib/ai-chat-rail-layout";
 
 const CHAT_MESSAGE_INDEX_ATTR = "data-chat-message-index";
 const MESSAGE_STAGGER_MS = 72;
@@ -88,6 +96,15 @@ export const ChatWindow = () => {
   } = useAiAssistant();
   const { sendMessage, isLoading } = useOpenRouter();
   const { confirm } = useAdminAlert();
+  const pathname = usePathname();
+  const isMdUp = useIsMdUp();
+  const splitRail = shouldUseAdminSplitRail(pathname, isMdUp);
+  const {
+    widthPx: railWidthPx,
+    isResizing,
+    onResizeHandlePointerDown,
+    applyPresetWidth,
+  } = useAiChatRailResize(splitRail, isOpen);
   const reduceMotion = useReducedMotion();
   const [input, setInput] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
@@ -172,9 +189,9 @@ export const ChatWindow = () => {
     return () => window.clearTimeout(t);
   }, [isOpen, hasActionableGuideCta]);
 
-  // Close when clicking outside modal
+  // Close when clicking outside (floating panel only)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || splitRail) return;
 
     const handlePointerDownOutside = (e: PointerEvent) => {
       const target = e.target as HTMLElement | null;
@@ -189,7 +206,7 @@ export const ChatWindow = () => {
     return () => {
       window.removeEventListener("pointerdown", handlePointerDownOutside);
     };
-  }, [isOpen, setIsOpen]);
+  }, [isOpen, setIsOpen, splitRail]);
 
   const hasConversation = chatHistory.length > 0;
 
@@ -335,44 +352,82 @@ export const ChatWindow = () => {
     URL.revokeObjectURL(url);
   };
 
+  const panelWidthPx = splitRail ? railWidthPx : AI_CHAT_FLOAT_WIDTH_PX;
+
+  const handleTogglePanelWidth = () => {
+    const next = !isExpanded;
+    setIsExpanded(next);
+    if (splitRail) applyPresetWidth(next);
+  };
+
   return (
-    <AnimatePresence>
-      {isOpen && (
+    <AnimatePresence mode="wait">
+      {isOpen ? (
         <motion.div
           ref={modalRef}
-          initial={{
-            opacity: 0,
-            scale: 0.15,
-            borderRadius: "3rem",
-          }}
-          animate={{
-            opacity: 1,
-            scale: 1,
-            borderRadius: "2rem",
-          }}
-          exit={{
-            opacity: 0,
-            scale: 0.15,
-            borderRadius: "3rem",
-          }}
+          data-ai-chat-panel
+          role="complementary"
+          aria-label="DHOOM AI assistant"
+          initial={
+            reduceMotion
+              ? false
+              : splitRail
+                ? { x: "100%", opacity: 1 }
+                : { opacity: 0, y: 16, scale: 0.98 }
+          }
+          animate={
+            reduceMotion
+              ? undefined
+              : splitRail
+                ? { x: 0, opacity: 1 }
+                : { opacity: 1, y: 0, scale: 1 }
+          }
+          exit={
+            reduceMotion
+              ? undefined
+              : splitRail
+                ? { x: "100%", opacity: 1 }
+                : { opacity: 0, y: 12, scale: 0.98 }
+          }
           transition={{
-            type: "spring",
-            stiffness: 340,
-            damping: 28,
-            mass: 0.6,
+            duration: reduceMotion ? 0 : 0.32,
+            ease: [0.22, 1, 0.36, 1],
           }}
-          style={{
-            originX: 1,
-            originY: 1,
-            willChange: "transform, opacity, border-radius",
-          }}
-          className={`fixed bottom-6 right-6 z-50 flex max-h-[calc(100vh-3.5rem)] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-[2rem] border border-white/20 bg-background/60 text-foreground shadow-[0_24px_65px_-12px_rgba(0,0,0,0.48),0_0_0_1px_rgba(255,255,255,0.12)_inset] backdrop-blur-2xl transition-[width,height] duration-300 ease-out dark:border-white/10 dark:bg-slate-950/65 dark:shadow-[0_28px_80px_-10px_rgba(0,0,0,0.85)] [transform:translateZ(0)] ${
-            isExpanded ? "h-[680px] w-[560px]" : "h-[600px] w-[352px]"
-          }`}
+          style={{ width: panelWidthPx }}
+          className={cn(
+            "fixed z-40 flex flex-col overflow-hidden text-foreground [transform:translateZ(0)]",
+            splitRail
+              ? "inset-y-0 right-0 h-dvh border-l border-slate-200/80 bg-[#F8FAFC]/95 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/95"
+              : "bottom-4 right-4 z-50 max-h-[min(720px,calc(100dvh-2rem))] rounded-2xl border border-white/20 bg-background/90 shadow-[0_24px_65px_-12px_rgba(0,0,0,0.35)] backdrop-blur-xl dark:border-white/10 dark:bg-slate-950/90",
+            !isResizing && splitRail && "transition-[width] duration-300 ease-out",
+          )}
         >
+          {splitRail ? (
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              aria-label="Resize assistant panel"
+              aria-valuemin={280}
+              aria-valuemax={720}
+              aria-valuenow={Math.round(panelWidthPx)}
+              onPointerDown={onResizeHandlePointerDown}
+              className={cn(
+                "absolute left-0 top-0 z-50 h-full w-2 -translate-x-1/2 touch-none",
+                "cursor-col-resize select-none",
+                "before:absolute before:inset-y-0 before:left-1/2 before:w-px before:-translate-x-1/2 before:bg-slate-200/90 before:transition-colors dark:before:bg-white/15",
+                "after:absolute after:left-1/2 after:top-1/2 after:h-12 after:w-1 after:-translate-x-1/2 after:-translate-y-1/2 after:rounded-full after:bg-slate-300/0 after:transition-colors",
+                "hover:after:bg-slate-400/50 dark:hover:after:bg-white/25",
+                isResizing && "after:bg-primary/40 before:bg-primary/50",
+              )}
+            />
+          ) : null}
           <LayoutGroup id="buyhub-chat-orb">
-          {/* ================= Modern Header (inset below outer rim) ================= */}
-          <header className="relative z-20 flex shrink-0 items-center justify-between gap-2 overflow-hidden rounded-t-[2rem] border-b border-white/10 bg-background/95 px-3.5 pb-2.5 pt-3.5 backdrop-blur-xl dark:bg-slate-950/90">
+          <header
+            className={cn(
+              "relative z-20 flex h-[52px] shrink-0 items-center justify-between gap-2 border-b border-slate-200/70 bg-[#F8FAFC]/90 px-3.5 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/90",
+              !splitRail && "rounded-t-2xl",
+            )}
+          >
             <div className="flex min-w-0 flex-1 items-center gap-2">
               {hasConversation ? (
                 <motion.div
@@ -383,7 +438,7 @@ export const ChatWindow = () => {
                   <AiOrb size={28} state={assistantState} compact animated />
                 </motion.div>
               ) : null}
-              <h3 className="min-w-0 truncate text-xs font-semibold tracking-tight text-foreground">
+              <h3 className="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground">
                 DHOOM AI
               </h3>
             </div>
@@ -392,10 +447,10 @@ export const ChatWindow = () => {
             <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-white/10 bg-white/5 p-0.5 backdrop-blur-md dark:bg-black/20">
               <button
                 type="button"
-                onClick={() => setIsExpanded((prev) => !prev)}
+                onClick={handleTogglePanelWidth}
                 className="rounded-full p-1.5 text-muted-foreground transition hover:bg-white/15 hover:text-foreground"
-                title={isExpanded ? "Standard view" : "Expand window"}
-                aria-label="Toggle size"
+                title={isExpanded ? "Narrow panel" : "Widen panel"}
+                aria-label="Toggle panel width"
               >
                 {isExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
               </button>
@@ -446,10 +501,10 @@ export const ChatWindow = () => {
                 >
                   <AiOrb size={54} state={assistantState} />
                 </motion.div>
-                <h4 className="mt-3.5 text-sm font-semibold text-foreground">
+                <h4 className="mt-3.5 text-base font-semibold text-foreground">
                   How can I help you today?
                 </h4>
-                <p className="mt-1 max-w-[240px] text-[11px] leading-relaxed text-muted-foreground">
+                <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-muted-foreground">
                   Ask live questions, pull custom reports, or launch on-screen guides.
                 </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-1.5">
@@ -581,22 +636,30 @@ export const ChatWindow = () => {
                     duration: MESSAGE_ENTER_DURATION_S,
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className={`group relative flex flex-col ${
-                    isUser ? "items-end" : "items-start"
-                  }`}
+                  className={cn(
+                    "group relative flex w-full min-w-0 flex-col",
+                    isUser ? "items-end" : "items-start",
+                  )}
                 >
                   <div
-                    className={`flex max-w-[90%] ${
-                      isUser ? "justify-end" : "justify-start"
-                    }`}
+                    className={cn(
+                      "flex w-full min-w-0",
+                      isUser ? "justify-end" : "justify-start",
+                    )}
                   >
-                    <div className="relative">
+                    <div
+                      className={cn(
+                        "relative min-w-0 w-full",
+                        isUser ? "max-w-[min(100%,22rem)]" : "max-w-full",
+                      )}
+                    >
                       <div
-                        className={`relative rounded-2xl p-3 text-xs leading-relaxed transition-all ${
+                        className={cn(
+                          "relative w-full min-w-0 rounded-2xl p-3 text-sm leading-relaxed break-words [overflow-wrap:anywhere] transition-all",
                           isUser
                             ? "rounded-tr-xs bg-primary text-primary-foreground shadow-[0_4px_18px_-4px_rgba(235,32,95,0.25)]"
-                            : "rounded-tl-xs border border-white/20 bg-white/40 text-foreground shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05]"
-                        }`}
+                            : "rounded-tl-xs border border-white/20 bg-white/40 text-foreground shadow-[0_4px_20px_-4px_rgba(0,0,0,0.08)] backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.05]",
+                        )}
                       >
                         <FormattedSpoken text={rawSpoken} />
                         {present ? <AssistantPresentStack present={present} /> : null}
@@ -646,7 +709,7 @@ export const ChatWindow = () => {
                   {routeHrefs.length > 0 ? (
                     <AssistantRoutePills
                       hrefs={routeHrefs}
-                      className="mt-2 w-full max-w-[90%]"
+                      className="mt-2 w-full min-w-0 max-w-full"
                     />
                   ) : null}
 
@@ -656,9 +719,9 @@ export const ChatWindow = () => {
                       initial={{ opacity: 0, y: 5 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: 0.12 }}
-                      className="mt-2.5 flex w-full flex-col gap-1"
+                      className="mt-2.5 flex w-full min-w-0 max-w-full flex-col gap-1"
                     >
-                      <div className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground/70">
+                      <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
                         <Zap size={9} className="text-amber-400" />
                         <span>Suggested next questions</span>
                       </div>
@@ -698,7 +761,7 @@ export const ChatWindow = () => {
                     <span className="size-1.5 rounded-full bg-sky-500 animate-bounce [animation-delay:-0.15s]" />
                     <span className="size-1.5 rounded-full bg-purple-500 animate-bounce" />
                   </div>
-                  <span className="text-[11px] font-medium text-muted-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
                     {assistantState === "querying"
                       ? "Reading live books…"
                       : "Thinking it through…"}
@@ -711,7 +774,12 @@ export const ChatWindow = () => {
           ) : null}
 
           {/* ================= Glass Command Prompt Input ================= */}
-          <footer className="relative shrink-0 overflow-hidden rounded-b-[2rem] border-t border-white/10 bg-background/80 p-3 backdrop-blur-xl dark:bg-slate-950/75">
+          <footer
+            className={cn(
+              "relative shrink-0 overflow-hidden border-t border-slate-200/70 bg-[#F8FAFC]/95 p-3 backdrop-blur-md dark:border-white/10 dark:bg-slate-950/90",
+              !splitRail && "rounded-b-2xl",
+            )}
+          >
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -727,7 +795,7 @@ export const ChatWindow = () => {
                 rows={1}
                 placeholder="Ask a live question or ‘guide me to…’"
                 disabled={isLoading}
-                className="max-h-24 w-full resize-none border-none bg-transparent px-3.5 py-2.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
+                className="max-h-24 w-full resize-none border-none bg-transparent px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
               />
 
               <div className="mr-2 flex items-center">
@@ -746,7 +814,7 @@ export const ChatWindow = () => {
                 </motion.button>
               </div>
             </form>
-            <div className="mt-1 flex items-center justify-between px-1.5 text-[9px] text-muted-foreground/60">
+            <div className="mt-1 flex items-center justify-between px-1.5 text-[10px] text-muted-foreground/60">
               <span>Return ↵ to send</span>
               <span className="flex items-center gap-1">
                 <span className="size-1 rounded-full bg-emerald-500" />
@@ -755,7 +823,7 @@ export const ChatWindow = () => {
             </div>
           </footer>
         </motion.div>
-      )}
+      ) : null}
     </AnimatePresence>
   );
 };

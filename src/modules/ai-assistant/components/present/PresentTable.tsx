@@ -15,7 +15,7 @@ export function PresentTable({ block }: { block: UiTableBlock }) {
     block.note || block.ctaPath ? (
       <div className="flex flex-col gap-2 px-1">
         {block.note ? (
-          <p className="text-[10px] text-muted-foreground">{block.note}</p>
+          <p className="text-[11px] text-muted-foreground">{block.note}</p>
         ) : null}
         {block.ctaPath ? (
           <AssistantActionButton
@@ -32,7 +32,7 @@ export function PresentTable({ block }: { block: UiTableBlock }) {
   return (
     <PresentShell title={block.title} subtitle={block.subtitle} footer={footer}>
       <div className="max-h-56 overflow-auto">
-        <table className="w-full text-left text-[11px]">
+        <table className="w-full text-left text-xs">
           <thead className="sticky top-0 bg-background/90 backdrop-blur-sm">
             <tr>
               {columns.map((col, i) => (

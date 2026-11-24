@@ -92,7 +92,7 @@ function pulseAnimate(
 }
 
 const shellClass =
-  "relative flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] font-semibold shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset] backdrop-blur-md transition-[border-color,background-color] disabled:pointer-events-none disabled:opacity-55";
+  "relative flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold shadow-[0_0_0_1px_rgba(255,255,255,0.06)_inset] backdrop-blur-md transition-[border-color,background-color] disabled:pointer-events-none disabled:opacity-55";
 
 export function AssistantActionButton({
   variant = "guide",
@@ -229,7 +229,7 @@ export function AssistantSuggestChip({
         damping: 26,
       }}
       className={cn(
-        "group flex items-center gap-1.5 rounded-full border border-white/15 bg-white/40 px-2.5 py-1 text-left text-[11px] text-foreground/90 shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-md transition-colors hover:bg-primary/10 hover:text-primary dark:border-white/5 dark:bg-white/[0.04] disabled:opacity-45",
+        "group flex items-center gap-1.5 rounded-full border border-white/15 bg-white/40 px-2.5 py-1 text-left text-xs text-foreground/90 shadow-[0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-md transition-colors hover:bg-primary/10 hover:text-primary dark:border-white/5 dark:bg-white/[0.04] disabled:opacity-45",
         className,
       )}
     >

@@ -2,23 +2,19 @@
 
 import type { ReactNode } from "react";
 
-import {
-  AiAssistantPreferenceProvider,
-  useAiAssistantPreference,
-} from "../context/AiAssistantPreferenceContext";
-import { AiAssistantOverlay } from "./AiAssistantOverlay";
-
-function AiAssistantOverlayGate() {
-  const { enabled } = useAiAssistantPreference();
-  if (!enabled) return null;
-  return <AiAssistantOverlay />;
-}
+import { AiAssistantProvider } from "../context/AiAssistantContext";
+import { AiAssistantPreferenceProvider } from "../context/AiAssistantPreferenceContext";
+import { AiAssistantUi } from "./AiAssistantUi";
 
 export function AiAssistantRoot({ children }: { children: ReactNode }) {
   return (
     <AiAssistantPreferenceProvider>
-      {children}
-      <AiAssistantOverlayGate />
+      <AiAssistantProvider>
+        <>
+          {children}
+          <AiAssistantUi />
+        </>
+      </AiAssistantProvider>
     </AiAssistantPreferenceProvider>
   );
 }

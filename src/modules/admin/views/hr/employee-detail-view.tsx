@@ -31,7 +31,11 @@ import { AdminPageLayout } from "@/modules/admin/ui";
 import { ActivityLogPanel } from "@/modules/erp/components/activity-log-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AdminPrimaryAction } from "@/modules/admin/ui";
+import {
+  AdminPrimaryAction,
+  AdminSecondaryIconAction,
+  ErpPartyProfileToolbar,
+} from "@/modules/admin/ui";
 import {
   Card,
   CardContent,
@@ -262,7 +266,45 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2.5">
+          <ErpPartyProfileToolbar
+            adminActions={
+              <>
+                <AdminSecondaryIconAction
+                  nativeButton={false}
+                  render={
+                    <Link href={`/admin/erp/employees?form=edit&id=${employeeId}`} />
+                  }
+                  aria-label="Edit employee"
+                  title="Edit employee"
+                >
+                  <Pencil />
+                </AdminSecondaryIconAction>
+                {employee.is_salesman ? (
+                  <AdminSecondaryIconAction
+                    nativeButton={false}
+                    render={
+                      <Link
+                        href={`/admin/erp/employees?form=salesman&id=${employeeId}`}
+                      />
+                    }
+                    aria-label="Edit salesman PIN"
+                    title="Edit salesman PIN"
+                  >
+                    <KeyRound />
+                  </AdminSecondaryIconAction>
+                ) : null}
+                <AdminSecondaryIconAction
+                  className="text-destructive hover:text-destructive"
+                  disabled={deleting}
+                  onClick={handleDelete}
+                  aria-label="Delete employee"
+                  title="Delete employee"
+                >
+                  <Trash2 />
+                </AdminSecondaryIconAction>
+              </>
+            }
+          >
             <AdminPrimaryAction
               nativeButton={false}
               render={
@@ -274,41 +316,7 @@ export function EmployeeDetailView({ employeeId }: { employeeId: string }) {
               <Plus data-icon="inline-start" />
               Record payment
             </AdminPrimaryAction>
-            {employee.is_salesman ? (
-              <Button
-                variant="outline"
-                size="page"
-                className="rounded-full"
-                nativeButton={false}
-                render={
-                  <Link href={`/admin/erp/employees?form=salesman&id=${employeeId}`} />
-                }
-              >
-                <KeyRound data-icon="inline-start" />
-                Edit salesman
-              </Button>
-            ) : null}
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full"
-              nativeButton={false}
-              render={<Link href={`/admin/erp/employees?form=edit&id=${employeeId}`} />}
-            >
-              <Pencil data-icon="inline-start" />
-              Edit employee
-            </Button>
-            <Button
-              variant="outline"
-              size="page"
-              className="rounded-full text-destructive hover:text-destructive"
-              disabled={deleting}
-              onClick={handleDelete}
-            >
-              <Trash2 data-icon="inline-start" />
-              Delete
-            </Button>
-          </div>
+          </ErpPartyProfileToolbar>
         </CardContent>
       </Card>
 

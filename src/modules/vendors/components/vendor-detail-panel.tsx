@@ -314,8 +314,11 @@ function SupplyLineTableRow({
 
   return (
     <TableRow>
-      <TableCell className="font-medium">{productName}</TableCell>
-      <TableCell>{variantName}</TableCell>
+      <TableCell className="min-w-0 font-medium">
+        <p className="truncate">{productName}</p>
+        <p className="truncate text-xs text-muted-foreground sm:hidden">{variantName}</p>
+      </TableCell>
+      <TableCell className="hidden sm:table-cell">{variantName}</TableCell>
       <TableCell className="tabular-nums">{formatInr(vp.base_price)}</TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
@@ -472,7 +475,7 @@ export function VendorDetailPanel({
                   <Badge variant="secondary">Inactive</Badge>
                 )}
               </div>
-              <h1 className="mt-2 text-2xl font-semibold">
+              <h1 className="mt-2 text-xl font-semibold sm:text-2xl">
                 {vendor.name ?? "Unnamed vendor"}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -481,7 +484,7 @@ export function VendorDetailPanel({
               <p className="mt-2 text-sm text-muted-foreground">ID · {shortId}…</p>
             </div>
 
-            <div className="flex flex-wrap gap-2 lg:justify-end">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto lg:justify-end">
               <Button variant="outline" disabled={isPending} onClick={handleToggle}>
                 {isActive ? "Deactivate" : "Activate"}
               </Button>
@@ -576,28 +579,30 @@ export function VendorDetailPanel({
                 ) : null}
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead>Product</TableHead>
-                    <TableHead>Variant</TableHead>
-                    <TableHead>Base price</TableHead>
-                    <TableHead>Stock</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {vendorProducts.map((vp) => (
-                    <SupplyLineTableRow
-                      key={vp.id}
-                      vp={vp}
-                      disabled={isPending}
-                      onEdit={() => setModal({ kind: "editSupplyLine", vp })}
-                      onRemove={() => handleRemove(vp.id)}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead>Product</TableHead>
+                      <TableHead className="hidden sm:table-cell">Variant</TableHead>
+                      <TableHead>Base price</TableHead>
+                      <TableHead>Stock</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {vendorProducts.map((vp) => (
+                      <SupplyLineTableRow
+                        key={vp.id}
+                        vp={vp}
+                        disabled={isPending}
+                        onEdit={() => setModal({ kind: "editSupplyLine", vp })}
+                        onRemove={() => handleRemove(vp.id)}
+                      />
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>

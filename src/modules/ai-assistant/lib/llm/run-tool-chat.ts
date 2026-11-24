@@ -1,9 +1,14 @@
 import { completeChatWithProviderFallback } from "./complete-chat";
 import type { LlmChatMessage } from "./openai-compatible";
 import { executeAssistantTool } from "../tools/execute-tools";
-import { ensurePresentationInReply } from "../tool-presentation";
+import { scopedPresentationFlags } from "../message-intent";
+import {
+  ensurePresentationInReply,
+  type PresentationOptions,
+} from "../tool-presentation";
 
 const MAX_TOOL_ROUNDS = 3;
+const TOOL_ANSWER_NUDGE_RE = /^Use the tool results above\./;
 
 function compactToolResult(value: unknown): string {
   const json = JSON.stringify(value);
@@ -15,11 +20,46 @@ function callKey(name: string, args: string) {
   return `${name}:${args.replace(/\s+/g, "")}`;
 }
 
-function finalizeReply(reply: string, results: unknown[]): string {
-  return ensurePresentationInReply(reply, results);
+function lastUserMessageText(messages: LlmChatMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const m = messages[i];
+    if (m.role !== "user" || typeof m.content !== "string") continue;
+    const text = m.content.trim();
+    if (!text || TOOL_ANSWER_NUDGE_RE.test(text)) continue;
+    return m.content;
+  }
+  return "";
 }
 
-function fallbackFromToolResults(results: unknown[]): string {
+function presentationOptionsForMessages(
+  messages: LlmChatMessage[],
+): PresentationOptions | undefined {
+  const userText = lastUserMessageText(messages);
+  if (!userText) return undefined;
+  const flags = scopedPresentationFlags(userText);
+  if (!flags.textOnly && !flags.narrowSuperlative) return undefined;
+  return {
+    omitTablesAndCharts: flags.textOnly,
+    narrowLeaderboard: flags.narrowSuperlative,
+  };
+}
+
+function finalizeReply(
+  reply: string,
+  results: unknown[],
+  messages: LlmChatMessage[],
+): string {
+  return ensurePresentationInReply(
+    reply,
+    results,
+    presentationOptionsForMessages(messages),
+  );
+}
+
+function fallbackFromToolResults(
+  results: unknown[],
+  messages: LlmChatMessage[],
+): string {
   const bills: Array<Record<string, unknown>> = [];
   for (const result of results) {
     if (!result || typeof result !== "object") continue;
@@ -47,11 +87,6 @@ function fallbackFromToolResults(results: unknown[]): string {
       top.purchase_bill_number ?? top.bill_number ?? top.invoice_number ?? "",
     );
     const due = Number(top.balance_due ?? top.total_amount ?? 0);
-    const lines = ranked.slice(0, 8).map((row) => [
-      String(row.purchase_bill_number ?? row.bill_number ?? ""),
-      String(row.vendor_name ?? row.vendor ?? ""),
-      Number(row.balance_due ?? 0),
-    ]);
     return finalizeReply(
       [
         `Largest open balance is ${billNo || "that bill"} (${vendor}, ${due.toLocaleString()} due).`,
@@ -59,6 +94,7 @@ function fallbackFromToolResults(results: unknown[]): string {
         "[POINT:none]",
       ].join("\n"),
       results,
+      messages,
     );
   }
 
@@ -67,6 +103,7 @@ function fallbackFromToolResults(results: unknown[]): string {
       "\n",
     ),
     results,
+    messages,
   );
 }
 
@@ -92,7 +129,7 @@ export async function completeChatWithTools(
       working.push({
         role: "user",
         content:
-          "Use the tool results above. One short answer, then [SUGGEST:…] and [POINT:none]. No more tool calls.",
+          "Use the tool results above. Answer only what they asked (direct fact first; for placement/superlative asks, at most #1 and #2 in speech). Then [SUGGEST:…] and [POINT:none]. No more tool calls.",
       });
     }
 
@@ -108,7 +145,7 @@ export async function completeChatWithTools(
       if (collectedResults.length > 0) {
         return {
           ok: true as const,
-          reply: fallbackFromToolResults(collectedResults),
+          reply: fallbackFromToolResults(collectedResults, working),
           model: lastModel || "fallback",
           latencyMs: Date.now() - started,
           completionTokens,
@@ -125,7 +162,7 @@ export async function completeChatWithTools(
       if (result.reply?.trim()) {
         return {
           ok: true as const,
-          reply: finalizeReply(result.reply, collectedResults),
+          reply: finalizeReply(result.reply, collectedResults, working),
           model: lastModel,
           latencyMs: Date.now() - started,
           completionTokens,
@@ -135,7 +172,7 @@ export async function completeChatWithTools(
       if (collectedResults.length > 0) {
         return {
           ok: true as const,
-          reply: fallbackFromToolResults(collectedResults),
+          reply: fallbackFromToolResults(collectedResults, working),
           model: lastModel,
           latencyMs: Date.now() - started,
           completionTokens,
@@ -148,8 +185,10 @@ export async function completeChatWithTools(
       return {
         ok: true as const,
         reply: finalizeReply(
-          result.reply?.trim() || fallbackFromToolResults(collectedResults),
+          result.reply?.trim() ||
+            fallbackFromToolResults(collectedResults, working),
           collectedResults,
+          working,
         ),
         model: lastModel,
         latencyMs: Date.now() - started,
@@ -195,7 +234,7 @@ export async function completeChatWithTools(
 
   return {
     ok: true as const,
-    reply: fallbackFromToolResults(collectedResults),
+    reply: fallbackFromToolResults(collectedResults, working),
     model: lastModel || "fallback",
     latencyMs: Date.now() - started,
     completionTokens,

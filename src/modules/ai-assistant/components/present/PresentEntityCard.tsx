@@ -64,7 +64,7 @@ export function PresentEntityCard({ block }: { block: UiEntityBlock }) {
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${KIND_ACCENT[block.kind]} border border-white/10`}
           aria-hidden
         >
-          <span className="text-[11px] font-bold text-foreground">
+          <span className="text-xs font-bold text-foreground">
             {entityInitials(block.title)}
           </span>
         </div>
@@ -72,11 +72,11 @@ export function PresentEntityCard({ block }: { block: UiEntityBlock }) {
           <div className="flex items-start gap-1.5">
             <Icon className="mt-0.5 size-3 shrink-0 text-muted-foreground" aria-hidden />
             <div className="min-w-0">
-              <p className="truncate text-[12px] font-semibold text-foreground">
+              <p className="truncate text-[13px] font-semibold text-foreground">
                 {block.title}
               </p>
               {block.subtitle ? (
-                <p className="text-[10px] capitalize text-muted-foreground">
+                <p className="text-[11px] capitalize text-muted-foreground">
                   {block.subtitle}
                 </p>
               ) : null}
@@ -85,10 +85,10 @@ export function PresentEntityCard({ block }: { block: UiEntityBlock }) {
           <dl className="mt-2 grid gap-1.5 sm:grid-cols-2">
             {fields.map((f) => (
               <div key={f.label} className="min-w-0">
-                <dt className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                <dt className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                   {f.label}
                 </dt>
-                <dd className="truncate text-[11px] tabular-nums text-foreground/95">
+                <dd className="truncate text-xs tabular-nums text-foreground/95">
                   {f.value}
                 </dd>
               </div>

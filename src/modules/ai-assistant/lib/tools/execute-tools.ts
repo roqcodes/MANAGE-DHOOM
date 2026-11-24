@@ -246,7 +246,7 @@ async function customerPurchase(args: JsonRecord) {
       when: inv?.issued_at || inv?.created_at,
       invoice_number: inv?.invoice_number,
       invoice_status: inv?.status,
-      customer: cust ? displayName(cust) : inv?.user_id,
+      customer: cust ? displayName(cust) : "Unknown customer",
       product_name: row.product_name,
       quantity: row.quantity,
       line_total: row.total_amount,

@@ -135,12 +135,12 @@ export function SalesOrderOutboxTableRows({
               {orderId ? (
                 <Link
                   href={`${detailBasePath}/${orderId}`}
-                  className="font-mono text-[13px] font-medium text-foreground hover:text-primary hover:underline"
+                  className="font-mono text-[14px] font-medium text-foreground hover:text-primary hover:underline"
                 >
                   {formatErpDocRef("SO", orderId)}
                 </Link>
               ) : (
-                <span className="font-mono text-[13px] font-medium text-amber-950">
+                <span className="font-mono text-[14px] font-medium text-amber-950">
                   Queued · {shortId}
                 </span>
               )}
@@ -149,25 +149,25 @@ export function SalesOrderOutboxTableRows({
               {reference}
             </TableCell>
             <TableCell>
-              <span className="text-[13px] font-medium text-amber-950">
+              <span className="text-[14px] font-medium text-amber-950">
                 {operationTitle(op.operationType)}
               </span>
             </TableCell>
-            <TableCell className="text-[13px] text-muted-foreground">
+            <TableCell className="text-[14px] text-muted-foreground">
               {format(op.createdAt, "MMM d, yyyy")}
             </TableCell>
-            <TableCell className="hidden text-[13px] text-muted-foreground xl:table-cell">
+            <TableCell className="hidden text-[14px] text-muted-foreground xl:table-cell">
               {shipment}
             </TableCell>
             <TableCell className="hidden md:table-cell">—</TableCell>
             <TableCell>
-              <span className="text-xs text-muted-foreground">—</span>
+              <span className="text-sm text-muted-foreground">—</span>
             </TableCell>
             <TableCell>
               <div className="flex flex-col items-start gap-1.5">
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-semibold",
                     failed
                       ? "bg-orange-100 text-orange-950 ring-1 ring-orange-300/60"
                       : op.state === OUTBOX_OPERATION_STATES.SYNCING
@@ -184,14 +184,14 @@ export function SalesOrderOutboxTableRows({
                 </span>
                 {op.lastError?.message ? (
                   <p
-                    className="max-w-[min(280px,40vw)] text-[11px] leading-snug text-orange-900"
+                    className="max-w-[min(280px,40vw)] text-[12px] leading-snug text-orange-900"
                     title={op.lastError.message}
                   >
                     {op.lastError.message}
                   </p>
                 ) : null}
                 {retryError ? (
-                  <p className="text-[10px] text-rose-700">{retryError}</p>
+                  <p className="text-[11px] text-rose-700">{retryError}</p>
                 ) : null}
                 {isOutboxOpUserRetryable(op) ? (
                   <Button
