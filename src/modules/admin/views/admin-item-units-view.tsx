@@ -285,9 +285,6 @@ export function AdminItemUnitsView() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Item Units</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage units of measure for inventory items, sales, and purchases.
-            </p>
           </div>
           <AdminPrimaryAction onClick={() => setModal({ mode: "create" })}>
             <Plus data-icon="inline-start" />

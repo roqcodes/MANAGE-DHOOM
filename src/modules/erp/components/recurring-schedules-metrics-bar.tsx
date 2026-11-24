@@ -114,11 +114,6 @@ export function RecurringSchedulesMetricsBar({
   const activePct = stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0;
   const resolvedTitle =
     title ?? (variant === "invoice" ? "Recurring invoices" : "Recurring bills");
-  const resolvedDescription =
-    description ??
-    (variant === "invoice"
-      ? "Automate repeating customer invoices — money to be received on schedule."
-      : "Automate repeating vendor purchase bills — money to be paid on schedule.");
   const valueTrend =
     variant === "invoice"
       ? `${stats.invoiceCount} invoice${stats.invoiceCount === 1 ? "" : "s"}`
@@ -129,7 +124,6 @@ export function RecurringSchedulesMetricsBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{resolvedTitle}</h1>
-          <p className="text-sm text-muted-foreground">{resolvedDescription}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <AdminPrimaryAction onClick={onCreate}>

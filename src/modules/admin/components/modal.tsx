@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -78,9 +77,7 @@ export function Modal({
       >
         <DialogHeader className="shrink-0 gap-0.5 border-b border-border px-3 py-2 pr-14 text-left sm:gap-1 sm:px-4 sm:py-2.5 min-[1100px]:px-5 min-[1100px]:py-3">
           <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
-          {subtitle ? (
-            <DialogDescription className="text-sm">{subtitle}</DialogDescription>
-          ) : null}
+          {null}
         </DialogHeader>
 
         <div

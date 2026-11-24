@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export function ErpComingSoonView({
   title,
-  description,
+  description: _description,
 }: {
   title: string;
   description?: string;
@@ -15,9 +15,6 @@ export function ErpComingSoonView({
         Coming soon
       </p>
       <h1 className="mt-4 text-2xl font-semibold">{title}</h1>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {description ?? "This HR module is planned for a future release."}
-      </p>
       <Button nativeButton={false} className="mt-8" render={<Link href="/admin" />}>
         Back to dashboard
       </Button>

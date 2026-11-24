@@ -45,7 +45,7 @@ export function StoresListView() {
       <AdminPageHeader
         title="Stores"
         breadcrumb={[{ label: "Stores", href: "/admin/erp/stores" }]}
-        description="Retail and warehouse locations used for inventory, sales, and purchases."
+        description="Locations for inventory and sales. Each store’s seller details appear on tax invoices."
         actions={
           <AdminPrimaryAction onClick={() => openNew()}>
             Add store

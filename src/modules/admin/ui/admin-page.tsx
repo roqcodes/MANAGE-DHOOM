@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
+import { AdminCombinedPageHeading } from "@/modules/admin/components/admin-breadcrumb";
 import { AdminPageActionBar } from "@/modules/admin/ui/admin-page-actions";
 import { AdminInfoTip } from "@/modules/admin/ui/admin-info-tip";
 import { cn } from "@/lib/utils";
@@ -31,13 +31,13 @@ export function AdminPageLayout({
 
 export function AdminPageHeader({
   title,
-  description,
   info,
   actions,
   breadcrumb,
   backHref,
 }: {
   title: string;
+  /** @deprecated Subtitles are no longer shown on admin pages. */
   description?: string;
   info?: ReactNode;
   actions?: ReactNode;
@@ -46,20 +46,14 @@ export function AdminPageHeader({
 }) {
   return (
     <div className="space-y-3">
-      {breadcrumb && breadcrumb.length > 0 ? (
-        <AdminBreadcrumb items={breadcrumb} backHref={backHref} />
-      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">
-              {title}
-            </h1>
-            {info ? <AdminInfoTip title={title}>{info}</AdminInfoTip> : null}
-          </div>
-          {description ? (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          ) : null}
+          <AdminCombinedPageHeading
+            title={title}
+            breadcrumb={breadcrumb}
+            backHref={backHref}
+            info={info ? <AdminInfoTip title={title}>{info}</AdminInfoTip> : undefined}
+          />
         </div>
         {actions ? (
           <AdminPageActionBar
@@ -89,12 +83,13 @@ export function AdminFormLayout({
 
 export function AdminFormSection({
   title,
-  description,
+  description: _description,
   info,
   children,
   className,
 }: {
   title: string;
+  /** @deprecated Section subtitles are no longer shown. */
   description?: string;
   info?: ReactNode;
   children: ReactNode;
@@ -114,9 +109,6 @@ export function AdminFormSection({
           </h2>
           {info ? <AdminInfoTip title={title}>{info}</AdminInfoTip> : null}
         </div>
-        {description ? (
-          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
-        ) : null}
       </div>
       <div className="space-y-3">{children}</div>
     </section>

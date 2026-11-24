@@ -1,28 +1,30 @@
-import { format } from "date-fns";
-
 import type { AdminPurchaseOrderDetail } from "@/common/admin/types";
-import { formatCurrency } from "@/lib/format-currency";
+import { COMPANY_NAME } from "@/modules/brand/lib/brand";
 import {
-  InvoicePrintFooter,
-  InvoicePrintHeader,
-  InvoicePrintLineTable,
-  InvoicePrintParties,
+  dash,
+  INVOICE_PRINT_LABELS,
+  PURCHASE_ORDER_TITLE_AR,
+  PURCHASE_ORDER_TITLE_EN,
+} from "@/modules/documents/invoice-print-copy";
+import {
+  formatInvoiceDate,
+  formatInvoiceMoney,
+  formatInvoiceUnitPrice,
+  formatQty,
+} from "@/modules/documents/invoice-print-money";
+import {
   InvoicePrintRoot,
-  InvoicePrintTotals,
+  TaxInvoiceClosing,
+  TaxInvoiceLineTable,
+  TaxInvoiceMasthead,
+  TaxInvoiceMeta,
+  TaxInvoiceParties,
+  TaxInvoiceTotals,
 } from "@/modules/documents/invoice-print-primitives";
-
-function formatMoney(n: number | null) {
-  if (n == null) return "—";
-  return formatCurrency(n, { minimumFractionDigits: 2 });
-}
+import { buildZatcaQrPayload, invoiceTimestampIso } from "@/modules/documents/zatca-qr";
 
 function shortPoRef(id: string) {
-  return id.slice(0, 8).toUpperCase();
-}
-
-function lineTotal(qty: number | null, price: number | null) {
-  if (qty == null || price == null) return null;
-  return qty * price;
+  return `PO-${id.slice(0, 8).toUpperCase()}`;
 }
 
 export function PurchaseOrderInvoiceDocument({
@@ -30,91 +32,89 @@ export function PurchaseOrderInvoiceDocument({
 }: {
   po: AdminPurchaseOrderDetail;
 }) {
-  const placed = po.created_at
-    ? format(new Date(po.created_at), "MMMM d, yyyy · h:mm a")
-    : "—";
   const vendor = po.vendors;
   const items = po.purchase_order_items ?? [];
+  const number = shortPoRef(po.id);
+  const seller = {
+    name: dash(vendor?.name),
+    address: dash(vendor?.contact),
+    street: "—",
+    city: "—",
+    phone: "—",
+    vatNumber: "—",
+  };
+  const buyer = {
+    name: COMPANY_NAME,
+    address: "—",
+    street: "—",
+    city: "—",
+    phone: "—",
+    vatNumber: "—",
+  };
 
-  const metaRows = [
-    { label: "PO date", value: placed },
-    { label: "Status", value: (po.status ?? "—").replace(/_/g, " ") },
-  ];
+  const qrValue = buildZatcaQrPayload({
+    sellerName: buyer.name,
+    vatNumber: "",
+    timestampIso: invoiceTimestampIso(po.created_at),
+    totalWithVat: Number(po.total_amount ?? 0),
+    vatAmount: 0,
+  });
 
   return (
     <InvoicePrintRoot kind="purchase">
-      <InvoicePrintHeader
-        title="Purchase order"
-        documentNumber={`PO-${shortPoRef(po.id)}`}
-        status={po.status}
-        metaRows={metaRows}
+      <TaxInvoiceMasthead
+        storeName={COMPANY_NAME}
+        titleEn={PURCHASE_ORDER_TITLE_EN}
+        titleAr={PURCHASE_ORDER_TITLE_AR}
       />
-
-      <InvoicePrintParties
-        left={{
-          title: "Buyer",
-          lines: ["DHOOM Trading", "Procurement / stores"],
-        }}
-        right={{
-          title: "Vendor / supplier",
-          lines: [
-            vendor?.name?.trim() ?? "—",
-            ...(vendor?.contact ? [vendor.contact] : []),
-            ...(vendor?.id ? [`Vendor ID: ${vendor.id.slice(0, 8)}…`] : []),
-          ],
-        }}
+      <TaxInvoiceMeta
+        numberLabel={INVOICE_PRINT_LABELS.poNumber}
+        dateLabel={INVOICE_PRINT_LABELS.poDate}
+        documentNumber={number}
+        invoiceDate={formatInvoiceDate(po.created_at)}
+        dueDate={dash(po.status?.replace(/_/g, " "))}
+        dueLabel={{ en: "Status", ar: "الحالة" }}
+        qrValue={qrValue}
       />
-
-      <InvoicePrintLineTable
-        columns={[
-          { key: "item", label: "Item" },
-          { key: "qty", label: "Qty", align: "right", width: "56px" },
-          { key: "unit", label: "Unit cost", align: "right", width: "80px" },
-          { key: "line", label: "Line total", align: "right", width: "88px" },
-        ]}
+      <TaxInvoiceParties seller={seller} buyer={buyer} />
+      <TaxInvoiceLineTable
         rows={
           items.length === 0
-            ? [{ item: "No line items", qty: "—", unit: "—", line: "—" }]
+            ? []
             : items.map((line) => {
-                const pv = line.product_variants;
-                const productName = pv?.products?.name ?? "—";
-                const variantName = pv?.name ?? "—";
-                const lt = lineTotal(line.quantity, line.price);
+                const qty = Number(line.quantity ?? 0);
+                const unit = Number(line.price ?? 0);
+                const taxable = qty * unit;
+                const name = line.product_variants?.products?.name ?? "—";
+                const variant = line.product_variants?.name;
                 return {
-                  item: (
+                  nature: (
                     <>
-                      <span className="font-medium">{productName}</span>
-                      <span className="block text-[11px] text-slate-500">{variantName}</span>
+                      <span className="bh-inv-item-name">{name}</span>
+                      {variant ? <span className="bh-inv-item-desc">{variant}</span> : null}
                     </>
                   ),
-                  qty: line.quantity ?? "—",
-                  unit: formatMoney(line.price),
-                  line: lt != null ? formatMoney(lt) : "—",
+                  unitPrice: formatInvoiceUnitPrice(unit),
+                  quantity: formatQty(qty),
+                  taxable: formatInvoiceMoney(taxable),
+                  taxRate: "—",
+                  taxAmount: formatInvoiceMoney(0),
+                  subtotal: formatInvoiceMoney(taxable),
                 };
               })
         }
       />
-
-      <InvoicePrintTotals
-        lines={[
-          {
-            label: "PO total",
-            value: formatMoney(po.total_amount),
-            grand: true,
-          },
-        ]}
+      <TaxInvoiceTotals
+        taxable={formatInvoiceMoney(po.total_amount)}
+        vat={formatInvoiceMoney(0)}
+        total={formatInvoiceMoney(po.total_amount)}
+        paid={formatInvoiceMoney(0)}
+        balance={formatInvoiceMoney(po.total_amount)}
       />
-
-      <InvoicePrintFooter>
-        <p>
-          This purchase order authorizes the vendor to supply the listed goods at the stated
-          quantities and prices. Deliveries should reference PO <strong>{shortPoRef(po.id)}</strong>.
-        </p>
-        <p className="mt-2">
-          Official tax invoices from the vendor must match received quantities. Use this document
-          for receiving, three-way match, and accounts payable.
-        </p>
-      </InvoicePrintFooter>
+      <TaxInvoiceClosing
+        counterpartyLabel={INVOICE_PRINT_LABELS.vendorBalance.en}
+        counterpartyBalance={po.total_amount}
+      />
     </InvoicePrintRoot>
   );
 }

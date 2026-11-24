@@ -1,3 +1,4 @@
+import { shouldSuppressWorkspaceNavigationProgress } from "@/modules/admin/lib/admin-workspace-navigation";
 import { ADMIN_LOAD_DEBUG_TRACE_STORAGE_KEY } from "@/modules/navigation/lib/admin-load-debug-preference";
 
 type Listener = () => void;
@@ -201,6 +202,7 @@ export async function withAsyncProgress<T>(
 
 export function setNavigationProgressActive(active: boolean) {
   if (active) {
+    if (shouldSuppressWorkspaceNavigationProgress()) return;
     if (navigationOpId === null) {
       navigationOpId = beginAsyncProgress({
         label: "Opening page…",

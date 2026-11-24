@@ -22,7 +22,6 @@ export function ErpPurchaseBillPrintPage() {
   const [bill, setBill] = useState<PurchaseBillPrintData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
   const autoDownloadedRef = useRef(false);
 
   useEffect(() => {
@@ -37,12 +36,7 @@ export function ErpPurchaseBillPrintPage() {
     const element = document.querySelector("[data-print-document]");
     if (!(element instanceof HTMLElement) || !bill) return;
 
-    setDownloading(true);
-    try {
-      await downloadElementAsPdf(element, `${bill.purchase_bill_number}.pdf`);
-    } finally {
-      setDownloading(false);
-    }
+    await downloadElementAsPdf(element, `${bill.purchase_bill_number}.pdf`);
   }, [bill]);
 
   useAutoPrintOnLoad(
@@ -74,7 +68,6 @@ export function ErpPurchaseBillPrintPage() {
         backHref={`/admin/erp/purchase-bills/${id}`}
         title={`Purchase bill · ${bill.purchase_bill_number}`}
         onDownloadPdf={handleDownloadPdf}
-        downloading={downloading}
         onPrint={() => {
           const element = document.querySelector("[data-print-document]");
           if (element instanceof HTMLElement) printDocumentElement(element);

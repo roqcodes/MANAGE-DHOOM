@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import { BRAND_ACCENT, BRAND_SHORT_NAME, COMPANY_NAME } from "@/modules/brand/lib/brand";
 
 export const BUYHUB_LOGO_PATH = "/DHOOM-LOGO.png";
+/** Grayscale copy for tax invoices and print/PDF */
+export const BUYHUB_INVOICE_LOGO_PATH = "/DHOOM-LOGO-PRINT-BW.png";
 export const BUYHUB_ICON_PATH = "/icon.png";
 export const BUYHUB_FAVICON_PATH = "/favicon.png";
 
@@ -55,9 +57,9 @@ export function BuyHubInvoiceLogo({ className }: { className?: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={BUYHUB_LOGO_PATH}
+      src={BUYHUB_INVOICE_LOGO_PATH}
       alt={COMPANY_NAME}
-      className={cn("h-10 w-auto object-contain print:h-9", className)}
+      className={cn("h-7 w-auto object-contain print:h-7", className)}
     />
   );
 }

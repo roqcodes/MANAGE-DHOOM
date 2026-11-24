@@ -5,6 +5,11 @@ import {
   injectTabularPdfStyles,
   preparePrintDocumentForPdfCapture,
 } from "@/lib/invoice-pdf-styles";
+import {
+  downloadPrintDocumentAsPdf,
+  exportPrintDocumentAsPdfBlob,
+  isPrintDocumentElement,
+} from "@/lib/print-document-pdf";
 
 const MODERN_COLOR_PATTERN = /(lab|oklch|oklab|lch|color)\(/i;
 
@@ -68,6 +73,17 @@ const LAYOUT_PROPS = [
   "gridTemplateColumns",
   "gridColumn",
   "opacity",
+  "float",
+  "clear",
+  "overflow",
+  "overflowX",
+  "overflowY",
+  "borderCollapse",
+  "borderSpacing",
+  "tableLayout",
+  "fontVariantNumeric",
+  "minHeight",
+  "maxHeight",
 ] as const;
 
 const INLINE_PROPS = [...COLOR_PROPS, ...LAYOUT_PROPS] as const;
@@ -138,10 +154,6 @@ export function inlineStylesForHtml2Canvas(
   clonedRoot: HTMLElement,
   sourceRoot: HTMLElement,
 ): void {
-  const documentCapture =
-    sourceRoot.hasAttribute("data-print-document") ||
-    sourceRoot.hasAttribute("data-invoice-document");
-
   const sourceNodes = [sourceRoot, ...sourceRoot.querySelectorAll("*")];
   const clonedNodes = [clonedRoot, ...clonedRoot.querySelectorAll("*")];
 
@@ -152,8 +164,6 @@ export function inlineStylesForHtml2Canvas(
 
     const computed = window.getComputedStyle(source);
     for (const prop of INLINE_PROPS) {
-      if (documentCapture && !isColorProp(prop)) continue;
-
       const raw = computed[prop];
       if (!raw) continue;
 
@@ -210,11 +220,7 @@ type PdfOptions = {
   orientation?: "portrait" | "landscape";
 };
 
-export async function downloadElementAsPdf(
-  element: HTMLElement,
-  filename: string,
-  options: PdfOptions = {},
-): Promise<void> {
+function prepareElementForPdfCapture(element: HTMLElement): void {
   if (
     element.hasAttribute("data-print-document") ||
     element.hasAttribute("data-invoice-document")
@@ -223,6 +229,46 @@ export async function downloadElementAsPdf(
   } else if (element.hasAttribute("data-tabular-export")) {
     prepareTabularExportForPdfCapture(element);
   }
+}
+
+export async function exportElementAsPdfBlob(
+  element: HTMLElement,
+  options: PdfOptions = {},
+): Promise<Blob> {
+  if (isPrintDocumentElement(element)) {
+    return exportPrintDocumentAsPdfBlob(element);
+  }
+  prepareElementForPdfCapture(element);
+  const html2pdf = (await import("html2pdf.js")).default;
+  const blob = await html2pdf()
+    .set({
+      margin: options.margin ?? 12,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: buildHtml2CanvasOptions(element),
+      jsPDF: {
+        unit: "mm",
+        format: "a4",
+        orientation: options.orientation ?? "portrait",
+      },
+    })
+    .from(element)
+    .outputPdf("blob");
+  if (!(blob instanceof Blob)) {
+    throw new Error("Could not generate PDF.");
+  }
+  return blob;
+}
+
+export async function downloadElementAsPdf(
+  element: HTMLElement,
+  filename: string,
+  options: PdfOptions = {},
+): Promise<void> {
+  if (isPrintDocumentElement(element)) {
+    await downloadPrintDocumentAsPdf(element, filename);
+    return;
+  }
+  prepareElementForPdfCapture(element);
 
   const html2pdf = (await import("html2pdf.js")).default;
   await html2pdf()

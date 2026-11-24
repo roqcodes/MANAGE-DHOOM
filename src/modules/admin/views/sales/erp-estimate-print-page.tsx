@@ -22,7 +22,6 @@ export function ErpEstimatePrintPage() {
   const [estimate, setEstimate] = useState<ErpEstimatePrintData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
   const autoDownloadedRef = useRef(false);
 
   useEffect(() => {
@@ -37,25 +36,15 @@ export function ErpEstimatePrintPage() {
     const element = document.querySelector("[data-print-document], [data-estimate-document]");
     if (!(element instanceof HTMLElement) || !estimate) return;
 
-    setDownloading(true);
-    try {
-      await downloadElementAsPdf(element, `${estimate.estimate_number}.pdf`);
-    } finally {
-      setDownloading(false);
-    }
+    await downloadElementAsPdf(element, `${estimate.estimate_number}.pdf`);
   }, [estimate]);
 
   useEffect(() => {
-    if (
-      searchParams.get("download") === "1" &&
-      estimate &&
-      !autoDownloadedRef.current &&
-      !downloading
-    ) {
+    if (searchParams.get("download") === "1" && estimate && !autoDownloadedRef.current) {
       autoDownloadedRef.current = true;
       void handleDownloadPdf();
     }
-  }, [searchParams, estimate, downloading, handleDownloadPdf]);
+  }, [searchParams, estimate, handleDownloadPdf]);
 
   useAutoPrintOnLoad(
     Boolean(
@@ -85,7 +74,6 @@ export function ErpEstimatePrintPage() {
         backHref={`/admin/erp/estimates/${id}`}
         title={`Estimate · ${estimate.estimate_number}`}
         onDownloadPdf={handleDownloadPdf}
-        downloading={downloading}
         onPrint={() => {
           const element = document.querySelector("[data-print-document], [data-estimate-document]");
           if (element instanceof HTMLElement) printDocumentElement(element);

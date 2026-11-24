@@ -223,9 +223,6 @@ export function AccountTransactionsView({ accountId }: { accountId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">{account.name}</h1>
-          <p className="text-sm text-muted-foreground">
-            {account.code} · {account.account_type_name}
-          </p>
         </div>
         <div
           className="flex max-w-full shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-xl border border-border/70 bg-gradient-to-b from-muted/45 to-muted/20 p-1 shadow-xs sm:gap-1.5"

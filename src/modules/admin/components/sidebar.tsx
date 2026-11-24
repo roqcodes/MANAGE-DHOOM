@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent,
+} from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
@@ -26,6 +34,8 @@ import { useAdminSession } from "@/modules/admin/providers/admin-session-provide
 import { BuyHubLogo } from "@/modules/brand/components/buyhub-logo";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
 import { useRbacNavSections, useDashboardNavItem } from "@/modules/rbac/hooks/use-rbac-nav";
+import { resolveAdminWorkspaceRoot } from "@/modules/admin/lib/admin-workspace-tabs";
+import { useAdminWorkspaceTabsOptional } from "@/modules/admin/providers/admin-workspace-tabs-provider";
 
 const DASHBOARD_ITEM = ADMIN_DASHBOARD_ITEM;
 /** Expanded sidebar width (was 260px). */
@@ -37,9 +47,12 @@ const SIDEBAR_FLYOUT_VIEWPORT_MARGIN = 8;
 type NavItem = AdminNavItem;
 type NavSection = AdminNavSection;
 
-function isNavActive(pathname: string, href: string) {
-  if (href === "/admin") return pathname === "/admin";
-  return pathname === href || pathname.startsWith(`${href}/`);
+function isNavOpenInWorkspace(openTabRoots: ReadonlySet<string>, href: string) {
+  return openTabRoots.has(href);
+}
+
+function sectionHasOpenTab(openTabRoots: ReadonlySet<string>, items: NavItem[]) {
+  return items.some((item) => openTabRoots.has(item.href));
 }
 
 function formatAlertCount(count: number): string {
@@ -73,10 +86,6 @@ function NavAlertBadge({ alert }: { alert: AdminNavBadge }) {
   );
 }
 
-function sectionHasActiveChild(pathname: string, items: NavItem[]) {
-  return items.some((item) => isNavActive(pathname, item.href));
-}
-
 function sectionAlertCount(items: NavItem[], navAlerts: Record<string, AdminNavBadge>) {
   return items.reduce((sum, item) => sum + (navAlerts[item.href]?.count ?? 0), 0);
 }
@@ -84,19 +93,25 @@ function sectionAlertCount(items: NavItem[], navAlerts: Record<string, AdminNavB
 function NavLink({
   item,
   active,
+  current = false,
   collapsed,
   nested = false,
   alert,
   onNavigate,
   onPrefetch,
+  onSidebarWorkspace,
 }: {
   item: NavItem;
+  /** Workspace tab is open for this route. */
   active: boolean;
+  /** This item matches the tab currently shown in the main panel. */
+  current?: boolean;
   collapsed: boolean;
   nested?: boolean;
   alert?: AdminNavBadge;
   onNavigate?: () => void;
   onPrefetch: () => void;
+  onSidebarWorkspace?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const Icon = item.icon;
 
@@ -105,7 +120,10 @@ function NavLink({
       href={item.href}
       title={collapsed ? item.name : undefined}
       onMouseEnter={onPrefetch}
-      onClick={() => onNavigate?.()}
+      onClick={(event) => {
+        onNavigate?.();
+        onSidebarWorkspace?.(item.href, event);
+      }}
       className={cn(
         "group relative flex items-center rounded-xl text-[13px] font-semibold transition-colors duration-150",
         nested
@@ -117,15 +135,28 @@ function NavLink({
             : "gap-2.5 px-3 py-2",
         active
           ? nested
-            ? "bg-[#EB205F]/8 text-[#EB205F]"
-            : "bg-gradient-to-r from-[#EB205F]/10 to-transparent text-[#EB205F] shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset]"
+            ? cn(
+                "bg-[#EB205F]/8 text-[#EB205F]",
+                current && "bg-[#EB205F]/12 ring-1 ring-[#EB205F]/20",
+              )
+            : cn(
+                "bg-gradient-to-r from-[#EB205F]/10 to-transparent text-[#EB205F] shadow-[0_1px_0_0_rgba(255,255,255,0.6)_inset]",
+                !current && "from-[#EB205F]/6 opacity-95",
+              )
           : nested
             ? cn("text-slate-500", INTERACTIVE_SIDEBAR_NAV_INACTIVE_HOVER)
             : cn("text-slate-500", INTERACTIVE_SIDEBAR_NAV_INACTIVE_HOVER),
       )}
     >
       {!nested && active ? (
-        <div className="absolute left-0 h-5 w-1 rounded-r-full bg-[#EB205F] shadow-[0_0_8px_rgba(235, 32, 95, 0.35)]" />
+        <div
+          className={cn(
+            "absolute left-0 h-5 w-1 rounded-r-full bg-[#EB205F]",
+            current
+              ? "shadow-[0_0_8px_rgba(235,32,95,0.35)]"
+              : "opacity-60 shadow-none",
+          )}
+        />
       ) : null}
       {nested && !collapsed ? (
         <span
@@ -182,7 +213,8 @@ function NavLink({
 
 function NavSectionGroup({
   section,
-  pathname,
+  openTabRoots,
+  activeRootHref,
   collapsed,
   navAlerts,
   onNavigate,
@@ -192,9 +224,11 @@ function NavSectionGroup({
   flyoutOpen,
   onFlyoutOpen,
   onFlyoutClose,
+  onSidebarWorkspace,
 }: {
   section: NavSection;
-  pathname: string;
+  openTabRoots: ReadonlySet<string>;
+  activeRootHref: string | null;
   collapsed: boolean;
   navAlerts: Record<string, AdminNavBadge>;
   onNavigate?: () => void;
@@ -204,6 +238,7 @@ function NavSectionGroup({
   flyoutOpen: boolean;
   onFlyoutOpen: () => void;
   onFlyoutClose: () => void;
+  onSidebarWorkspace?: (href: string, event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
   const visibleItems = section.items.filter((item) => !isAdminRouteHidden(item.href));
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -249,7 +284,7 @@ function NavSectionGroup({
 
   if (visibleItems.length === 0) return null;
 
-  const activeChild = sectionHasActiveChild(pathname, visibleItems);
+  const activeChild = sectionHasOpenTab(openTabRoots, visibleItems);
 
   const SectionIcon = section.icon;
   const sectionAlerts = sectionAlertCount(visibleItems, navAlerts);
@@ -318,7 +353,8 @@ function NavSectionGroup({
                 <NavLink
                   key={item.href}
                   item={item}
-                  active={isNavActive(pathname, item.href)}
+                  active={isNavOpenInWorkspace(openTabRoots, item.href)}
+                  current={activeRootHref === item.href}
                   collapsed={false}
                   nested
                   alert={navAlerts[item.href]}
@@ -327,6 +363,7 @@ function NavSectionGroup({
                     onNavigate?.();
                   }}
                   onPrefetch={() => onPrefetch(item.href)}
+                  onSidebarWorkspace={onSidebarWorkspace}
                 />
               ))}
             </div>
@@ -383,12 +420,14 @@ function NavSectionGroup({
               <NavLink
                 key={item.href}
                 item={item}
-                active={isNavActive(pathname, item.href)}
+                active={isNavOpenInWorkspace(openTabRoots, item.href)}
+                current={activeRootHref === item.href}
                 collapsed={false}
                 nested
                 alert={navAlerts[item.href]}
                 onNavigate={onNavigate}
                 onPrefetch={() => onPrefetch(item.href)}
+                onSidebarWorkspace={onSidebarWorkspace}
               />
             ))}
           </div>
@@ -414,24 +453,82 @@ export function AdminSidebar({
   const rbac = profile?.rbac;
   const navSections = useRbacNavSections(rbac, activeStoreId);
   const dashboardItem = useDashboardNavItem(rbac, activeStoreId);
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [userOpenSections, setUserOpenSections] = useState<Set<string>>(() => new Set());
+  /** User collapsed a section even though a workspace tab keeps it pinned. */
+  const [sectionsCollapsedDespiteTabs, setSectionsCollapsedDespiteTabs] = useState<
+    Set<string>
+  >(() => new Set());
   const [openFlyoutSection, setOpenFlyoutSection] = useState<string | null>(null);
+  const workspaceTabs = useAdminWorkspaceTabsOptional();
 
-  const activeSectionLabel = useMemo(() => {
+  const handleSidebarWorkspace = useCallback(
+    (href: string, event: MouseEvent<HTMLAnchorElement>) => {
+      workspaceTabs?.openFromSidebar(href, event);
+    },
+    [workspaceTabs],
+  );
+
+  const openTabRoots = useMemo(() => {
+    const roots = workspaceTabs?.tabs.map((t) => t.rootHref) ?? [];
+    if (roots.length === 0 && pathname.startsWith("/admin")) {
+      return new Set([resolveAdminWorkspaceRoot(pathname)]);
+    }
+    return new Set(roots);
+  }, [workspaceTabs?.tabs, pathname]);
+
+  const activeRootHref = workspaceTabs?.activeRootHref ?? null;
+
+  const sectionsPinnedByOpenTabs = useMemo(() => {
+    const labels = new Set<string>();
     for (const section of navSections) {
       const visibleItems = section.items.filter((item) => !isAdminRouteHidden(item.href));
-      if (visibleItems.length > 0 && sectionHasActiveChild(pathname, visibleItems)) {
-        return section.label;
+      if (visibleItems.length > 0 && sectionHasOpenTab(openTabRoots, visibleItems)) {
+        labels.add(section.label);
       }
     }
-    return null;
-  }, [pathname, navSections]);
+    return labels;
+  }, [navSections, openTabRoots]);
 
-  useEffect(() => {
-    if (activeSectionLabel) {
-      setOpenSection(activeSectionLabel);
+  const effectiveOpenSections = useMemo(() => {
+    const next = new Set(userOpenSections);
+    for (const label of sectionsPinnedByOpenTabs) {
+      if (!sectionsCollapsedDespiteTabs.has(label)) next.add(label);
     }
-  }, [activeSectionLabel]);
+    return next;
+  }, [userOpenSections, sectionsPinnedByOpenTabs, sectionsCollapsedDespiteTabs]);
+
+  const toggleNavSection = useCallback(
+    (label: string) => {
+      const isOpen = effectiveOpenSections.has(label);
+      if (isOpen) {
+        setUserOpenSections((current) => {
+          const next = new Set(current);
+          next.delete(label);
+          return next;
+        });
+        if (sectionsPinnedByOpenTabs.has(label)) {
+          setSectionsCollapsedDespiteTabs((current) => {
+            const next = new Set(current);
+            next.add(label);
+            return next;
+          });
+        }
+        return;
+      }
+      setUserOpenSections((current) => {
+        const next = new Set(current);
+        next.add(label);
+        return next;
+      });
+      setSectionsCollapsedDespiteTabs((current) => {
+        if (!current.has(label)) return current;
+        const next = new Set(current);
+        next.delete(label);
+        return next;
+      });
+    },
+    [effectiveOpenSections, sectionsPinnedByOpenTabs],
+  );
 
   const { secondaryQueriesEnabled } = useAdminBootstrap();
   const { data: navBadgesData } = useQuery({
@@ -443,7 +540,10 @@ export function AdminSidebar({
 
   const navAlerts = navBadgesData?.badges ?? {};
   const dashboardActive = dashboardItem
-    ? isNavActive(pathname, dashboardItem.href)
+    ? isNavOpenInWorkspace(openTabRoots, dashboardItem.href)
+    : false;
+  const dashboardCurrent = dashboardItem
+    ? activeRootHref === dashboardItem.href
     : false;
 
   const prefetch = useMemo(
@@ -502,10 +602,12 @@ export function AdminSidebar({
           <NavLink
             item={dashboardItem}
             active={dashboardActive}
+            current={dashboardCurrent}
             collapsed={collapsed}
             alert={navAlerts[dashboardItem.href]}
             onNavigate={handleNavigate}
             onPrefetch={() => prefetch(dashboardItem.href)}
+            onSidebarWorkspace={handleSidebarWorkspace}
           />
         ) : null}
 
@@ -513,15 +615,15 @@ export function AdminSidebar({
           <NavSectionGroup
             key={section.label}
             section={section}
-            pathname={pathname}
+            openTabRoots={openTabRoots}
+            activeRootHref={activeRootHref}
             collapsed={collapsed}
             navAlerts={navAlerts}
             onNavigate={handleNavigate}
             onPrefetch={prefetch}
-            open={openSection === section.label}
-            onToggle={() =>
-              setOpenSection((current) => (current === section.label ? null : section.label))
-            }
+            onSidebarWorkspace={handleSidebarWorkspace}
+            open={effectiveOpenSections.has(section.label)}
+            onToggle={() => toggleNavSection(section.label)}
             flyoutOpen={openFlyoutSection === section.label}
             onFlyoutOpen={() => setOpenFlyoutSection(section.label)}
             onFlyoutClose={() => setOpenFlyoutSection(null)}

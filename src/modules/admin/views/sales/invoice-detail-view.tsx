@@ -5,13 +5,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  BadgePercent,
+  BadgeCheck,
   Banknote,
   Calendar,
   CalendarClock,
   CreditCard,
   FileText,
-  Hash,
   Receipt,
   Store,
   UserRound,
@@ -43,17 +42,12 @@ import {
 } from "@/modules/admin/ui";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
 import { ErpDocumentActions } from "@/modules/erp/components/erp-document-actions";
-import {
-  erpInvoicePrintUrl,
-  useErpInvoicePrintModal,
-} from "@/modules/erp/components/use-erp-invoice-print-modal";
-import { InvoiceChannelBadge } from "@/modules/erp/components/invoice-channel-badge";
+import { useErpInvoicePrintModal } from "@/modules/erp/components/use-erp-invoice-print-modal";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatDateOnly } from "@/lib/format-date";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ErpCommercialDiscountFormView } from "@/modules/admin/views/erp/erp-commercial-discount-form-view";
 import { ErpPostActionButton } from "@/modules/erp/components/erp-post-action-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -66,6 +60,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { LineProductImageThumb } from "@/modules/erp/components/line-product-image-thumb";
+import { useAdminAlert } from "@/modules/admin/components/admin-alert-provider";
+import {
+  downloadErpInvoicePdf,
+  shareErpInvoiceViaWhatsApp,
+} from "@/modules/erp/lib/erp-invoice-export.client";
 
 type InvoiceDetail = {
   id: string;
@@ -87,7 +86,12 @@ type InvoiceDetail = {
   store_id?: string | null;
   user_id?: string | null;
   editable?: boolean;
-  users: { name: string | null; email: string | null; company_name: string | null } | null;
+  users: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    company_name: string | null;
+  } | null;
   stores: { name: string } | null;
   invoice_items: Array<{
     id: string;
@@ -228,8 +232,8 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
   const queryClient = useQueryClient();
   const [issuePending, startIssueTransition] = useTransition();
   const [issueError, setIssueError] = useState<string | null>(null);
-  const [discountOpen, setDiscountOpen] = useState(false);
   const detailPath = `erp/invoices/${invoiceId}`;
+  const { showError } = useAdminAlert();
   const { openInvoicePrint } = useErpInvoicePrintModal();
   const { data: detail, isPending } = useAdminGetQuery<InvoiceDetail>({ path: detailPath });
   const initialLoading = isInitialAdminLoad(isPending, Boolean(detail));
@@ -306,46 +310,61 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
     );
   }
 
-  const canEdit = detail.editable ?? false;
-  const canFinalize = isSalesInvoiceDraft(detail.status) && canEdit;
-  const canCancel = detail.status !== "cancelled" && canEdit;
+  const invoice = detail;
+  const canEdit = invoice.editable ?? false;
+  const canFinalize = isSalesInvoiceDraft(invoice.status) && canEdit;
+  const canCancel = invoice.status !== "cancelled" && canEdit;
   const canPay =
-    detail.status !== "cancelled" &&
-    !isSalesInvoiceDraft(detail.status) &&
-    detail.balance_due > 0;
-  const canDiscount =
-    detail.status !== "cancelled" &&
-    !isSalesInvoiceDraft(detail.status) &&
-    Boolean(detail.user_id);
-
-  const collected = detail.amount_paid + detail.credits_applied;
+    invoice.status !== "cancelled" &&
+    !isSalesInvoiceDraft(invoice.status) &&
+    invoice.balance_due > 0;
+  const collected = invoice.amount_paid + invoice.credits_applied;
   const collectedPercent =
-    detail.total_amount > 0
-      ? Math.min(100, Math.round((collected / detail.total_amount) * 100))
+    invoice.total_amount > 0
+      ? Math.min(100, Math.round((collected / invoice.total_amount) * 100))
       : 0;
   const balanceHighlight =
-    detail.balance_due <= 0 ? "success" : detail.status === "overdue" ? "danger" : "muted";
-  const paymentAllocations = detail.erp_payment_allocations ?? [];
-  const creditApplications = detail.erp_credit_note_applications ?? [];
+    invoice.balance_due <= 0 ? "success" : invoice.status === "overdue" ? "danger" : "muted";
+  const paymentAllocations = invoice.erp_payment_allocations ?? [];
+  const creditApplications = invoice.erp_credit_note_applications ?? [];
   const hasLedgerActivity =
     paymentAllocations.length > 0 || creditApplications.length > 0;
-  const buyerName = detail.users?.name ?? detail.users?.email ?? "—";
-  const orderHref = detail.order_id
-    ? detail.source === "sales_order"
-      ? `/admin/erp/sales-orders/${detail.order_id}`
-      : `/admin/orders/${detail.order_id}`
+  const buyerName = invoice.users?.name ?? invoice.users?.email ?? "—";
+  const orderHref = invoice.order_id
+    ? invoice.source === "sales_order"
+      ? `/admin/erp/sales-orders/${invoice.order_id}`
+      : `/admin/orders/${invoice.order_id}`
     : null;
-  const orderLabel = detail.order_id
-    ? detail.source === "sales_order"
-      ? formatErpDocRef("SO", detail.order_id)
-      : `#${detail.order_id.slice(0, 8).toUpperCase()}`
+  const orderLabel = invoice.order_id
+    ? invoice.source === "sales_order"
+      ? formatErpDocRef("SO", invoice.order_id)
+      : `#${invoice.order_id.slice(0, 8).toUpperCase()}`
     : null;
+
+  const shareDisabled =
+    invoice.status === "cancelled" || !invoice.users?.phone?.trim();
+
+  async function handleInvoiceDownload() {
+    await downloadErpInvoicePdf(invoice.id);
+  }
+
+  async function handleInvoiceWhatsApp() {
+    if (!invoice.users?.phone?.trim()) {
+      throw new Error("Add a phone number on this customer to share on WhatsApp.");
+    }
+    await shareErpInvoiceViaWhatsApp({
+      customerName: buyerName,
+      phone: invoice.users.phone,
+      invoiceNumber: invoice.invoice_number,
+      totalAmount: invoice.total_amount,
+      invoiceId: invoice.id,
+    });
+  }
 
   return (
     <AdminPageLayout>
       <AdminPageHeader
         title={formatErpDocRef("INV", detail.id)}
-        description={`${detail.stores?.name ?? "No store"} · Invoice date ${formatDateOnly(detail.created_at)}`}
         backHref="/admin/erp/invoices"
         breadcrumb={[
           { label: "Invoices", href: "/admin/erp/invoices" },
@@ -373,27 +392,24 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                 Record payment
               </AdminPrimaryAction>
             ) : null}
-            {canDiscount ? (
-              <Button variant="outline" size="page" className="rounded-full" onClick={() => setDiscountOpen(true)}>
-                <BadgePercent data-icon="inline-start" />
-                Record discount
-              </Button>
-            ) : null}
             <ErpDocumentActions
               layout="bar"
               showView={false}
               viewHref={`/admin/erp/invoices/${detail.id}`}
               editHref={`/admin/erp/invoices?form=edit&id=${detail.id}`}
               onPrintClick={() => openInvoicePrint(detail.id)}
-              onDownloadClick={() => openInvoicePrint(detail.id, { autoDownload: true })}
-              emailConfig={{
-                documentType: "invoice",
-                documentId: detail.id,
-                documentNumber: detail.invoice_number,
-                defaultEmail: detail.users?.email,
-                amount: detail.total_amount,
-                printUrl: erpInvoicePrintUrl(detail.id),
-              }}
+              onDownloadClick={
+                detail.status === "cancelled" ? undefined : handleInvoiceDownload
+              }
+              onWhatsAppClick={
+                detail.status === "cancelled" ? undefined : handleInvoiceWhatsApp
+              }
+              whatsAppDisabled={shareDisabled}
+              whatsAppTitle={
+                detail.users?.phone?.trim()
+                  ? "Share invoice on WhatsApp"
+                  : "Customer needs a phone number"
+              }
               canEdit={canEdit}
               canDelete={canCancel}
               deleteLabel="Cancel invoice"
@@ -413,15 +429,6 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
       {issueError ? (
         <p className="text-sm text-destructive">{issueError}</p>
       ) : null}
-
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={salesInvoiceStatusForBadge(detail.status)} />
-        <InvoiceChannelBadge source={detail.source} />
-        <span className="text-sm text-muted-foreground">
-          {detail.tax_inclusive ? "Tax inclusive" : "Tax exclusive"}
-          {detail.due_date ? ` · Due ${formatDateOnly(detail.due_date)}` : ""}
-        </span>
-      </div>
 
       <Card className="overflow-hidden border border-border py-0 ring-0">
         <div className="grid divide-y divide-border sm:grid-cols-2 lg:grid-cols-4 lg:divide-x lg:divide-y-0">
@@ -532,8 +539,11 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                 <MetaField icon={CalendarClock} label="Due date">
                   {formatDateOnly(detail.due_date)}
                 </MetaField>
-                <MetaField icon={Hash} label="Channel">
-                  <InvoiceChannelBadge source={detail.source} />
+                <MetaField icon={BadgeCheck} label="Status">
+                  <StatusBadge status={salesInvoiceStatusForBadge(detail.status)} />
+                </MetaField>
+                <MetaField icon={FileText} label="Tax treatment">
+                  {detail.tax_inclusive ? "Tax inclusive" : "Tax exclusive"}
                 </MetaField>
                 {orderHref && orderLabel ? (
                   <MetaField icon={FileText} label="Linked order">
@@ -814,27 +824,6 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
         </div>
       </ErpDocumentTabsLayout>
 
-      {discountOpen && detail.user_id ? (
-        <ErpCommercialDiscountFormView
-          side="customer"
-          variant="modal"
-          open={discountOpen}
-          onOpenChange={setDiscountOpen}
-          initialPartyId={detail.user_id}
-          initialPartyLabel={buyerName}
-          initialSourceDocumentId={detail.id}
-          initialSourceDocumentLabel={detail.invoice_number}
-          lockParty
-          lockSource
-          onSuccess={async () => {
-            setDiscountOpen(false);
-            await queryClient.invalidateQueries({
-              queryKey: adminQueryKeys.erpGet(detailPath),
-            });
-            router.refresh();
-          }}
-        />
-      ) : null}
     </AdminPageLayout>
   );
 }

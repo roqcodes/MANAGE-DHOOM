@@ -107,9 +107,6 @@ export function AdminReconciliationView() {
       <div className="space-y-6 p-4">
         <div>
           <h1 className="text-lg font-semibold">Reconciliation</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cross-checks journal entries, inventory totals, invoice balances, and payment allocations.
-          </p>
         </div>
         <AdminKpiGridSkeleton count={4} />
         <AdminTableBodySkeleton rows={6} />
@@ -130,10 +127,6 @@ export function AdminReconciliationView() {
     <div className="space-y-6 p-4">
       <div>
         <h1 className="text-lg font-semibold">Reconciliation</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Cross-checks journal entries, inventory totals, invoice balances, and payment allocations.
-          Use this to spot data inconsistencies before month-end.
-        </p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

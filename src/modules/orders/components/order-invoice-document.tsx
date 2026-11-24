@@ -1,163 +1,136 @@
-import { format } from "date-fns";
-
 import type { OrderWithItems } from "@/common/admin/types";
-import { formatCurrencyAmount } from "@/lib/format-currency";
-import { formatDateOnly } from "@/lib/format-date";
+import { COMPANY_NAME } from "@/modules/brand/lib/brand";
+import { dash, INVOICE_PRINT_LABELS } from "@/modules/documents/invoice-print-copy";
 import {
-  InvoicePrintFooter,
-  InvoicePrintHeader,
-  InvoicePrintLineTable,
+  formatInvoiceDate,
+  formatInvoiceMoney,
+  formatInvoiceUnitPrice,
+  formatQty,
+} from "@/modules/documents/invoice-print-money";
+import {
   InvoicePrintNotes,
-  InvoicePrintParties,
   InvoicePrintRoot,
-  InvoicePrintTotals,
+  TaxInvoiceClosing,
+  TaxInvoiceLineTable,
+  TaxInvoiceMasthead,
+  TaxInvoiceMeta,
+  TaxInvoiceParties,
+  TaxInvoiceTotals,
 } from "@/modules/documents/invoice-print-primitives";
+import { buildZatcaQrPayload, invoiceTimestampIso } from "@/modules/documents/zatca-qr";
 
 function shortOrderRef(id: string) {
   return id.split("-")[0]?.toUpperCase() ?? id.slice(0, 8);
 }
 
-function formatAddress(order: OrderWithItems): string[] {
+function formatAddress(order: OrderWithItems): {
+  address: string;
+  street: string;
+  city: string;
+  phone: string;
+} {
   const a = order.addresses;
-  if (!a) return [];
-  const lines: string[] = [];
-  const line1 = a.line1 ?? a.address_line;
-  if (line1) lines.push(line1);
-  if (a.line2) lines.push(a.line2);
+  if (!a) {
+    return { address: "—", street: "—", city: "—", phone: dash(order.users?.phone) };
+  }
   const city = [a.city, a.state, a.pincode].filter(Boolean).join(", ");
-  if (city) lines.push(city);
-  if (a.phone) lines.push(`Tel: ${a.phone}`);
-  return lines;
+  return {
+    address: dash(a.line1 ?? a.address_line),
+    street: dash(a.line2),
+    city: dash(city),
+    phone: dash(a.phone ?? order.users?.phone),
+  };
 }
 
 export function OrderInvoiceDocument({ order }: { order: OrderWithItems }) {
-  const placed = order.created_at
-    ? format(new Date(order.created_at), "MMMM d, yyyy · h:mm a")
-    : "—";
   const total = Number(order.total_amount ?? 0);
   const subtotal = Number(order.subtotal ?? total);
   const tax = Number(order.tax ?? 0);
   const discount = Number(order.discount ?? 0);
-  const addressLines = formatAddress(order);
+  const addr = formatAddress(order);
+  const paid =
+    order.payment_status === "paid" || order.payment_status === "completed"
+      ? total
+      : 0;
+  const items = order.order_items ?? [];
+  const number = order.sales_order_number?.trim() || `Order #${shortOrderRef(order.id)}`;
 
-  const metaRows = [
-    { label: "Order date", value: placed },
-    {
-      label: "Fulfillment",
-      value: order.fulfillment_status?.replace(/_/g, " ") ?? order.status,
-    },
-    {
-      label: "Payment",
-      value: (order.payment_status ?? "pending").replace(/_/g, " "),
-    },
-    ...(order.preferred_delivery_date
-      ? [
-          {
-            label: "Requested delivery",
-            value: formatDateOnly(order.preferred_delivery_date),
-          },
-        ]
-      : []),
-  ];
+  const seller = {
+    name: dash(order.store_name ?? COMPANY_NAME),
+    address: "—",
+    street: "—",
+    city: "—",
+    phone: "—",
+    vatNumber: "—",
+  };
+  const buyer = {
+    name: dash(order.users?.name ?? "Guest"),
+    address: addr.address,
+    street: addr.street,
+    city: addr.city,
+    phone: addr.phone,
+    vatNumber: "—",
+  };
 
-  const buyerLines = [
-    order.users?.name ?? "Guest",
-    ...(order.users?.email ? [order.users.email] : []),
-    ...(order.users?.phone ? [`Tel: ${order.users.phone}`] : []),
-  ];
-
-  const shipLines =
-    addressLines.length > 0
-      ? addressLines
-      : ["No delivery address on file"];
+  const qrValue = buildZatcaQrPayload({
+    sellerName: seller.name,
+    vatNumber: "",
+    timestampIso: invoiceTimestampIso(order.created_at),
+    totalWithVat: total,
+    vatAmount: tax,
+  });
 
   return (
     <InvoicePrintRoot kind="order">
-      <InvoicePrintHeader
-        title="Sales receipt / invoice"
-        documentNumber={`Order #${shortOrderRef(order.id)}`}
-        status={order.status}
-        metaRows={metaRows}
+      <TaxInvoiceMasthead storeName={order.store_name ?? COMPANY_NAME} />
+      <TaxInvoiceMeta
+        documentNumber={number}
+        invoiceDate={formatInvoiceDate(order.created_at)}
+        dueDate={formatInvoiceDate(order.preferred_delivery_date ?? order.created_at)}
+        extraRows={[
+          {
+            label: { en: "Payment", ar: "الدفع" },
+            value: dash(order.payment_status?.replace(/_/g, " ")),
+          },
+        ]}
+        qrValue={qrValue}
       />
-
-      <InvoicePrintParties
-        left={{
-          title: order.store_name ? `Sold by · ${order.store_name}` : "Sold by",
-          lines: [
-            "DHOOM Trading",
-            order.source ? `Channel: ${order.source}` : "Channel: Online store",
-            order.delivery_method
-              ? `Delivery: ${order.delivery_method.replace(/_/g, " ")}`
-              : "Delivery: Standard",
-          ],
-        }}
-        right={{
-          title: "Customer",
-          lines: buyerLines,
-        }}
-      />
-
-      {addressLines.length > 0 ? (
-        <InvoicePrintParties
-          left={{ title: "Ship to", lines: shipLines }}
-          right={{
-            title: "Order reference",
-            lines: [
-              order.sales_order_number
-                ? `SO: ${order.sales_order_number}`
-                : `ID: ${order.id}`,
-              ...(order.reference_number
-                ? [`Ref: ${order.reference_number}`]
-                : []),
-              ...(order.invoice_id ? [`Linked invoice: ${order.invoice_id.slice(0, 8)}…`] : []),
-            ],
-          }}
-        />
-      ) : null}
-
+      <TaxInvoiceParties seller={seller} buyer={buyer} />
       {order.merchant_note?.trim() ? (
-        <InvoicePrintNotes title="Order note" body={order.merchant_note.trim()} />
+        <InvoicePrintNotes title="Notes" body={order.merchant_note.trim()} />
       ) : null}
-
-      <InvoicePrintLineTable
-        columns={[
-          { key: "item", label: "Description" },
-          { key: "rate", label: "Unit price", align: "right", width: "80px" },
-          { key: "qty", label: "Qty", align: "right", width: "48px" },
-          { key: "total", label: "Amount", align: "right", width: "80px" },
-        ]}
-        rows={(order.order_items ?? []).map((item) => ({
-          item: item.product_name ?? "Item",
-          rate: formatCurrencyAmount(Number(item.price ?? 0)),
-          qty: item.quantity ?? 0,
-          total: formatCurrencyAmount(
-            Number(item.price ?? 0) * Number(item.quantity ?? 0),
-          ),
-        }))}
+      <TaxInvoiceLineTable
+        rows={items.map((item) => {
+          const qty = Number(item.quantity ?? 0);
+          const unit = Number(item.price ?? 0);
+          const taxable = qty * unit;
+          return {
+            nature: <span className="bh-inv-item-name">{item.product_name ?? "Item"}</span>,
+            unitPrice: formatInvoiceUnitPrice(unit),
+            quantity: formatQty(qty),
+            taxable: formatInvoiceMoney(taxable),
+            taxRate: "—",
+            taxAmount: formatInvoiceMoney(0),
+            subtotal: formatInvoiceMoney(taxable),
+          };
+        })}
       />
-
-      <InvoicePrintTotals
-        lines={[
-          { label: "Subtotal", value: formatCurrencyAmount(subtotal) },
-          ...(tax > 0 ? [{ label: "Tax", value: formatCurrencyAmount(tax) }] : []),
-          ...(discount > 0
-            ? [{ label: "Discount", value: `-${formatCurrencyAmount(discount)}` }]
-            : []),
-          { label: "Total due", value: formatCurrencyAmount(total), grand: true },
-        ]}
+      <TaxInvoiceTotals
+        taxable={formatInvoiceMoney(subtotal)}
+        vat={formatInvoiceMoney(tax)}
+        extraBeforeTotal={
+          discount > 0
+            ? [{ label: INVOICE_PRINT_LABELS.discount, value: `-${formatInvoiceMoney(discount)}` }]
+            : undefined
+        }
+        total={formatInvoiceMoney(total)}
+        paid={formatInvoiceMoney(paid)}
+        balance={formatInvoiceMoney(Math.max(0, total - paid))}
       />
-
-      <InvoicePrintFooter>
-        <p>
-          Thank you for your order. This document confirms items and amounts for order{" "}
-          <strong>#{shortOrderRef(order.id)}</strong>. Payment status:{" "}
-          <strong>{order.payment_status ?? "pending"}</strong>.
-        </p>
-        <p className="mt-2">
-          For returns or support, contact DHOOM Trading with your order reference. Tax treatment
-          follows applicable local rules; retain this receipt for your records.
-        </p>
-      </InvoicePrintFooter>
+      <TaxInvoiceClosing
+        counterpartyLabel={INVOICE_PRINT_LABELS.customerBalance.en}
+        counterpartyBalance={Math.max(0, total - paid)}
+      />
     </InvoicePrintRoot>
   );
 }

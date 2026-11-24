@@ -11,6 +11,7 @@ import {
   type ErpInvoicePrintData,
 } from "@/modules/erp/components/erp-invoice-print-document";
 import { downloadElementAsPdf } from "@/lib/html2pdf-download";
+import { buildErpInvoicePdfFilename } from "@/modules/orders/lib/invoice-filename";
 import { printDocumentElement } from "@/lib/print-document";
 import { useAutoPrintOnLoad } from "@/lib/use-auto-print-on-load";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
@@ -22,7 +23,6 @@ export function ErpInvoicePrintPage() {
   const [invoice, setInvoice] = useState<ErpInvoicePrintData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [downloading, setDownloading] = useState(false);
   const autoDownloadedRef = useRef(false);
 
   useEffect(() => {
@@ -37,25 +37,15 @@ export function ErpInvoicePrintPage() {
     const element = document.querySelector("[data-print-document]");
     if (!(element instanceof HTMLElement) || !invoice) return;
 
-    setDownloading(true);
-    try {
-      await downloadElementAsPdf(element, `${invoice.invoice_number}.pdf`);
-    } finally {
-      setDownloading(false);
-    }
+    await downloadElementAsPdf(element, buildErpInvoicePdfFilename(invoice));
   }, [invoice]);
 
   useEffect(() => {
-    if (
-      searchParams.get("download") === "1" &&
-      invoice &&
-      !autoDownloadedRef.current &&
-      !downloading
-    ) {
+    if (searchParams.get("download") === "1" && invoice && !autoDownloadedRef.current) {
       autoDownloadedRef.current = true;
       void handleDownloadPdf();
     }
-  }, [searchParams, invoice, downloading, handleDownloadPdf]);
+  }, [searchParams, invoice, handleDownloadPdf]);
 
   useAutoPrintOnLoad(
     Boolean(
@@ -86,7 +76,6 @@ export function ErpInvoicePrintPage() {
         backHref={`/admin/erp/invoices/${id}`}
         title={`Tax invoice · ${invoice.invoice_number}`}
         onDownloadPdf={handleDownloadPdf}
-        downloading={downloading}
         onPrint={() => {
           const element = document.querySelector("[data-print-document]");
           if (element instanceof HTMLElement) printDocumentElement(element);

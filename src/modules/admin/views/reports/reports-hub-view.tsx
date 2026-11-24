@@ -10,29 +10,6 @@ import { cn } from "@/lib/utils";
 import { ReportFavoriteButton } from "./report-favorite-button";
 import { ReportFavoritesBar } from "./report-favorites-bar";
 
-const CATEGORY_HINTS: Partial<Record<string, string>> = {
-  "Business Overview":
-    "P&L, balance sheet, cash flow, finance snapshot, performance dashboard, and day book — with date range, store, and search.",
-  Sales:
-    "Collections, customer and item sales, credit notes, and salesman performance — filter by store, channel, and date.",
-  Inventory:
-    "Stock levels, minus (negative) stock, store summaries, and transfer requests — filter by store, brand, and category.",
-  "Purchases and Expenses":
-    "Purchase by item, purchase by vendor, and the expense report (by category, vendor, paid-through, and transaction detail) — by store and date.",
-  Receivables:
-    "Customer balance, aging summary (counts and amounts), and invoice-level aging details — by store and due date.",
-  "Payments Received":
-    "Customer collections in a date range — invoice, store, mode, bank charges, and payment-mode totals.",
-  Payables:
-    "Vendor balance, PB aging summary (counts and amounts), details, and per-vendor bill drill-down.",
-  Taxes:
-    "VAT return summary by store and transaction-level output/input lines with net VAT due.",
-  Accountant:
-    "Trial balance, general ledger, and account transaction detail — filter by store, account, and date.",
-  Activity:
-    "Audit trail by entity and user; cancelled invoices with line detail and staff names (not IDs).",
-};
-
 export function ReportsHubView() {
   const byCategory = getReportsByCategory();
 
@@ -42,7 +19,6 @@ export function ReportsHubView() {
         title="Reports"
         backHref="/admin"
         breadcrumb={[{ label: "Reports" }]}
-        description="Financial, sales, inventory, and receivables. Open a report to filter by store, date range, and search line items."
       />
 
       <ReportFavoritesBar />
@@ -69,11 +45,6 @@ export function ReportsHubView() {
             >
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold">{category}</CardTitle>
-                {CATEGORY_HINTS[category] ? (
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {CATEGORY_HINTS[category]}
-                  </p>
-                ) : null}
               </CardHeader>
               <CardContent className="space-y-1">
                 {reports.map((report) => (
@@ -88,9 +59,6 @@ export function ReportsHubView() {
                       <span className="min-w-0">
                         <span className="block text-sm font-medium text-foreground group-hover:text-primary">
                           {report.title}
-                        </span>
-                        <span className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                          {report.description}
                         </span>
                       </span>
                       <ChevronRight

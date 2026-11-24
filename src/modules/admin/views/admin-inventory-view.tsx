@@ -80,11 +80,6 @@ export function AdminInventoryView() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Online inventory</h1>
-            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-              Variant-level stock for DHOOM Trading and manual online sales at{" "}
-              <strong>{storeLabel}</strong>. Move stock between physical store
-              inventory and the online pool using transfers below — no direct edits.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setReverseTransferOpen(true)}>

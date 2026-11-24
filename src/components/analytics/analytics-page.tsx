@@ -198,9 +198,6 @@ export function AnalyticsPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">
             Analytics
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Revenue, funnel conversion, and customer activity intelligence.
-          </p>
         </div>
         <AnalyticsDatePicker
           categories={filterOptions.categories}

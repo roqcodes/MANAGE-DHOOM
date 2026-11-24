@@ -21,7 +21,7 @@ import { ReceivablesReport } from "@/modules/admin/views/reports/receivables-rep
 import { ActivityReport } from "@/modules/admin/views/reports/activity-report";
 import { TaxesReport } from "@/modules/admin/views/reports/taxes-report";
 import { adminGet } from "@/modules/admin/lib/admin-api-client";
-import { AdminBreadcrumb } from "@/modules/admin/components/admin-breadcrumb";
+import { AdminPageActionBar, AdminPageHeader, AdminPageLayout } from "@/modules/admin/ui";
 import { AdminTableBodySkeleton } from "@/modules/admin/components/admin-page-skeleton";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { useErpStores } from "@/modules/erp/components/use-erp-stores";
@@ -38,7 +38,6 @@ import { InputGroup } from "@/components/ui/input-group";
 import { AppErrorCalloutMessage } from "@/modules/feedback/components/app-error-callout";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AdminPageActionBar } from "@/modules/admin/ui";
 import { ReportFavoriteButton } from "@/modules/admin/views/reports/report-favorite-button";
 import {
   Table,
@@ -239,27 +238,23 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
   });
 
   return (
-    <div className="mx-auto max-w-7xl space-y-4 px-4 py-6">
-      <AdminBreadcrumb
+    <AdminPageLayout className="max-w-7xl">
+      <AdminPageHeader
+        title={report.title}
         backHref="/admin/erp/reports"
-        items={[
+        breadcrumb={[
           { label: "Reports", href: "/admin/erp/reports" },
           { label: report.title },
         ]}
+        actions={
+          <AdminPageActionBar className="ml-auto shrink-0">
+            <ReportFavoriteButton slug={report.slug} />
+            {sorted.length > 0 ? (
+              <DataExportMenu source={exportSource} />
+            ) : null}
+          </AdminPageActionBar>
+        }
       />
-
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">{report.title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{report.description}</p>
-        </div>
-        <AdminPageActionBar className="ml-auto shrink-0">
-          <ReportFavoriteButton slug={report.slug} />
-          {sorted.length > 0 ? (
-            <DataExportMenu source={exportSource} />
-          ) : null}
-        </AdminPageActionBar>
-      </div>
 
       <Card>
         <CardHeader>
@@ -416,6 +411,6 @@ function GenericReportViewer({ report }: { report: ReportDefinition }) {
         </Link>{" "}
         or run General Ledger with a specific account.
       </p>
-    </div>
+    </AdminPageLayout>
   );
 }

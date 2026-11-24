@@ -321,8 +321,8 @@ const ERP_INVOICE_DETAIL_SELECT = `
   sales_person_id,
   gst_number,
   reference,
-  stores(name, logo_url, address_line1, city, country, phone, trn),
-  users!invoices_user_id_fkey(name, email, phone, company_name, trn),
+  stores(name, logo_url, address_line1, address_line2, city, state, country, phone, trn),
+  users!invoices_user_id_fkey(name, email, phone, company_name, trn, location, po_box),
   invoice_items(
     id,
     product_id,
@@ -359,8 +359,24 @@ export async function fetchErpInvoiceDetail(invoiceId: string) {
   if (!data) throw new Error("Invoice not found");
 
   const usersRaw = data.users as
-    | { name: string | null; email: string | null; phone: string | null; company_name: string | null; trn: string | null }
-    | { name: string | null; email: string | null; phone: string | null; company_name: string | null; trn: string | null }[]
+    | {
+        name: string | null;
+        email: string | null;
+        phone: string | null;
+        company_name: string | null;
+        trn: string | null;
+        location: string | null;
+        po_box: string | null;
+      }
+    | {
+        name: string | null;
+        email: string | null;
+        phone: string | null;
+        company_name: string | null;
+        trn: string | null;
+        location: string | null;
+        po_box: string | null;
+      }[]
     | null;
   const users = Array.isArray(usersRaw) ? usersRaw[0] ?? null : usersRaw;
 
@@ -406,10 +422,26 @@ export async function fetchErpInvoiceDetail(invoiceId: string) {
       (line.variant_id ? variantToProduct.get(line.variant_id) ?? null : null),
   }));
 
+  let customer_balance: number | null = null;
+  if (invoice.user_id) {
+    const { data: arRows, error: arError } = await supabase
+      .from("invoices")
+      .select("balance_due")
+      .eq("user_id", invoice.user_id)
+      .not("status", "in", "(cancelled,void)");
+    if (!arError) {
+      customer_balance = (arRows ?? []).reduce(
+        (sum, row) => sum + Number(row.balance_due ?? 0),
+        0,
+      );
+    }
+  }
+
   return {
     ...invoice,
     invoice_items,
     users,
+    customer_balance,
     editable: computeErpInvoiceEditable(invoice),
   };
 }

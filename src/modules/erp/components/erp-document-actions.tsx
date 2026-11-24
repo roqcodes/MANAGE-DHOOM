@@ -6,7 +6,12 @@ import { directPrintFromAdminPath } from "@/lib/direct-document-print";
 import { documentPrintUrl } from "@/lib/print-document";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Download, Eye, Mail, Pencil, Printer, Share2, Trash2 } from "lucide-react";
+import { Eye, Mail, Pencil, Printer, Trash2 } from "lucide-react";
+
+import {
+  DocumentDownloadIconButton,
+  DocumentWhatsAppIconButton,
+} from "@/components/ui/document-export-buttons";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -40,7 +45,10 @@ export type ErpDocumentActionsProps = {
   editHref?: string;
   printHref?: string;
   onPrintClick?: () => void;
-  onDownloadClick?: () => void;
+  onDownloadClick?: () => void | Promise<void>;
+  onWhatsAppClick?: () => void | Promise<void>;
+  whatsAppDisabled?: boolean;
+  whatsAppTitle?: string;
   emailConfig?: ErpDocumentEmailConfig;
   canEdit?: boolean;
   canDelete?: boolean;
@@ -58,6 +66,9 @@ export function ErpDocumentActions({
   printHref,
   onPrintClick,
   onDownloadClick,
+  onWhatsAppClick,
+  whatsAppDisabled = false,
+  whatsAppTitle = "Share on WhatsApp",
   emailConfig,
   canEdit = false,
   canDelete = false,
@@ -74,7 +85,6 @@ export function ErpDocumentActions({
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailTo, setEmailTo] = useState("");
   const [emailMessage, setEmailMessage] = useState<string | null>(null);
-  const [shareMessage, setShareMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const iconSize =
@@ -91,15 +101,6 @@ export function ErpDocumentActions({
       } catch (err) {
         setError(err instanceof Error ? err.message : "Delete failed");
       }
-    });
-  }
-
-  function handleShare() {
-    if (!emailConfig?.printUrl) return;
-    const url = typeof window !== "undefined" ? `${window.location.origin}${emailConfig.printUrl}` : emailConfig.printUrl;
-    void navigator.clipboard.writeText(url).then(() => {
-      setShareMessage("Link copied to clipboard.");
-      setTimeout(() => setShareMessage(null), 2500);
     });
   }
 
@@ -142,28 +143,16 @@ export function ErpDocumentActions({
           <Eye />
         </Button>
       ) : null}
-      {editHref ? (
-        canEdit ? (
-          <Button
-            nativeButton={false}
-            size={iconSize}
-            variant={layout === "bar" ? "outline" : "ghost"}
-            render={<Link href={editHref} />}
-            aria-label="Edit"
-          >
-            <Pencil />
-          </Button>
-        ) : (
-          <Button
-            nativeButton
-            size={iconSize}
-            variant={layout === "bar" ? "outline" : "ghost"}
-            disabled
-            aria-label="Edit"
-          >
-            <Pencil />
-          </Button>
-        )
+      {editHref && canEdit ? (
+        <Button
+          nativeButton={false}
+          size={iconSize}
+          variant={layout === "bar" ? "outline" : "ghost"}
+          render={<Link href={editHref} />}
+          aria-label="Edit"
+        >
+          <Pencil />
+        </Button>
       ) : null}
       {onPrintClick || printHref ? (
         <>
@@ -194,34 +183,30 @@ export function ErpDocumentActions({
             </Button>
           )}
           {onDownloadClick ? (
-            <Button
-              nativeButton
-              size={iconSize}
-              variant={layout === "bar" ? "outline" : "ghost"}
-              onClick={onDownloadClick}
-              aria-label="Download PDF"
-            >
-              <Download />
-            </Button>
+            <DocumentDownloadIconButton
+              iconSize={iconSize}
+              layout={layout}
+              onDownload={onDownloadClick}
+            />
           ) : printHref ? (
-            <Button
-              nativeButton
-              size={iconSize}
-              variant={layout === "bar" ? "outline" : "ghost"}
-              aria-label="Download PDF"
-              onClick={() => {
-                void directPrintFromAdminPath(documentPrintUrl(printHref!, "download")).catch(
-                  (err) => {
-                    console.error(err);
-                    showError(err, "Couldn't download");
-                  },
-                );
-              }}
-            >
-              <Download />
-            </Button>
+            <DocumentDownloadIconButton
+              iconSize={iconSize}
+              layout={layout}
+              onDownload={() =>
+                directPrintFromAdminPath(documentPrintUrl(printHref, "download"))
+              }
+            />
           ) : null}
         </>
+      ) : null}
+      {onWhatsAppClick ? (
+        <DocumentWhatsAppIconButton
+          iconSize={iconSize}
+          layout={layout}
+          disabled={whatsAppDisabled || pending}
+          title={whatsAppTitle}
+          onWhatsApp={onWhatsAppClick}
+        />
       ) : null}
       {emailConfig ? (
         <Dialog
@@ -265,24 +250,14 @@ export function ErpDocumentActions({
           </DialogContent>
         </Dialog>
       ) : null}
-      {emailConfig?.printUrl ? (
-        <Button
-          size={iconSize}
-          variant={layout === "bar" ? "outline" : "ghost"}
-          onClick={handleShare}
-          aria-label="Share link"
-        >
-          <Share2 />
-        </Button>
-      ) : null}
-      {onDelete ? (
+      {onDelete && canDelete ? (
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger
             render={
               <Button
                 size={iconSize}
                 variant={layout === "bar" ? "destructive" : "ghost"}
-                disabled={!canDelete || pending}
+                disabled={pending}
                 className={layout === "inline" ? "text-destructive" : undefined}
                 aria-label={deleteLabel}
               />
@@ -309,18 +284,8 @@ export function ErpDocumentActions({
   );
 
   if (layout === "bar") {
-    return (
-      <div className="flex flex-col items-end gap-1">
-        <div className="flex flex-wrap items-center gap-2">{buttons}</div>
-        {shareMessage ? <p className="text-xs text-muted-foreground">{shareMessage}</p> : null}
-      </div>
-    );
+    return <div className="flex flex-wrap items-center gap-2">{buttons}</div>;
   }
 
-  return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center justify-end gap-0.5">{buttons}</div>
-      {shareMessage ? <p className="text-xs text-muted-foreground">{shareMessage}</p> : null}
-    </div>
-  );
+  return <div className="flex items-center justify-end gap-0.5">{buttons}</div>;
 }

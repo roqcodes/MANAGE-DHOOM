@@ -306,9 +306,6 @@ export function AdminBrandsView() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Brands</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage product brands and assign them to catalog items.
-            </p>
           </div>
           <AdminPrimaryAction onClick={() => setModal({ mode: "create" })}>
             <Plus data-icon="inline-start" />

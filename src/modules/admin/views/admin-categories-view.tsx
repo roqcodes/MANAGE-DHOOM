@@ -339,9 +339,6 @@ export function AdminCategoriesView() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Categories</h1>
-            <p className="text-sm text-muted-foreground">
-              Organize products into catalog categories with a banner image.
-            </p>
           </div>
           <AdminPrimaryAction onClick={() => setModal({ mode: "create" })}>
             <Plus data-icon="inline-start" />

@@ -75,10 +75,6 @@ export function ChangeStoreView() {
 
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Active store</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          POS, stock adjustments, and ERP documents use this store context.
-          Online orders reserve stock per fulfillment assignment.
-        </p>
       </div>
 
       {error ? (

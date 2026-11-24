@@ -86,9 +86,6 @@ export function CustomersMetricsBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Customers</h1>
-          <p className="text-sm text-muted-foreground">
-            Customer accounts, receivables, and billing.
-          </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
           {onAddCustomer ? (

@@ -12,6 +12,9 @@ import { AdminHeader } from "@/modules/admin/components/admin-header";
 import { AdminGlobalSearchProvider } from "@/modules/admin/components/admin-global-search";
 import { AdminDateRangeProvider } from "@/modules/admin/providers/admin-date-range-provider";
 import { AdminSidebar } from "@/modules/admin/components/sidebar";
+import { AdminWorkspaceContentKeeper } from "@/modules/admin/components/admin-workspace-content-keeper";
+import { AdminWorkspaceTabBar } from "@/modules/admin/components/admin-workspace-tab-bar";
+import { AdminWorkspaceTabsScopeProvider } from "@/modules/admin/providers/admin-workspace-tabs-provider";
 import { useIsMdUp } from "@/modules/admin/hooks/use-is-md-up";
 import { ChunkLoadRecovery } from "@/modules/admin/components/chunk-load-recovery";
 import { AdminBootstrapProvider } from "@/modules/admin/providers/admin-bootstrap-provider";
@@ -28,6 +31,17 @@ import {
   canReadAdminPath,
   firstAllowedAdminHref,
 } from "@/modules/rbac/lib/permission-catalog";
+
+const ADMIN_SIDEBAR_COLLAPSED_KEY = "buyhub-admin-sidebar-collapsed";
+
+function readPersistedSidebarCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(ADMIN_SIDEBAR_COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 function AdminRootSkeleton() {
   return (
@@ -46,6 +60,10 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
   const isMd = useIsMdUp();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    setSidebarCollapsed(readPersistedSidebarCollapsed());
+  }, []);
   const invoicePrintLayout = isAdminInvoicePrintPath(pathname);
   const queryClient = useQueryClient();
 
@@ -123,7 +141,15 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
 
   function handleToggleSidebar() {
     if (isMd) {
-      setSidebarCollapsed((c) => !c);
+      setSidebarCollapsed((c) => {
+        const next = !c;
+        try {
+          window.localStorage.setItem(ADMIN_SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+        } catch {
+          /* storage optional */
+        }
+        return next;
+      });
     } else {
       setMobileNavOpen((o) => !o);
     }
@@ -137,6 +163,7 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
       <CurrencySettingsProvider>
       <AdminGlobalSearchProvider>
       <AdminDateRangeProvider>
+        <AdminWorkspaceTabsScopeProvider>
         <div
           data-admin-shell
           className="relative flex h-full overflow-hidden bg-[#F8FAFC] transition-[margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
@@ -176,10 +203,14 @@ export function AdminAppShell({ children }: { children: React.ReactNode }) {
             data-admin-content
             className="admin-content min-h-0 min-w-0 overflow-y-auto overscroll-contain pb-[env(safe-area-inset-bottom,0.5rem)]"
           >
-            <div key={storeViewKey}>{children}</div>
+            <AdminWorkspaceTabBar />
+            <div key={storeViewKey}>
+              <AdminWorkspaceContentKeeper>{children}</AdminWorkspaceContentKeeper>
+            </div>
           </div>
         </main>
         </div>
+        </AdminWorkspaceTabsScopeProvider>
       </AdminDateRangeProvider>
       </AdminGlobalSearchProvider>
       </CurrencySettingsProvider>

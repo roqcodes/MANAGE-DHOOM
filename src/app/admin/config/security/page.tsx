@@ -14,9 +14,6 @@ export default function AdminSecurityConfigPage() {
       />
       <div className="mb-4">
         <h1 className="text-xl font-semibold tracking-tight">Security</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your account password and reset options.
-        </p>
       </div>
       <SecuritySettingsCard />
     </div>

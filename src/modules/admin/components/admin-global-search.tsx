@@ -35,6 +35,10 @@ import { filterSearchIndex } from "@/modules/admin/lib/admin-search-client";
 import { adminQueryKeys } from "@/modules/admin/lib/admin-query-keys";
 import type { AdminSearchIndexResponse } from "@/modules/admin/types/admin-search";
 import { useAdminBootstrap } from "@/modules/admin/providers/admin-bootstrap-provider";
+import {
+  ADMIN_HEADER_ICON_SLOT,
+  adminHeaderFieldClassName,
+} from "@/modules/admin/components/admin-header-chrome";
 import { cn } from "@/lib/utils";
 
 type AdminGlobalSearchContextValue = {
@@ -143,15 +147,17 @@ export function AdminSearchTrigger({ className }: { className?: string }) {
       onClick={() => setOpen(true)}
       aria-label="Quick search"
       className={cn(
-        "group/search relative flex h-10 w-full items-center gap-2.5 rounded-xl border border-slate-200/80 bg-white/90 px-3.5 text-left text-sm shadow-sm shadow-slate-900/[0.04] outline-none",
-        "transition-all duration-300 ease-out",
-        "hover:-translate-y-px hover:border-[#EB205F]/30 hover:bg-white hover:shadow-md hover:shadow-[#EB205F]/[0.07]",
-        "focus-visible:border-[#EB205F]/40 focus-visible:ring-2 focus-visible:ring-[#EB205F]/15",
-        "active:translate-y-0 active:shadow-sm",
+        "group/search relative w-full gap-2.5 px-3 text-left font-normal",
+        adminHeaderFieldClassName(),
         className,
       )}
     >
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-400 transition-all duration-300 group-hover/search:bg-[#EB205F]/10 group-hover/search:text-[#EB205F]">
+      <span
+        className={cn(
+          ADMIN_HEADER_ICON_SLOT,
+          "transition-colors duration-200 group-hover/search:bg-primary/10 group-hover/search:text-primary",
+        )}
+      >
         <Search className="size-4" aria-hidden />
       </span>
       <AdminSearchHintRotator />

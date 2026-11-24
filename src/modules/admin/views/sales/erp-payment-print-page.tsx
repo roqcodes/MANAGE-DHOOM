@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 
 import { AdminPrintSkeleton } from "@/modules/admin/components/admin-page-skeleton";
@@ -19,7 +19,7 @@ export function ErpPaymentPrintPage() {
   const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : "";
   const [detail, setDetail] = useState<ErpPaymentPrintData | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const autoDownloadedRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
@@ -29,12 +29,7 @@ export function ErpPaymentPrintPage() {
   const handleDownloadPdf = useCallback(async () => {
     const element = document.querySelector("[data-print-document]");
     if (!(element instanceof HTMLElement) || !detail) return;
-    setDownloading(true);
-    try {
-      await downloadElementAsPdf(element, `${detail.payment_number}.pdf`);
-    } finally {
-      setDownloading(false);
-    }
+    await downloadElementAsPdf(element, `${detail.payment_number}.pdf`);
   }, [detail]);
 
   useAutoPrintOnLoad(
@@ -46,10 +41,11 @@ export function ErpPaymentPrintPage() {
   );
 
   useEffect(() => {
-    if (searchParams.get("download") === "1" && detail && !downloading) {
+    if (searchParams.get("download") === "1" && detail && !autoDownloadedRef.current) {
+      autoDownloadedRef.current = true;
       void handleDownloadPdf();
     }
-  }, [searchParams, detail, downloading, handleDownloadPdf]);
+  }, [searchParams, detail, handleDownloadPdf]);
 
   if (!detail) {
     return <AdminPrintSkeleton />;
@@ -61,7 +57,6 @@ export function ErpPaymentPrintPage() {
         backHref={`/admin/erp/payments/${id}`}
         title={`Payment receipt · ${detail.payment_number}`}
         onDownloadPdf={handleDownloadPdf}
-        downloading={downloading}
         onPrint={() => {
           const element = document.querySelector("[data-print-document]");
           if (element instanceof HTMLElement) printDocumentElement(element);

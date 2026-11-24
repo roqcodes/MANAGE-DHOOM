@@ -1,3 +1,27 @@
+const INVALID_FILENAME_CHARS = /[<>:"/\\|?*\u0000-\u001f]/g;
+
+function sanitizeFilenameSegment(value: string, maxLen = 80): string {
+  return value
+    .trim()
+    .replace(INVALID_FILENAME_CHARS, "")
+    .replace(/\s+/g, " ")
+    .slice(0, maxLen);
+}
+
+/** ERP / tax invoice PDF: `{customer} {invoice_number}.pdf` */
+export function buildErpInvoicePdfFilename(invoice: {
+  invoice_number: string;
+  users?: { name?: string | null; company_name?: string | null } | null;
+}): string {
+  const customer =
+    invoice.users?.company_name?.trim() ||
+    invoice.users?.name?.trim() ||
+    "Customer";
+  const name = sanitizeFilenameSegment(customer);
+  const number = sanitizeFilenameSegment(invoice.invoice_number, 40).replace(/\s/g, "");
+  return `${name} ${number}.pdf`;
+}
+
 function formatInvoiceDatePart(value: string | null | undefined): string {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) {

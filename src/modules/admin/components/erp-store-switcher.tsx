@@ -19,7 +19,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
+import {
+  ADMIN_HEADER_ICON_SLOT,
+  adminHeaderFieldClassName,
+} from "@/modules/admin/components/admin-header-chrome";
 import { cn } from "@/lib/utils";
 
 export function ErpStoreSwitcher() {
@@ -60,9 +63,16 @@ export function ErpStoreSwitcher() {
 
   if (loading) {
     return (
-      <span className="flex h-9 items-center gap-2 px-2 text-xs text-slate-500">
-        <Loader2 className="size-3.5 animate-spin" />
-        <span className="hidden sm:inline">Store</span>
+      <span
+        className={cn(
+          adminHeaderFieldClassName("max-w-[12.5rem] text-xs text-slate-500"),
+          "pointer-events-none",
+        )}
+      >
+        <span className={ADMIN_HEADER_ICON_SLOT}>
+          <Loader2 className="size-3.5 animate-spin" aria-hidden />
+        </span>
+        <span className="truncate">Store</span>
       </span>
     );
   }
@@ -75,20 +85,23 @@ export function ErpStoreSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
             disabled={isPending}
-            className="h-9 max-w-[9.5rem] gap-1.5 border-slate-200 bg-white px-2 text-xs font-medium text-slate-700 sm:max-w-[11rem] lg:max-w-[12.5rem]"
+            className={adminHeaderFieldClassName(
+              "max-w-[12.5rem] font-medium text-slate-700 disabled:opacity-60",
+            )}
           />
         }
       >
-        <Building2 className="size-3.5 shrink-0 text-slate-500" />
-        <span className="truncate">{activeName}</span>
+        <span className={ADMIN_HEADER_ICON_SLOT}>
+          <Building2 className="size-4 shrink-0" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1 truncate text-left">{activeName}</span>
         {isPending ? (
-          <Loader2 className="size-3.5 shrink-0 animate-spin opacity-60" />
+          <Loader2 className="size-3.5 shrink-0 animate-spin text-slate-400" aria-hidden />
         ) : (
-          <ChevronDown className="size-3.5 shrink-0 opacity-50" />
+          <ChevronDown className="size-3.5 shrink-0 text-slate-400 opacity-70" aria-hidden />
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

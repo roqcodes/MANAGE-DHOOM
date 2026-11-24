@@ -9,6 +9,7 @@ type ErpDocumentDetailTabsProps = {
   activeTab: ErpDocumentTab;
   onTabChange: (tab: ErpDocumentTab) => void;
   showJournals?: boolean;
+  switching?: boolean;
 };
 
 export function ErpDocumentDetailTabs({
@@ -16,6 +17,7 @@ export function ErpDocumentDetailTabs({
   activeTab,
   onTabChange,
   showJournals = true,
+  switching = false,
 }: ErpDocumentDetailTabsProps) {
   const tabs: Array<{ id: ErpDocumentTab; label: string }> = [
     { id: "details", label: detailsLabel.toUpperCase() },
@@ -33,8 +35,10 @@ export function ErpDocumentDetailTabs({
         <button
           key={tab.id}
           type="button"
+          disabled={switching}
           onClick={() => onTabChange(tab.id)}
           className={cn(
+            switching && "pointer-events-none opacity-60",
             "border-b-2 px-4 py-2.5 text-[11px] font-semibold tracking-wide transition-colors",
             activeTab === tab.id
               ? "border-primary bg-background text-foreground"

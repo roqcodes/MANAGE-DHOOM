@@ -7,7 +7,6 @@ import { LoadingButton } from "@/modules/admin/ui/loading-button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -83,9 +82,7 @@ export function AdminFormModal({
       >
         <DialogHeader className="shrink-0 gap-1 border-b border-border px-5 py-4 pr-14 text-left">
           <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
-          {description ? (
-            <DialogDescription className="text-sm">{description}</DialogDescription>
-          ) : null}
+          {null}
         </DialogHeader>
 
         <div

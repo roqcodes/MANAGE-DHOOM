@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 
 import { formatCustomerCreditNoteRef } from "@/common/erp/commercial-discount";
@@ -20,7 +20,7 @@ export function ErpCreditNotePrintPage() {
   const searchParams = useSearchParams();
   const id = typeof params.id === "string" ? params.id : "";
   const [detail, setDetail] = useState<ErpCreditNotePrintData | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const autoDownloadedRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
@@ -38,15 +38,10 @@ export function ErpCreditNotePrintPage() {
   const handleDownloadPdf = useCallback(async () => {
     const element = document.querySelector("[data-print-document]");
     if (!(element instanceof HTMLElement) || !detail) return;
-    setDownloading(true);
-    try {
-      await downloadElementAsPdf(
-        element,
-        `${displayRef.replace(/[^\w.-]+/g, "-")}.pdf`,
-      );
-    } finally {
-      setDownloading(false);
-    }
+    await downloadElementAsPdf(
+      element,
+      `${displayRef.replace(/[^\w.-]+/g, "-")}.pdf`,
+    );
   }, [detail, displayRef]);
 
   useAutoPrintOnLoad(
@@ -58,10 +53,11 @@ export function ErpCreditNotePrintPage() {
   );
 
   useEffect(() => {
-    if (searchParams.get("download") === "1" && detail && !downloading) {
+    if (searchParams.get("download") === "1" && detail && !autoDownloadedRef.current) {
+      autoDownloadedRef.current = true;
       void handleDownloadPdf();
     }
-  }, [searchParams, detail, downloading, handleDownloadPdf]);
+  }, [searchParams, detail, handleDownloadPdf]);
 
   if (!detail) {
     return <AdminPrintSkeleton />;
@@ -75,7 +71,6 @@ export function ErpCreditNotePrintPage() {
         backHref={`/admin/erp/credit-notes/${id}`}
         title={`${titleKind} · ${displayRef}`}
         onDownloadPdf={handleDownloadPdf}
-        downloading={downloading}
         onPrint={() => {
           const element = document.querySelector("[data-print-document]");
           if (element instanceof HTMLElement) printDocumentElement(element);

@@ -15,9 +15,11 @@ import {
 export function ActivityLogPanel({
   entityType,
   entityId,
+  onLoadingChange,
 }: {
   entityType: string;
   entityId: string;
+  onLoadingChange?: (loading: boolean) => void;
 }) {
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +43,10 @@ export function ActivityLogPanel({
       cancelled = true;
     };
   }, [entityType, entityId]);
+
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
 
   return <AuditLogEntryList logs={logs} loading={loading} />;
 }

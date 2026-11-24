@@ -5,12 +5,10 @@ import { PanelLeft, PanelLeftClose } from "lucide-react";
 import { AdminRefreshStatusButton } from "@/modules/admin/components/admin-refresh-status-button";
 import { AdminQuickCreateMenu } from "@/modules/admin/components/admin-quick-create-menu";
 import { AdminProfileMenu } from "@/modules/admin/components/admin-profile-menu";
-import { AdminRecentActivityMenu } from "@/modules/admin/components/admin-recent-activity-menu";
 import { AdminHeaderDateRange } from "@/modules/admin/components/admin-header-date-range";
 import { AdminSearchTrigger } from "@/modules/admin/components/admin-global-search";
 import { ErpStoreSwitcher } from "@/modules/admin/components/erp-store-switcher";
-import { INTERACTIVE_CHROME_ICON_BUTTON } from "@/lib/ui/interactive-styles";
-import { cn } from "@/lib/utils";
+import { ADMIN_HEADER_ICON_BUTTON } from "@/modules/admin/components/admin-header-chrome";
 
 type AdminHeaderProps = {
   sidebarCollapsed: boolean;
@@ -19,6 +17,44 @@ type AdminHeaderProps = {
   isMdViewport: boolean;
   onToggleSidebar: () => void;
 };
+
+function SidebarToggleButton({
+  isMdViewport,
+  sidebarCollapsed,
+  mobileNavOpen,
+  onToggleSidebar,
+  toggleLabel,
+  navExpanded,
+}: {
+  isMdViewport: boolean;
+  sidebarCollapsed: boolean;
+  mobileNavOpen: boolean;
+  onToggleSidebar: () => void;
+  toggleLabel: string;
+  navExpanded: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggleSidebar}
+      className={ADMIN_HEADER_ICON_BUTTON}
+      aria-label={toggleLabel}
+      aria-expanded={navExpanded}
+    >
+      {isMdViewport ? (
+        sidebarCollapsed ? (
+          <PanelLeft className="size-5" aria-hidden />
+        ) : (
+          <PanelLeftClose className="size-5" aria-hidden />
+        )
+      ) : mobileNavOpen ? (
+        <PanelLeftClose className="size-5" aria-hidden />
+      ) : (
+        <PanelLeft className="size-5" aria-hidden />
+      )}
+    </button>
+  );
+}
 
 export function AdminHeader({
   sidebarCollapsed,
@@ -35,62 +71,68 @@ export function AdminHeader({
       ? "Close navigation menu"
       : "Open navigation menu";
 
-  const refreshBtn = <AdminRefreshStatusButton />;
+  const toggle = (
+    <SidebarToggleButton
+      isMdViewport={isMdViewport}
+      sidebarCollapsed={sidebarCollapsed}
+      mobileNavOpen={mobileNavOpen}
+      onToggleSidebar={onToggleSidebar}
+      toggleLabel={toggleLabel}
+      navExpanded={navExpanded}
+    />
+  );
 
   return (
     <header
       data-admin-header
-      className="sticky top-0 z-30 shrink-0 border-b border-slate-200/70 bg-[#F8FAFC]/85 backdrop-blur-md"
+      className="sticky top-0 z-30 shrink-0 border-b border-slate-200/70 bg-[#F8FAFC]/85 backdrop-blur-md max-md:border-b-0"
     >
-      <div className="grid grid-cols-1 gap-2 px-3 py-1.5 sm:px-4 md:h-[52px] md:grid-cols-[auto_minmax(0,1fr)_auto] md:items-center md:gap-3 md:py-0 lg:gap-4">
+      {/* Mobile: row 1 = nav + create + search; row 2 = store + dates + refresh + profile */}
+      <div className="flex flex-col gap-2 px-3 py-2 md:hidden">
         <div className="flex min-w-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={onToggleSidebar}
-            className={cn(
-              "flex size-10 shrink-0 items-center justify-center rounded-xl text-slate-500",
-              INTERACTIVE_CHROME_ICON_BUTTON,
-            )}
-            aria-label={toggleLabel}
-            aria-expanded={navExpanded}
-          >
-            {isMdViewport ? (
-              sidebarCollapsed ? (
-                <PanelLeft className="size-5" aria-hidden />
-              ) : (
-                <PanelLeftClose className="size-5" aria-hidden />
-              )
-            ) : mobileNavOpen ? (
-              <PanelLeftClose className="size-5" aria-hidden />
-            ) : (
-              <PanelLeft className="size-5" aria-hidden />
-            )}
-          </button>
-          <div className="hidden min-w-0 items-center gap-2 md:flex">
-            <ErpStoreSwitcher />
+          {toggle}
+          <div className="shrink-0">
             <AdminQuickCreateMenu />
           </div>
-          <div className="ml-auto flex items-center gap-1 md:hidden">
-            <ErpStoreSwitcher />
-            <AdminQuickCreateMenu />
-            {refreshBtn}
-            <AdminProfileMenu />
-          </div>
-        </div>
-
-        <div className="min-w-0 w-full justify-self-stretch px-0 md:max-w-3xl md:justify-self-center md:px-1">
-          <div className="flex items-center gap-1.5">
-            <AdminRecentActivityMenu />
-            <label className="relative block min-w-0 flex-1">
+          <div className="min-w-0 flex-1">
+            <label className="relative block min-w-0">
               <span className="sr-only">Quick search</span>
               <AdminSearchTrigger />
             </label>
-            <AdminHeaderDateRange />
           </div>
         </div>
+        <div className="flex min-w-0 items-center gap-2 border-b border-slate-200/80 pb-2 -mx-3 px-3">
+          <ErpStoreSwitcher />
+          <AdminHeaderDateRange />
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <AdminRefreshStatusButton />
+            <AdminProfileMenu />
+          </div>
+        </div>
+      </div>
 
-        <div className="hidden shrink-0 items-center justify-end gap-2 md:flex">
-          {refreshBtn}
+      {/* Desktop */}
+      <div className="hidden h-[52px] flex-nowrap items-center gap-2.5 px-4 md:flex lg:gap-3">
+        {toggle}
+        <div className="shrink-0">
+          <AdminQuickCreateMenu />
+        </div>
+        <div className="min-w-0 flex-1">
+          <label className="relative block min-w-0">
+            <span className="sr-only">Quick search</span>
+            <AdminSearchTrigger />
+          </label>
+        </div>
+        <div className="shrink-0">
+          <ErpStoreSwitcher />
+        </div>
+        <div className="shrink-0">
+          <AdminHeaderDateRange />
+        </div>
+        <div className="shrink-0">
+          <AdminRefreshStatusButton />
+        </div>
+        <div className="shrink-0">
           <AdminProfileMenu />
         </div>
       </div>

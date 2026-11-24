@@ -70,10 +70,6 @@ export function UsersMetricsBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Team & Users</h1>
-          <p className="text-sm text-muted-foreground">
-            Portal staff and access requests. Storefront customers live under
-            Customers.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={onExport}>

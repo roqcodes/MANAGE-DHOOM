@@ -158,7 +158,6 @@ export function InvoicesListView() {
     <AdminPageLayout>
       <AdminPageHeader
         title="Invoices"
-        breadcrumb={[{ label: "Invoices", href: "/admin/erp/invoices" }]}
         description="Store and online invoices with payment status. Use filters to narrow by store, status, or date range."
         actions={
           <AdminListPageActions exportSource={exportSource} exportDisabled={sorted.length === 0}>

@@ -17,7 +17,6 @@ export function AdminConfigView() {
       <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
         <div className="mb-4">
           <h1 className="text-xl font-semibold tracking-tight">Account settings</h1>
-          <p className="text-sm text-muted-foreground">Loading your profile…</p>
         </div>
         <Skeleton className="h-40 w-full rounded-xl" />
         <Skeleton className="mt-4 h-56 w-full rounded-xl" />
@@ -31,9 +30,6 @@ export function AdminConfigView() {
     <div className="mx-auto w-full max-w-7xl px-3 py-3 sm:px-4 sm:py-4">
       <div className="mb-4">
         <h1 className="text-xl font-semibold tracking-tight">Account settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Your profile, password, and session on this device.
-        </p>
       </div>
 
       <div className="flex flex-col gap-4">

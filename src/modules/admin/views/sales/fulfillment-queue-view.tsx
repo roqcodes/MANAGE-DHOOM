@@ -73,9 +73,6 @@ export function FulfillmentQueueView() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Fulfillment queue</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Online orders needing store assignment or shipment.
-          </p>
         </div>
         <Link href="/admin/erp/change-store" className={buttonVariants({ variant: "outline", size: "sm" })}>
           Change active store

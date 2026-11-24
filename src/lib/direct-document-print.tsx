@@ -4,8 +4,7 @@ import type { ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
 import type { AdminPurchaseOrderDetail, OrderWithItems } from "@/common/admin/types";
-import { downloadElementAsPdf } from "@/lib/html2pdf-download";
-import { preparePrintDocumentForPdfCapture } from "@/lib/invoice-pdf-styles";
+import { downloadElementAsPdf, exportElementAsPdfBlob } from "@/lib/html2pdf-download";
 import { printDocumentElement } from "@/lib/print-document";
 import { adminGet, adminGetNullable } from "@/modules/admin/lib/admin-api-client";
 import {
@@ -26,7 +25,10 @@ import {
 } from "@/modules/erp/components/erp-payment-print-document";
 import { formatCustomerCreditNoteRef } from "@/common/erp/commercial-discount";
 import { OrderInvoiceDocument } from "@/modules/orders/components/order-invoice-document";
-import { buildOrderInvoiceFilename } from "@/modules/orders/lib/invoice-filename";
+import {
+  buildErpInvoicePdfFilename,
+  buildOrderInvoiceFilename,
+} from "@/modules/orders/lib/invoice-filename";
 import { PurchaseOrderInvoiceDocument } from "@/modules/purchase-orders/components/purchase-order-invoice-document";
 import {
   PurchaseBillPrintDocument,
@@ -34,6 +36,35 @@ import {
 } from "@/modules/purchasing/components/purchase-bill-print-document";
 
 type PrintMode = "print" | "download";
+
+/** Off-screen but laid out — html-to-image raster; user never sees flash */
+const PDF_CAPTURE_HOST_STYLE =
+  "position:fixed;left:-10000px;top:0;width:186mm;min-height:1px;overflow:visible;pointer-events:none;z-index:-1;background:#fff;";
+
+const PRINT_HOST_OFFSCREEN_STYLE =
+  "position:fixed;left:-10000px;top:0;width:210mm;min-height:1px;overflow:visible;pointer-events:none;z-index:-1;";
+
+async function waitForImages(root: ParentNode) {
+  const imgs = [...root.querySelectorAll("img")];
+  await Promise.all(
+    imgs.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          if (!(img instanceof HTMLImageElement)) {
+            resolve();
+            return;
+          }
+          if (img.complete && img.naturalHeight > 0) {
+            resolve();
+            return;
+          }
+          const done = () => resolve();
+          img.addEventListener("load", done, { once: true });
+          img.addEventListener("error", done, { once: true });
+        }),
+    ),
+  );
+}
 
 async function waitForDocumentPaint() {
   await new Promise<void>((resolve) => {
@@ -49,9 +80,8 @@ async function runWithMountedDocument(
 ): Promise<void> {
   const host = document.createElement("div");
   host.setAttribute("data-direct-print-host", "true");
-  // Full A4 width off-screen so layout paints; 0×0 host made print preview empty (100% width = 0).
   host.style.cssText =
-    "position:fixed;left:-10000px;top:0;width:210mm;min-height:1px;overflow:visible;pointer-events:none;z-index:-1;";
+    mode === "download" ? PDF_CAPTURE_HOST_STYLE : PRINT_HOST_OFFSCREEN_STYLE;
   document.body.appendChild(host);
 
   const root: Root = createRoot(host);
@@ -67,7 +97,7 @@ async function runWithMountedDocument(
     throw new Error("Could not prepare document for printing.");
   }
 
-  preparePrintDocumentForPdfCapture(element);
+  await waitForImages(element);
 
   const dispose = () => {
     root.unmount();
@@ -94,6 +124,46 @@ async function runWithMountedDocument(
   });
 }
 
+async function captureMountedDocumentAsPdfBlob(render: () => ReactElement): Promise<Blob> {
+  const host = document.createElement("div");
+  host.setAttribute("data-direct-print-host", "true");
+  host.style.cssText = PDF_CAPTURE_HOST_STYLE;
+  document.body.appendChild(host);
+
+  const root: Root = createRoot(host);
+  root.render(render());
+  await waitForDocumentPaint();
+
+  const element = host.querySelector(
+    "[data-print-document], [data-estimate-document], [data-invoice-document]",
+  );
+  if (!(element instanceof HTMLElement)) {
+    root.unmount();
+    host.remove();
+    throw new Error("Could not prepare document for printing.");
+  }
+
+  await waitForImages(element);
+
+  try {
+    return await exportElementAsPdfBlob(element);
+  } finally {
+    root.unmount();
+    host.remove();
+  }
+}
+
+export async function buildErpInvoicePdf(
+  invoiceId: string,
+): Promise<{ blob: Blob; filename: string }> {
+  const invoice = await adminGet<ErpInvoicePrintData>(`erp/invoices/${invoiceId}`);
+  const filename = buildErpInvoicePdfFilename(invoice);
+  const blob = await captureMountedDocumentAsPdfBlob(() => (
+    <ErpInvoicePrintDocument invoice={invoice} />
+  ));
+  return { blob, filename };
+}
+
 export async function directPrintErpInvoice(
   invoiceId: string,
   mode: PrintMode = "print",
@@ -102,7 +172,7 @@ export async function directPrintErpInvoice(
   await runWithMountedDocument(
     () => <ErpInvoicePrintDocument invoice={invoice} />,
     mode,
-    `${invoice.invoice_number}.pdf`,
+    buildErpInvoicePdfFilename(invoice),
   );
 }
 

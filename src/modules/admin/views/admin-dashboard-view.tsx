@@ -187,9 +187,7 @@ function SectionHeading({
     <div className="flex flex-wrap items-end justify-between gap-2">
       <div>
         <h2 className="text-sm font-semibold tracking-tight text-foreground">{title}</h2>
-        {description ? (
-          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-        ) : null}
+        {null}
       </div>
       {action}
     </div>

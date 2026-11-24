@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { format } from "date-fns";
-import { CalendarRange, Check } from "lucide-react";
+import { CalendarRange, Check, ChevronDown } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 
 import {
@@ -26,6 +26,10 @@ import {
   InputGroupAddon,
   InputGroupButton,
 } from "@/components/ui/input-group";
+import {
+  ADMIN_HEADER_ICON_SLOT,
+  adminHeaderFieldClassName,
+} from "@/modules/admin/components/admin-header-chrome";
 import { cn } from "@/lib/utils";
 
 export type AdminDateRangePickerProps = {
@@ -90,17 +94,18 @@ export function AdminDateRangePicker({
       <button
         type="button"
         className={cn(
-          "flex h-10 max-w-[11.5rem] min-w-[8.5rem] items-center gap-2 rounded-xl border border-slate-200/80 bg-white/90 px-3 text-left text-sm shadow-sm shadow-slate-900/[0.04] outline-none",
-          "transition-all duration-300 ease-out hover:border-[#EB205F]/30 hover:bg-white hover:shadow-md hover:shadow-[#EB205F]/[0.07]",
-          "focus-visible:border-[#EB205F]/40 focus-visible:ring-2 focus-visible:ring-[#EB205F]/15",
+          adminHeaderFieldClassName(
+            "max-w-[11.5rem] min-w-[8.5rem] px-2.5 font-medium text-slate-700",
+          ),
           className,
         )}
         aria-label={`Date range: ${label}`}
       >
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-400">
+        <span className={ADMIN_HEADER_ICON_SLOT}>
           <CalendarRange className="size-4" aria-hidden />
         </span>
-        <span className="min-w-0 truncate font-medium text-slate-700">{label}</span>
+        <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+        <ChevronDown className="size-3.5 shrink-0 text-slate-400 opacity-70" aria-hidden />
       </button>
     ) : (
       <Button

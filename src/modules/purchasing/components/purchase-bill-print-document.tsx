@@ -1,17 +1,21 @@
-import { formatCurrencyAmount } from "@/lib/format-currency";
-import { formatDateOnly } from "@/lib/format-date";
+import { COMPANY_NAME } from "@/modules/brand/lib/brand";
+import { dash, INVOICE_PRINT_LABELS } from "@/modules/documents/invoice-print-copy";
 import {
-  InvoicePrintFooter,
-  InvoicePrintHeader,
-  InvoicePrintLineTable,
-  InvoicePrintParties,
+  formatInvoiceDate,
+  formatInvoiceMoney,
+  formatInvoiceUnitPrice,
+  formatQty,
+} from "@/modules/documents/invoice-print-money";
+import {
   InvoicePrintRoot,
-  InvoicePrintTotals,
+  TaxInvoiceClosing,
+  TaxInvoiceLineTable,
+  TaxInvoiceMasthead,
+  TaxInvoiceMeta,
+  TaxInvoiceParties,
+  TaxInvoiceTotals,
 } from "@/modules/documents/invoice-print-primitives";
-import {
-  landedAllocFromStoredLine,
-  loadedUnitCostFromStoredLine,
-} from "@/modules/purchasing/lib/purchase-landed-allocation";
+import { buildZatcaQrPayload, invoiceTimestampIso } from "@/modules/documents/zatca-qr";
 
 export type PurchaseBillPrintData = {
   id: string;
@@ -24,9 +28,28 @@ export type PurchaseBillPrintData = {
   discount: number;
   landed_cost_total: number;
   total_amount: number;
+  amount_paid?: number;
   balance_due: number;
-  vendors: { name: string | null; address: string | null; trn: string | null } | null;
-  stores: { name: string | null } | null;
+  vendor_balance?: number | null;
+  vendors: {
+    name: string | null;
+    address: string | null;
+    trn: string | null;
+    phone?: string | null;
+    email?: string | null;
+    contact?: string | null;
+  } | null;
+  stores: {
+    name: string | null;
+    logo_url?: string | null;
+    address_line1?: string | null;
+    address_line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
+    phone?: string | null;
+    trn?: string | null;
+  } | null;
   erp_purchase_bill_lines: Array<{
     product_name: string;
     quantity: number;
@@ -39,110 +62,99 @@ export type PurchaseBillPrintData = {
 };
 
 export function PurchaseBillPrintDocument({ bill }: { bill: PurchaseBillPrintData }) {
-  const showLanded = bill.landed_cost_total > 0;
+  const vendor = bill.vendors;
+  const store = bill.stores;
+  const city = [store?.city, store?.state, store?.country].filter(Boolean).join(", ");
+  const seller = {
+    name: dash(vendor?.name),
+    address: dash(vendor?.address),
+    street: dash(vendor?.contact),
+    city: "—",
+    phone: dash(vendor?.phone),
+    vatNumber: dash(vendor?.trn),
+  };
+  const buyer = {
+    name: dash(store?.name ?? COMPANY_NAME),
+    address: dash(store?.address_line1),
+    street: dash(store?.address_line2),
+    city: dash(city),
+    phone: dash(store?.phone),
+    vatNumber: dash(store?.trn),
+  };
 
-  const metaRows = [
-    { label: "Bill date", value: formatDateOnly(bill.purchase_date) },
-    { label: "Due date", value: bill.due_date ? formatDateOnly(bill.due_date) : "On receipt" },
-    ...(bill.vendor_bill_number
-      ? [{ label: "Vendor invoice #", value: bill.vendor_bill_number }]
-      : []),
-  ];
+  const paid = Number(bill.amount_paid ?? Math.max(0, bill.total_amount - bill.balance_due));
 
-  const vendorLines = [
-    bill.vendors?.name ?? "—",
-    ...(bill.vendors?.address ? [bill.vendors.address] : []),
-    ...(bill.vendors?.trn ? [`TRN: ${bill.vendors.trn}`] : []),
-  ];
-
-  const columns = [
-    { key: "item", label: "Description" },
-    { key: "qty", label: "Qty", align: "right" as const, width: "48px" },
-    { key: "rate", label: "Rate", align: "right" as const, width: "72px" },
-    ...(showLanded
-      ? [{ key: "loaded", label: "Loaded unit", align: "right" as const, width: "72px" }]
-      : []),
-    { key: "taxPct", label: "Tax %", align: "right" as const, width: "48px" },
-    ...(showLanded
-      ? [{ key: "landed", label: "Landed", align: "right" as const, width: "64px" }]
-      : []),
-    { key: "total", label: "Line total", align: "right" as const, width: "76px" },
-  ];
+  const qrValue = buildZatcaQrPayload({
+    sellerName: seller.name,
+    vatNumber:
+      [seller.vatNumber, buyer.vatNumber].find((v) => v && v !== "—") ?? "",
+    timestampIso: invoiceTimestampIso(bill.purchase_date),
+    totalWithVat: Number(bill.total_amount ?? 0),
+    vatAmount: Number(bill.tax_amount ?? 0),
+  });
 
   return (
     <InvoicePrintRoot kind="bill">
-      <InvoicePrintHeader
-        title="Purchase bill"
+      <TaxInvoiceMasthead
+        logoUrl={store?.logo_url}
+        storeName={store?.name ?? COMPANY_NAME}
+        vatNumber={store?.trn}
+      />
+      <TaxInvoiceMeta
         documentNumber={bill.purchase_bill_number}
-        metaRows={metaRows}
+        invoiceDate={formatInvoiceDate(bill.purchase_date)}
+        dueDate={bill.due_date ? formatInvoiceDate(bill.due_date) : "—"}
+        extraRows={
+          bill.vendor_bill_number
+            ? [{ label: INVOICE_PRINT_LABELS.vendorInvoice, value: bill.vendor_bill_number }]
+            : undefined
+        }
+        qrValue={qrValue}
       />
-
-      <InvoicePrintParties
-        left={{
-          title: "Vendor / supplier",
-          lines: vendorLines,
-        }}
-        right={{
-          title: "Receiving location",
-          lines: [bill.stores?.name ?? "—", "Buyer: DHOOM Trading"],
-        }}
-      />
-
-      <InvoicePrintLineTable
-        columns={columns}
+      <TaxInvoiceParties seller={seller} buyer={buyer} />
+      <TaxInvoiceLineTable
         rows={bill.erp_purchase_bill_lines.map((line) => {
-          const landedAlloc = landedAllocFromStoredLine(line);
-          const loadedUnit = loadedUnitCostFromStoredLine({
-            quantity: line.quantity,
-            purchasePrice: line.purchase_price,
-            landed_cost_allocated: line.landed_cost_allocated,
-            unit_loaded_cost: line.unit_loaded_cost,
-          });
+          const qty = Number(line.quantity ?? 0);
+          const unit = Number(line.purchase_price ?? 0);
+          const taxable = qty * unit;
+          const tax =
+            Number(line.line_total ?? 0) - taxable ||
+            taxable * (Number(line.tax_rate_percent ?? 0) / 100);
           return {
-            item: line.product_name,
-            qty: line.quantity,
-            rate: formatCurrencyAmount(line.purchase_price),
-            ...(showLanded
-              ? { loaded: formatCurrencyAmount(loadedUnit) }
-              : {}),
-            taxPct: `${line.tax_rate_percent}%`,
-            ...(showLanded
-              ? {
-                  landed:
-                    landedAlloc > 0 ? formatCurrencyAmount(landedAlloc) : "—",
-                }
-              : {}),
-            total: formatCurrencyAmount(line.line_total),
+            nature: <span className="bh-inv-item-name">{line.product_name}</span>,
+            unitPrice: formatInvoiceUnitPrice(unit),
+            quantity: formatQty(qty),
+            taxable: formatInvoiceMoney(taxable),
+            taxRate: `${line.tax_rate_percent}%`,
+            taxAmount: formatInvoiceMoney(tax),
+            subtotal: formatInvoiceMoney(line.line_total),
           };
         })}
       />
-
-      <InvoicePrintTotals
-        highlightBalance
-        lines={[
-          { label: "Subtotal", value: formatCurrencyAmount(bill.subtotal) },
-          { label: "Tax", value: formatCurrencyAmount(bill.tax_amount) },
+      <TaxInvoiceTotals
+        taxable={formatInvoiceMoney(bill.subtotal)}
+        vat={formatInvoiceMoney(bill.tax_amount)}
+        extraBeforeTotal={[
           ...(bill.discount > 0
-            ? [{ label: "Discount", value: `-${formatCurrencyAmount(bill.discount)}` }]
+            ? [{ label: INVOICE_PRINT_LABELS.discount, value: `-${formatInvoiceMoney(bill.discount)}` }]
             : []),
-          ...(showLanded
-            ? [{ label: "Landed costs", value: formatCurrencyAmount(bill.landed_cost_total) }]
+          ...(bill.landed_cost_total > 0
+            ? [
+                {
+                  label: INVOICE_PRINT_LABELS.landedCosts,
+                  value: formatInvoiceMoney(bill.landed_cost_total),
+                },
+              ]
             : []),
-          { label: "Bill total", value: formatCurrencyAmount(bill.total_amount), grand: true },
-          {
-            label: "Balance due",
-            value: formatCurrencyAmount(bill.balance_due),
-            balance: true,
-          },
         ]}
+        total={formatInvoiceMoney(bill.total_amount)}
+        paid={formatInvoiceMoney(paid)}
+        balance={formatInvoiceMoney(bill.balance_due)}
       />
-
-      <InvoicePrintFooter>
-        <p>
-          Record of purchase from vendor for AP and inventory valuation. Match this bill to the
-          vendor&apos;s tax invoice and goods received note before payment.
-        </p>
-      </InvoicePrintFooter>
+      <TaxInvoiceClosing
+        counterpartyLabel={INVOICE_PRINT_LABELS.vendorBalance.en}
+        counterpartyBalance={bill.vendor_balance ?? bill.balance_due}
+      />
     </InvoicePrintRoot>
   );
 }

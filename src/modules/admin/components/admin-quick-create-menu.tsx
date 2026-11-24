@@ -1,14 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ADMIN_HEADER_CONTROL_HEIGHT } from "@/modules/admin/components/admin-header-chrome";
 import { INTERACTIVE_CTA_SOLID_HOVER } from "@/lib/ui/interactive-styles";
 import {
-  ADMIN_QUICK_CREATE_GROUPS,
+  ADMIN_QUICK_CREATE_ENTRIES,
   type QuickCreateBankingTx,
   type QuickCreateEntry,
 } from "@/modules/admin/lib/admin-quick-create-config";
@@ -16,36 +16,65 @@ import { QuickCreateBankingAccountPicker } from "@/modules/admin/components/quic
 
 const CLOSE_DELAY_MS = 200;
 
+/** One muted accent per grid slot (3×2). */
+const TILE_ACCENTS = [
+  {
+    tile: "border-slate-200/90 bg-slate-50/80 hover:border-blue-200/90 hover:bg-blue-50/40",
+    icon: "bg-blue-500/10 text-blue-700/90 ring-1 ring-blue-500/15",
+    label: "text-slate-700",
+  },
+  {
+    tile: "border-slate-200/90 bg-slate-50/80 hover:border-emerald-200/90 hover:bg-emerald-50/35",
+    icon: "bg-emerald-500/10 text-emerald-800/85 ring-1 ring-emerald-500/15",
+    label: "text-slate-700",
+  },
+  {
+    tile: "border-slate-200/90 bg-slate-50/80 hover:border-violet-200/90 hover:bg-violet-50/35",
+    icon: "bg-violet-500/10 text-violet-800/85 ring-1 ring-violet-500/15",
+    label: "text-slate-700",
+  },
+  {
+    tile: "border-slate-200/90 bg-slate-50/80 hover:border-amber-200/90 hover:bg-amber-50/40",
+    icon: "bg-amber-500/10 text-amber-800/85 ring-1 ring-amber-500/15",
+    label: "text-slate-700",
+  },
+  {
+    tile: "border-slate-200/90 bg-slate-50/80 hover:border-rose-200/90 hover:bg-rose-50/35",
+    icon: "bg-rose-500/10 text-rose-800/85 ring-1 ring-rose-500/15",
+    label: "text-slate-700",
+  },
+  {
+    tile: "border-slate-200/90 bg-slate-50/80 hover:border-sky-200/90 hover:bg-sky-50/35",
+    icon: "bg-sky-500/10 text-sky-800/85 ring-1 ring-sky-500/15",
+    label: "text-slate-700",
+  },
+] as const;
+
+function tileClasses(index: number) {
+  const accent = TILE_ACCENTS[index % TILE_ACCENTS.length];
+  return {
+    tile: cn(
+      "group/tile flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-lg border p-1",
+      "text-center text-[10px] font-semibold leading-tight",
+      "shadow-none transition-all duration-150 ease-out",
+      "hover:shadow-sm",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
+      accent.tile,
+      accent.label,
+    ),
+    icon: cn(
+      "flex size-8 shrink-0 items-center justify-center rounded-md transition-transform duration-150 group-hover/tile:scale-[1.03]",
+      accent.icon,
+    ),
+  };
+}
+
 export function AdminQuickCreateMenu() {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  const [menuTop, setMenuTop] = useState(0);
   const [bankingPick, setBankingPick] = useState<QuickCreateBankingTx | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const updateMenuPosition = useCallback(() => {
-    const el = triggerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    setMenuTop(rect.bottom + 8);
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    updateMenuPosition();
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
-    return () => {
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-    };
-  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -104,85 +133,43 @@ export function AdminQuickCreateMenu() {
     closeMenu();
   }
 
-  function renderEntryIcon(entry: QuickCreateEntry) {
-    const Icon = entry.icon;
-    return (
-      <span
-        className="flex size-4 shrink-0 items-center justify-center text-slate-400 transition-colors duration-150 group-hover/entry:text-primary"
-        aria-hidden
-      >
-        <Icon className="size-3.5 stroke-[1.75]" />
-      </span>
+  function renderTile(entry: QuickCreateEntry, index: number) {
+    const { tile, icon } = tileClasses(index);
+    const content = (
+      <>
+        <span className={icon} aria-hidden>
+          <entry.icon className="size-4 stroke-[2]" />
+        </span>
+        <span className="line-clamp-2 w-full px-0.5">{entry.label}</span>
+      </>
     );
-  }
-
-  function renderEntry(entry: QuickCreateEntry, groupId: string) {
-    const className =
-      "group/entry flex w-full items-center gap-2 whitespace-normal rounded-md px-2 py-1.5 text-left text-[13px] font-medium leading-snug text-slate-700 transition-all duration-150 ease-out hover:bg-white hover:pl-2.5 hover:text-blue-700 hover:shadow-sm motion-reduce:transition-none";
 
     if (entry.type === "link") {
       return (
         <Link
-          key={`${groupId}-${entry.label}`}
+          key={`${entry.href}-${index}`}
           href={entry.href}
           role="menuitem"
-          className={className}
+          className={tile}
           onClick={() => closeMenu()}
         >
-          {renderEntryIcon(entry)}
-          <span className="min-w-0 flex-1">{entry.label}</span>
+          {content}
         </Link>
       );
     }
 
     return (
       <button
-        key={`${groupId}-${entry.label}`}
+        key={`${entry.label}-${index}`}
         type="button"
         role="menuitem"
-        className={className}
+        className={tile}
         onClick={() => handleEntryClick(entry)}
       >
-        {renderEntryIcon(entry)}
-        <span className="min-w-0 flex-1 text-left">{entry.label}</span>
+        {content}
       </button>
     );
   }
-
-  const menuPanel =
-    open && mounted ? (
-      <div className="pointer-events-none fixed inset-0 z-[45]">
-        <div
-          ref={menuRef}
-          className="pointer-events-auto absolute left-1/2 w-[min(880px,calc(100vw-1.5rem))] -translate-x-1/2"
-          style={{ top: menuTop }}
-          onMouseEnter={cancelClose}
-          onMouseLeave={scheduleClose}
-        >
-          <div
-            role="menu"
-            aria-label="Quick create"
-            className="origin-top rounded-xl border border-slate-200/90 bg-white p-2 shadow-xl shadow-slate-900/10 animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-200 motion-reduce:animate-none"
-          >
-            <div className="columns-2 gap-2 sm:columns-4">
-              {ADMIN_QUICK_CREATE_GROUPS.map((section) => (
-                <div
-                  key={section.id}
-                  className="group mb-2 break-inside-avoid rounded-lg border border-slate-100 bg-slate-50/90 p-1.5 transition-colors duration-200 last:mb-0 hover:border-slate-200/90 hover:bg-slate-50"
-                >
-                  <p className="px-2 py-0.5 text-xs font-semibold text-slate-500 transition-colors duration-150 group-hover:text-slate-600">
-                    {section.label}
-                  </p>
-                  <div>
-                    {section.items.map((entry) => renderEntry(entry, section.id))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    ) : null;
 
   return (
     <>
@@ -196,7 +183,8 @@ export function AdminQuickCreateMenu() {
           type="button"
           onClick={handleToggle}
           className={cn(
-            "flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 text-[11px] font-bold uppercase tracking-[0.12em] text-primary-foreground",
+            ADMIN_HEADER_CONTROL_HEIGHT,
+            "flex shrink-0 items-center gap-1.5 rounded-xl bg-primary px-3.5 text-[11px] font-bold uppercase tracking-[0.12em] text-primary-foreground",
             INTERACTIVE_CTA_SOLID_HOVER,
             open && "bg-primary/90 ring-2 ring-primary/30 shadow-md",
           )}
@@ -213,9 +201,26 @@ export function AdminQuickCreateMenu() {
             aria-hidden
           />
         </button>
-      </div>
 
-      {menuPanel ? createPortal(menuPanel, document.body) : null}
+        {open ? (
+          <div
+            ref={menuRef}
+            className="absolute left-0 top-[calc(100%+6px)] z-[60] w-[252px] origin-top animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 duration-150 motion-reduce:animate-none"
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
+          >
+            <div
+              role="menu"
+              aria-label="Quick create"
+              className="rounded-xl border border-slate-200/80 bg-white/95 p-1.5 shadow-lg shadow-slate-900/10 ring-1 ring-black/[0.04] backdrop-blur-sm"
+            >
+              <div className="grid grid-cols-3 grid-rows-2 gap-1">
+                {ADMIN_QUICK_CREATE_ENTRIES.map((entry, index) => renderTile(entry, index))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       <QuickCreateBankingAccountPicker
         open={bankingPick !== null}

@@ -100,9 +100,6 @@ export function PurchaseOrdersMetricsBar({
           <h1 className="text-xl font-semibold tracking-tight">
             Purchase orders
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Vendor supply POs. Track expected deliveries and submit receipt from PO detail.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <AdminPrimaryAction

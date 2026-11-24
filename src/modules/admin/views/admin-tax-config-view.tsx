@@ -269,9 +269,6 @@ export function AdminTaxConfigView() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">Tax rates</h1>
-            <p className="text-sm text-muted-foreground">
-              Manage GST rates and tax rules.
-            </p>
           </div>
           <AdminPrimaryAction onClick={() => setShowAddModal(true)}>
             <Plus data-icon="inline-start" />

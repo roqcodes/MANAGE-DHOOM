@@ -83,9 +83,6 @@ export function VendorsMetricsBar({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Vendors</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage partners, contacts, and supply lines.
-          </p>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Button variant="outline" size="sm" onClick={onImport}>

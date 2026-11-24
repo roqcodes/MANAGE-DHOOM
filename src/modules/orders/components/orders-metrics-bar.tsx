@@ -49,11 +49,6 @@ export function OrdersMetricsBar({
           <h1 className="text-xl font-semibold tracking-tight">
             {variant === "online" ? "Online sales" : "Sales orders"}
           </h1>
-          <p className="text-sm text-muted-foreground">
-            {variant === "online"
-              ? "Orders from the DHOOM Trading app and POS billing."
-              : "Manage ERP sales orders, fulfillment, and customer deliveries."}
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           {variant === "erp" ? (

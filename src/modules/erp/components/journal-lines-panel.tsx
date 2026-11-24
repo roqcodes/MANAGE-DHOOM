@@ -19,9 +19,11 @@ import {
 export function JournalLinesPanel({
   sourceType,
   sourceId,
+  onLoadingChange,
 }: {
   sourceType: string;
   sourceId: string;
+  onLoadingChange?: (loading: boolean) => void;
 }) {
   const [groups, setGroups] = useState<SourceJournalGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +36,10 @@ export function JournalLinesPanel({
       .then((res) => setGroups(res.groups ?? []))
       .finally(() => setLoading(false));
   }, [sourceType, sourceId]);
+
+  useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
 
   if (loading) {
     return <AdminPanelSkeleton rows={5} />;

@@ -3,7 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useParams, useSearchParams } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import type { OrderWithItems } from "@/common/admin/types";
 import { InvoicePrintToolbar } from "@/modules/admin/components/invoice-print-toolbar";
@@ -25,31 +25,21 @@ function shortOrderRef(id: string) {
 
 function AdminOrderInvoiceContent({ order }: { order: OrderWithItems }) {
   const searchParams = useSearchParams();
-  const [downloading, setDownloading] = useState(false);
   const autoDownloadedRef = useRef(false);
 
   const handleDownloadPdf = useCallback(async () => {
     const element = document.querySelector("[data-print-document]");
     if (!(element instanceof HTMLElement)) return;
 
-    setDownloading(true);
-    try {
-      await downloadElementAsPdf(element, buildOrderInvoiceFilename(order));
-    } finally {
-      setDownloading(false);
-    }
+    await downloadElementAsPdf(element, buildOrderInvoiceFilename(order));
   }, [order]);
 
   useEffect(() => {
-    if (
-      searchParams.get("download") === "1" &&
-      !autoDownloadedRef.current &&
-      !downloading
-    ) {
+    if (searchParams.get("download") === "1" && !autoDownloadedRef.current) {
       autoDownloadedRef.current = true;
       void handleDownloadPdf();
     }
-  }, [searchParams, downloading, handleDownloadPdf]);
+  }, [searchParams, handleDownloadPdf]);
 
   useAutoPrintOnLoad(
     searchParams.get("print") === "1" && searchParams.get("download") !== "1",
@@ -61,7 +51,6 @@ function AdminOrderInvoiceContent({ order }: { order: OrderWithItems }) {
         backHref={`/admin/orders/${order.id}`}
         title={`Order invoice · #${shortOrderRef(order.id)}`}
         onDownloadPdf={handleDownloadPdf}
-        downloading={downloading}
         onPrint={() => {
           const element = document.querySelector("[data-print-document]");
           if (element instanceof HTMLElement) printDocumentElement(element);

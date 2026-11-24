@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import { useAiAssistantPreference } from "@/modules/ai-assistant";
 import { useAdminLoadDebugPreference } from "@/modules/navigation/context/AdminLoadDebugPreferenceContext";
 import { useOutboxActivityPreference } from "@/modules/pwa/context/OutboxActivityPreferenceContext";
+import { ADMIN_HEADER_ICON_BUTTON } from "@/modules/admin/components/admin-header-chrome";
 import { cn } from "@/lib/utils";
 import { useAdminSession } from "@/modules/admin/providers/admin-session-provider";
 import { signOutAction } from "@/modules/auth/actions/auth.actions";
@@ -233,10 +234,9 @@ export function AdminProfileMenu() {
         type="button"
         onClick={isMd ? undefined : handleToggle}
         className={cn(
-          "rounded-xl p-0.5 transition-all duration-200",
-          "hover:scale-105 active:scale-95",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
-          open && "scale-105 ring-2 ring-slate-200/80",
+          ADMIN_HEADER_ICON_BUTTON,
+          "overflow-hidden p-0.5",
+          open && "border-primary/30 ring-2 ring-primary/15",
         )}
         aria-label="Account menu"
         aria-expanded={open}
@@ -246,7 +246,7 @@ export function AdminProfileMenu() {
           name={displayName}
           avatarUrl={profile.avatar_url}
           size="sm"
-          className="shadow-sm ring-1 ring-slate-200/80"
+          className="size-9 rounded-[10px]"
         />
       </button>
 

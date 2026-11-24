@@ -7,7 +7,7 @@ import { Check, Copy, RefreshCw, Trash2 } from "lucide-react";
 import { useSyncExternalStore } from "react";
 
 import { cn } from "@/lib/utils";
-import { INTERACTIVE_CHROME_ICON_BUTTON } from "@/lib/ui/interactive-styles";
+import { ADMIN_HEADER_ICON_BUTTON } from "@/modules/admin/components/admin-header-chrome";
 import { Button } from "@/components/ui/button";
 import { useAdminLoadDebugPreference } from "@/modules/navigation/context/AdminLoadDebugPreferenceContext";
 import { ErrorsFeedbackBridge } from "@/modules/feedback/components/errors-feedback-bridge";
@@ -167,8 +167,8 @@ export function AdminRefreshStatusButton() {
         onClick={onRefresh}
         disabled={busy}
         className={cn(
-          "flex size-10 shrink-0 items-center justify-center rounded-xl text-slate-500 disabled:pointer-events-none disabled:opacity-90",
-          INTERACTIVE_CHROME_ICON_BUTTON,
+          ADMIN_HEADER_ICON_BUTTON,
+          "disabled:pointer-events-none disabled:opacity-90",
         )}
         aria-label={busy ? "Loading data" : "Refresh data"}
         aria-busy={busy}

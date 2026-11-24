@@ -398,9 +398,6 @@ export function AdminPushNotificationsView() {
       <div className="mb-4 mt-3 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Push notifications</h1>
-          <p className="text-sm text-muted-foreground">
-            Automate order and wallet alerts, then run promotional campaigns to opted-in customers.
-          </p>
         </div>
         <Button type="button" onClick={() => { setEditingCampaign(null); setComposerOpen(true); }}>
           <Megaphone className="size-4" aria-hidden />

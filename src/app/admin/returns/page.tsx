@@ -12,10 +12,6 @@ export default function AdminReturnsPage() {
         <RotateCcw className="h-7 w-7 text-muted-foreground" />
       </div>
       <h1 className="mt-6 text-2xl font-bold">Returns temporarily disabled</h1>
-      <p className="mt-3 text-sm text-muted-foreground">
-        Online order returns are not available in admin yet. For sales returns from customers,
-        create a credit note manually under Sales → Credit Note.
-      </p>
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Button nativeButton={false} render={<Link href="/admin/erp/credit-notes" />}>
           Go to credit notes

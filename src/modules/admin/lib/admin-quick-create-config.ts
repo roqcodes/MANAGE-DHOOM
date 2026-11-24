@@ -135,57 +135,23 @@ function group(id: string, label: string, items: QuickCreateEntry[]): QuickCreat
   return { id, label, items };
 }
 
-/** All quick-create groups in display order (flows into 4 columns). */
+/**
+ * Header CREATE menu — daily-use only. Full catalog lives on each list page (New / form=new).
+ */
 export const ADMIN_QUICK_CREATE_GROUPS: QuickCreateGroup[] = [
-  group("general", "General", links([
-    "/admin/products",
-    "/admin/users",
-    "/admin/erp/journal-entries",
-  ])),
-  group("assets-vat", "Assets & VAT", links([
-    "/admin/erp/fixed-assets",
-    "/admin/erp/vat-returns",
-    "/admin/erp/vat-payments",
-  ])),
-  group("money-in", "Money in", [
-    bankingTx("Owner's contribution", "owner_contribution"),
-    bankingTx("Other income", "generic", "in"),
-  ]),
-  group("money-out", "Money out", [
-    bankingTx("Owner's drawings", "owner_drawing"),
-    bankingTx("Transfer to account", "account_transfer"),
-    ...links(["/admin/erp/profit-withdrawals"]),
-  ]),
   group("sales", "Sales", links([
-    "/admin/customers",
-    "/admin/erp/estimates",
-    "/admin/erp/sales-orders",
     "/admin/erp/invoices",
-    "/admin/erp/recurring-invoices",
     "/admin/erp/payments",
-    "/admin/erp/customer-bulk-payments",
-    "/admin/erp/credit-notes",
+    "/admin/customers",
   ])),
   group("purchases", "Purchases", links([
-    "/admin/erp/expenses",
-    "/admin/vendors",
-    "/admin/purchase-orders",
     "/admin/erp/purchase-bills",
-    "/admin/erp/recurring-bills",
+    "/admin/erp/expenses",
     "/admin/erp/supplier-payments",
-    "/admin/erp/supplier-bulk-payments",
-    "/admin/erp/vendor-credits",
-  ])),
-  group("hr", "HR", links([
-    "/admin/erp/employees",
-    "/admin/erp/salary-payments",
-    "/admin/erp/salary-bulk-payments",
-  ])),
-  group("inventory", "Inventory", links([
-    "/admin/erp/stock-adjustments",
-    "/admin/erp/transfer-requests",
-    "/admin/erp/store-transfers",
-    "/admin/erp/transfer-bulk-payments",
-    "/admin/erp/stores",
   ])),
 ].filter((entry): entry is QuickCreateGroup => entry !== null);
+
+/** Flat grid order — 3×2 daily shortcuts (see `AdminQuickCreateMenu`). */
+export const ADMIN_QUICK_CREATE_ENTRIES: QuickCreateEntry[] = ADMIN_QUICK_CREATE_GROUPS.flatMap(
+  (section) => section.items,
+);

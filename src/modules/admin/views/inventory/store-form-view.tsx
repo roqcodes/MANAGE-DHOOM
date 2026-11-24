@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { STORE_TYPES } from "@/common/erp/inventory-types";
@@ -11,7 +11,6 @@ import { AdminPageSkeleton } from "@/modules/admin/components/admin-page-skeleto
 import {
   validateBeforeFormSave,
   formErrorsListAdapter,
-
   AdminFormActions,
   AdminFormColumns,
   AdminFormField,
@@ -26,10 +25,18 @@ import { Input } from "@/components/ui/input";
 import { NumericInput } from "@/components/ui/numeric-input";
 import { coalesceNumber } from "@/lib/numeric-input";
 import { AttachmentField } from "@/modules/erp/components/attachment-field";
+import {
+  StoreInvoiceFieldGuide,
+  StoreInvoiceReadinessBanner,
+} from "@/modules/admin/views/inventory/store-invoice-readiness";
+import type { InvoiceSellerProfile } from "@/modules/settings/lib/invoice-seller-profile";
 
 export type StoreFormViewProps = ErpFormViewBaseProps & {
   storeId?: string;
 };
+
+const SELECT_CLASS =
+  "h-10 w-full rounded-md border border-input bg-background px-3 text-sm";
 
 export function StoreFormView({
   storeId,
@@ -51,8 +58,11 @@ export function StoreFormView({
   const [storeType, setStoreType] = useState("Warehouse");
   const [phone, setPhone] = useState("");
   const [addressLine1, setAddressLine1] = useState("");
+  const [addressLine2, setAddressLine2] = useState("");
   const [city, setCity] = useState("");
-  const [country, setCountry] = useState("");
+  const [state, setState] = useState("");
+  const [pincode, setPincode] = useState("");
+  const [country, setCountry] = useState("Saudi Arabia");
   const [currency, setCurrency] = useState("");
   const [markupPercent, setMarkupPercent] = useState(0);
   const [trn, setTrn] = useState("");
@@ -60,6 +70,22 @@ export function StoreFormView({
   const [description, setDescription] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [isActive, setIsActive] = useState(true);
+
+  const invoiceProfile = useMemo<InvoiceSellerProfile>(
+    () => ({
+      name,
+      trn,
+      addressLine1,
+      addressLine2,
+      city,
+      state,
+      country,
+      pincode,
+      phone,
+      logoUrl,
+    }),
+    [name, trn, addressLine1, addressLine2, city, state, country, pincode, phone, logoUrl],
+  );
 
   useEffect(() => {
     if (!storeId) return;
@@ -71,8 +97,11 @@ export function StoreFormView({
         setStoreType(s.store_type ?? "Warehouse");
         setPhone(s.phone ?? "");
         setAddressLine1(s.address_line1 ?? "");
+        setAddressLine2(s.address_line2 ?? "");
         setCity(s.city ?? "");
-        setCountry(s.country ?? "");
+        setState(s.state ?? "");
+        setPincode(s.pincode ?? "");
+        setCountry(s.country?.trim() || "Saudi Arabia");
         setCurrency(s.currency ?? "");
         setMarkupPercent(Number(s.markup_percent ?? 0));
         setTrn(s.trn ?? "");
@@ -124,13 +153,16 @@ export function StoreFormView({
       return;
     }
 
-const payload = {
+    const payload = {
       name,
       code: code || null,
       storeType,
       phone: phone || null,
       addressLine1: addressLine1 || null,
+      addressLine2: addressLine2 || null,
       city: city || null,
+      state: state || null,
+      pincode: pincode || null,
       country: country || null,
       currency: currency || null,
       markupPercent: coalesceNumber(markupPercent),
@@ -164,7 +196,7 @@ const payload = {
         open={open}
         onOpenChange={onOpenChange}
         title={storeId ? "Edit store" : "Add store"}
-        size="xl"
+        size={isModal ? "landscape" : "xl"}
         loading
         loadingFallback={<AdminPageSkeleton />}
       >
@@ -190,89 +222,147 @@ const payload = {
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      description="Configure store location, tax settings, and contact details."
+      description="Legal seller identity for tax invoices, plus inventory and pricing for this location."
       backHref="/admin/erp/stores"
       breadcrumb={[
         { label: "Stores", href: "/admin/erp/stores" },
         { label: title },
       ]}
-      size="xl"
+      size={isModal ? "landscape" : "xl"}
       formId={formId}
       footer={footer}
     >
       <form id={formId} onSubmit={handleSubmit} className="space-y-4">
-        <AdminFormSection title="Store details">
-          <AdminFormColumns cols={2}>
+        <StoreInvoiceReadinessBanner profile={invoiceProfile} />
+
+        <AdminFormColumns cols={2} columnRatio="2:1">
+          <AdminFormSection
+            title="Tax invoice — seller"
+            description="Printed on sales invoices: Seller block, VAT line under the brand, and ZATCA QR payload."
+          >
             <AdminFormGrid cols={2}>
-              <AdminFormField label="Store name" required fieldKey="name" className="sm:col-span-2">
+              <AdminFormField
+                label="Seller / store name"
+                required
+                fieldKey="name"
+                hint="Seller → Name"
+                className="md:col-span-2"
+              >
                 <Input value={name} onChange={(e) => setName(e.target.value)} required />
               </AdminFormField>
-              <AdminFormField label="Store type">
-                <select
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={storeType}
-                  onChange={(e) => setStoreType(e.target.value)}
-                >
-                  {STORE_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </AdminFormField>
-              <AdminFormField label="Code">
-                <Input value={code} onChange={(e) => setCode(e.target.value)} />
-              </AdminFormField>
-              <AdminFormField label="Address" className="sm:col-span-2">
-                <Input value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
-              </AdminFormField>
-              <AdminFormField label="City">
-                <Input value={city} onChange={(e) => setCity(e.target.value)} />
-              </AdminFormField>
-              <AdminFormField label="Phone">
-                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </AdminFormField>
-            </AdminFormGrid>
-            <AdminFormGrid cols={2}>
-              <AdminFormField label="Country">
-                <Input value={country} onChange={(e) => setCountry(e.target.value)} />
-              </AdminFormField>
-              <AdminFormField label="Currency">
-                <Input value={currency} onChange={(e) => setCurrency(e.target.value)} />
-              </AdminFormField>
-              <AdminFormField label="Markup %">
-                <NumericInput
-                  min={0}
-                  step="0.01"
-                  value={markupPercent}
-                  onValueChange={setMarkupPercent}
+              <AdminFormField
+                label="VAT number (TRN)"
+                required
+                hint="15-digit KSA VAT — header, Seller VAT, QR"
+              >
+                <Input
+                  value={trn}
+                  onChange={(e) => setTrn(e.target.value)}
+                  inputMode="numeric"
+                  placeholder="3xxxxxxxxxx0003"
                 />
               </AdminFormField>
-              <AdminFormField label="Tax registration (TRN)">
-                <Input value={trn} onChange={(e) => setTrn(e.target.value)} />
+              <AdminFormField label="Phone" required hint="Seller → Phone">
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
               </AdminFormField>
-              <AdminFormField label="Tax template" className="sm:col-span-2">
-                <Input value={taxTemplate} onChange={(e) => setTaxTemplate(e.target.value)} />
+              <AdminFormField
+                label="Address"
+                required
+                hint="Building, district, or short national address"
+                className="md:col-span-2"
+              >
+                <Input value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} />
               </AdminFormField>
-              <AdminFormField label="Description" className="sm:col-span-2">
-                <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+              <AdminFormField
+                label="Street name"
+                hint="Seller → Street name"
+                className="md:col-span-2"
+              >
+                <Input value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} />
               </AdminFormField>
-              <AdminFormField label="Store logo" className="sm:col-span-2">
+              <AdminFormField label="City" required hint="Seller → City">
+                <Input value={city} onChange={(e) => setCity(e.target.value)} />
+              </AdminFormField>
+              <AdminFormField label="State / region" hint="Shown with city on the invoice">
+                <Input value={state} onChange={(e) => setState(e.target.value)} />
+              </AdminFormField>
+              <AdminFormField label="Country" required>
+                <Input
+                  value={country}
+                  onChange={(e) => setCountry(e.target.value)}
+                  placeholder="Saudi Arabia"
+                />
+              </AdminFormField>
+              <AdminFormField label="Postal / ZIP code">
+                <Input value={pincode} onChange={(e) => setPincode(e.target.value)} />
+              </AdminFormField>
+              <AdminFormField
+                label="Store logo"
+                optional
+                hint="Optional on documents; tax invoice masthead uses the DHOOM brand mark by default."
+                className="md:col-span-2"
+              >
                 <AttachmentField value={logoUrl} onChange={setLogoUrl} label="" />
               </AdminFormField>
-              {storeId ? (
-                <label className="flex items-center gap-2 text-sm sm:col-span-2">
-                  <input
-                    type="checkbox"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                  />
-                  Store is active
-                </label>
-              ) : null}
             </AdminFormGrid>
-          </AdminFormColumns>
-        </AdminFormSection>
+          </AdminFormSection>
+
+          <div className="flex flex-col gap-4">
+            <AdminFormSection
+              title="Store operations"
+              description="Inventory, transfers, and pricing — not printed on tax invoices."
+            >
+              <AdminFormGrid cols={1}>
+                <AdminFormField label="Store type">
+                  <select
+                    className={SELECT_CLASS}
+                    value={storeType}
+                    onChange={(e) => setStoreType(e.target.value)}
+                  >
+                    {STORE_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </AdminFormField>
+                <AdminFormField label="Code" hint="Short reference in lists and reports">
+                  <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="MAIN" />
+                </AdminFormField>
+                <AdminFormField label="Currency" hint="Defaults pricing for this store">
+                  <Input value={currency} onChange={(e) => setCurrency(e.target.value)} placeholder="SAR" />
+                </AdminFormField>
+                <AdminFormField label="Markup %" hint="Applied on top of base cost where used">
+                  <NumericInput
+                    min={0}
+                    step="0.01"
+                    value={markupPercent}
+                    onValueChange={setMarkupPercent}
+                  />
+                </AdminFormField>
+                <AdminFormField label="Tax template" hint="Internal default tax rule set">
+                  <Input value={taxTemplate} onChange={(e) => setTaxTemplate(e.target.value)} />
+                </AdminFormField>
+                <AdminFormField label="Internal description" optional>
+                  <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+                </AdminFormField>
+                {storeId ? (
+                  <label className="flex items-center justify-between gap-3 rounded-md border border-border/80 bg-muted/20 px-3 py-2.5 text-sm">
+                    <span className="font-medium text-foreground">Store is active</span>
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-primary"
+                      checked={isActive}
+                      onChange={(e) => setIsActive(e.target.checked)}
+                    />
+                  </label>
+                ) : null}
+              </AdminFormGrid>
+            </AdminFormSection>
+
+            <StoreInvoiceFieldGuide />
+          </div>
+        </AdminFormColumns>
 
         {!isModal ? (
           <AdminFormActions
