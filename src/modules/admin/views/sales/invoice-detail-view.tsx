@@ -42,6 +42,7 @@ import {
 } from "@/modules/admin/ui";
 import { ErpDocumentTabsLayout } from "@/modules/erp/components/erp-document-tabs-layout";
 import { ErpDocumentActions } from "@/modules/erp/components/erp-document-actions";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 import { useErpInvoicePrintModal } from "@/modules/erp/components/use-erp-invoice-print-modal";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatDateOnly } from "@/lib/format-date";
@@ -329,7 +330,7 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
   const creditApplications = invoice.erp_credit_note_applications ?? [];
   const hasLedgerActivity =
     paymentAllocations.length > 0 || creditApplications.length > 0;
-  const buyerName = invoice.users?.name ?? invoice.users?.email ?? "—";
+  const buyerName = invoiceCustomerDisplayName(invoice.users);
   const orderHref = invoice.order_id
     ? invoice.source === "sales_order"
       ? `/admin/erp/sales-orders/${invoice.order_id}`
@@ -522,11 +523,6 @@ export function InvoiceDetailView({ invoiceId }: { invoiceId: string }) {
                 </MetaField>
                 <MetaField icon={UserRound} label="Buyer">
                   {buyerName}
-                  {detail.users?.company_name ? (
-                    <p className="mt-0.5 text-xs font-normal text-muted-foreground">
-                      {detail.users.company_name}
-                    </p>
-                  ) : null}
                   {detail.users?.email && detail.users.email !== buyerName ? (
                     <p className="mt-0.5 text-xs font-normal text-muted-foreground">
                       {detail.users.email}

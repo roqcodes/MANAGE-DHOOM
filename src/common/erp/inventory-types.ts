@@ -20,6 +20,50 @@ export interface StockAdjustmentLineInput {
   purchaseCost: number;
 }
 
+export interface OpeningStockLineInput {
+  productId: string;
+  quantity: number;
+  unitCost: number;
+}
+
+export interface ErpOpeningStockListRow {
+  id: string;
+  opening_number: string;
+  store_id: string;
+  opening_date: string;
+  status: string;
+  total_value: number;
+  store_name: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface OpeningStockWorksheetPendingRow {
+  product_id: string;
+  product_name: string;
+  barcode: string | null;
+  default_unit_cost: number;
+}
+
+export interface OpeningStockWorksheetRecordedRow {
+  opening_id: string;
+  line_id: string;
+  product_id: string;
+  product_name: string;
+  barcode: string | null;
+  quantity: number;
+  unit_cost: number;
+  line_total: number;
+  opening_number: string;
+  opening_date: string;
+  locked: boolean;
+}
+
+export interface OpeningStockWorksheetPayload {
+  pending: OpeningStockWorksheetPendingRow[];
+  recorded: OpeningStockWorksheetRecordedRow[];
+}
+
 export interface TransferRequestLineInput {
   productId: string;
   quantity: number;

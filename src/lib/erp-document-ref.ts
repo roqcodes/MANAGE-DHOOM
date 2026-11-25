@@ -15,6 +15,7 @@ export type ErpDocKind =
   | "CPM"
   | "SPM"
   | "SA"
+  | "OS"
   | "TR"
   | "ST"
   | "TP"

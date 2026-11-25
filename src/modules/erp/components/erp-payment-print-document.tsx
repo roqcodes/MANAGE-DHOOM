@@ -2,6 +2,7 @@
 
 import { paymentModeLabel } from "@/common/erp/sales-types";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 
 export type ErpPaymentPrintData = {
   payment_number: string;
@@ -11,7 +12,7 @@ export type ErpPaymentPrintData = {
   bank_charges: number;
   reference: string | null;
   notes: string | null;
-  users: { name: string | null; email: string | null } | null;
+  users: { name: string | null; email: string | null; company_name?: string | null } | null;
   stores: { name: string } | null;
   accounts: { name: string } | null;
   erp_payment_allocations: Array<{
@@ -32,7 +33,7 @@ export function ErpPaymentPrintDocument({ payment }: { payment: ErpPaymentPrintD
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Customer</p>
           <p className="mt-0.5 font-semibold">
-            {payment.users?.name ?? payment.users?.email ?? "—"}
+            {invoiceCustomerDisplayName(payment.users)}
           </p>
         </div>
         <div>

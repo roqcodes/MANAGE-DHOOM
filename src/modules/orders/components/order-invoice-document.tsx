@@ -18,27 +18,25 @@ import {
   TaxInvoiceTotals,
 } from "@/modules/documents/invoice-print-primitives";
 import { buildZatcaQrPayload, invoiceTimestampIso } from "@/modules/documents/zatca-qr";
+import {
+  buildCustomerBuyerPartyCard,
+  type CustomerBuyerAddressFields,
+} from "@/modules/customers/lib/invoice-buyer-party";
+import { invoiceCustomerCompanyLine } from "@/modules/customers/lib/invoice-customer-display";
 
 function shortOrderRef(id: string) {
   return id.split("-")[0]?.toUpperCase() ?? id.slice(0, 8);
 }
 
-function formatAddress(order: OrderWithItems): {
-  address: string;
-  street: string;
-  city: string;
-  phone: string;
-} {
+function orderShippingAddress(order: OrderWithItems): CustomerBuyerAddressFields | null {
   const a = order.addresses;
-  if (!a) {
-    return { address: "—", street: "—", city: "—", phone: dash(order.users?.phone) };
-  }
-  const city = [a.city, a.state, a.pincode].filter(Boolean).join(", ");
+  if (!a) return null;
+  const cityParts = [a.city, a.state, a.pincode].filter(Boolean);
   return {
-    address: dash(a.line1 ?? a.address_line),
-    street: dash(a.line2),
-    city: dash(city),
-    phone: dash(a.phone ?? order.users?.phone),
+    line1: a.line1 ?? a.address_line,
+    line2: a.line2,
+    city: cityParts.length ? cityParts.join(", ") : a.city,
+    phone: a.phone ?? order.users?.phone,
   };
 }
 
@@ -47,7 +45,7 @@ export function OrderInvoiceDocument({ order }: { order: OrderWithItems }) {
   const subtotal = Number(order.subtotal ?? total);
   const tax = Number(order.tax ?? 0);
   const discount = Number(order.discount ?? 0);
-  const addr = formatAddress(order);
+  const shipping = orderShippingAddress(order);
   const paid =
     order.payment_status === "paid" || order.payment_status === "completed"
       ? total
@@ -63,14 +61,17 @@ export function OrderInvoiceDocument({ order }: { order: OrderWithItems }) {
     phone: "—",
     vatNumber: "—",
   };
-  const buyer = {
-    name: dash(order.users?.name ?? "Guest"),
-    address: addr.address,
-    street: addr.street,
-    city: addr.city,
-    phone: addr.phone,
-    vatNumber: "—",
-  };
+  const buyer = buildCustomerBuyerPartyCard(
+    {
+      company_name: order.users?.company_name,
+      phone: order.users?.phone,
+      trn: null,
+    },
+    shipping,
+  );
+  if (buyer.name === "—") {
+    buyer.name = invoiceCustomerCompanyLine(order.users, "Guest");
+  }
 
   const qrValue = buildZatcaQrPayload({
     sellerName: seller.name,

@@ -75,6 +75,7 @@ const CREATE_HREF_BY_LIST_PATH: Record<string, string> = {
   "/admin/erp/transfer-requests": "/admin/erp/transfer-requests?form=new",
   "/admin/erp/store-transfers": "/admin/erp/store-transfers?form=new",
   "/admin/erp/transfer-bulk-payments": "/admin/erp/transfer-bulk-payments?form=new",
+  "/admin/erp/opening-stock": "/admin/erp/opening-stock",
   "/admin/erp/stock-adjustments": "/admin/erp/stock-adjustments?form=new",
   "/admin/erp/stores": "/admin/erp/stores?form=new",
   "/admin/erp/fixed-assets": "/admin/erp/fixed-assets?form=new",

@@ -29,6 +29,7 @@ import type { Json } from "@/lib/integrations/supabase/types";
 import { quantizePaymentAmount } from "@/lib/decimal-precision";
 import { getCustomerErpSummary } from "@/modules/customers/services/customer-erp.service";
 import {
+  fifoOpeningAmountFirst,
   fifoPaymentExceedsOpenBalanceMessage,
   normalizePaymentAllocationAmount,
   PAYMENT_BALANCE_TOLERANCE,
@@ -399,7 +400,7 @@ export async function getPaymentDetail(paymentId: string) {
   const { data, error } = await supabase
     .from("erp_customer_payments")
     .select(
-      "*, users:users!erp_customer_payments_user_id_fkey(name, email), stores(name), accounts!erp_customer_payments_account_id_fkey(name), bank_charges_account:accounts!erp_customer_payments_bank_charges_account_id_fkey(name), settlement_discount_account:accounts!erp_customer_payments_settlement_discount_account_id_fkey(name), erp_payment_allocations(*, invoices(id, invoice_number, total_amount, balance_due))",
+      "*, users:users!erp_customer_payments_user_id_fkey(name, email, company_name), stores(name), accounts!erp_customer_payments_account_id_fkey(name), bank_charges_account:accounts!erp_customer_payments_bank_charges_account_id_fkey(name), settlement_discount_account:accounts!erp_customer_payments_settlement_discount_account_id_fkey(name), erp_payment_allocations(*, invoices(id, invoice_number, total_amount, balance_due))",
     )
     .eq("id", paymentId)
     .single();
@@ -608,13 +609,16 @@ async function buildAutoAllocationsForCustomer(
   amount: number,
   storeId?: string,
 ): Promise<PaymentAllocationInput[]> {
+  const remainingOpeningDue = await getCustomerRemainingOpeningDue(userId, storeId);
+  const openingAmount = fifoOpeningAmountFirst(amount, remainingOpeningDue);
+  const invoiceBudget = quantizePaymentAmount(amount - openingAmount);
   const invoices = await listReceivableInvoicesForCustomer(userId, storeId);
-  let remaining = amount;
+  let remaining = invoiceBudget;
   const allocations: PaymentAllocationInput[] = [];
   for (const invoice of invoices) {
-    if (remaining <= 0) break;
+    if (remaining <= PAYMENT_BALANCE_TOLERANCE) break;
     const alloc = Math.min(remaining, invoice.balance_due);
-    if (alloc <= 0) continue;
+    if (alloc <= PAYMENT_BALANCE_TOLERANCE) continue;
     allocations.push({ invoiceId: invoice.id, amount: alloc });
     remaining -= alloc;
   }
@@ -651,16 +655,34 @@ async function assertCustomerUnallocatedWithinOpening(
   }
 }
 
+export type FifoCustomerAllocationBuild = {
+  allocations: PaymentAllocationInput[];
+  openingAmount: number;
+  remainingOpeningDue: number;
+};
+
 export async function buildFifoAllocationsForAmount(
   storeId: string,
   amount: number,
   excludeInvoiceIds: string[] = [],
   userId?: string,
-): Promise<PaymentAllocationInput[]> {
-  if (amount <= 0) return [];
+): Promise<FifoCustomerAllocationBuild> {
+  if (amount <= PAYMENT_BALANCE_TOLERANCE) {
+    return { allocations: [], openingAmount: 0, remainingOpeningDue: 0 };
+  }
 
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+
+  let remainingOpeningDue = 0;
+  let openingAmount = 0;
+  let invoiceBudget = amount;
+
+  if (userId) {
+    remainingOpeningDue = await getCustomerRemainingOpeningDue(userId, storeId);
+    openingAmount = fifoOpeningAmountFirst(amount, remainingOpeningDue);
+    invoiceBudget = quantizePaymentAmount(amount - openingAmount);
+  }
 
   let query = supabase
     .from("invoices")
@@ -680,11 +702,11 @@ export async function buildFifoAllocationsForAmount(
   if (error) throw new Error(error.message);
 
   const excluded = new Set(excludeInvoiceIds);
-  let remaining = amount;
+  let remaining = invoiceBudget;
   const allocations: PaymentAllocationInput[] = [];
 
   for (const invoice of data ?? []) {
-    if (remaining <= 0) break;
+    if (remaining <= PAYMENT_BALANCE_TOLERANCE) break;
     if (excluded.has(invoice.id)) continue;
     const balance = Number(invoice.balance_due ?? 0);
     if (balance <= 0) continue;
@@ -698,7 +720,7 @@ export async function buildFifoAllocationsForAmount(
     remaining -= alloc;
   }
 
-  return allocations;
+  return { allocations, openingAmount, remainingOpeningDue };
 }
 
 function resolveBulkBatchRef(batchId: string) {

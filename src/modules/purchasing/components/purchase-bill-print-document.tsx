@@ -16,6 +16,7 @@ import {
   TaxInvoiceTotals,
 } from "@/modules/documents/invoice-print-primitives";
 import { buildZatcaQrPayload, invoiceTimestampIso } from "@/modules/documents/zatca-qr";
+import { buildVendorPartyCard } from "@/modules/vendors/lib/vendor-party-card";
 
 export type PurchaseBillPrintData = {
   id: string;
@@ -38,6 +39,7 @@ export type PurchaseBillPrintData = {
     phone?: string | null;
     email?: string | null;
     contact?: string | null;
+    po_box?: string | null;
   } | null;
   stores: {
     name: string | null;
@@ -65,14 +67,7 @@ export function PurchaseBillPrintDocument({ bill }: { bill: PurchaseBillPrintDat
   const vendor = bill.vendors;
   const store = bill.stores;
   const city = [store?.city, store?.state, store?.country].filter(Boolean).join(", ");
-  const seller = {
-    name: dash(vendor?.name),
-    address: dash(vendor?.address),
-    street: dash(vendor?.contact),
-    city: "—",
-    phone: dash(vendor?.phone),
-    vatNumber: dash(vendor?.trn),
-  };
+  const seller = buildVendorPartyCard(vendor);
   const buyer = {
     name: dash(store?.name ?? COMPANY_NAME),
     address: dash(store?.address_line1),

@@ -108,7 +108,7 @@ export function StockAdjustmentDetailView({ adjustmentId }: { adjustmentId: stri
         detailsLabel="Adjustment details"
         entityId={adjustmentId}
         auditEntityType="stock_adjustment"
-        showJournals={false}
+        showJournals
       >
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>

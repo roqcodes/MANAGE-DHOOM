@@ -26,6 +26,7 @@ import { useActiveStoreScope } from "@/modules/erp/components/use-active-store-s
 
 const TRANSACTION_TYPES = [
   "all",
+  "opening",
   "receipt",
   "sale",
   "adjustment",

@@ -21,6 +21,7 @@ import {
 import { requireErpStoreId } from "@/modules/erp/services/store-context.service";
 import type { ErpFinancialDashboard } from "@/common/erp/finance-types";
 import type { AuditLogEntry } from "@/common/erp/types";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 
 export type DashboardPayloadSection = "core" | "extended" | "all";
 
@@ -87,12 +88,12 @@ async function loadInvoiceCustomerNames(
 
   const { data, error } = await supabase
     .from("users")
-    .select("id, name")
+    .select("id, name, company_name, email")
     .in("id", uniqueIds);
   if (error) return nameById;
 
   for (const user of data ?? []) {
-    nameById.set(user.id, user.name);
+    nameById.set(user.id, invoiceCustomerDisplayName(user, "") || null);
   }
   return nameById;
 }

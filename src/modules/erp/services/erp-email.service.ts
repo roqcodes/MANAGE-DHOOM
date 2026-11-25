@@ -3,6 +3,7 @@ import "server-only";
 import type { ErpEmailDocumentType } from "@/common/erp/types";
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 import { sendErpTemplatedEmail } from "@/lib/email/send-email";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
 
@@ -102,16 +103,17 @@ export async function resolveDocumentRecipientEmail(
   if (documentType === "invoice") {
     const { data } = await supabase
       .from("invoices")
-      .select("invoice_number, users:users!invoices_user_id_fkey(email, name)")
+      .select("invoice_number, users:users!invoices_user_id_fkey(email, name, company_name)")
       .eq("id", documentId)
       .single();
     const user = data?.users as unknown as {
       email: string | null;
       name: string | null;
+      company_name: string | null;
     } | null;
     return {
       email: user?.email ?? null,
-      name: user?.name ?? null,
+      name: user ? invoiceCustomerDisplayName(user, "") || null : null,
       documentNumber: data?.invoice_number ?? documentId,
     };
   }

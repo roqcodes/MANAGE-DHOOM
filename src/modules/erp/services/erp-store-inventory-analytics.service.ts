@@ -2,6 +2,7 @@ import "server-only";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 import { requireErpStoreId } from "@/modules/erp/services/store-context.service";
 import type {
   PurchaseHistoryRow,
@@ -58,7 +59,7 @@ type InvoiceLineRow = {
     created_at: string;
     status: string;
     store_id: string;
-    users: { name: string | null } | null;
+    users: { name: string | null; company_name?: string | null; email?: string | null } | null;
   } | null;
 };
 
@@ -228,7 +229,7 @@ function buildSalesGlance(lines: InvoiceLineRow[], recentLimit = 8): StoreProduc
         invoiceId: inv.id,
         invoiceNumber: inv.invoice_number ?? inv.id.slice(0, 8),
         invoiceDate: inv.created_at.slice(0, 10),
-        customerName: inv.users?.name ?? null,
+        customerName: inv.users ? invoiceCustomerDisplayName(inv.users, "") || null : null,
         quantity: qty,
         unitPrice: unit,
         lineTotal: Number(line.total_amount ?? qty * unit),
@@ -552,7 +553,7 @@ async function loadInvoiceLinesForProducts(storeId: string, productIds: string[]
     .from("invoice_items")
     .select(
       `id, product_id, unit_price, quantity, total_amount,
-      invoices!inner(id, invoice_number, created_at, status, store_id, users:users!invoices_user_id_fkey(name))`,
+      invoices!inner(id, invoice_number, created_at, status, store_id, users:users!invoices_user_id_fkey(name, company_name, email))`,
     )
     .eq("invoices.store_id", storeId)
     .neq("invoices.status", "cancelled")

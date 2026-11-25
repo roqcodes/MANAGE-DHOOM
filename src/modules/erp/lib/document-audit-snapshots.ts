@@ -169,8 +169,8 @@ export function salesInvoiceAuditSnapshotFromDetail(
   detail: InvoiceDetailRow,
 ): Record<string, unknown> {
   const customer =
-    detail.users?.name?.trim() ||
     detail.users?.company_name?.trim() ||
+    detail.users?.name?.trim() ||
     detail.users?.email?.trim() ||
     detail.user_id;
   return {

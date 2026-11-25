@@ -1,6 +1,9 @@
 import "server-only";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
+import { resolveInvoiceBuyerParty } from "@/modules/customers/services/invoice-buyer-party.service";
+import type { PartyCard } from "@/modules/documents/invoice-print-copy";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { ErpEstimateListRow, ErpLineInput } from "@/common/erp/sales-types";
 import { logAuditEvent } from "@/modules/erp/services/audit-log.service";
@@ -36,7 +39,7 @@ export async function listEstimates(
   let query = supabase
     .from("erp_estimates")
     .select(
-      "id, estimate_number, user_id, store_id, status, total_amount, estimate_date, valid_until, created_at, updated_at, users:users!erp_estimates_user_id_fkey(name), stores(name)",
+      "id, estimate_number, user_id, store_id, status, total_amount, estimate_date, valid_until, created_at, updated_at, users:users!erp_estimates_user_id_fkey(name, company_name, email), stores(name)",
       { count: "exact" },
     )
     .order("estimate_date", { ascending: false })
@@ -50,7 +53,11 @@ export async function listEstimates(
 
   return {
     data: (data ?? []).map((row) => {
-      const user = row.users as { name: string | null } | null;
+      const user = row.users as {
+        name: string | null;
+        company_name: string | null;
+        email: string | null;
+      } | null;
       const store = row.stores as { name: string } | null;
       return {
         id: row.id,
@@ -61,7 +68,7 @@ export async function listEstimates(
         total_amount: Number(row.total_amount ?? 0),
         estimate_date: row.estimate_date,
         valid_until: row.valid_until,
-        customer_name: user?.name ?? null,
+        customer_name: user ? invoiceCustomerDisplayName(user, "") || null : null,
         store_name: store?.name ?? null,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -281,9 +288,21 @@ export async function getEstimateDetail(estimateId: string) {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("erp_estimates")
-    .select("*, users:users!erp_estimates_user_id_fkey(name, email, phone, company_name, trn), stores(name), erp_estimate_lines(*)")
+    .select("*, users:users!erp_estimates_user_id_fkey(id, name, email, phone, company_name, trn, location, po_box), stores(name), erp_estimate_lines(*)")
     .eq("id", estimateId)
     .single();
   if (error) throw new Error(error.message);
-  return data;
+
+  const usersRaw = data.users as
+    | { id: string; company_name: string | null; phone: string | null; trn: string | null; location: string | null; po_box: string | null }
+    | { id: string; company_name: string | null; phone: string | null; trn: string | null; location: string | null; po_box: string | null }[]
+    | null;
+  const users = Array.isArray(usersRaw) ? usersRaw[0] ?? null : usersRaw;
+
+  let buyer_party: PartyCard | null = null;
+  if (users) {
+    buyer_party = await resolveInvoiceBuyerParty(supabase, data.user_id, users);
+  }
+
+  return { ...data, users, buyer_party };
 }

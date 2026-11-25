@@ -34,6 +34,7 @@ import {
 import type { Json } from "@/lib/integrations/supabase/types";
 import { quantizePaymentAmount } from "@/lib/decimal-precision";
 import {
+  fifoOpeningAmountFirst,
   fifoPaymentExceedsOpenBalanceMessage,
   normalizePaymentAllocationAmount,
   PAYMENT_BALANCE_TOLERANCE,
@@ -453,16 +454,34 @@ async function assertVendorUnallocatedWithinOpening(
   }
 }
 
+export type FifoSupplierAllocationBuild = {
+  allocations: SupplierPaymentAllocationInput[];
+  openingAmount: number;
+  remainingOpeningDue: number;
+};
+
 export async function buildFifoAllocationsForBills(
   storeId: string,
   amount: number,
   excludeBillIds: string[] = [],
   vendorId?: string,
-): Promise<SupplierPaymentAllocationInput[]> {
-  if (amount <= 0) return [];
+): Promise<FifoSupplierAllocationBuild> {
+  if (amount <= PAYMENT_BALANCE_TOLERANCE) {
+    return { allocations: [], openingAmount: 0, remainingOpeningDue: 0 };
+  }
 
   await requireAdminOrManagerProfile();
   const supabase = await createSupabaseServerClient();
+
+  let remainingOpeningDue = 0;
+  let openingAmount = 0;
+  let billBudget = amount;
+
+  if (vendorId) {
+    remainingOpeningDue = await getVendorRemainingOpeningDue(vendorId, storeId);
+    openingAmount = fifoOpeningAmountFirst(amount, remainingOpeningDue);
+    billBudget = quantizePaymentAmount(amount - openingAmount);
+  }
 
   let query = supabase
     .from("erp_purchase_bills")
@@ -482,11 +501,11 @@ export async function buildFifoAllocationsForBills(
   if (error) throw new Error(error.message);
 
   const excluded = new Set(excludeBillIds);
-  let remaining = amount;
+  let remaining = billBudget;
   const allocations: SupplierPaymentAllocationInput[] = [];
 
   for (const bill of data ?? []) {
-    if (remaining <= 0) break;
+    if (remaining <= PAYMENT_BALANCE_TOLERANCE) break;
     if (excluded.has(bill.id)) continue;
     const balance = Number(bill.balance_due ?? 0);
     if (balance <= 0) continue;
@@ -500,7 +519,7 @@ export async function buildFifoAllocationsForBills(
     remaining -= alloc;
   }
 
-  return allocations;
+  return { allocations, openingAmount, remainingOpeningDue };
 }
 
 export async function listPaidThroughAccounts(
@@ -587,13 +606,16 @@ async function buildAutoAllocations(
   amount: number,
   storeId?: string,
 ): Promise<SupplierPaymentAllocationInput[]> {
+  const remainingOpeningDue = await getVendorRemainingOpeningDue(vendorId, storeId);
+  const openingAmount = fifoOpeningAmountFirst(amount, remainingOpeningDue);
+  const billBudget = quantizePaymentAmount(amount - openingAmount);
   const bills = await listPayableBillsForVendor(vendorId, storeId);
-  let remaining = amount;
+  let remaining = billBudget;
   const allocations: SupplierPaymentAllocationInput[] = [];
   for (const bill of bills) {
-    if (remaining <= 0) break;
+    if (remaining <= PAYMENT_BALANCE_TOLERANCE) break;
     const alloc = Math.min(remaining, bill.balance_due);
-    if (alloc <= 0) continue;
+    if (alloc <= PAYMENT_BALANCE_TOLERANCE) continue;
     allocations.push({ purchaseBillId: bill.id, amount: alloc });
     remaining -= alloc;
   }

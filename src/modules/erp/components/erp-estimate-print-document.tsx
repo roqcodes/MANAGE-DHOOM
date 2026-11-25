@@ -4,6 +4,9 @@ import { format } from "date-fns";
 
 import { BuyHubInvoiceLogo } from "@/modules/brand/components/buyhub-logo";
 import { formatCurrencyAmount } from "@/lib/format-currency";
+import { partyDetailLines } from "@/modules/documents/party-print-helpers";
+import type { PartyCard } from "@/modules/documents/invoice-print-copy";
+import { invoiceCustomerCompanyLine } from "@/modules/customers/lib/invoice-customer-display";
 
 export type ErpEstimatePrintData = {
   estimate_number: string;
@@ -34,12 +37,23 @@ export type ErpEstimatePrintData = {
     tax_amount: number;
     line_total: number;
   }>;
+  buyer_party?: PartyCard | null;
 };
 
 export function ErpEstimatePrintDocument({ estimate }: { estimate: ErpEstimatePrintData }) {
   const estimateDate = estimate.estimate_date
     ? format(new Date(estimate.estimate_date), "MMMM d, yyyy")
     : "—";
+  const buyerLines = partyDetailLines(
+    estimate.buyer_party ?? {
+      name: invoiceCustomerCompanyLine(estimate.users),
+      address: "—",
+      street: "—",
+      city: "—",
+      phone: estimate.users?.phone?.trim() ? estimate.users.phone : "—",
+      vatNumber: estimate.users?.trn?.trim() ? estimate.users.trn : "—",
+    },
+  );
 
   return (
     <article
@@ -82,20 +96,20 @@ export function ErpEstimatePrintDocument({ estimate }: { estimate: ErpEstimatePr
           <h2 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
             Customer
           </h2>
-          <p className="mt-1 text-base font-semibold print:text-sm">
-            {estimate.users?.name ?? estimate.users?.company_name ?? "—"}
-          </p>
-          {estimate.users?.company_name ? (
-            <p className="text-sm text-slate-600">{estimate.users.company_name}</p>
-          ) : null}
+          {buyerLines.map((line, index) => (
+            <p
+              key={`${line}-${index}`}
+              className={
+                index === 0
+                  ? "mt-1 text-base font-semibold print:text-sm"
+                  : "text-sm text-slate-600 print:text-xs"
+              }
+            >
+              {line}
+            </p>
+          ))}
           {estimate.users?.email ? (
-            <p className="text-sm text-slate-600">{estimate.users.email}</p>
-          ) : null}
-          {estimate.users?.phone ? (
-            <p className="text-sm text-slate-600">{estimate.users.phone}</p>
-          ) : null}
-          {estimate.users?.trn ? (
-            <p className="text-sm text-slate-600">TRN: {estimate.users.trn}</p>
+            <p className="text-sm text-slate-600 print:text-xs">{estimate.users.email}</p>
           ) : null}
         </div>
       </section>

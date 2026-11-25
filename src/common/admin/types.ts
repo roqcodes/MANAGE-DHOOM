@@ -269,6 +269,7 @@ export interface OrderUser {
   name: string | null;
   email: string | null;
   phone: string | null;
+  company_name?: string | null;
   avatar_url?: string | null;
 }
 
@@ -520,6 +521,10 @@ export interface AdminPurchaseOrderDetail {
     id: string;
     name: string | null;
     contact: string | null;
+    address?: string | null;
+    po_box?: string | null;
+    phone?: string | null;
+    trn?: string | null;
   } | null;
   purchase_order_items: AdminPurchaseOrderItemRow[];
 }

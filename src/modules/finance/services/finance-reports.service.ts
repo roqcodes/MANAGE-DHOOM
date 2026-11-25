@@ -2,6 +2,7 @@ import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 
 export interface ReceivableRow {
   invoice_id: string;
@@ -52,7 +53,7 @@ export async function getReceivables(
       created_at,
       amount_paid,
       balance_due,
-      users (name, email)
+      users (name, company_name, email)
     `,
     )
     .in("status", ["pending", "partial", "overdue"]);
@@ -77,7 +78,7 @@ export async function getReceivables(
     return {
       invoice_id: inv.id,
       invoice_number: inv.invoice_number,
-      customer_name: user?.name ?? null,
+      customer_name: user ? invoiceCustomerDisplayName(user, "") || null : null,
       customer_email: user?.email ?? null,
       total_amount: total,
       paid_amount: paid,

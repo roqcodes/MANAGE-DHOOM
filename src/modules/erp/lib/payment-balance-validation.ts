@@ -69,7 +69,7 @@ export function isUnallocatedLineId(id: string | null | undefined): boolean {
   return Boolean(id?.startsWith(UNALLOCATED_LINE_PREFIX));
 }
 
-/** Cash left after FIFO to open documents — recorded as unallocated (opening / advance). */
+/** Cash left after applying invoice/bill lines — not used for opening-first FIFO planning. */
 export function fifoRemainderAmount(
   requestedAmount: number,
   allocatedLines: { amount: number }[],
@@ -77,6 +77,22 @@ export function fifoRemainderAmount(
   const remainder =
     quantizePaymentAmount(requestedAmount) - sumPaymentAmounts(allocatedLines);
   return remainder > PAYMENT_BALANCE_TOLERANCE ? quantizePaymentAmount(remainder) : 0;
+}
+
+/** Unpaid opening satisfied before open invoices/bills in FIFO. */
+export function fifoOpeningAmountFirst(
+  requestedAmount: number,
+  remainingOpeningDue: number,
+  alreadyReservedOpening = 0,
+): number {
+  const openingCap = quantizePaymentAmount(
+    Math.max(
+      0,
+      (Number.isFinite(remainingOpeningDue) ? remainingOpeningDue : 0) -
+        (Number.isFinite(alreadyReservedOpening) ? alreadyReservedOpening : 0),
+    ),
+  );
+  return quantizePaymentAmount(Math.min(requestedAmount, openingCap));
 }
 
 /**
@@ -99,7 +115,7 @@ export function remainingOpeningDueFromBalances(input: {
 }
 
 /**
- * FIFO may apply leftover cash only up to remaining opening due (not unlimited advance).
+ * FIFO clears remaining opening first (oldest), then open documents.
  * `alreadyReservedOpening` is opening already queued on the form for this party.
  */
 export function resolveFifoOpeningRemainder(
@@ -127,9 +143,19 @@ export function resolveFifoOpeningRemainder(
       message: fifoPaymentExceedsOpenBalanceMessage(requestedAmount, maxTotal, documentKind),
     };
   }
-  const remainder = fifoRemainderAmount(requestedAmount, allocatedLines);
-  const openingAmount = quantizePaymentAmount(Math.min(remainder, openingCap));
-  if (docs + openingAmount <= PAYMENT_BALANCE_TOLERANCE) {
+  const openingAmount = fifoOpeningAmountFirst(
+    requestedAmount,
+    remainingOpeningDue,
+    alreadyReservedOpening,
+  );
+  const invoiceBudget = quantizePaymentAmount(requestedAmount - openingAmount);
+  if (moneyExceeds(docs, invoiceBudget)) {
+    return {
+      ok: false,
+      message: fifoPaymentExceedsOpenBalanceMessage(requestedAmount, maxTotal, documentKind),
+    };
+  }
+  if (openingAmount + docs <= PAYMENT_BALANCE_TOLERANCE) {
     return {
       ok: false,
       message: fifoPaymentExceedsOpenBalanceMessage(requestedAmount, 0, documentKind),
@@ -169,10 +195,29 @@ export function validateFifoAllocationAmount(
   requestedAmount: number,
   allocatedLines: { amount: number }[],
   documentKind: PaymentDocumentKind,
+  remainingOpeningDue = 0,
+  alreadyReservedOpening = 0,
 ): string | null {
-  const allocated = sumPaymentAmounts(allocatedLines);
-  if (moneyExceeds(requestedAmount, allocated)) {
-    return fifoPaymentExceedsOpenBalanceMessage(requestedAmount, allocated, documentKind);
+  const docs = sumPaymentAmounts(allocatedLines);
+  const openingCap = quantizePaymentAmount(
+    Math.max(
+      0,
+      (Number.isFinite(remainingOpeningDue) ? remainingOpeningDue : 0) -
+        (Number.isFinite(alreadyReservedOpening) ? alreadyReservedOpening : 0),
+    ),
+  );
+  const maxTotal = quantizePaymentAmount(docs + openingCap);
+  if (moneyExceeds(requestedAmount, maxTotal)) {
+    return fifoPaymentExceedsOpenBalanceMessage(requestedAmount, maxTotal, documentKind);
+  }
+  const openingAmount = fifoOpeningAmountFirst(
+    requestedAmount,
+    remainingOpeningDue,
+    alreadyReservedOpening,
+  );
+  const invoiceBudget = quantizePaymentAmount(requestedAmount - openingAmount);
+  if (moneyExceeds(docs, invoiceBudget)) {
+    return fifoPaymentExceedsOpenBalanceMessage(requestedAmount, maxTotal, documentKind);
   }
   return null;
 }

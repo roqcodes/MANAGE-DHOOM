@@ -39,6 +39,7 @@ const ENTITY_LABELS: Record<string, string> = {
   recurring_schedule: "Recurring schedule",
   store: "Store",
   stock_adjustment: "Stock adjustment",
+  opening_stock: "Opening stock",
   transfer_request: "Transfer request",
   store_transfer: "Store transfer",
 };
@@ -141,6 +142,8 @@ export function auditLogEntityHref(log: AuditLogEntry): string | null {
       return `/admin/erp/journal-entries/${id}`;
     case "stock_adjustment":
       return `/admin/erp/stock-adjustments/${id}`;
+    case "opening_stock":
+      return `/admin/erp/opening-stock/${id}`;
     case "transfer_request":
       return `/admin/erp/transfer-requests/${id}`;
     case "store_transfer":

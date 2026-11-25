@@ -2769,6 +2769,105 @@ export type Database = {
           },
         ]
       }
+      erp_opening_stock_lines: {
+        Row: {
+          id: string
+          line_total: number
+          opening_id: string
+          product_id: string
+          quantity: number
+          unit_cost: number
+        }
+        Insert: {
+          id?: string
+          line_total?: number
+          opening_id: string
+          product_id: string
+          quantity: number
+          unit_cost: number
+        }
+        Update: {
+          id?: string
+          line_total?: number
+          opening_id?: string
+          product_id?: string
+          quantity?: number
+          unit_cost?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_opening_stock_lines_opening_id_fkey"
+            columns: ["opening_id"]
+            isOneToOne: false
+            referencedRelation: "erp_opening_stocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_opening_stock_lines_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_opening_stocks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          inventory_committed: boolean
+          note: string | null
+          opening_date: string
+          opening_number: string
+          status: string
+          store_id: string
+          total_value: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inventory_committed?: boolean
+          note?: string | null
+          opening_date?: string
+          opening_number: string
+          status?: string
+          store_id: string
+          total_value?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          inventory_committed?: boolean
+          note?: string | null
+          opening_date?: string
+          opening_number?: string
+          status?: string
+          store_id?: string
+          total_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_opening_stocks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_opening_stocks_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       erp_store_transfer_lines: {
         Row: {
           id: string
@@ -6354,6 +6453,17 @@ export type Database = {
         }
         Returns: string
       }
+      create_erp_opening_stock: {
+        Args: {
+          p_created_by?: string
+          p_finalize?: boolean
+          p_lines: Json
+          p_note?: string
+          p_opening_date: string
+          p_store_id: string
+        }
+        Returns: string
+      }
       create_erp_store_transfer: {
         Args: {
           p_created_by?: string
@@ -6590,6 +6700,51 @@ export type Database = {
       finalize_erp_stock_adjustment: {
         Args: { p_adjustment_id: string; p_finalized_by?: string }
         Returns: undefined
+      }
+      finalize_erp_opening_stock: {
+        Args: { p_opening_id: string; p_finalized_by?: string }
+        Returns: undefined
+      }
+      get_erp_opening_stock_worksheet: {
+        Args: { p_store_id: string; p_search?: string }
+        Returns: Json
+      }
+      save_erp_opening_stock_line: {
+        Args: {
+          p_actor?: string
+          p_line_id?: string
+          p_opening_date: string
+          p_opening_id?: string
+          p_product_id: string
+          p_quantity: number
+          p_store_id: string
+          p_unit_cost: number
+        }
+        Returns: Json
+      }
+      save_erp_opening_stock_worksheet: {
+        Args: {
+          p_actor?: string
+          p_opening_date: string
+          p_pending: Json
+          p_store_id: string
+          p_updates: Json
+        }
+        Returns: Json
+      }
+      revise_erp_opening_stock_line: {
+        Args: {
+          p_actor?: string
+          p_line_id: string
+          p_opening_id: string
+          p_quantity: number
+          p_unit_cost: number
+        }
+        Returns: undefined
+      }
+      erp_opening_stock_product_locked: {
+        Args: { p_product_id: string; p_store_id: string }
+        Returns: boolean
       }
       finalize_erp_vendor_credit: {
         Args: {

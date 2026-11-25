@@ -1,0 +1,45 @@
+import { NextResponse } from "next/server";
+
+import { requireAdminApiProfile } from "@/lib/api/admin-api-auth";
+import {
+  createOpeningStock,
+  listOpeningStocks,
+} from "@/modules/erp/services/erp-opening-stock.service";
+
+export async function GET(request: Request) {
+  const auth = await requireAdminApiProfile();
+  if (!auth.ok) return auth.response;
+  const { searchParams } = new URL(request.url);
+  const page = Math.max(0, parseInt(searchParams.get("page") ?? "0", 10));
+  try {
+    const result = await listOpeningStocks(page, 20, {
+      storeId: searchParams.get("storeId") ?? undefined,
+      search: searchParams.get("search") ?? undefined,
+    });
+    return NextResponse.json(result);
+  } catch {
+    return NextResponse.json({ error: "Failed to list opening stock" }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  const auth = await requireAdminApiProfile();
+  if (!auth.ok) return auth.response;
+  try {
+    const body = await request.json();
+    const outcome = await createOpeningStock(body);
+    return NextResponse.json(
+      {
+        id: outcome.documentId,
+        openingId: outcome.documentId,
+        finalized: outcome.finalized,
+        finalizeFailed: outcome.finalizeFailed ?? false,
+        finalizeError: outcome.finalizeError,
+      },
+      { status: 201 },
+    );
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : "Failed to create opening stock";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+}

@@ -106,17 +106,15 @@ function withUnallocatedRemainder(
   vendorName: string | null,
 ): PendingLine[] {
   if (openingAmount <= 0) return fifoLines;
-  return [
-    ...fifoLines,
-    {
+  const openingLine = {
       purchaseBillId: unallocatedLineId(vendor),
       billNumber: "Opening / unallocated",
       vendorId: vendor,
       vendorName,
       balanceDue: openingAmount,
       amount: openingAmount,
-    },
-  ];
+    };
+  return [openingLine, ...fifoLines];
 }
 
 export type SupplierBulkPaymentFormViewProps = ErpFormViewBaseProps;
@@ -593,7 +591,7 @@ export function SupplierBulkPaymentFormView({
               </AdminFormField>
               <AdminFormField
                 label="Purchase bill"
-                hint="Optional — leave empty to apply the amount FIFO (oldest due first)."
+                hint="Optional — leave empty to apply FIFO (opening first, then oldest bill due)."
               >
                 <PurchaseBillSearchSelect
                   key={vendorId || "no-vendor"}

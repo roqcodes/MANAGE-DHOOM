@@ -50,6 +50,7 @@ export const ERP_DOC_FIELD_LABELS: Record<ErpDocKind, string> = {
   PM: "Payment #",
   SPM: "Bulk payment #",
   SA: "Adjustment #",
+  OS: "Opening stock #",
   TR: "Request #",
   ST: "Transfer #",
   TP: "Transfer payment #",

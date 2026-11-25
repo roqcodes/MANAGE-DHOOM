@@ -274,7 +274,7 @@ export async function getAdminPurchaseOrderById(
   const { data, error } = await supabase
     .from("purchase_orders")
     .select(
-      "id,vendor_id,status,total_amount,created_at,vendors(id,name,contact),purchase_order_items(id,variant_id,quantity,price,product_variants(id,name,products(id,name)))",
+      "id,vendor_id,status,total_amount,created_at,vendors(id,name,contact,address,po_box,phone,trn),purchase_order_items(id,variant_id,quantity,price,product_variants(id,name,products(id,name)))",
     )
     .eq("id", id)
     .maybeSingle();

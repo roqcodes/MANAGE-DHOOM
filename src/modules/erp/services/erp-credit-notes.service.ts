@@ -1,6 +1,9 @@
 import "server-only";
 
 import { requireAdminOrManagerProfile } from "@/modules/admin/services/rbac.service";
+import { resolveInvoiceBuyerParty } from "@/modules/customers/services/invoice-buyer-party.service";
+import type { PartyCard } from "@/modules/documents/invoice-print-copy";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 import { createSupabaseServerClient } from "@/lib/integrations/supabase/server";
 import type { ErpCreditNoteListRow, ErpLineInput } from "@/common/erp/sales-types";
 import { roundMoney } from "@/common/erp/purchasing-types";
@@ -55,7 +58,7 @@ export async function listCreditNotes(
   let query = supabase
     .from("erp_credit_notes")
     .select(
-      "id, credit_note_number, user_id, store_id, status, credit_kind, total_amount, balance_remaining, credit_note_date, created_at, updated_at, users:users!erp_credit_notes_user_id_fkey(name), stores(name)",
+      "id, credit_note_number, user_id, store_id, status, credit_kind, total_amount, balance_remaining, credit_note_date, created_at, updated_at, users:users!erp_credit_notes_user_id_fkey(name, company_name, email), stores(name)",
       { count: "exact" },
     )
     .order("credit_note_date", { ascending: false })
@@ -98,7 +101,11 @@ export async function listCreditNotes(
 
   return {
     data: (data ?? []).map((row) => {
-      const user = row.users as { name: string | null } | null;
+      const user = row.users as {
+        name: string | null;
+        company_name: string | null;
+        email: string | null;
+      } | null;
       const store = row.stores as { name: string } | null;
       return {
         id: row.id,
@@ -110,7 +117,7 @@ export async function listCreditNotes(
         total_amount: Number(row.total_amount ?? 0),
         balance_remaining: Number(row.balance_remaining ?? 0),
         credit_note_date: row.credit_note_date,
-        customer_name: user?.name ?? null,
+        customer_name: user ? invoiceCustomerDisplayName(user, "") || null : null,
         store_name: store?.name ?? null,
         created_at: row.created_at,
         updated_at: row.updated_at,
@@ -199,12 +206,24 @@ export async function getCreditNoteDetail(creditNoteId: string) {
   const { data, error } = await supabase
     .from("erp_credit_notes")
     .select(
-      "*, users:users!erp_credit_notes_user_id_fkey(name), stores(name), erp_credit_note_lines(*), source_invoice:invoices!erp_credit_notes_source_invoice_id_fkey(id, invoice_number)",
+      "*, users:users!erp_credit_notes_user_id_fkey(id, name, company_name, email, phone, trn, location, po_box), stores(name), erp_credit_note_lines(*), source_invoice:invoices!erp_credit_notes_source_invoice_id_fkey(id, invoice_number)",
     )
     .eq("id", creditNoteId)
     .single();
   if (error) throw new Error(error.message);
-  return data;
+
+  const usersRaw = data.users as
+    | { id: string; company_name: string | null; phone: string | null; trn: string | null; location: string | null; po_box: string | null }
+    | { id: string; company_name: string | null; phone: string | null; trn: string | null; location: string | null; po_box: string | null }[]
+    | null;
+  const users = Array.isArray(usersRaw) ? usersRaw[0] ?? null : usersRaw;
+
+  let buyer_party: PartyCard | null = null;
+  if (users) {
+    buyer_party = await resolveInvoiceBuyerParty(supabase, data.user_id, users);
+  }
+
+  return { ...data, users, buyer_party };
 }
 
 function calcCreditNoteTotals(lines: ErpLineInput[]) {

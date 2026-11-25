@@ -359,7 +359,7 @@ if (submitInFlightRef.current) return;
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      description="Add or remove inventory with optional purchase cost for stock increases."
+      description="Found stock or count adjustments after go-live. Add blends store WAC; use Opening Stock for first-time quantities."
       backHref="/admin/erp/stock-adjustments"
       breadcrumb={[
         { label: "Stock adjustments", href: "/admin/erp/stock-adjustments" },

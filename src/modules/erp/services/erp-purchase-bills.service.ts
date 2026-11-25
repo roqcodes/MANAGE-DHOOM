@@ -318,7 +318,7 @@ export async function getPurchaseBillDetail(billId: string) {
   const { data, error } = await supabase
     .from("erp_purchase_bills")
     .select(
-      "*, vendors(name, phone, address, trn, email, contact), stores(name, logo_url, address_line1, address_line2, city, state, country, phone, trn), purchase_orders(po_number), erp_purchase_bill_lines(*), erp_purchase_bill_landed_costs(*), erp_supplier_payment_allocations(*, erp_supplier_payments(id, payment_number, payment_date, total_amount)), erp_vendor_credit_applications(*, erp_vendor_credits(id, credit_number, credit_date, credit_kind))",
+      "*, vendors(name, phone, address, po_box, trn, email, contact), stores(name, logo_url, address_line1, address_line2, city, state, country, phone, trn), purchase_orders(po_number), erp_purchase_bill_lines(*), erp_purchase_bill_landed_costs(*), erp_supplier_payment_allocations(*, erp_supplier_payments(id, payment_number, payment_date, total_amount)), erp_vendor_credit_applications(*, erp_vendor_credits(id, credit_number, credit_date, credit_kind))",
     )
     .eq("id", billId)
     .single();

@@ -22,6 +22,7 @@ import {
   TaxInvoiceTotals,
 } from "@/modules/documents/invoice-print-primitives";
 import { buildZatcaQrPayload, invoiceTimestampIso } from "@/modules/documents/zatca-qr";
+import { buildVendorPartyCard } from "@/modules/vendors/lib/vendor-party-card";
 
 function shortPoRef(id: string) {
   return `PO-${id.slice(0, 8).toUpperCase()}`;
@@ -35,14 +36,7 @@ export function PurchaseOrderInvoiceDocument({
   const vendor = po.vendors;
   const items = po.purchase_order_items ?? [];
   const number = shortPoRef(po.id);
-  const seller = {
-    name: dash(vendor?.name),
-    address: dash(vendor?.contact),
-    street: "—",
-    city: "—",
-    phone: "—",
-    vatNumber: "—",
-  };
+  const seller = buildVendorPartyCard(vendor);
   const buyer = {
     name: COMPANY_NAME,
     address: "—",

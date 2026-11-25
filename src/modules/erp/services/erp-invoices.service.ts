@@ -23,7 +23,10 @@ import {
   ErpInvoiceNotEditableError,
   isInvoiceNotEditableError,
 } from "@/common/erp/invoice-edit-policy";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 import { isWalkingCustomer } from "@/modules/customers/lib/walking-customer";
+import { resolveInvoiceBuyerParty } from "@/modules/customers/services/invoice-buyer-party.service";
+import type { PartyCard } from "@/modules/documents/invoice-print-copy";
 
 export { computeErpInvoiceEditable } from "@/common/erp/invoice-edit-policy";
 
@@ -71,7 +74,7 @@ export async function listErpInvoices(filters?: {
   let query = supabase
     .from("invoices")
     .select(
-      "id, invoice_number, user_id, store_id, status, total_amount, amount_paid, credits_applied, balance_due, created_at, due_date, source, users:users!invoices_user_id_fkey(name), stores(name)",
+      "id, invoice_number, user_id, store_id, status, total_amount, amount_paid, credits_applied, balance_due, created_at, due_date, source, users:users!invoices_user_id_fkey(name, company_name, email), stores(name)",
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
@@ -117,7 +120,11 @@ export async function listErpInvoices(filters?: {
 
   const rows: ErpInvoiceListRow[] = (data ?? []).map((row) => {
     const store = row.stores as { name: string } | null;
-    const user = row.users as { name: string | null } | null;
+    const user = row.users as {
+      name: string | null;
+      company_name: string | null;
+      email: string | null;
+    } | null;
     return {
       id: row.id,
       invoice_number: row.invoice_number,
@@ -131,7 +138,7 @@ export async function listErpInvoices(filters?: {
       created_at: row.created_at,
       due_date: row.due_date,
       source: row.source,
-      customer_name: user?.name ?? null,
+      customer_name: user ? invoiceCustomerDisplayName(user, "") || null : null,
       store_name: store?.name ?? null,
     };
   });
@@ -448,10 +455,16 @@ export async function fetchErpInvoiceDetail(invoiceId: string) {
     }
   }
 
+  let buyer_party: PartyCard | null = null;
+  if (!walkingCustomer && users) {
+    buyer_party = await resolveInvoiceBuyerParty(supabase, invoice.user_id, users);
+  }
+
   return {
     ...invoice,
     invoice_items,
     users,
+    buyer_party,
     customer_balance,
     editable: computeErpInvoiceEditable(invoice),
   };

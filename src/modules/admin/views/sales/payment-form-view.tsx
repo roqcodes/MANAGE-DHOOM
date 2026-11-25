@@ -102,9 +102,7 @@ function withUnallocatedRemainder(
   receiptRef: string,
 ): PendingLine[] {
   if (openingAmount <= 0) return fifoLines;
-  return [
-    ...fifoLines,
-    {
+  const openingLine = {
       invoiceId: unallocatedLineId(customerUserId),
       invoiceNumber: "Opening / unallocated",
       userId: customerUserId,
@@ -112,8 +110,8 @@ function withUnallocatedRemainder(
       balanceDue: openingAmount,
       amount: openingAmount,
       receiptRef,
-    },
-  ];
+    };
+  return [openingLine, ...fifoLines];
 }
 
 type InvoiceDetail = {
@@ -660,7 +658,7 @@ export function PaymentFormView({
               </AdminFormField>
               <AdminFormField
                 label="Invoice"
-                hint="Optional — leave empty to apply the amount FIFO (oldest due first)."
+                hint="Optional — leave empty to apply FIFO (opening first, then oldest invoice due)."
               >
                 <InvoiceSearchSelect
                   key={userId || "no-customer"}

@@ -73,7 +73,7 @@ export function StockAdjustmentsListView() {
       <AdminPageHeader
         title="Stock adjustment"
         breadcrumb={[{ label: "Stock adjustment", href: "/admin/erp/stock-adjustments" }]}
-        description="Manual stock corrections by store with cost impact for inventory valuation."
+        description="Post-go-live qty corrections: adds blend WAC (Stock vs other income); removes at current WAC."
         actions={
           <AdminPrimaryAction onClick={() => openNew()}>
             <Plus data-icon="inline-start" />

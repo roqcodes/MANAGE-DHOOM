@@ -78,6 +78,9 @@ function erpListPrefetchPath(hrefPath: string, storeId: string | undefined): str
     case "/admin/erp/store-inventory":
       if (!storeId) return null;
       return adminListPath("erp/stock-details", { page: 0, storeId });
+    case "/admin/erp/opening-stock":
+      if (!storeId) return null;
+      return adminListPath("erp/opening-stock/worksheet", { storeId });
     case "/admin/erp/stock-adjustments":
       if (!storeId) return null;
       return adminListPath("erp/stock-adjustments", { page: 0, storeId });

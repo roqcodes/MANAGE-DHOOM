@@ -6,6 +6,9 @@ import {
 } from "@/common/erp/commercial-discount";
 import { formatCurrencyAmount } from "@/lib/format-currency";
 import { formatErpDocRef } from "@/lib/erp-document-ref";
+import { partyDetailLines } from "@/modules/documents/party-print-helpers";
+import type { PartyCard } from "@/modules/documents/invoice-print-copy";
+import { invoiceCustomerCompanyLine } from "@/modules/customers/lib/invoice-customer-display";
 
 export type ErpCreditNotePrintData = {
   id: string;
@@ -15,7 +18,8 @@ export type ErpCreditNotePrintData = {
   total_amount: number;
   reference: string | null;
   notes: string | null;
-  users: { name: string | null } | null;
+  users: { name: string | null; company_name?: string | null } | null;
+  buyer_party?: PartyCard | null;
   stores: { name: string } | null;
   source_invoice: { id: string; invoice_number: string } | null;
   erp_credit_note_lines: Array<{
@@ -29,6 +33,16 @@ export type ErpCreditNotePrintData = {
 
 export function ErpCreditNotePrintDocument({ creditNote }: { creditNote: ErpCreditNotePrintData }) {
   const isDiscount = creditNote.credit_kind === "discount";
+  const customerLines = partyDetailLines(
+    creditNote.buyer_party ?? {
+      name: invoiceCustomerCompanyLine(creditNote.users),
+      address: "—",
+      street: "—",
+      city: "—",
+      phone: "—",
+      vatNumber: "—",
+    },
+  );
   const displayRef = formatCustomerCreditNoteRef({
     id: creditNote.id,
     credit_note_number: creditNote.credit_note_number,
@@ -48,7 +62,14 @@ export function ErpCreditNotePrintDocument({ creditNote }: { creditNote: ErpCred
       <div className="mt-6 grid gap-4 text-sm sm:grid-cols-2 print:text-xs">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Customer</p>
-          <p className="mt-0.5 font-semibold">{creditNote.users?.name ?? "—"}</p>
+          {customerLines.map((line, index) => (
+            <p
+              key={`${line}-${index}`}
+              className={index === 0 ? "mt-0.5 font-semibold" : "mt-0.5 text-slate-600"}
+            >
+              {line}
+            </p>
+          ))}
         </div>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Store</p>

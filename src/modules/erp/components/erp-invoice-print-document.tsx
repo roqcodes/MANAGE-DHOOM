@@ -1,6 +1,7 @@
 "use client";
 
 import { COMPANY_NAME } from "@/modules/brand/lib/brand";
+import { buildCustomerBuyerPartyCard } from "@/modules/customers/lib/invoice-buyer-party";
 import {
   EMPTY_PARTY_CARD,
   isWalkingCustomer,
@@ -77,6 +78,14 @@ export type ErpInvoicePrintData = {
     gst_amount: number;
     total_amount: number;
   }>;
+  buyer_party?: {
+    name: string;
+    address: string;
+    street: string;
+    city: string;
+    phone: string;
+    vatNumber: string;
+  } | null;
 };
 
 function sellerParty(invoice: ErpInvoicePrintData) {
@@ -89,23 +98,6 @@ function sellerParty(invoice: ErpInvoicePrintData) {
     city: dash(city),
     phone: dash(s?.phone),
     vatNumber: dash(s?.trn),
-  };
-}
-
-function buyerParty(invoice: ErpInvoicePrintData) {
-  const u = invoice.users;
-  const name = u?.company_name?.trim() || u?.name?.trim() || "—";
-  const contactName =
-    u?.name && u?.company_name && u.name.trim() !== u.company_name.trim()
-      ? u.name.trim()
-      : "";
-  return {
-    name: dash(name),
-    address: dash(contactName || u?.location),
-    street: dash(u?.po_box),
-    city: dash(u?.location),
-    phone: dash(u?.phone),
-    vatNumber: dash(u?.trn),
   };
 }
 
@@ -152,7 +144,12 @@ export function ErpInvoicePrintDocument({ invoice }: { invoice: ErpInvoicePrintD
     customer_number: invoice.users?.customer_number,
   });
   const seller = sellerParty(invoice);
-  const buyer = walkingCustomer ? { ...EMPTY_PARTY_CARD } : buyerParty(invoice);
+  const buyer = walkingCustomer
+    ? { ...EMPTY_PARTY_CARD }
+    : (invoice.buyer_party ??
+        buildCustomerBuyerPartyCard(invoice.users, {
+          composedAddress: invoice.users?.location,
+        }));
   const qrValue = buildZatcaQrPayload({
     sellerName: seller.name,
     vatNumber: seller.vatNumber === "—" ? "" : seller.vatNumber,

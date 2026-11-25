@@ -67,6 +67,7 @@ import { formatCurrencyAmount } from "@/lib/format-currency";
 import { coalesceNumber } from "@/lib/numeric-input";
 import { Label } from "@/components/ui/label";
 import { AdminCustomerFormView } from "@/modules/admin/views/admin-customer-form-view";
+import { invoiceCustomerDisplayName } from "@/modules/customers/lib/invoice-customer-display";
 import { invalidateAdminCustomerSearchQueries } from "@/modules/erp/lib/entity-live-search.client";
 import { adminGet, adminPost } from "@/modules/admin/lib/admin-api-client";
 import { SalesmanPinField } from "@/modules/erp/components/salesman-pin-field";
@@ -206,7 +207,7 @@ export function InvoiceFormView({
         }
         setInvoiceStatus(detail.status);
         setCustomerId(detail.user_id);
-        setCustomerLabel(detail.users?.name ?? detail.users?.email ?? "");
+        setCustomerLabel(invoiceCustomerDisplayName(detail.users, ""));
         if (detail.store_id) setStoreId(detail.store_id);
         setInvoiceDate(detail.created_at?.slice(0, 10) ?? invoiceDate);
         setDueDate(toDateInputValue(detail.due_date));
@@ -605,7 +606,17 @@ export function InvoiceFormView({
                       invalid={fieldValidation.isFieldInvalid("customer")}
                       onChange={(id, option) => {
                         setCustomerId(id ?? "");
-                        setCustomerLabel(option?.label ?? "");
+                        if (!id) {
+                          setCustomerLabel("");
+                          return;
+                        }
+                        void adminGet<{ profile: CustomerErpProfile }>(
+                          `customers/${id}/erp?view=profile`,
+                        )
+                          .then((res) => setCustomerLabel(customerSelectLabel(res.profile)))
+                          .catch(() =>
+                            setCustomerLabel(option?.label ?? invoiceCustomerDisplayName(null)),
+                          );
                       }}
                     />
                   </div>
